@@ -50,7 +50,8 @@ const seedData = [
   },
   {
     name: "Fresh Orange Juice",
-    description: "Cold-pressed oranges, served over ice. Nothing added, nothing hidden.",
+    description:
+      "Cold-pressed oranges, served over ice. Nothing added, nothing hidden.",
     price: 3.5,
     category: "Drinks",
     image:
@@ -68,6 +69,24 @@ const seedData = [
       "https://images.unsplash.com/photo-1625938144870-b6e1e7a5c8fc?auto=format&fit=crop&w=800&q=80",
     tags: ["bestseller", "spicy"],
     isFeatured: true,
+  },
+  {
+    name: "Smoked Dune Burger",
+    description:
+      "Char-grilled beef patty, smoked gouda, caramelized onions and amber BBQ glaze on a toasted brioche bun.",
+    price: 8.5,
+    category: "Food",
+    image:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80",
+    tags: ["bestseller"],
+    isFeatured: true,
+    calories: 640,
+    ingredients: [
+      "Beef patty",
+      "Smoked gouda",
+      "Caramelized onion",
+      "Brioche bun",
+    ],
   },
 ];
 

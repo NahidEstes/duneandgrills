@@ -5,7 +5,8 @@ const Contact = () => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [sent, setSent] = useState(false);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -33,7 +34,7 @@ const Contact = () => {
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                 <Phone className="w-5 h-5 text-dune-amber" />
               </div>
-              <span className="text-neutral-300">+1 (555) 123-4567</span>
+              <span className="text-neutral-300">+966 050 821 40327</span>
             </div>
             <div className="flex items-center gap-4">
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
@@ -45,7 +46,9 @@ const Contact = () => {
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-dune-amber" />
               </div>
-              <span className="text-neutral-300">123 Ember Street, Your City</span>
+              <span className="text-neutral-300">
+                Wadi As Sarh, Al Wadi, Riyadh 18738
+              </span>
             </div>
           </div>
         </div>
@@ -56,7 +59,10 @@ const Contact = () => {
         >
           <div className="space-y-5">
             <div>
-              <label htmlFor="name" className="block text-sm text-neutral-400 mb-1.5">
+              <label
+                htmlFor="name"
+                className="block text-sm text-neutral-400 mb-1.5"
+              >
                 Name
               </label>
               <input
@@ -70,7 +76,10 @@ const Contact = () => {
               />
             </div>
             <div>
-              <label htmlFor="email" className="block text-sm text-neutral-400 mb-1.5">
+              <label
+                htmlFor="email"
+                className="block text-sm text-neutral-400 mb-1.5"
+              >
                 Email
               </label>
               <input
@@ -85,7 +94,10 @@ const Contact = () => {
               />
             </div>
             <div>
-              <label htmlFor="message" className="block text-sm text-neutral-400 mb-1.5">
+              <label
+                htmlFor="message"
+                className="block text-sm text-neutral-400 mb-1.5"
+              >
                 Message
               </label>
               <textarea

@@ -23,15 +23,24 @@ const Navbar = ({ onCartClick }) => {
   return (
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-colors duration-300 ${
-        scrolled ? "bg-black/90 backdrop-blur-md border-b border-dune-border" : "bg-transparent"
+        scrolled
+          ? "bg-black/90 backdrop-blur-md border-b border-dune-border"
+          : "bg-transparent"
       }`}
     >
       <nav className="max-w-7xl mx-auto flex items-center justify-between px-5 md:px-8 h-16 md:h-20">
-        <a href="#home" className="flex items-center gap-2 group">
+        {/* <a href="#home" className="flex items-center gap-2 group">
           <Flame className="w-6 h-6 text-dune-amber group-hover:animate-flicker" />
           <span className="font-display text-2xl md:text-3xl tracking-widest text-white">
             DUNE <span className="text-dune-amber">&amp;</span> GRILLS
           </span>
+        </a> */}
+        <a href="#home" className="flex items-center gap-2 group">
+          <img
+            src="/src/Assets/logo.png"
+            alt="Dune & Grills Logo"
+            className="w-80 h-80 md:w-50 md:h-50 object-contain"
+          />
         </a>
 
         <ul className="hidden md:flex items-center gap-9">
@@ -66,7 +75,11 @@ const Navbar = ({ onCartClick }) => {
             onClick={() => setMobileOpen((o) => !o)}
             aria-label="Toggle navigation menu"
           >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileOpen ? (
+              <X className="w-5 h-5" />
+            ) : (
+              <Menu className="w-5 h-5" />
+            )}
           </button>
         </div>
       </nav>

@@ -4,9 +4,20 @@ import { useCart } from "../context/CartContext.jsx";
 import { placeOrder } from "../api/api.js";
 
 const CartDrawer = ({ open, onClose }) => {
-  const { cart, incrementItem, decrementItem, removeFromCart, clearCart, subtotal } = useCart();
+  const {
+    cart,
+    incrementItem,
+    decrementItem,
+    removeFromCart,
+    clearCart,
+    subtotal,
+  } = useCart();
   const [step, setStep] = useState("cart"); // cart | checkout | success
-  const [customer, setCustomer] = useState({ name: "", phone: "", address: "" });
+  const [customer, setCustomer] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,7 +38,9 @@ const CartDrawer = ({ open, onClose }) => {
       clearCart();
       setStep("success");
     } catch (err) {
-      setError("Couldn't place your order. Please make sure the API server is running.");
+      setError(
+        "Couldn't place your order. Please make sure the API server is running."
+      );
       console.error(err);
     } finally {
       setSubmitting(false);
@@ -46,7 +59,9 @@ const CartDrawer = ({ open, onClose }) => {
       <div
         onClick={reset}
         className={`fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] transition-opacity duration-300 ${
-          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          open
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
         }`}
       />
 
@@ -58,9 +73,17 @@ const CartDrawer = ({ open, onClose }) => {
       >
         <div className="flex items-center justify-between px-6 py-5 border-b border-dune-border">
           <h2 className="font-display text-2xl text-white tracking-wide">
-            {step === "checkout" ? "Checkout" : step === "success" ? "Order Placed" : "Your Cart"}
+            {step === "checkout"
+              ? "Checkout"
+              : step === "success"
+              ? "Order Placed"
+              : "Your Cart"}
           </h2>
-          <button onClick={reset} aria-label="Close cart" className="text-neutral-400 hover:text-white">
+          <button
+            onClick={reset}
+            aria-label="Close cart"
+            className="text-neutral-400 hover:text-white"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -75,7 +98,10 @@ const CartDrawer = ({ open, onClose }) => {
                 </div>
               ) : (
                 cart.map((line) => (
-                  <div key={line._id} className="flex gap-4 border-b border-dune-border pb-5">
+                  <div
+                    key={line._id}
+                    className="flex gap-4 border-b border-dune-border pb-5"
+                  >
                     <img
                       src={line.image}
                       alt={line.name}
@@ -83,7 +109,9 @@ const CartDrawer = ({ open, onClose }) => {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-sm font-medium text-white truncate">{line.name}</h3>
+                        <h3 className="text-sm font-medium text-white truncate">
+                          {line.name}
+                        </h3>
                         <button
                           onClick={() => removeFromCart(line._id)}
                           className="text-neutral-500 hover:text-red-400 shrink-0"
@@ -92,7 +120,9 @@ const CartDrawer = ({ open, onClose }) => {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <p className="text-dune-amber text-sm mt-1">${line.price.toFixed(2)}</p>
+                      <p className="text-dune-amber text-sm mt-1">
+                        ${line.price.toFixed(2)}
+                      </p>
 
                       <div className="mt-2 flex items-center gap-3">
                         <button
@@ -101,7 +131,9 @@ const CartDrawer = ({ open, onClose }) => {
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-white text-sm w-4 text-center">{line.quantity}</span>
+                        <span className="text-white text-sm w-4 text-center">
+                          {line.quantity}
+                        </span>
                         <button
                           onClick={() => incrementItem(line._id)}
                           className="w-7 h-7 flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white"
@@ -135,26 +167,37 @@ const CartDrawer = ({ open, onClose }) => {
         )}
 
         {step === "checkout" && (
-          <form onSubmit={handleCheckout} className="flex-1 overflow-y-auto px-6 py-5 flex flex-col">
+          <form
+            onSubmit={handleCheckout}
+            className="flex-1 overflow-y-auto px-6 py-5 flex flex-col"
+          >
             <div className="space-y-4 flex-1">
               <div>
-                <label className="block text-sm text-neutral-400 mb-1.5">Full Name</label>
+                <label className="block text-sm text-neutral-400 mb-1.5">
+                  Full Name
+                </label>
                 <input
                   required
                   value={customer.name}
-                  onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
-                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none"
-                  placeholder="Jane Doe"
+                  onChange={(e) =>
+                    setCustomer({ ...customer, name: e.target.value })
+                  }
+                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none text-sm"
+                  placeholder="Your Name"
                 />
               </div>
               <div>
-                <label className="block text-sm text-neutral-400 mb-1.5">Phone Number</label>
+                <label className="block text-sm text-neutral-400 mb-1.5">
+                  Phone Number
+                </label>
                 <input
                   required
                   value={customer.phone}
-                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none"
-                  placeholder="+1 555 123 4567"
+                  onChange={(e) =>
+                    setCustomer({ ...customer, phone: e.target.value })
+                  }
+                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none text-sm"
+                  placeholder="Your Number"
                 />
               </div>
               <div>
@@ -164,9 +207,11 @@ const CartDrawer = ({ open, onClose }) => {
                 <textarea
                   rows={3}
                   value={customer.address}
-                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
-                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none resize-none"
-                  placeholder="123 Ember Street..."
+                  onChange={(e) =>
+                    setCustomer({ ...customer, address: e.target.value })
+                  }
+                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none resize-none text-sm"
+                  placeholder="Your Address..."
                 />
               </div>
 
@@ -203,9 +248,12 @@ const CartDrawer = ({ open, onClose }) => {
             <div className="w-16 h-16 rounded-full bg-dune-amber/10 border border-dune-amber flex items-center justify-center">
               <ShoppingBag className="w-7 h-7 text-dune-amber" />
             </div>
-            <h3 className="text-xl font-semibold text-white">Thanks — your order is in!</h3>
+            <h3 className="text-xl font-semibold text-white">
+              Thanks — your order is in!
+            </h3>
             <p className="text-neutral-400 text-sm">
-              We&apos;re firing up the grill. You&apos;ll get a call to confirm details shortly.
+              We&apos;re firing up the grill. You&apos;ll get a call to confirm
+              details shortly.
             </p>
             <button
               onClick={reset}

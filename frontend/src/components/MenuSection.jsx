@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import MenuCard from "./MenuCard.jsx";
 import { fetchMenuItems } from "../api/api.js";
+import ItemModal from "./ItemModal.jsx";
 
 const CATEGORIES = ["All", "Food", "Appetizers", "Drinks"];
 
 const MenuSection = () => {
   const [items, setItems] = useState([]);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [selectedItem, setSelectedItem] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | success | error
 
   useEffect(() => {
@@ -79,8 +81,8 @@ const MenuSection = () => {
           {status === "error" && (
             <div className="text-center py-16 border border-dune-border rounded-2xl">
               <p className="text-neutral-400">
-                We couldn&apos;t load the menu right now. Please make sure the API
-                server is running, then refresh.
+                We couldn&apos;t load the menu right now. Please make sure the
+                API server is running, then refresh.
               </p>
             </div>
           )}
@@ -94,12 +96,17 @@ const MenuSection = () => {
           {status === "success" && items.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {items.map((item) => (
-                <MenuCard key={item._id} item={item} />
+                <MenuCard
+                  key={item._id}
+                  item={item}
+                  onSelect={setSelectedItem}
+                />
               ))}
             </div>
           )}
         </div>
       </div>
+      <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />
     </section>
   );
 };

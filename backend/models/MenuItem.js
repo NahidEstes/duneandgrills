@@ -38,6 +38,14 @@ const menuItemSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    calories: {
+      type: Number,
+      default: 0,
+    },
+    ingredients: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true }
 );

@@ -2,7 +2,8 @@ import axios from "axios";
 
 // Base URL points at the Express API. Override with VITE_API_URL in a
 // frontend .env file when deploying (e.g. VITE_API_URL=https://api.duneandgrills.com/api).
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -20,6 +21,22 @@ export const fetchMenuItems = async (category) => {
 export const placeOrder = async (orderPayload) => {
   const { data } = await api.post("/orders", orderPayload);
   return data.data;
+};
+
+// ---- Admin: Menu CRUD ----
+export const createMenuItem = async (payload) => {
+  const { data } = await api.post("/menu", payload);
+  return data.data;
+};
+
+export const updateMenuItem = async (id, payload) => {
+  const { data } = await api.put(`/menu/${id}`, payload);
+  return data.data;
+};
+
+export const deleteMenuItem = async (id) => {
+  const { data } = await api.delete(`/menu/${id}`);
+  return data;
 };
 
 export default api;
