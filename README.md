@@ -1,0 +1,178 @@
+# Dune & Grills — Full-Stack Restaurant Website
+
+A modern, dark-mode restaurant ordering site for **Dune & Grills**, built on the
+MERN stack (MongoDB, Express, React, Node) with Vite and Tailwind CSS on the
+frontend.
+
+Domain: `duneandgrills.com`
+
+```
+duneandgrills/
+├── backend/     Express + MongoDB REST API
+└── frontend/    React (Vite) + Tailwind CSS client
+```
+
+## Design
+
+- **Background:** pure black (`#000000`)
+- **Accent:** amber (`#D97706` / `#F59E0B`)
+- **Type:** Bebas Neue (display headlines) + Inter (body)
+- **Signature element:** a recurring "dune horizon" wave divider in amber
+  gradient, used between sections to tie the sand (Dune) and fire (Grills)
+  halves of the brand together.
+
+No menu data is hardcoded in the UI. The frontend fetches everything from the
+Express API (`GET /api/menu`), and the API reads from MongoDB — so updating a
+price, swapping an image, or adding a new dish only ever requires a database
+change.
+
+---
+
+## 1. Prerequisites
+
+- Node.js 18+ and npm
+- A MongoDB instance — either:
+  - Local MongoDB (`mongodb://127.0.0.1:27017`), or
+  - A free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster
+
+---
+
+## 2. Backend Setup
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```
+PORT=5000
+MONGO_URI=mongodb://127.0.0.1:27017/duneandgrills
+CLIENT_ORIGIN=http://localhost:5173
+```
+
+Seed the database with the starting menu (Burger, Sandwich, Shawarma, Mocha,
+Orange Juice, Shrimp Dynamite):
+
+```bash
+npm run seed
+```
+
+Start the API:
+
+```bash
+npm run dev      # with nodemon, auto-restarts on changes
+# or
+npm start
+```
+
+The API runs at `http://localhost:5000`.
+
+### API Endpoints
+
+| Method | Route                     | Description                          |
+|--------|---------------------------|---------------------------------------|
+| GET    | `/api/health`             | Health check                          |
+| GET    | `/api/menu`                | List all menu items (`?category=Food`) |
+| GET    | `/api/menu/:id`            | Get a single menu item                |
+| POST   | `/api/menu`                 | Create a menu item                    |
+| PUT    | `/api/menu/:id`             | Update a menu item                    |
+| DELETE | `/api/menu/:id`             | Delete a menu item                    |
+| GET    | `/api/orders`               | List all orders                       |
+| POST   | `/api/orders`               | Create a new order                    |
+| GET    | `/api/orders/:id`           | Get a single order                    |
+| PATCH  | `/api/orders/:id/status`    | Update order status                   |
+
+> The create/update/delete menu routes and the orders list route are left
+> open here for simplicity — add an auth middleware (JWT/session) before
+> deploying to production.
+
+---
+
+## 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
+```
+
+Create a `.env` file if your API isn't on `localhost:5000`:
+
+```
+VITE_API_URL=http://localhost:5000/api
+```
+
+Run the dev server:
+
+```bash
+npm run dev
+```
+
+Visit `http://localhost:5173`.
+
+Build for production:
+
+```bash
+npm run build   # outputs to frontend/dist
+npm run preview # preview the production build locally
+```
+
+---
+
+## 4. Project Structure
+
+```
+backend/
+├── controllers/       Route handler logic
+├── data/               Seed script + seed data
+├── models/              Mongoose schemas (MenuItem, Order)
+├── routes/               Express routers
+└── server.js              App entry point
+
+frontend/
+├── src/
+│   ├── api/               Axios client (fetchMenuItems, placeOrder)
+│   ├── components/          Navbar, Hero, MenuSection, MenuCard, About,
+│   │                          Contact, Footer, CartDrawer, DuneDivider
+│   ├── context/               CartContext (global cart state via useReducer)
+│   ├── App.jsx
+│   ├── main.jsx
+│   └── index.css
+└── tailwind.config.js
+```
+
+## 5. Updating the Menu
+
+Because nothing is hardcoded in the UI, you can update the menu in one of two
+ways:
+
+1. **Re-run the seed script** after editing `backend/data/seedData.js`, or
+2. **Use the API directly** (e.g. via Postman or an admin panel you build
+   later):
+
+```bash
+curl -X POST http://localhost:5000/api/menu \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Spiced Lamb Kebab",
+    "description": "Char-grilled lamb skewers with harissa yogurt.",
+    "price": 10.5,
+    "category": "Food",
+    "image": "https://images.unsplash.com/photo-...",
+    "tags": ["spicy"]
+  }'
+```
+
+The frontend will pick up the change on the next page load — no code
+changes required.
+
+## 6. Deployment Notes
+
+- **Frontend:** deploy the `frontend/dist` output to Vercel, Netlify, or any
+  static host, and point `VITE_API_URL` at your deployed API.
+- **Backend:** deploy to Render, Railway, or a VPS; set `MONGO_URI` to your
+  Atlas connection string and `CLIENT_ORIGIN` to your deployed frontend URL.
+- Point `duneandgrills.com` (and `www.duneandgrills.com`) at your frontend
+  host, and use a subdomain like `api.duneandgrills.com` for the backend.
