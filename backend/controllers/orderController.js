@@ -104,16 +104,83 @@ export const createOrder = async (req, res) => {
 // @desc    Get all orders
 // @route   GET /api/orders
 // @access  Admin
+// export const getOrders = async (req, res) => {
+//   try {
+//     const orders = await Order.find().sort({ createdAt: -1 });
+//     res.status(200).json({ success: true, count: orders.length, data: orders });
+//   } catch (err) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch orders",
+//       error: err.message,
+//     });
+//   }
+// };
+
+// @desc    Get all orders (optionally filter by status)
+// @route   GET /api/orders?status=pending
+// @access  Admin/Manager
 export const getOrders = async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const { status } = req.query;
+    const filter = {};
+    if (status && status !== "all") filter.status = status;
+
+    const orders = await Order.find(filter).sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: orders.length, data: orders });
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch orders",
-      error: err.message,
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to fetch orders",
+        error: err.message,
+      });
+  }
+};
+
+// @desc    Revenue & order stats for the dashboard
+// @route   GET /api/orders/stats
+// @access  Admin/Manager
+export const getOrderStats = async (req, res) => {
+  try {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const allOrders = await Order.find();
+
+    const totalRevenue = allOrders
+      .filter((o) => o.status !== "cancelled")
+      .reduce((sum, o) => sum + o.totalAmount, 0);
+
+    const todayOrders = allOrders.filter((o) => o.createdAt >= startOfToday);
+    const todayRevenue = todayOrders
+      .filter((o) => o.status !== "cancelled")
+      .reduce((sum, o) => sum + o.totalAmount, 0);
+
+    const statusCounts = allOrders.reduce((acc, o) => {
+      acc[o.status] = (acc[o.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalOrders: allOrders.length,
+        totalRevenue,
+        todayOrders: todayOrders.length,
+        todayRevenue,
+        statusCounts,
+      },
     });
+  } catch (err) {
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to fetch stats",
+        error: err.message,
+      });
   }
 };
 

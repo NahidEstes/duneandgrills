@@ -48,6 +48,22 @@ export const fetchMyOrders = async () => {
   return data.data;
 };
 
+export const fetchOrders = async (status) => {
+  const params = status && status !== "all" ? { status } : {};
+  const { data } = await api.get("/orders", { params });
+  return data.data;
+};
+
+export const fetchOrderStats = async () => {
+  const { data } = await api.get("/orders/stats");
+  return data.data;
+};
+
+export const updateOrderStatus = async (id, status) => {
+  const { data } = await api.patch(`/orders/${id}/status`, { status });
+  return data.data;
+};
+
 // ---- Auth ----
 export const registerUser = async (payload) => {
   const { data } = await api.post("/auth/register", payload);

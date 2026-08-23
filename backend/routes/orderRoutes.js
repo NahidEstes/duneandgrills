@@ -5,6 +5,7 @@ import {
   getOrderById,
   updateOrderStatus,
   getMyOrders,
+  getOrderStats,
 } from "../controllers/orderController.js";
 import { protect, authorize } from "../middleware/auth.js";
 
@@ -15,6 +16,7 @@ router
   .get(protect, authorize("admin", "manager"), getOrders)
   .post(protect, createOrder);
 router.get("/my", protect, getMyOrders);
+router.get("/stats", protect, authorize("admin", "manager"), getOrderStats);
 router.route("/:id").get(getOrderById);
 router.patch(
   "/:id/status",

@@ -7,6 +7,7 @@ import {
   X,
   ArrowLeft,
   LayoutDashboard,
+  ClipboardList,
   UtensilsCrossed,
   Settings,
   LogOut,
@@ -19,6 +20,7 @@ import {
   deleteMenuItem,
 } from "../api/api.js";
 import { formatPrice } from "../utils/currency.js";
+import OrdersTab from "./OrdersTab.jsx";
 
 const EMPTY_FORM = {
   name: "",
@@ -32,9 +34,16 @@ const EMPTY_FORM = {
   isFeatured: false,
 };
 
+// const NAV_ITEMS = [
+//   { id: "overview", label: "Overview", icon: LayoutDashboard },
+//   { id: "menu", label: "Menu Items", icon: UtensilsCrossed },
+//   { id: "settings", label: "Website Settings", icon: Settings },
+// ];
+
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "menu", label: "Menu Items", icon: UtensilsCrossed },
+  { id: "orders", label: "Orders", icon: ClipboardList },
   { id: "settings", label: "Website Settings", icon: Settings },
 ];
 
@@ -221,8 +230,12 @@ const AdminDashboard = () => {
                 <ArrowLeft className="w-4 h-4" />
               </Link>
               <h1 className="text-lg font-semibold text-white">
+                {/* {activeTab === "overview" && "Menu & Catalog Control"}
+                {activeTab === "menu" && "Menu Items"}
+                {activeTab === "settings" && "Website Settings"} */}
                 {activeTab === "overview" && "Menu & Catalog Control"}
                 {activeTab === "menu" && "Menu Items"}
+                {activeTab === "orders" && "Order Management"}
                 {activeTab === "settings" && "Website Settings"}
               </h1>
             </div>
@@ -331,7 +344,8 @@ const AdminDashboard = () => {
               />
             </>
           )}
-
+          {/* Orders tab */}
+          {activeTab === "orders" && <OrdersTab />}
           {/* Settings tab */}
           {activeTab === "settings" && (
             <div className="rounded-2xl border border-dune-border bg-dune-surface p-10 text-center text-neutral-400">
