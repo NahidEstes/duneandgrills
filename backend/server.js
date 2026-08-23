@@ -9,6 +9,7 @@ import mongoose from "mongoose";
 
 import menuRoutes from "./routes/menuRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 // Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/orders", orderRoutes);
 
