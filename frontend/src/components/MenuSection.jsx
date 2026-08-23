@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import MenuCard from "./MenuCard.jsx";
-import { fetchMenuItems } from "../api/api.js";
 import ItemModal from "./ItemModal.jsx";
+import { fetchMenuItems } from "../api/api.js";
 
-const CATEGORIES = ["All", "Food", "Appetizers", "Drinks"];
+const PREVIEW_LIMIT = 6;
 
 const MenuSection = () => {
   const [items, setItems] = useState([]);
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [status, setStatus] = useState("loading");
   const [selectedItem, setSelectedItem] = useState(null);
-  const [status, setStatus] = useState("loading"); // loading | success | error
 
   useEffect(() => {
     let cancelled = false;
@@ -17,14 +18,16 @@ const MenuSection = () => {
     const load = async () => {
       setStatus("loading");
       try {
-        const data = await fetchMenuItems(activeCategory);
+        const data = await fetchMenuItems();
         if (!cancelled) {
-          setItems(data);
+          // Show featured items first, then fill up to the preview limit
+          const featured = data.filter((i) => i.isFeatured);
+          const rest = data.filter((i) => !i.isFeatured);
+          setItems([...featured, ...rest].slice(0, PREVIEW_LIMIT));
           setStatus("success");
         }
       } catch (err) {
         if (!cancelled) setStatus("error");
-        console.error("Failed to load menu items:", err);
       }
     };
 
@@ -32,7 +35,7 @@ const MenuSection = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeCategory]);
+  }, []);
 
   return (
     <section id="menu" className="relative bg-black py-20 md:py-28">
@@ -43,29 +46,10 @@ const MenuSection = () => {
             GRILLED TO <span className="text-gradient-amber">ORDER</span>
           </h2>
           <p className="mt-4 text-neutral-400">
-            Every dish updated straight from our kitchen&apos;s live menu — no
-            surprises, just what&apos;s fresh today.
+            A taste of what&apos;s on our live menu today.
           </p>
         </div>
 
-        {/* Category filters */}
-        <div className="mt-10 flex flex-wrap justify-center gap-3">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-5 py-2 rounded-full text-sm font-medium border transition-colors duration-300 ${
-                activeCategory === cat
-                  ? "bg-dune-amber text-black border-dune-amber"
-                  : "border-dune-border text-neutral-300 hover:border-dune-amber hover:text-dune-amber"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        {/* Grid states */}
         <div className="mt-12">
           {status === "loading" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -81,19 +65,12 @@ const MenuSection = () => {
           {status === "error" && (
             <div className="text-center py-16 border border-dune-border rounded-2xl">
               <p className="text-neutral-400">
-                We couldn&apos;t load the menu right now. Please make sure the
-                API server is running, then refresh.
+                We couldn&apos;t load the menu right now.
               </p>
             </div>
           )}
 
-          {status === "success" && items.length === 0 && (
-            <div className="text-center py-16 border border-dune-border rounded-2xl">
-              <p className="text-neutral-400">No items in this category yet.</p>
-            </div>
-          )}
-
-          {status === "success" && items.length > 0 && (
+          {status === "success" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {items.map((item) => (
                 <MenuCard
@@ -105,7 +82,18 @@ const MenuSection = () => {
             </div>
           )}
         </div>
+
+        <div className="mt-12 text-center">
+          <Link
+            to="/menu"
+            className="inline-flex items-center gap-2 border border-dune-amber/60 hover:bg-dune-amber hover:text-black text-dune-amber font-medium px-7 py-3 rounded-full transition-colors duration-300"
+          >
+            View Full Menu
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
+
       <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />
     </section>
   );

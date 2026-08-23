@@ -18,6 +18,7 @@ import {
   updateMenuItem,
   deleteMenuItem,
 } from "../api/api.js";
+import { formatPrice } from "../utils/currency.js";
 
 const EMPTY_FORM = {
   name: "",
@@ -589,7 +590,8 @@ const MenuTable = ({
               </td>
               <td className="p-4 text-white font-medium">{item.name}</td>
               <td className="p-4">{item.category}</td>
-              <td className="p-4 text-dune-amber">${item.price.toFixed(2)}</td>
+              {/* <td className="p-4 text-dune-amber">${item.price.toFixed(2)}</td> */}
+              <td className="p-4 text-dune-amber">{formatPrice(item.price)}</td>
               <td className="p-4">{item.isAvailable ? "Yes" : "No"}</td>
               <td className="p-4">
                 <div

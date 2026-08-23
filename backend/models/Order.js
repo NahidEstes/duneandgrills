@@ -21,6 +21,10 @@ const orderSchema = new mongoose.Schema(
       ref: "User",
       default: null, // guest checkout also allowed
     },
+    orderNumber: {
+      type: String,
+      unique: true,
+    },
     customer: {
       name: { type: String, required: true },
       phone: { type: String, required: true },

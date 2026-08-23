@@ -1,13 +1,18 @@
 import axios from "axios";
 
-// Base URL points at the Express API. Override with VITE_API_URL in a
-// frontend .env file when deploying (e.g. VITE_API_URL=https://api.duneandgrills.com/api).
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { "Content-Type": "application/json" },
+});
+
+// Attach the JWT (if present) to every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("dg_token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
 });
 
 // ---- Menu ----
@@ -17,13 +22,6 @@ export const fetchMenuItems = async (category) => {
   return data.data;
 };
 
-// ---- Orders ----
-export const placeOrder = async (orderPayload) => {
-  const { data } = await api.post("/orders", orderPayload);
-  return data.data;
-};
-
-// ---- Admin: Menu CRUD ----
 export const createMenuItem = async (payload) => {
   const { data } = await api.post("/menu", payload);
   return data.data;
@@ -37,6 +35,38 @@ export const updateMenuItem = async (id, payload) => {
 export const deleteMenuItem = async (id) => {
   const { data } = await api.delete(`/menu/${id}`);
   return data;
+};
+
+// ---- Orders ----
+export const placeOrder = async (orderPayload) => {
+  const { data } = await api.post("/orders", orderPayload);
+  return data.data;
+};
+
+export const fetchMyOrders = async () => {
+  const { data } = await api.get("/orders/my");
+  return data.data;
+};
+
+// ---- Auth ----
+export const registerUser = async (payload) => {
+  const { data } = await api.post("/auth/register", payload);
+  return data;
+};
+
+export const loginUser = async (payload) => {
+  const { data } = await api.post("/auth/login", payload);
+  return data;
+};
+
+export const fetchMe = async () => {
+  const { data } = await api.get("/auth/me");
+  return data.user;
+};
+
+export const updateMe = async (payload) => {
+  const { data } = await api.put("/auth/me", payload);
+  return data.user;
 };
 
 export default api;

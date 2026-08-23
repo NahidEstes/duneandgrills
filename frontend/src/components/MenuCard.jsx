@@ -1,6 +1,7 @@
 import React from "react";
 import { Plus, Flame } from "lucide-react";
 import { useCart } from "../context/CartContext.jsx";
+import { formatPrice } from "../utils/currency.js";
 
 const MenuCard = ({ item, onSelect }) => {
   const { addToCart } = useCart();
@@ -31,8 +32,11 @@ const MenuCard = ({ item, onSelect }) => {
           <h3 className="text-lg font-semibold text-white leading-snug">
             {item.name}
           </h3>
-          <span className="shrink-0 font-display text-xl text-dune-amber">
+          {/* <span className="shrink-0 font-display text-xl text-dune-amber">
             ${item.price.toFixed(2)}
+          </span> */}
+          <span className="shrink-0 font-display text-xl text-dune-amber">
+            {formatPrice(item.price)}
           </span>
         </div>
         <p className="mt-2 text-sm text-neutral-400 leading-relaxed flex-1">

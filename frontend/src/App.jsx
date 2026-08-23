@@ -8,6 +8,10 @@ import Contact from "./components/Contact.jsx";
 import Footer from "./components/Footer.jsx";
 import CartDrawer from "./components/CartDrawer.jsx";
 import AdminDashboard from "./components/AdminDashboard.jsx";
+import AuthPage from "./components/AuthPage.jsx";
+import ProfilePage from "./components/ProfilePage.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import FullMenuPage from "./components/FullMenuPage.jsx";
 
 function HomePage({ onCartClick, cartOpen, setCartOpen }) {
   return (
@@ -40,7 +44,24 @@ function App() {
           />
         }
       />
-      <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/menu" element={<FullMenuPage />} />
+      <Route path="/login" element={<AuthPage />} />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute roles={["admin", "manager"]}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 }

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { ShoppingCart, Menu, X, Flame } from "lucide-react";
+import { ShoppingCart, Menu, X, Flame, User } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 import { useCart } from "../context/CartContext.jsx";
 
 const NAV_LINKS = [
@@ -11,6 +13,8 @@ const NAV_LINKS = [
 
 const Navbar = ({ onCartClick }) => {
   const { itemCount } = useCart();
+  const { user } = useAuth();
+  // const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -57,6 +61,24 @@ const Navbar = ({ onCartClick }) => {
         </ul>
 
         <div className="flex items-center gap-3">
+          {/* <Link
+            to={user ? "/profile" : "/login"}
+            className="p-2.5 rounded-full border border-dune-border hover:border-dune-amber transition-colors"
+            aria-label={user ? "My profile" : "Log in"}
+          >
+            <User className="w-5 h-5 text-white" />
+          </Link> */}
+          <Link
+            to={user ? "/profile" : "/login"}
+            className="flex items-center gap-2 px-3 py-2 rounded-full border border-dune-border hover:border-dune-amber transition-colors"
+          >
+            <User className="w-5 h-5 text-white" />
+            {user && (
+              <span className="hidden sm:inline text-sm text-white font-medium">
+                {user.name.split(" ")[0]}
+              </span>
+            )}
+          </Link>
           <button
             onClick={onCartClick}
             aria-label={`Open cart, ${itemCount} items`}

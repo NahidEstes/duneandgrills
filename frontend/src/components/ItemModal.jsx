@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { X, Flame, Plus } from "lucide-react";
 import { useCart } from "../context/CartContext.jsx";
+import { formatPrice } from "../utils/currency.js";
 
 const ItemModal = ({ item, onClose }) => {
   const { addToCart } = useCart();
@@ -55,8 +56,11 @@ const ItemModal = ({ item, onClose }) => {
         <div className="p-6">
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-2xl font-semibold text-white">{item.name}</h3>
-            <span className="font-display text-2xl text-dune-amber shrink-0">
+            {/* <span className="font-display text-2xl text-dune-amber shrink-0">
               ${item.price.toFixed(2)}
+            </span> */}
+            <span className="font-display text-2xl text-dune-amber shrink-0">
+              {formatPrice(item.price)}
             </span>
           </div>
 

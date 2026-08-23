@@ -1,7 +1,19 @@
-import React, { useState } from "react";
-import { X, Plus, Minus, Trash2, ShoppingBag } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  X,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingBag,
+  Pencil,
+  Check,
+} from "lucide-react";
+import { formatPrice } from "../utils/currency.js";
 import { useCart } from "../context/CartContext.jsx";
-import { placeOrder } from "../api/api.js";
+import { useAuth } from "../context/AuthContext.jsx";
+import { placeOrder, updateMe } from "../api/api.js";
+import LoginPromptModal from "./LoginPromptModal.jsx";
 
 const CartDrawer = ({ open, onClose }) => {
   const {
@@ -12,21 +24,68 @@ const CartDrawer = ({ open, onClose }) => {
     clearCart,
     subtotal,
   } = useCart();
+  const { user, setUser } = useAuth();
+  const navigate = useNavigate();
+
   const [step, setStep] = useState("cart"); // cart | checkout | success
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [customer, setCustomer] = useState({
     name: "",
     phone: "",
     address: "",
   });
+  const [editPhone, setEditPhone] = useState(false);
+  const [editAddress, setEditAddress] = useState(false);
+  const [savingField, setSavingField] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [placedOrder, setPlacedOrder] = useState(null);
+
+  // Prefill checkout fields from the logged-in user's saved profile
+  useEffect(() => {
+    if (user) {
+      setCustomer({
+        name: user.name || "",
+        phone: user.phone || "",
+        address: user.address || "",
+      });
+    }
+  }, [user, step]);
+
+  const handleProceed = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    setStep("checkout");
+  };
+
+  const handleLoginSuccess = () => {
+    setShowLoginModal(false);
+    setStep("checkout");
+  };
+
+  const handleFieldSave = async (field) => {
+    setSavingField(true);
+    setError("");
+    try {
+      const updated = await updateMe({ [field]: customer[field] });
+      setUser(updated);
+      if (field === "phone") setEditPhone(false);
+      if (field === "address") setEditAddress(false);
+    } catch (err) {
+      setError("Couldn't save your changes. Please try again.");
+    } finally {
+      setSavingField(false);
+    }
+  };
 
   const handleCheckout = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setError("");
     try {
-      await placeOrder({
+      const order = await placeOrder({
         customer,
         items: cart.map((line) => ({
           menuItem: line._id,
@@ -35,13 +94,13 @@ const CartDrawer = ({ open, onClose }) => {
           quantity: line.quantity,
         })),
       });
+      setPlacedOrder(order);
       clearCart();
       setStep("success");
     } catch (err) {
       setError(
         "Couldn't place your order. Please make sure the API server is running."
       );
-      console.error(err);
     } finally {
       setSubmitting(false);
     }
@@ -49,13 +108,14 @@ const CartDrawer = ({ open, onClose }) => {
 
   const reset = () => {
     setStep("cart");
-    setCustomer({ name: "", phone: "", address: "" });
+    setEditPhone(false);
+    setEditAddress(false);
+    setError("");
     onClose();
   };
 
   return (
     <>
-      {/* Backdrop */}
       <div
         onClick={reset}
         className={`fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] transition-opacity duration-300 ${
@@ -65,7 +125,6 @@ const CartDrawer = ({ open, onClose }) => {
         }`}
       />
 
-      {/* Drawer */}
       <aside
         className={`fixed top-0 right-0 h-full w-full sm:w-[420px] bg-dune-ink border-l border-dune-border z-[70] transform transition-transform duration-300 flex flex-col ${
           open ? "translate-x-0" : "translate-x-full"
@@ -120,8 +179,11 @@ const CartDrawer = ({ open, onClose }) => {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <p className="text-dune-amber text-sm mt-1">
+                      {/* <p className="text-dune-amber text-sm mt-1">
                         ${line.price.toFixed(2)}
+                      </p> */}
+                      <p className="text-dune-amber text-sm mt-1">
+                        {formatPrice(line.price)}
                       </p>
 
                       <div className="mt-2 flex items-center gap-3">
@@ -151,12 +213,15 @@ const CartDrawer = ({ open, onClose }) => {
               <div className="border-t border-dune-border px-6 py-5">
                 <div className="flex items-center justify-between text-white mb-4">
                   <span className="text-neutral-400">Subtotal</span>
-                  <span className="font-display text-2xl text-dune-amber">
+                  {/* <span className="font-display text-2xl text-dune-amber">
                     ${subtotal.toFixed(2)}
+                  </span> */}
+                  <span className="font-display text-2xl text-dune-amber">
+                    {formatPrice(subtotal)}
                   </span>
                 </div>
                 <button
-                  onClick={() => setStep("checkout")}
+                  onClick={handleProceed}
                   className="w-full bg-dune-amber hover:bg-dune-amberLight text-black font-semibold py-3.5 rounded-full transition-colors"
                 >
                   Proceed to Checkout
@@ -171,48 +236,101 @@ const CartDrawer = ({ open, onClose }) => {
             onSubmit={handleCheckout}
             className="flex-1 overflow-y-auto px-6 py-5 flex flex-col"
           >
-            <div className="space-y-4 flex-1">
+            <div className="space-y-5 flex-1">
+              {/* Name — always read-only, tied to the account */}
               <div>
                 <label className="block text-sm text-neutral-400 mb-1.5">
                   Full Name
                 </label>
                 <input
-                  required
+                  disabled
                   value={customer.name}
-                  onChange={(e) =>
-                    setCustomer({ ...customer, name: e.target.value })
-                  }
-                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none text-sm"
-                  placeholder="Your Name"
+                  className="w-full rounded-lg bg-black/60 border border-dune-border px-4 py-3 text-neutral-300 cursor-not-allowed"
                 />
               </div>
+
+              {/* Phone — editable via Edit/Save toggle */}
               <div>
                 <label className="block text-sm text-neutral-400 mb-1.5">
                   Phone Number
                 </label>
                 <input
                   required
+                  disabled={!editPhone}
                   value={customer.phone}
                   onChange={(e) =>
                     setCustomer({ ...customer, phone: e.target.value })
                   }
-                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none text-sm"
-                  placeholder="Your Number"
+                  className={`w-full rounded-lg border px-4 py-3 outline-none transition-colors ${
+                    editPhone
+                      ? "bg-black border-dune-amber text-white"
+                      : "bg-black/60 border-dune-border text-neutral-300 cursor-not-allowed"
+                  }`}
                 />
+                <div className="flex justify-end mt-1.5">
+                  <button
+                    type="button"
+                    disabled={savingField}
+                    onClick={() =>
+                      editPhone ? handleFieldSave("phone") : setEditPhone(true)
+                    }
+                    className="inline-flex items-center gap-1 text-xs text-dune-amber hover:text-dune-amberLight"
+                  >
+                    {editPhone ? (
+                      <>
+                        <Check className="w-3 h-3" />{" "}
+                        {savingField ? "Saving..." : "Save"}
+                      </>
+                    ) : (
+                      <>
+                        <Pencil className="w-3 h-3" /> Edit
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
+
+              {/* Address — editable via Edit/Save toggle */}
               <div>
                 <label className="block text-sm text-neutral-400 mb-1.5">
-                  Delivery Address (optional for pickup)
+                  Delivery Address
                 </label>
                 <textarea
                   rows={3}
+                  disabled={!editAddress}
                   value={customer.address}
                   onChange={(e) =>
                     setCustomer({ ...customer, address: e.target.value })
                   }
-                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none resize-none text-sm"
-                  placeholder="Your Address..."
+                  className={`w-full rounded-lg border px-4 py-3 outline-none resize-none transition-colors ${
+                    editAddress
+                      ? "bg-black border-dune-amber text-white"
+                      : "bg-black/60 border-dune-border text-neutral-300 cursor-not-allowed"
+                  }`}
                 />
+                <div className="flex justify-end mt-1.5">
+                  <button
+                    type="button"
+                    disabled={savingField}
+                    onClick={() =>
+                      editAddress
+                        ? handleFieldSave("address")
+                        : setEditAddress(true)
+                    }
+                    className="inline-flex items-center gap-1 text-xs text-dune-amber hover:text-dune-amberLight"
+                  >
+                    {editAddress ? (
+                      <>
+                        <Check className="w-3 h-3" />{" "}
+                        {savingField ? "Saving..." : "Save"}
+                      </>
+                    ) : (
+                      <>
+                        <Pencil className="w-3 h-3" /> Edit
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {error && <p className="text-sm text-red-400">{error}</p>}
@@ -221,8 +339,11 @@ const CartDrawer = ({ open, onClose }) => {
             <div className="border-t border-dune-border pt-5 mt-5">
               <div className="flex items-center justify-between text-white mb-4">
                 <span className="text-neutral-400">Total</span>
-                <span className="font-display text-2xl text-dune-amber">
+                {/* <span className="font-display text-2xl text-dune-amber">
                   ${subtotal.toFixed(2)}
+                </span> */}
+                <span className="font-display text-2xl text-dune-amber">
+                  {formatPrice(subtotal)}
                 </span>
               </div>
               <button
@@ -251,6 +372,11 @@ const CartDrawer = ({ open, onClose }) => {
             <h3 className="text-xl font-semibold text-white">
               Thanks — your order is in!
             </h3>
+            {placedOrder && (
+              <p className="text-dune-amber text-sm font-medium">
+                Order #{placedOrder.orderNumber}
+              </p>
+            )}
             <p className="text-neutral-400 text-sm">
               We&apos;re firing up the grill. You&apos;ll get a call to confirm
               details shortly.
@@ -264,6 +390,18 @@ const CartDrawer = ({ open, onClose }) => {
           </div>
         )}
       </aside>
+
+      {showLoginModal && (
+        <LoginPromptModal
+          onClose={() => setShowLoginModal(false)}
+          onSuccess={handleLoginSuccess}
+          onGoRegister={() => {
+            setShowLoginModal(false);
+            onClose();
+            navigate("/login");
+          }}
+        />
+      )}
     </>
   );
 };
