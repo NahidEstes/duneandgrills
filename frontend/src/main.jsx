@@ -6,6 +6,11 @@ import { CartProvider } from "./context/CartContext.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import "./index.css";
 
+// Let the browser handle scroll position restoration on Back/Forward
+if ("scrollRestoration" in window.history) {
+  window.history.scrollRestoration = "auto";
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
