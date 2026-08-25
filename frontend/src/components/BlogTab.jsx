@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import {
@@ -6,6 +8,7 @@ import {
   updateBlogPost,
   deleteBlogPost,
 } from "../api/api.js";
+import SmartImage from "./SmartImage.jsx";
 
 const EMPTY_FORM = {
   title: "",
@@ -138,9 +141,12 @@ const BlogTab = () => {
                   className="border-b border-dune-border last:border-0"
                 >
                   <td className="p-4">
-                    <img
+                    <SmartImage
                       src={post.coverImage}
                       alt={post.title}
+                      width={96}
+                      height={96}
+                      sizes="48px"
                       className="w-12 h-12 rounded-lg object-cover"
                     />
                   </td>
@@ -186,7 +192,7 @@ const BlogTab = () => {
               {posts.length === 0 && (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-neutral-500">
-                    No articles yet. Click "New Article" to write one.
+                    No articles yet. Click &quot;New Article&quot; to write one.
                   </td>
                 </tr>
               )}

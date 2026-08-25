@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { Phone, Mail, MapPin, Send } from "lucide-react";
 
@@ -30,26 +32,40 @@ const Contact = () => {
           </p>
 
           <div className="mt-9 space-y-5">
-            <div className="flex items-center gap-4">
+            <a
+              href="tel:+96605082140327"
+              className="flex items-center gap-4"
+              aria-label="Call Dune and Grills at +966 050 821 40327"
+            >
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                 <Phone className="w-5 h-5 text-dune-amber" />
               </div>
               <span className="text-neutral-300">+966 050 821 40327</span>
-            </div>
-            <div className="flex items-center gap-4">
+            </a>
+            <a
+              href="mailto:hello@duneandgrills.com"
+              className="flex items-center gap-4"
+              aria-label="Email Dune and Grills"
+            >
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                 <Mail className="w-5 h-5 text-dune-amber" />
               </div>
               <span className="text-neutral-300">hello@duneandgrills.com</span>
-            </div>
-            <div className="flex items-center gap-4">
+            </a>
+            <a
+              href="https://maps.app.goo.gl/fB8oDz42G7eb1JLs6"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4"
+              aria-label="Open Dune and Grills location in Google Maps"
+            >
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-dune-amber" />
               </div>
               <span className="text-neutral-300">
                 Wadi As Sarh, Al Wadi, Riyadh 18738
               </span>
-            </div>
+            </a>
           </div>
         </div>
 

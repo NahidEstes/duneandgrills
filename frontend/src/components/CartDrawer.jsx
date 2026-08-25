@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import {
   X,
   Plus,
@@ -14,6 +16,7 @@ import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { placeOrder, updateMe } from "../api/api.js";
 import LoginPromptModal from "./LoginPromptModal.jsx";
+import SmartImage from "./SmartImage.jsx";
 
 const CartDrawer = ({ open, onClose }) => {
   const {
@@ -25,7 +28,7 @@ const CartDrawer = ({ open, onClose }) => {
     subtotal,
   } = useCart();
   const { user, setUser } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const [step, setStep] = useState("cart"); // cart | checkout | success
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -161,9 +164,12 @@ const CartDrawer = ({ open, onClose }) => {
                     key={line._id}
                     className="flex gap-4 border-b border-dune-border pb-5"
                   >
-                    <img
+                    <SmartImage
                       src={line.image}
                       alt={line.name}
+                      width={128}
+                      height={128}
+                      sizes="64px"
                       className="w-16 h-16 rounded-lg object-cover shrink-0"
                     />
                     <div className="flex-1 min-w-0">
@@ -398,7 +404,7 @@ const CartDrawer = ({ open, onClose }) => {
           onGoRegister={() => {
             setShowLoginModal(false);
             onClose();
-            navigate("/login");
+            router.push("/login");
           }}
         />
       )}

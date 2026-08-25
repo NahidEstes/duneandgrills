@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import {
   Plus,
   Pencil,
@@ -23,6 +25,7 @@ import {
 import { formatPrice } from "../utils/currency.js";
 import OrdersTab from "./OrdersTab.jsx";
 import BlogTab from "./BlogTab.jsx";
+import SmartImage from "./SmartImage.jsx";
 
 const EMPTY_FORM = {
   name: "",
@@ -194,7 +197,7 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-black text-neutral-200 font-body flex">
       {/* Sidebar */}
       <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-dune-border p-6">
-        <Link to="/" className="flex items-center gap-2 mb-10">
+        <Link href="/" className="flex items-center gap-2 mb-10">
           <Flame className="w-5 h-5 text-dune-amber" />
           <span className="font-display text-xl tracking-widest text-white leading-tight">
             DUNE &amp; <br /> GRILLS
@@ -219,7 +222,7 @@ const AdminDashboard = () => {
         </nav>
 
         <Link
-          to="/"
+          href="/"
           className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 border border-transparent hover:border-red-400/30 transition-colors"
         >
           <LogOut className="w-4 h-4" />
@@ -234,7 +237,7 @@ const AdminDashboard = () => {
           <div className="px-6 md:px-10 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link
-                to="/"
+                href="/"
                 className="md:hidden text-neutral-400 hover:text-white"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -609,9 +612,12 @@ const MenuTable = ({
                 </td>
               )}
               <td className="p-4">
-                <img
+                <SmartImage
                   src={item.image}
                   alt={item.name}
+                  width={96}
+                  height={96}
+                  sizes="48px"
                   className="w-12 h-12 rounded-lg object-cover"
                 />
               </td>
@@ -647,7 +653,7 @@ const MenuTable = ({
                 colSpan={selectable ? 7 : 6}
                 className="p-8 text-center text-neutral-500"
               >
-                No menu items yet. Click "Add Item" to create one.
+                No menu items yet. Click &quot;Add Item&quot; to create one.
               </td>
             </tr>
           )}

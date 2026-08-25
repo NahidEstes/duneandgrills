@@ -1,15 +1,15 @@
 # Dune & Grills — Full-Stack Restaurant Website
 
-A modern, dark-mode restaurant ordering site for **Dune & Grills**, built on the
-MERN stack (MongoDB, Express, React, Node) with Vite and Tailwind CSS on the
-frontend.
+A modern, dark-mode restaurant ordering site for **Dune & Grills**, built with
+MongoDB and Express on the backend and Next.js App Router with Tailwind CSS on
+the frontend.
 
 Domain: `duneandgrills.com`
 
 ```
 duneandgrills/
 ├── backend/     Express + MongoDB REST API
-└── frontend/    React (Vite) + Tailwind CSS client
+└── frontend/    Next.js App Router + Tailwind CSS
 ```
 
 ## Design
@@ -30,7 +30,7 @@ change.
 
 ## 1. Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 20.9+ and npm
 - A MongoDB instance — either:
   - Local MongoDB (`mongodb://127.0.0.1:27017`), or
   - A free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster
@@ -50,7 +50,7 @@ Edit `.env`:
 ```
 PORT=5000
 MONGO_URI=mongodb://127.0.0.1:27017/duneandgrills
-CLIENT_ORIGIN=http://localhost:5173
+CLIENT_ORIGIN=http://localhost:3000
 ```
 
 Seed the database with the starting menu (Burger, Sandwich, Shawarma, Mocha,
@@ -98,10 +98,10 @@ cd frontend
 npm install
 ```
 
-Create a `.env` file if your API isn't on `localhost:5000`:
+Create a `.env.local` file if your API isn't on `localhost:5000`:
 
 ```
-VITE_API_URL=http://localhost:5000/api
+BACKEND_API_URL=http://localhost:5000/api
 ```
 
 Run the dev server:
@@ -110,13 +110,13 @@ Run the dev server:
 npm run dev
 ```
 
-Visit `http://localhost:5173`.
+Visit `http://localhost:3000`.
 
 Build for production:
 
 ```bash
-npm run build   # outputs to frontend/dist
-npm run preview # preview the production build locally
+npm run build   # creates the optimized Next.js production build
+npm start       # serves the production build locally
 ```
 
 ---
@@ -132,14 +132,12 @@ backend/
 └── server.js              App entry point
 
 frontend/
+├── app/                    App Router pages, layouts, metadata and SEO routes
 ├── src/
-│   ├── api/               Axios client (fetchMenuItems, placeOrder)
-│   ├── components/          Navbar, Hero, MenuSection, MenuCard, About,
-│   │                          Contact, Footer, CartDrawer, DuneDivider
-│   ├── context/               CartContext (global cart state via useReducer)
-│   ├── App.jsx
-│   ├── main.jsx
-│   └── index.css
+│   ├── api/                Browser and server API clients
+│   ├── components/         Shared UI and interactive page components
+│   └── context/            Auth and cart providers
+├── public/                 Brand assets
 └── tailwind.config.js
 ```
 
@@ -170,8 +168,8 @@ changes required.
 
 ## 6. Deployment Notes
 
-- **Frontend:** deploy the `frontend/dist` output to Vercel, Netlify, or any
-  static host, and point `VITE_API_URL` at your deployed API.
+- **Frontend:** deploy `frontend` to a Next.js-compatible host and set
+  `BACKEND_API_URL` to the deployed Express API.
 - **Backend:** deploy to Render, Railway, or a VPS; set `MONGO_URI` to your
   Atlas connection string and `CLIENT_ORIGIN` to your deployed frontend URL.
 - Point `duneandgrills.com` (and `www.duneandgrills.com`) at your frontend

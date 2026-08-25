@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import Navbar from "./Navbar.jsx";
 import Footer from "./Footer.jsx";
 import CartDrawer from "./CartDrawer.jsx";
 import BlogSidebar from "./BlogSidebar.jsx";
-import { fetchBlogPosts } from "../api/api.js";
+import SmartImage from "./SmartImage.jsx";
 
 const CATEGORIES = [
   "All",
@@ -16,57 +19,32 @@ const CATEGORIES = [
   "Tips",
 ];
 
-const BlogPage = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeCategory = searchParams.get("category") || "All";
-  const activeSearch = searchParams.get("search") || "";
-
-  const [posts, setPosts] = useState([]);
-  const [status, setStatus] = useState("loading");
+const BlogPage = ({
+  initialPosts = [],
+  activeCategory = "All",
+  activeSearch = "",
+  initialStatus = "success",
+  sidebarData,
+}) => {
   const [cartOpen, setCartOpen] = useState(false);
+  const router = useRouter();
+  const posts = initialPosts;
+  const status = initialStatus;
 
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-
+  const navigateWithFilters = (category, search) => {
     const params = new URLSearchParams();
-    if (activeCategory !== "All") params.set("category", activeCategory);
-    if (activeSearch) params.set("search", activeSearch);
-
-    fetchBlogPosts(activeCategory !== "All" ? activeCategory : undefined)
-      .then((data) => {
-        if (cancelled) return;
-        const filtered = activeSearch
-          ? data.filter(
-              (p) =>
-                p.title.toLowerCase().includes(activeSearch.toLowerCase()) ||
-                p.excerpt.toLowerCase().includes(activeSearch.toLowerCase())
-            )
-          : data;
-        setPosts(filtered);
-        setStatus("success");
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("error");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeCategory, activeSearch]);
+    if (category && category !== "All") params.set("category", category);
+    if (search) params.set("search", search);
+    const query = params.toString();
+    router.push(query ? `/blog?${query}` : "/blog");
+  };
 
   const handleCategoryChange = (cat) => {
-    const next = new URLSearchParams(searchParams);
-    if (cat === "All") next.delete("category");
-    else next.set("category", cat);
-    setSearchParams(next);
+    navigateWithFilters(cat, activeSearch);
   };
 
   const handleSearch = (term) => {
-    const next = new URLSearchParams(searchParams);
-    if (term) next.set("search", term);
-    else next.delete("search");
-    setSearchParams(next);
+    navigateWithFilters(activeCategory, term);
   };
 
   return (
@@ -76,7 +54,7 @@ const BlogPage = () => {
       <div className="max-w-7xl mx-auto px-5 md:px-8 pt-28 pb-20 md:pb-28 grid lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2">
           <Link
-            to="/"
+            href="/"
             className="inline-flex items-center gap-2 text-neutral-400 hover:text-white text-sm mb-8"
           >
             <ArrowLeft className="w-4 h-4" /> Back to home
@@ -147,13 +125,16 @@ const BlogPage = () => {
                 {posts.map((post) => (
                   <Link
                     key={post._id}
-                    to={`/blog/${post.slug}`}
+                    href={`/blog/${post.slug}`}
                     className="group rounded-2xl border border-dune-border bg-dune-surface overflow-hidden hover:border-dune-amber/60 hover:-translate-y-1 transition-all duration-300"
                   >
                     <div className="h-48 overflow-hidden">
-                      <img
+                      <SmartImage
                         src={post.coverImage}
                         alt={post.title}
+                        width={700}
+                        height={400}
+                        sizes="(min-width: 1024px) 32vw, (min-width: 640px) 50vw, 100vw"
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                       />
                     </div>
@@ -179,7 +160,7 @@ const BlogPage = () => {
         </div>
 
         <div>
-          <BlogSidebar onSearch={handleSearch} />
+          <BlogSidebar onSearch={handleSearch} initialData={sidebarData} />
         </div>
       </div>
 

@@ -1,5 +1,8 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { ShoppingCart, Menu, X, Flame, User } from "lucide-react";
 import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -16,8 +19,8 @@ const Navbar = ({ onCartClick }) => {
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -40,8 +43,8 @@ const Navbar = ({ onCartClick }) => {
     e.preventDefault();
     setMobileOpen(false);
 
-    if (location.pathname !== "/") {
-      navigate("/");
+    if (pathname !== "/") {
+      router.push(`/#${hash}`);
       scrollToSection(hash, 100); // small delay lets the home page mount
     } else {
       scrollToSection(hash);
@@ -52,8 +55,8 @@ const Navbar = ({ onCartClick }) => {
     e.preventDefault();
     setMobileOpen(false);
 
-    if (location.pathname !== "/") {
-      navigate("/");
+    if (pathname !== "/") {
+      router.push("/");
     } else {
       scrollToSection("home");
     }
@@ -68,7 +71,7 @@ const Navbar = ({ onCartClick }) => {
       }`}
     >
       <nav className="max-w-7xl mx-auto flex items-center justify-between px-5 md:px-8 h-16 md:h-20">
-        <a
+        <Link
           href="/"
           onClick={handleLogoClick}
           className="flex items-center gap-2 group cursor-pointer"
@@ -77,7 +80,7 @@ const Navbar = ({ onCartClick }) => {
           <span className="font-display text-2xl md:text-3xl tracking-widest text-white">
             DUNE <span className="text-dune-amber">&amp;</span> GRILLS
           </span>
-        </a>
+        </Link>
 
         <ul className="hidden md:flex items-center gap-9">
           {NAV_LINKS.map((link) => (
@@ -93,7 +96,7 @@ const Navbar = ({ onCartClick }) => {
           ))}
           <li>
             <Link
-              to="/blog"
+              href="/blog"
               className="text-sm font-medium tracking-wide text-neutral-300 hover:text-dune-amber transition-colors"
             >
               Blog
@@ -103,7 +106,7 @@ const Navbar = ({ onCartClick }) => {
 
         <div className="flex items-center gap-3">
           <Link
-            to={user ? "/profile" : "/login"}
+            href={user ? "/profile" : "/login"}
             className="flex items-center gap-2 px-3 py-2 rounded-full border border-dune-border hover:border-dune-amber transition-colors"
           >
             <User className="w-5 h-5 text-white" />
@@ -157,7 +160,7 @@ const Navbar = ({ onCartClick }) => {
             ))}
             <li>
               <Link
-                to="/blog"
+                href="/blog"
                 onClick={() => setMobileOpen(false)}
                 className="block text-base font-medium text-neutral-200 hover:text-dune-amber transition-colors"
               >

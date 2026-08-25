@@ -1,7 +1,10 @@
+"use client";
+
 import React from "react";
 import { Plus, Flame } from "lucide-react";
 import { useCart } from "../context/CartContext.jsx";
 import { formatPrice } from "../utils/currency.js";
+import SmartImage from "./SmartImage.jsx";
 
 const MenuCard = ({ item, onSelect }) => {
   const { addToCart } = useCart();
@@ -13,9 +16,12 @@ const MenuCard = ({ item, onSelect }) => {
       className="group relative flex flex-col rounded-2xl border border-dune-border bg-dune-surface overflow-hidden hover:border-dune-amber/60 hover:-translate-y-1 hover:shadow-amberGlow transition-all duration-300 cursor-pointer"
     >
       <div className="relative h-52 overflow-hidden">
-        <img
+        <SmartImage
           src={item.image}
           alt={item.name}
+          width={800}
+          height={416}
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
           loading="lazy"
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
         />

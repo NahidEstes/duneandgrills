@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowRight, Flame } from "lucide-react";
 import DuneDivider from "./DuneDivider.jsx";
+import SmartImage from "./SmartImage.jsx";
 
 const Hero = () => {
   return (
@@ -9,12 +10,13 @@ const Hero = () => {
       className="relative flex flex-col justify-end min-h-[92vh] pt-24 overflow-hidden"
     >
       {/* Background image + gradient scrim */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1800&q=80')",
-        }}
+      <SmartImage
+        src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1800&q=80"
+        alt="Char-grilled food over an open flame"
+        className="object-cover object-center"
+        sizes="100vw"
+        priority
+        fill
       />
       <div className="absolute inset-0 bg-black/70" />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20" />

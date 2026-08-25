@@ -1,10 +1,20 @@
-import React from "react";
-import { Navigate } from "react-router-dom";
+"use client";
+
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../context/AuthContext.jsx";
 
 // roles: e.g. ["admin", "manager"]. Leave empty to just require login.
 const ProtectedRoute = ({ children, roles = [] }) => {
   const { user, loading } = useAuth();
+  const router = useRouter();
+  const roleAllowed = roles.length === 0 || (user && roles.includes(user.role));
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) router.replace("/login");
+    else if (!roleAllowed) router.replace("/");
+  }, [loading, roleAllowed, router, user]);
 
   if (loading) {
     return (
@@ -14,11 +24,7 @@ const ProtectedRoute = ({ children, roles = [] }) => {
     );
   }
 
-  if (!user) return <Navigate to="/login" replace />;
-
-  if (roles.length > 0 && !roles.includes(user.role)) {
-    return <Navigate to="/" replace />;
-  }
+  if (!user || !roleAllowed) return null;
 
   return children;
 };

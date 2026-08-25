@@ -1,7 +1,10 @@
+"use client";
+
 import React, { useEffect } from "react";
 import { X, Flame, Plus } from "lucide-react";
 import { useCart } from "../context/CartContext.jsx";
 import { formatPrice } from "../utils/currency.js";
+import SmartImage from "./SmartImage.jsx";
 
 const ItemModal = ({ item, onClose }) => {
   const { addToCart } = useCart();
@@ -40,9 +43,12 @@ const ItemModal = ({ item, onClose }) => {
         className="w-full max-w-lg rounded-2xl border border-dune-border bg-dune-surface overflow-hidden animate-fadeUp"
       >
         <div className="relative h-56">
-          <img
+          <SmartImage
             src={item.image}
             alt={item.name}
+            width={900}
+            height={448}
+            sizes="(min-width: 640px) 512px, 100vw"
             className="w-full h-full object-cover"
           />
           <button

@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import MenuCard from "./MenuCard.jsx";
 import ItemModal from "./ItemModal.jsx";
@@ -7,9 +9,17 @@ import { fetchMenuItems } from "../api/api.js";
 
 const PREVIEW_LIMIT = 6;
 
-const MenuSection = () => {
-  const [items, setItems] = useState([]);
-  const [status, setStatus] = useState("loading");
+const sortPreviewItems = (items) => {
+  const featured = items.filter((item) => item.isFeatured);
+  const rest = items.filter((item) => !item.isFeatured);
+  return [...featured, ...rest].slice(0, PREVIEW_LIMIT);
+};
+
+const MenuSection = ({ initialItems = [] }) => {
+  const [items, setItems] = useState(sortPreviewItems(initialItems));
+  const [status, setStatus] = useState(
+    initialItems.length > 0 ? "success" : "loading"
+  );
   const [selectedItem, setSelectedItem] = useState(null);
 
   useEffect(() => {
@@ -20,10 +30,7 @@ const MenuSection = () => {
       try {
         const data = await fetchMenuItems();
         if (!cancelled) {
-          // Show featured items first, then fill up to the preview limit
-          const featured = data.filter((i) => i.isFeatured);
-          const rest = data.filter((i) => !i.isFeatured);
-          setItems([...featured, ...rest].slice(0, PREVIEW_LIMIT));
+          setItems(sortPreviewItems(data));
           setStatus("success");
         }
       } catch (err) {
@@ -31,11 +38,11 @@ const MenuSection = () => {
       }
     };
 
-    load();
+    if (initialItems.length === 0) load();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialItems.length]);
 
   return (
     <section id="menu" className="relative bg-black py-20 md:py-28">
@@ -85,7 +92,7 @@ const MenuSection = () => {
 
         <div className="mt-12 text-center">
           <Link
-            to="/menu"
+            href="/menu"
             className="inline-flex items-center gap-2 border border-dune-amber/60 hover:bg-dune-amber hover:text-black text-dune-amber font-medium px-7 py-3 rounded-full transition-colors duration-300"
           >
             View Full Menu

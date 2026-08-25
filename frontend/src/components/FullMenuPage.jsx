@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+"use client";
+
+import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import Navbar from "./Navbar.jsx";
 import Footer from "./Footer.jsx";
@@ -10,14 +12,24 @@ import { fetchMenuItems } from "../api/api.js";
 
 const CATEGORIES = ["All", "Food", "Appetizers", "Drinks"];
 
-const FullMenuPage = () => {
-  const [items, setItems] = useState([]);
+const FullMenuPage = ({ initialItems = [] }) => {
+  const [items, setItems] = useState(initialItems);
   const [activeCategory, setActiveCategory] = useState("All");
-  const [status, setStatus] = useState("loading");
+  const [status, setStatus] = useState(
+    initialItems.length > 0 ? "success" : "loading"
+  );
   const [selectedItem, setSelectedItem] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
 
+  const firstLoad = useRef(true);
+
   useEffect(() => {
+    if (firstLoad.current && initialItems.length > 0 && activeCategory === "All") {
+      firstLoad.current = false;
+      return;
+    }
+    firstLoad.current = false;
+
     let cancelled = false;
 
     const load = async () => {
@@ -37,7 +49,7 @@ const FullMenuPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeCategory]);
+  }, [activeCategory, initialItems.length]);
 
   return (
     <div className="bg-black min-h-screen">
@@ -45,7 +57,7 @@ const FullMenuPage = () => {
 
       <div className="max-w-7xl mx-auto px-5 md:px-8 pt-28 pb-20 md:pb-28">
         <Link
-          to="/"
+          href="/"
           className="inline-flex items-center gap-2 text-neutral-400 hover:text-white text-sm mb-8"
         >
           <ArrowLeft className="w-4 h-4" /> Back to home

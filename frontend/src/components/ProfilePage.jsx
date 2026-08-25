@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import {
   ArrowLeft,
   Package,
@@ -258,7 +260,7 @@ const ProfilePage = () => {
       <div className="border-b border-dune-border">
         <div className="max-w-5xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
           <Link
-            to="/"
+            href="/"
             className="flex items-center gap-2 text-neutral-400 hover:text-white text-sm"
           >
             <ArrowLeft className="w-4 h-4" /> Back to site

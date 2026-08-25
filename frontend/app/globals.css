@@ -6,15 +6,24 @@
   html {
     scroll-behavior: smooth;
   }
+
   body {
-    @apply bg-black text-neutral-200 font-body antialiased;
+    @apply bg-black text-neutral-200 antialiased;
+    font-family: var(--font-inter), sans-serif;
   }
-  h1, h2, h3, h4 {
-    @apply font-display tracking-wide;
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-bebas-neue), sans-serif;
+    @apply tracking-wide;
   }
+
   ::selection {
     @apply bg-dune-amber/40 text-white;
   }
+
   *:focus-visible {
     outline: 2px solid #f59e0b;
     outline-offset: 3px;
@@ -22,19 +31,30 @@
 }
 
 @layer utilities {
+  .font-body {
+    font-family: var(--font-inter), sans-serif;
+  }
+
+  .font-display {
+    font-family: var(--font-bebas-neue), sans-serif;
+  }
+
   .text-gradient-amber {
     background: linear-gradient(90deg, #92400e, #d97706 45%, #f59e0b);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
+
   .eyebrow {
     @apply text-xs font-semibold uppercase tracking-[0.3em] text-dune-amber;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;

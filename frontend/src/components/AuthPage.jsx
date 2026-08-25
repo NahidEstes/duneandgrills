@@ -1,5 +1,8 @@
+"use client";
+
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Flame } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -15,7 +18,7 @@ const AuthPage = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -30,7 +33,7 @@ const AuthPage = () => {
       } else {
         await register(form);
       }
-      navigate("/");
+      router.push("/");
     } catch (err) {
       setError(
         err.response?.data?.message || "Something went wrong. Please try again."
@@ -43,7 +46,7 @@ const AuthPage = () => {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center justify-center gap-2 mb-8">
+        <Link href="/" className="flex items-center justify-center gap-2 mb-8">
           <Flame className="w-6 h-6 text-dune-amber" />
           <span className="font-display text-2xl tracking-widest text-white">
             DUNE <span className="text-dune-amber">&amp;</span> GRILLS

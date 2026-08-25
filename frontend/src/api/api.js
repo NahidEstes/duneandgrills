@@ -1,16 +1,31 @@
 import axios from "axios";
+import { refreshContentCache } from "@/app/actions/revalidate-content.js";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_BASE_URL = "/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
+  },
 });
+
+const refreshAfterMutation = async (contentType) => {
+  try {
+    await refreshContentCache(contentType);
+  } catch {
+    // The API proxy also performs server-side invalidation. This action is an
+    // additional same-browser Router Cache purge and must not turn a successful
+    // database mutation into a false failure in the admin UI.
+  }
+};
 
 // Attach the JWT (if present) to every request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("dg_token");
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("dg_token") : null;
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -29,22 +44,26 @@ export const fetchFeaturedMenuItem = async () => {
 
 export const createMenuItem = async (payload) => {
   const { data } = await api.post("/menu", payload);
+  await refreshAfterMutation("menu");
   return data.data;
 };
 
 export const updateMenuItem = async (id, payload) => {
   const { data } = await api.put(`/menu/${id}`, payload);
+  await refreshAfterMutation("menu");
   return data.data;
 };
 
 export const deleteMenuItem = async (id) => {
   const { data } = await api.delete(`/menu/${id}`);
+  await refreshAfterMutation("menu");
   return data;
 };
 
 // ---- Orders ----
 export const placeOrder = async (orderPayload) => {
   const { data } = await api.post("/orders", orderPayload);
+  await refreshAfterMutation("orders");
   return data.data;
 };
 
@@ -66,6 +85,7 @@ export const fetchOrderStats = async () => {
 
 export const updateOrderStatus = async (id, status) => {
   const { data } = await api.patch(`/orders/${id}/status`, { status });
+  await refreshAfterMutation("orders");
   return data.data;
 };
 
@@ -121,16 +141,19 @@ export const fetchBlogPostBySlug = async (slug) => {
 
 export const createBlogPost = async (payload) => {
   const { data } = await api.post("/blog", payload);
+  await refreshAfterMutation("blog");
   return data.data;
 };
 
 export const updateBlogPost = async (id, payload) => {
   const { data } = await api.put(`/blog/${id}`, payload);
+  await refreshAfterMutation("blog");
   return data.data;
 };
 
 export const deleteBlogPost = async (id) => {
   const { data } = await api.delete(`/blog/${id}`);
+  await refreshAfterMutation("blog");
   return data;
 };
 

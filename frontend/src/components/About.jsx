@@ -1,6 +1,7 @@
 import React from "react";
 import { Flame, Clock, MapPin } from "lucide-react";
 import DuneDivider from "./DuneDivider.jsx";
+import SmartImage from "./SmartImage.jsx";
 
 const FEATURES = [
   {
@@ -26,9 +27,12 @@ const About = () => {
       <div className="max-w-7xl mx-auto px-5 md:px-8 grid md:grid-cols-2 gap-14 items-center">
         <div className="relative">
           <div className="rounded-2xl overflow-hidden border border-dune-border">
-            <img
+            <SmartImage
               src="https://images.unsplash.com/photo-1544148103-0773bf10d330?auto=format&fit=crop&w=1000&q=80"
               alt="Chef grilling skewers over open flame"
+              width={1000}
+              height={840}
+              sizes="(min-width: 768px) 50vw, 100vw"
               className="w-full h-[420px] object-cover"
               loading="lazy"
             />

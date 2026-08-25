@@ -1,5 +1,8 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   ChefHat,
@@ -13,6 +16,7 @@ import {
   fetchFeaturedMenuItem,
 } from "../api/api.js";
 import { formatPrice } from "../utils/currency.js";
+import SmartImage from "./SmartImage.jsx";
 
 const CATEGORY_ICONS = {
   Recipes: ChefHat,
@@ -24,31 +28,37 @@ const CATEGORY_ICONS = {
 
 // currentSlug: pass the current article's slug (on a post page) to exclude
 // it from "Popular Posts" and highlight the right category on the blog list.
-const BlogSidebar = ({ currentSlug, onSearch }) => {
-  const [recentPosts, setRecentPosts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [special, setSpecial] = useState(null);
+const BlogSidebar = ({ currentSlug, onSearch, initialData = {} }) => {
+  const [recentPosts, setRecentPosts] = useState(initialData?.recentPosts || []);
+  const [categories, setCategories] = useState(initialData?.categories || []);
+  const [special, setSpecial] = useState(initialData?.special || null);
   const [searchTerm, setSearchTerm] = useState("");
-  const navigate = useNavigate();
+  const router = useRouter();
 
   useEffect(() => {
-    fetchRecentBlogPosts(3, currentSlug)
-      .then(setRecentPosts)
-      .catch(() => {});
-    fetchBlogCategoryCounts()
-      .then(setCategories)
-      .catch(() => {});
-    fetchFeaturedMenuItem()
-      .then(setSpecial)
-      .catch(() => {});
-  }, [currentSlug]);
+    if (recentPosts.length === 0) {
+      fetchRecentBlogPosts(3, currentSlug)
+        .then(setRecentPosts)
+        .catch(() => {});
+    }
+    if (categories.length === 0) {
+      fetchBlogCategoryCounts()
+        .then(setCategories)
+        .catch(() => {});
+    }
+    if (!special) {
+      fetchFeaturedMenuItem()
+        .then(setSpecial)
+        .catch(() => {});
+    }
+  }, [categories.length, currentSlug, recentPosts.length, special]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (onSearch) {
       onSearch(searchTerm);
     } else {
-      navigate(`/blog?search=${encodeURIComponent(searchTerm)}`);
+      router.push(`/blog?search=${encodeURIComponent(searchTerm)}`);
     }
   };
 
@@ -57,9 +67,12 @@ const BlogSidebar = ({ currentSlug, onSearch }) => {
       {/* Order CTA */}
       <div className="rounded-2xl border border-dune-border bg-dune-surface overflow-hidden">
         <div className="h-32 overflow-hidden">
-          <img
+          <SmartImage
             src="https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&w=600&q=80"
             alt="Grilled skewers"
+            width={600}
+            height={260}
+            sizes="(min-width: 1024px) 28vw, 100vw"
             className="w-full h-full object-cover"
           />
         </div>
@@ -72,7 +85,7 @@ const BlogSidebar = ({ currentSlug, onSearch }) => {
             fast.
           </p>
           <Link
-            to="/menu"
+            href="/menu"
             className="mt-4 inline-flex items-center justify-center w-full bg-dune-amber hover:bg-dune-amberLight text-black font-semibold py-2.5 rounded-full text-sm transition-colors"
           >
             View Menu
@@ -105,12 +118,15 @@ const BlogSidebar = ({ currentSlug, onSearch }) => {
             {recentPosts.map((post) => (
               <Link
                 key={post._id}
-                to={`/blog/${post.slug}`}
+                href={`/blog/${post.slug}`}
                 className="flex gap-3 group"
               >
-                <img
+                <SmartImage
                   src={post.coverImage}
                   alt={post.title}
+                  width={112}
+                  height={112}
+                  sizes="56px"
                   className="w-14 h-14 rounded-lg object-cover shrink-0"
                 />
                 <div className="min-w-0">
@@ -141,7 +157,7 @@ const BlogSidebar = ({ currentSlug, onSearch }) => {
               return (
                 <Link
                   key={category}
-                  to={`/blog?category=${encodeURIComponent(category)}`}
+                  href={`/blog?category=${encodeURIComponent(category)}`}
                   className="flex items-center justify-between py-2 text-sm text-neutral-300 hover:text-dune-amber transition-colors"
                 >
                   <span className="flex items-center gap-2">
@@ -160,9 +176,12 @@ const BlogSidebar = ({ currentSlug, onSearch }) => {
       {special && (
         <div className="rounded-2xl border border-dune-border bg-dune-surface overflow-hidden">
           <div className="h-28 overflow-hidden">
-            <img
+            <SmartImage
               src={special.image}
               alt={special.name}
+              width={600}
+              height={224}
+              sizes="(min-width: 1024px) 28vw, 100vw"
               className="w-full h-full object-cover"
             />
           </div>
@@ -177,7 +196,7 @@ const BlogSidebar = ({ currentSlug, onSearch }) => {
                 {formatPrice(special.price)}
               </span>
               <Link
-                to="/menu"
+                href="/menu"
                 className="text-xs font-semibold bg-dune-amber hover:bg-dune-amberLight text-black px-4 py-2 rounded-full transition-colors"
               >
                 Order Now

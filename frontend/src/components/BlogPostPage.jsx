@@ -1,27 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import Navbar from "./Navbar.jsx";
 import Footer from "./Footer.jsx";
 import CartDrawer from "./CartDrawer.jsx";
 import BlogSidebar from "./BlogSidebar.jsx";
-import { fetchBlogPostBySlug } from "../api/api.js";
+import SmartImage from "./SmartImage.jsx";
 
-const BlogPostPage = () => {
-  const { slug } = useParams();
-  const [post, setPost] = useState(null);
-  const [status, setStatus] = useState("loading");
+const BlogPostPage = ({ post, slug, sidebarData }) => {
   const [cartOpen, setCartOpen] = useState(false);
-
-  useEffect(() => {
-    setStatus("loading");
-    fetchBlogPostBySlug(slug)
-      .then((data) => {
-        setPost(data);
-        setStatus("success");
-      })
-      .catch(() => setStatus("error"));
-  }, [slug]);
 
   return (
     <div className="bg-black min-h-screen">
@@ -31,28 +20,13 @@ const BlogPostPage = () => {
         {/* Main article column */}
         <div className="lg:col-span-2">
           <Link
-            to="/blog"
+            href="/blog"
             className="inline-flex items-center gap-2 text-neutral-400 hover:text-white text-sm mb-8"
           >
             <ArrowLeft className="w-4 h-4" /> Back to blog
           </Link>
 
-          {status === "loading" && (
-            <div className="space-y-4">
-              <div className="h-8 w-2/3 rounded bg-dune-surface animate-pulse" />
-              <div className="h-64 rounded-2xl bg-dune-surface animate-pulse" />
-            </div>
-          )}
-
-          {status === "error" && (
-            <div className="text-center py-16 border border-dune-border rounded-2xl">
-              <p className="text-neutral-400">
-                This article couldn&apos;t be found.
-              </p>
-            </div>
-          )}
-
-          {status === "success" && post && (
+          {post && (
             <article>
               <span className="eyebrow">{post.category}</span>
               <h1 className="mt-3 text-3xl md:text-5xl text-white leading-tight">
@@ -68,9 +42,12 @@ const BlogPostPage = () => {
               </p>
 
               <div className="mt-8 rounded-2xl overflow-hidden border border-dune-border">
-                <img
+                <SmartImage
                   src={post.coverImage}
                   alt={post.title}
+                  width={1200}
+                  height={768}
+                  sizes="(min-width: 1024px) 66vw, 100vw"
                   className="w-full h-72 md:h-96 object-cover"
                 />
               </div>
@@ -97,7 +74,7 @@ const BlogPostPage = () => {
 
         {/* Sidebar */}
         <div>
-          <BlogSidebar currentSlug={slug} />
+          <BlogSidebar currentSlug={slug} initialData={sidebarData} />
         </div>
       </div>
 
