@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { label: "Menu", href: "#menu" },
   { label: "About Us", href: "#about" },
   { label: "Contact", href: "#contact" },
+  { label: "Blog", href: "/blog" },
 ];
 
 const Navbar = ({ onCartClick }) => {

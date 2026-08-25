@@ -10,6 +10,7 @@ import mongoose from "mongoose";
 import menuRoutes from "./routes/menuRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import blogRoutes from "./routes/blogRoutes.js";
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use(morgan("dev"));
 app.use("/api/auth", authRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/blog", blogRoutes);
 
 app.get("/api/health", (req, res) => {
   res

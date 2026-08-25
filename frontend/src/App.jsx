@@ -12,6 +12,8 @@ import AuthPage from "./components/AuthPage.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import FullMenuPage from "./components/FullMenuPage.jsx";
+import BlogPage from "./components/BlogPage.jsx";
+import BlogPostPage from "./components/BlogPostPage.jsx";
 
 function HomePage({ onCartClick, cartOpen, setCartOpen }) {
   return (
@@ -45,7 +47,10 @@ function App() {
         }
       />
       <Route path="/menu" element={<FullMenuPage />} />
+      <Route path="/blog" element={<BlogPage />} />
+      <Route path="/blog/:slug" element={<BlogPostPage />} />
       <Route path="/login" element={<AuthPage />} />
+
       <Route
         path="/profile"
         element={

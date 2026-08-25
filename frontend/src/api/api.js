@@ -85,4 +85,36 @@ export const updateMe = async (payload) => {
   return data.user;
 };
 
+// ---- Blog ----
+export const fetchBlogPosts = async (category) => {
+  const params = category && category !== "All" ? { category } : {};
+  const { data } = await api.get("/blog", { params });
+  return data.data;
+};
+
+export const fetchAllBlogPosts = async () => {
+  const { data } = await api.get("/blog", { params: { all: true } });
+  return data.data;
+};
+
+export const fetchBlogPostBySlug = async (slug) => {
+  const { data } = await api.get(`/blog/slug/${slug}`);
+  return data.data;
+};
+
+export const createBlogPost = async (payload) => {
+  const { data } = await api.post("/blog", payload);
+  return data.data;
+};
+
+export const updateBlogPost = async (id, payload) => {
+  const { data } = await api.put(`/blog/${id}`, payload);
+  return data.data;
+};
+
+export const deleteBlogPost = async (id) => {
+  const { data } = await api.delete(`/blog/${id}`);
+  return data;
+};
+
 export default api;
