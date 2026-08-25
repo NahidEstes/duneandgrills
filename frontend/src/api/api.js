@@ -22,6 +22,11 @@ export const fetchMenuItems = async (category) => {
   return data.data;
 };
 
+export const fetchFeaturedMenuItem = async () => {
+  const items = await fetchMenuItems();
+  return items.find((item) => item.isFeatured) || items[0] || null;
+};
+
 export const createMenuItem = async (payload) => {
   const { data } = await api.post("/menu", payload);
   return data.data;
@@ -89,6 +94,18 @@ export const updateMe = async (payload) => {
 export const fetchBlogPosts = async (category) => {
   const params = category && category !== "All" ? { category } : {};
   const { data } = await api.get("/blog", { params });
+  return data.data;
+};
+
+export const fetchRecentBlogPosts = async (limit = 3, excludeSlug) => {
+  const params = { limit };
+  if (excludeSlug) params.excludeSlug = excludeSlug;
+  const { data } = await api.get("/blog", { params });
+  return data.data;
+};
+
+export const fetchBlogCategoryCounts = async () => {
+  const { data } = await api.get("/blog/categories");
   return data.data;
 };
 
