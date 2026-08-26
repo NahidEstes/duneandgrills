@@ -14,7 +14,7 @@ const NAV_LINKS = [
   { label: "Contact", hash: "contact" },
 ];
 
-const Navbar = ({ onCartClick }) => {
+const Navbar = ({ onCartClick, alwaysSolid = false, wide = false }) => {
   const { itemCount } = useCart();
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
@@ -65,12 +65,16 @@ const Navbar = ({ onCartClick }) => {
   return (
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-colors duration-300 ${
-        scrolled
+        scrolled || alwaysSolid
           ? "bg-black/90 backdrop-blur-md border-b border-dune-border"
           : "bg-transparent"
       }`}
     >
-      <nav className="max-w-7xl mx-auto flex items-center justify-between px-5 md:px-8 h-16 md:h-20">
+      <nav
+        className={`mx-auto flex h-16 items-center justify-between px-5 md:h-20 md:px-8 ${
+          wide ? "max-w-[1440px]" : "max-w-7xl"
+        }`}
+      >
         <Link
           href="/"
           onClick={handleLogoClick}
