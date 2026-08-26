@@ -16,6 +16,20 @@ const cartReducer = (state, action) => {
       }
       return [...state, { ...item, quantity: 1 }];
     }
+    case "ADD_ITEMS": {
+      return action.payload.reduce((nextState, item) => {
+        const quantity = Math.max(1, Number(item.quantity) || 1);
+        const existing = nextState.find((line) => line._id === item._id);
+        if (existing) {
+          return nextState.map((line) =>
+            line._id === item._id
+              ? { ...line, quantity: line.quantity + quantity }
+              : line
+          );
+        }
+        return [...nextState, { ...item, quantity }];
+      }, state);
+    }
     case "INCREMENT":
       return state.map((line) =>
         line._id === action.payload ? { ...line, quantity: line.quantity + 1 } : line
@@ -39,6 +53,8 @@ export const CartProvider = ({ children }) => {
   const [cart, dispatch] = useReducer(cartReducer, []);
 
   const addToCart = (item) => dispatch({ type: "ADD_ITEM", payload: item });
+  const addItemsToCart = (items) =>
+    dispatch({ type: "ADD_ITEMS", payload: items });
   const incrementItem = (id) => dispatch({ type: "INCREMENT", payload: id });
   const decrementItem = (id) => dispatch({ type: "DECREMENT", payload: id });
   const removeFromCart = (id) => dispatch({ type: "REMOVE_ITEM", payload: id });
@@ -53,6 +69,7 @@ export const CartProvider = ({ children }) => {
   const value = {
     cart,
     addToCart,
+    addItemsToCart,
     incrementItem,
     decrementItem,
     removeFromCart,

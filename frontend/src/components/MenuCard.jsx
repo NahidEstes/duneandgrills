@@ -1,14 +1,25 @@
 "use client";
 
 import React from "react";
-import { Plus, Flame } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Flame, Heart } from "lucide-react";
 import { useCart } from "../context/CartContext.jsx";
+import { useFavorites } from "../context/FavoritesContext.jsx";
 import { formatPrice } from "../utils/currency.js";
 import SmartImage from "./SmartImage.jsx";
 
 const MenuCard = ({ item, onSelect }) => {
   const { addToCart } = useCart();
+  const { favoriteIds, toggleFavorite } = useFavorites();
+  const router = useRouter();
   const isBestseller = item.tags?.includes("bestseller");
+  const isFavorite = favoriteIds.has(item._id);
+
+  const handleFavorite = async (event) => {
+    event.stopPropagation();
+    const result = await toggleFavorite(item);
+    if (result?.requiresLogin) router.push("/login");
+  };
 
   return (
     <div
@@ -31,6 +42,15 @@ const MenuCard = ({ item, onSelect }) => {
             <Flame className="w-3 h-3" /> Bestseller
           </span>
         )}
+        <button
+          type="button"
+          onClick={handleFavorite}
+          aria-label={isFavorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+          aria-pressed={isFavorite}
+          className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full border border-white/20 bg-black/70 backdrop-blur flex items-center justify-center text-white hover:border-dune-amber hover:text-dune-amber transition-colors"
+        >
+          <Heart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
+        </button>
       </div>
 
       <div className="flex flex-col flex-1 p-5">
@@ -51,7 +71,7 @@ const MenuCard = ({ item, onSelect }) => {
 
         <button
           onClick={(e) => {
-            e.stopPropagation(); // card click-এ modal open হওয়া থেকে আটকাবে
+            e.stopPropagation();
             addToCart(item);
           }}
           className="mt-5 inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-full border border-dune-amber/60 text-dune-amber font-medium hover:bg-dune-amber hover:text-black transition-colors duration-300"

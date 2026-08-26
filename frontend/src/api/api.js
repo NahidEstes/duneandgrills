@@ -106,8 +106,84 @@ export const fetchMe = async () => {
 };
 
 export const updateMe = async (payload) => {
-  const { data } = await api.put("/auth/me", payload);
+  const { data } = await api.patch("/auth/me", payload);
   return data.user;
+};
+
+// ---- Account dashboard ----
+export const fetchProfileDashboard = async () => {
+  const { data } = await api.get("/profile/dashboard");
+  return data.data;
+};
+
+export const fetchProfileStats = async () => {
+  const { data } = await api.get("/profile/stats");
+  return data.data;
+};
+
+export const fetchFavorites = async () => {
+  const { data } = await api.get("/profile/favorites");
+  return data.data;
+};
+
+export const addFavorite = async (menuItemId) => {
+  const { data } = await api.post(`/profile/favorites/${menuItemId}`);
+  return data.data;
+};
+
+export const removeFavorite = async (menuItemId) => {
+  const { data } = await api.delete(`/profile/favorites/${menuItemId}`);
+  return data.data;
+};
+
+export const addAddress = async (payload) => {
+  const { data } = await api.post("/profile/addresses", payload);
+  return data.data;
+};
+
+export const updateAddress = async (id, payload) => {
+  const { data } = await api.patch(`/profile/addresses/${id}`, payload);
+  return data.data;
+};
+
+export const deleteAddress = async (id) => {
+  const { data } = await api.delete(`/profile/addresses/${id}`);
+  return data.data;
+};
+
+export const setDefaultAddress = async (id) => {
+  const { data } = await api.patch(`/profile/addresses/${id}/default`);
+  return data.data;
+};
+
+export const addPaymentMethod = async (payload) => {
+  const { data } = await api.post("/profile/payment-methods", payload);
+  return data.data;
+};
+
+export const updatePaymentMethod = async (id, payload) => {
+  const { data } = await api.patch(`/profile/payment-methods/${id}`, payload);
+  return data.data;
+};
+
+export const deletePaymentMethod = async (id) => {
+  const { data } = await api.delete(`/profile/payment-methods/${id}`);
+  return data.data;
+};
+
+export const setDefaultPaymentMethod = async (id) => {
+  const { data } = await api.patch(`/profile/payment-methods/${id}/default`);
+  return data.data;
+};
+
+export const fetchMyReviews = async () => {
+  const { data } = await api.get("/reviews/me");
+  return data.data;
+};
+
+export const createReview = async (payload) => {
+  const { data } = await api.post("/reviews", payload);
+  return data.data;
 };
 
 // ---- Blog ----

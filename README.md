@@ -60,6 +60,22 @@ Orange Juice, Shrimp Dynamite):
 npm run seed
 ```
 
+Populate the account dashboard with two demo customers, linked orders,
+favorites, addresses, demo payment descriptors, reward points, and reviews:
+
+```bash
+npm run seed:profiles
+```
+
+The profile seed is idempotent and does not clear the menu, blog, real users,
+or real orders. Demo logins:
+
+- `nahid@duneandgrills.com` / `Demo@12345`
+- `sara@duneandgrills.com` / `Demo@12345`
+
+Payment-method seed data contains only a brand, fictional last four digits,
+expiry, and cardholder name. It never contains full card numbers or CVVs.
+
 Start the API:
 
 ```bash

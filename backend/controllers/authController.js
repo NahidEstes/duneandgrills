@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { getMembershipDetails } from "../utils/rewards.js";
 
 const signToken = (user) =>
   jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
@@ -13,6 +14,11 @@ const sanitize = (user) => ({
   role: user.role,
   phone: user.phone,
   address: user.address,
+  bio: user.bio,
+  avatar: user.avatar,
+  rewardPoints: user.rewardPoints,
+  membershipTier: getMembershipDetails(user.rewardPoints).tier,
+  createdAt: user.createdAt,
 });
 
 // @route POST /api/auth/register
@@ -46,6 +52,16 @@ export const register = async (req, res) => {
       password,
       phone,
       address,
+      addresses: address
+        ? [
+            {
+              label: "Home",
+              fullAddress: address,
+              phone: phone || "",
+              isDefault: true,
+            },
+          ]
+        : [],
       role: "customer",
     });
     const token = signToken(user);
@@ -93,19 +109,30 @@ export const getMe = async (req, res) => {
   res.status(200).json({ success: true, user: sanitize(req.user) });
 };
 
-// @route PUT /api/auth/me
+// @route PATCH /api/auth/me
 export const updateMe = async (req, res) => {
   try {
-    const { name, phone, address } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { name, phone, address },
-      { new: true, runValidators: true }
-    );
+    const user = await User.findById(req.user._id);
+    const allowedFields = ["name", "email", "phone", "address", "bio", "avatar"];
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) user[field] = req.body[field];
+    });
+
+    if (req.body.address !== undefined) {
+      const defaultAddress = user.addresses.find((entry) => entry.isDefault);
+      if (defaultAddress) defaultAddress.fullAddress = req.body.address;
+    }
+
+    await user.save();
     res.status(200).json({ success: true, user: sanitize(user) });
   } catch (err) {
+    const duplicateEmail = err.code === 11000;
     res
-      .status(400)
-      .json({ success: false, message: "Update failed", error: err.message });
+      .status(duplicateEmail ? 409 : 400)
+      .json({
+        success: false,
+        message: duplicateEmail ? "That email is already in use" : "Update failed",
+        error: err.message,
+      });
   }
 };

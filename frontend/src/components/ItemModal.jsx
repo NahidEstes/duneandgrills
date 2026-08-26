@@ -1,13 +1,17 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { X, Flame, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { X, Flame, Plus, Heart } from "lucide-react";
 import { useCart } from "../context/CartContext.jsx";
+import { useFavorites } from "../context/FavoritesContext.jsx";
 import { formatPrice } from "../utils/currency.js";
 import SmartImage from "./SmartImage.jsx";
 
 const ItemModal = ({ item, onClose }) => {
   const { addToCart } = useCart();
+  const { favoriteIds, toggleFavorite } = useFavorites();
+  const router = useRouter();
 
   //   useEffect(() => {
   //     const onEsc = (e) => e.key === "Escape" && onClose();
@@ -32,6 +36,15 @@ const ItemModal = ({ item, onClose }) => {
     };
   }, [item, onClose]);
   if (!item) return null;
+  const isFavorite = favoriteIds.has(item._id);
+
+  const handleFavorite = async () => {
+    const result = await toggleFavorite(item);
+    if (result?.requiresLogin) {
+      onClose();
+      router.push("/login");
+    }
+  };
 
   return (
     <div
@@ -51,12 +64,25 @@ const ItemModal = ({ item, onClose }) => {
             sizes="(min-width: 640px) 512px, 100vw"
             className="w-full h-full object-cover"
           />
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/70 flex items-center justify-center text-white hover:bg-black"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="absolute top-3 right-3 flex gap-2">
+            <button
+              type="button"
+              onClick={handleFavorite}
+              aria-label={isFavorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+              aria-pressed={isFavorite}
+              className="w-9 h-9 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white hover:text-dune-amber hover:border-dune-amber"
+            >
+              <Heart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close item details"
+              className="w-9 h-9 rounded-full bg-black/70 flex items-center justify-center text-white hover:bg-black"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6">
