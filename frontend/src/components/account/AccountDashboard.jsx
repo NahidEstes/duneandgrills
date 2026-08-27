@@ -77,9 +77,7 @@ const compactAmber =
   "inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-[#df7400] to-[#f58a00] px-4 text-xs font-semibold text-white shadow-[0_0_18px_-8px_rgba(245,158,11,0.9)] transition hover:brightness-110";
 
 const titleCase = (value = "") =>
-  value
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  value.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const Card = ({ children, className = "" }) => (
   <section
@@ -95,7 +93,7 @@ const CardHeader = ({ title, action, border = false }) => (
       border ? "border-b border-[#2b2b2b]" : ""
     }`}
   >
-    <h2 className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#f58700]">
+    <h2 className="text-[18px] font-bold uppercase tracking-[0.1em] text-[#f58700]">
       {title}
     </h2>
     {action}
@@ -170,8 +168,7 @@ const AccountDashboard = () => {
   const reorder = (order) => {
     const items = order.items
       .filter(
-        (item) =>
-          item.menuItem?._id && item.menuItem.isAvailable !== false
+        (item) => item.menuItem?._id && item.menuItem.isAvailable !== false
       )
       .map((item) => ({
         ...item.menuItem,
@@ -190,6 +187,11 @@ const AccountDashboard = () => {
     setModal(null);
     setCartOpen(true);
     notify("Available items from this order were added to your cart.");
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.push("/");
   };
 
   const reviewOptions = useMemo(() => {
@@ -262,17 +264,20 @@ const AccountDashboard = () => {
     paymentMethods.find((method) => method.isDefault) || paymentMethods[0];
 
   const ordersView = (list, compact = false) => (
-    <div className={compact ? "divide-y divide-[#292929] px-[18px]" : "divide-y divide-[#292929] px-5"}>
+    <div
+      className={
+        compact
+          ? "divide-y divide-[#292929] px-[18px]"
+          : "divide-y divide-[#292929] px-5"
+      }
+    >
       {!list.length && (
         <p className="py-10 text-center text-sm text-neutral-500">
           No orders yet.
         </p>
       )}
       {list.map((order) => {
-        const count = order.items.reduce(
-          (sum, item) => sum + item.quantity,
-          0
-        );
+        const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
         const image = order.items[0]?.menuItem?.image;
 
         return (
@@ -321,8 +326,8 @@ const AccountDashboard = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 sm:justify-end">
-              <div className="min-w-[74px] text-right">
+            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-end">
+              <div className="w-full text-left sm:w-auto sm:min-w-[74px] sm:text-right">
                 <p className="text-[13px] font-semibold text-white">
                   {formatPrice(order.totalAmount)}
                 </p>
@@ -333,7 +338,7 @@ const AccountDashboard = () => {
               <button
                 type="button"
                 onClick={() => setModal({ type: "order", order })}
-                className={compactOutline}
+                className={`${compactOutline} flex-1 sm:flex-none`}
               >
                 <Eye className="h-3.5 w-3.5 sm:hidden" />
                 View Details
@@ -341,7 +346,7 @@ const AccountDashboard = () => {
               <button
                 type="button"
                 onClick={() => reorder(order)}
-                className={compactAmber}
+                className={`${compactAmber} flex-1 sm:flex-none`}
               >
                 Reorder
               </button>
@@ -445,10 +450,7 @@ const AccountDashboard = () => {
               type="button"
               onClick={async () => {
                 if (window.confirm(`Delete ${entry.label} address?`)) {
-                  updateCollection(
-                    "addresses",
-                    await deleteAddress(entry._id)
-                  );
+                  updateCollection("addresses", await deleteAddress(entry._id));
                 }
               }}
               aria-label={`Delete ${entry.label}`}
@@ -472,10 +474,7 @@ const AccountDashboard = () => {
         <button
           type="button"
           onClick={async () =>
-            updateCollection(
-              "addresses",
-              await setDefaultAddress(entry._id)
-            )
+            updateCollection("addresses", await setDefaultAddress(entry._id))
           }
           className="mt-3 pl-[26px] text-xs font-medium text-dune-amber"
         >
@@ -492,12 +491,9 @@ const AccountDashboard = () => {
           No saved delivery addresses.
         </p>
       )}
-      {(compact
-        ? defaultAddress
-          ? [defaultAddress]
-          : []
-        : addresses
-      ).map((entry) => addressCard(entry, !compact))}
+      {(compact ? (defaultAddress ? [defaultAddress] : []) : addresses).map(
+        (entry) => addressCard(entry, !compact)
+      )}
     </div>
   );
 
@@ -582,8 +578,8 @@ const AccountDashboard = () => {
       )}
       {paymentMethods.map((method) => paymentRow(method, true))}
       <p className="text-xs text-neutral-600">
-        Decorative demo only. No full card numbers, CVVs, or payment
-        credentials are collected.
+        Decorative demo only. No full card numbers, CVVs, or payment credentials
+        are collected.
       </p>
     </div>
   );
@@ -640,7 +636,7 @@ const AccountDashboard = () => {
   );
 
   const personalCard = (
-    <Card className="min-h-[272px]">
+    <Card className="hidden min-h-[272px] lg:block">
       <CardHeader
         title="Personal Information"
         action={
@@ -679,7 +675,7 @@ const AccountDashboard = () => {
 
   const loyaltyCard = (
     <Card className="min-h-[150px] p-[18px]">
-      <h2 className="mb-3 text-[12px] font-bold uppercase tracking-[0.13em] text-[#f58700]">
+      <h2 className="mb-3 text-[14px] font-bold uppercase tracking-[0.1em] text-[#f58700]">
         Loyalty &amp; Rewards
       </h2>
       <div className="grid min-h-[90px] gap-4 rounded-[8px] border border-[#aa5b00] bg-black/10 px-4 py-3 sm:grid-cols-[1.25fr_0.65fr_1fr_auto] sm:items-center sm:divide-x sm:divide-[#333]">
@@ -764,7 +760,8 @@ const AccountDashboard = () => {
               {firstName}
             </h1>
             <p className="mt-3 text-[12px] text-neutral-400">
-              Food Lover <span className="mx-1">•</span> Member since {memberYear}
+              Food Lover <span className="mx-1">•</span> Member since{" "}
+              {memberYear}
             </p>
             <p className="mt-3 max-w-[360px] truncate text-[12px] text-neutral-400">
               {user.bio || "Good food, good mood."}
@@ -792,8 +789,14 @@ const AccountDashboard = () => {
               type="button"
               onClick={() => setActive(section)}
               className={`min-h-[98px] px-3 text-center transition hover:bg-white/[0.025] ${
-                index > 0 ? "border-l border-dashed border-[#343434]" : ""
-              }`}
+                index % 2 === 1
+                  ? "border-l border-dashed border-[#343434]"
+                  : ""
+              } ${
+                index >= 2
+                  ? "border-t border-dashed border-[#343434] sm:border-t-0"
+                  : ""
+              } ${index === 2 ? "sm:border-l" : ""}`}
             >
               <Icon className="mx-auto h-5 w-5 text-neutral-500" />
               <span className="mt-3 block font-body text-[23px] font-bold leading-none text-[#f58700]">
@@ -809,8 +812,52 @@ const AccountDashboard = () => {
     </Card>
   );
 
+  const nextRewardCard = (className = "") => (
+    <Card
+      className={`${className} min-h-[286px] p-[18px] text-center`}
+    >
+      <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#f58700]">
+        Your Next Reward
+      </p>
+      <p className="mx-auto mt-3 max-w-[200px] text-[12px] leading-5 text-neutral-300">
+        {rewards.nextTier
+          ? `You're only ${rewards.pointsToNextTier.toLocaleString()} points away from ${
+              rewards.nextTier
+            }.`
+          : "You have reached our highest reward tier."}
+      </p>
+      <div
+        className="relative mx-auto mt-3 flex h-[126px] w-[126px] items-center justify-center rounded-full"
+        style={{
+          background: `conic-gradient(from 225deg, #ff8a00 0deg, #ff8a00 ${
+            rewards.progressPercent * 2.7
+          }deg, #414141 ${
+            rewards.progressPercent * 2.7
+          }deg, #414141 270deg, transparent 270deg)`,
+        }}
+      >
+        <div className="flex h-[113px] w-[113px] flex-col items-center justify-center rounded-full bg-[#101010]">
+          <span className="font-body text-[23px] font-bold leading-none text-white">
+            {rewards.pointsAvailable.toLocaleString()}
+          </span>
+          <span className="mt-1 text-[11px] text-neutral-300">
+            / {rewardTarget.toLocaleString()}
+          </span>
+          <span className="mt-1 text-[10px] text-neutral-400">Points</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => setActive("profile")}
+        className={`${compactAmber} mt-2 w-[164px]`}
+      >
+        View Rewards
+      </button>
+    </Card>
+  );
+
   const sidebar = (
-    <aside className="self-start lg:sticky lg:top-[98px]">
+    <aside className="hidden self-start lg:sticky lg:top-[98px] lg:block">
       <Card className="min-h-[406px]">
         <p className="px-[18px] pb-4 pt-[18px] text-[12px] font-bold uppercase tracking-[0.13em] text-[#f58700]">
           My Account
@@ -837,10 +884,7 @@ const AccountDashboard = () => {
           ))}
           <button
             type="button"
-            onClick={() => {
-              logout();
-              router.push("/");
-            }}
+            onClick={handleLogout}
             className="flex h-[43px] w-full items-center gap-3 px-[20px] text-left text-[13px] text-neutral-300 transition-colors hover:bg-red-500/5 hover:text-red-400"
           >
             <LogOut className="h-[19px] w-[19px] text-neutral-500" />
@@ -849,41 +893,7 @@ const AccountDashboard = () => {
         </nav>
       </Card>
 
-      <Card className="mt-[14px] min-h-[286px] p-[18px] text-center">
-        <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#f58700]">
-          Your Next Reward
-        </p>
-        <p className="mx-auto mt-3 max-w-[200px] text-[12px] leading-5 text-neutral-300">
-          {rewards.nextTier
-            ? `You're only ${rewards.pointsToNextTier.toLocaleString()} points away from ${rewards.nextTier}.`
-            : "You have reached our highest reward tier."}
-        </p>
-        <div
-          className="relative mx-auto mt-3 flex h-[126px] w-[126px] items-center justify-center rounded-full"
-          style={{
-            background: `conic-gradient(from 225deg, #ff8a00 0deg, #ff8a00 ${
-              rewards.progressPercent * 2.7
-            }deg, #414141 ${rewards.progressPercent * 2.7}deg, #414141 270deg, transparent 270deg)`,
-          }}
-        >
-          <div className="flex h-[113px] w-[113px] flex-col items-center justify-center rounded-full bg-[#101010]">
-            <span className="font-body text-[23px] font-bold leading-none text-white">
-              {rewards.pointsAvailable.toLocaleString()}
-            </span>
-            <span className="mt-1 text-[11px] text-neutral-300">
-              / {rewardTarget.toLocaleString()}
-            </span>
-            <span className="mt-1 text-[10px] text-neutral-400">Points</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setActive("profile")}
-          className={`${compactAmber} mt-2 w-[164px]`}
-        >
-          View Rewards
-        </button>
-      </Card>
+      {nextRewardCard("mt-[14px]")}
     </aside>
   );
 
@@ -1110,6 +1120,14 @@ const AccountDashboard = () => {
         onCartClick={() => setCartOpen(true)}
         alwaysSolid
         wide
+        accountMenuItems={NAV_ITEMS.map(([id, label, icon]) => ({
+          id,
+          label,
+          icon,
+        }))}
+        activeAccountItem={active}
+        onAccountItemClick={setActive}
+        onAccountLogout={handleLogout}
       />
 
       <main className="mx-auto grid max-w-[1440px] gap-[14px] px-4 pb-12 pt-[92px] sm:px-6 lg:grid-cols-[266px_minmax(0,1fr)] lg:px-8 lg:pt-[98px]">
@@ -1121,6 +1139,8 @@ const AccountDashboard = () => {
         </div>
 
         {active === "profile" && bottomOverview}
+
+        <div className="lg:hidden">{nextRewardCard()}</div>
       </main>
 
       {notice && (

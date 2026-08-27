@@ -4,12 +4,13 @@ import { useState } from "react";
 import Navbar from "./Navbar.jsx";
 import Hero from "./Hero.jsx";
 import MenuSection from "./MenuSection.jsx";
+import OffersSection from "./offers/OffersSection.jsx";
 import About from "./About.jsx";
 import Contact from "./Contact.jsx";
 import Footer from "./Footer.jsx";
 import CartDrawer from "./CartDrawer.jsx";
 
-const HomePageClient = ({ initialMenuItems = [] }) => {
+const HomePageClient = ({ initialMenuItems = [], initialOffers = [] }) => {
   const [cartOpen, setCartOpen] = useState(false);
 
   return (
@@ -18,6 +19,7 @@ const HomePageClient = ({ initialMenuItems = [] }) => {
       <main>
         <Hero />
         <MenuSection initialItems={initialMenuItems} />
+        <OffersSection initialOffers={initialOffers} />
         <About />
         <Contact />
       </main>

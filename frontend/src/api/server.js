@@ -32,6 +32,11 @@ export const getMenuItems = async (category) => {
   return response.data;
 };
 
+export const getOffers = async () => {
+  const response = await get("/offers");
+  return response.data;
+};
+
 export const getBlogPosts = async ({
   category,
   search,

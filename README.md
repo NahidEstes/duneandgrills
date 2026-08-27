@@ -60,6 +60,16 @@ Orange Juice, Shrimp Dynamite):
 npm run seed
 ```
 
+Populate the homepage with scheduled promotional offers:
+
+```bash
+npm run seed:offers
+```
+
+The offer seed uses dates relative to the time it is run, so its countdowns
+remain active. It replaces only the offers collection and does not modify menu,
+blog, user, or order data.
+
 Populate the account dashboard with two demo customers, linked orders,
 favorites, addresses, demo payment descriptors, reward points, and reviews:
 
@@ -96,6 +106,12 @@ The API runs at `http://localhost:5000`.
 | POST   | `/api/menu`                 | Create a menu item                    |
 | PUT    | `/api/menu/:id`             | Update a menu item                    |
 | DELETE | `/api/menu/:id`             | Delete a menu item                    |
+| GET    | `/api/offers`                | List active, currently valid offers   |
+| GET    | `/api/offers/:id`            | Get one active, currently valid offer |
+| GET    | `/api/offers/manage`         | List all offers (admin/manager)       |
+| POST   | `/api/offers`                | Create an offer (admin/manager)        |
+| PUT    | `/api/offers/:id`            | Update an offer (admin/manager)        |
+| DELETE | `/api/offers/:id`            | Delete an offer (admin/manager)        |
 | GET    | `/api/orders`               | List all orders                       |
 | POST   | `/api/orders`               | Create a new order                    |
 | GET    | `/api/orders/:id`           | Get a single order                    |
@@ -182,7 +198,19 @@ curl -X POST http://localhost:5000/api/menu \
 The frontend will pick up the change on the next page load — no code
 changes required.
 
-## 6. Deployment Notes
+## 6. Managing Offers
+
+Sign in with an admin or manager account, open `/admin`, and choose **Offers**.
+The form supports the offer copy, image URL, promotional code, prices, CTA,
+display order, featured status, active status, start time, and expiry time.
+
+Only active offers whose start time has passed and whose expiry time is still
+in the future are returned by the public API. The homepage countdown is derived
+from each offer's database `expiresAt` value and removes the offer when it
+expires. Admin create, update, and delete actions automatically invalidate the
+homepage content.
+
+## 7. Deployment Notes
 
 - **Frontend:** deploy `frontend` to a Next.js-compatible host and set
   `BACKEND_API_URL` to the deployed Express API.

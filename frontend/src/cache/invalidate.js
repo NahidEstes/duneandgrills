@@ -17,6 +17,7 @@ const INVALIDATION_PATHS = {
     ["/admin", "page"],
     ["/profile", "page"],
   ],
+  offers: [["/", "page"]],
 };
 
 export const invalidateContent = (contentType) => {

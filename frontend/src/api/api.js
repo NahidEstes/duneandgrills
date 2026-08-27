@@ -60,6 +60,35 @@ export const deleteMenuItem = async (id) => {
   return data;
 };
 
+// ---- Offers ----
+export const fetchOffers = async () => {
+  const { data } = await api.get("/offers");
+  return data.data;
+};
+
+export const fetchAllOffers = async () => {
+  const { data } = await api.get("/offers/manage");
+  return data.data;
+};
+
+export const createOffer = async (payload) => {
+  const { data } = await api.post("/offers", payload);
+  await refreshAfterMutation("offers");
+  return data.data;
+};
+
+export const updateOffer = async (id, payload) => {
+  const { data } = await api.put(`/offers/${id}`, payload);
+  await refreshAfterMutation("offers");
+  return data.data;
+};
+
+export const deleteOffer = async (id) => {
+  const { data } = await api.delete(`/offers/${id}`);
+  await refreshAfterMutation("offers");
+  return data;
+};
+
 // ---- Orders ----
 export const placeOrder = async (orderPayload) => {
   const { data } = await api.post("/orders", orderPayload);

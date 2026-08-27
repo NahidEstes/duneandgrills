@@ -46,6 +46,7 @@ const proxyRequest = async (request, { params }) => {
         if (resource === "menu") invalidateContent("menu");
         if (resource === "blog") invalidateContent("blog");
         if (resource === "orders") invalidateContent("orders");
+        if (resource === "offers") invalidateContent("offers");
       } catch {
         // The mutation already succeeded in Express. Never turn that success
         // into an API error solely because revalidation could not run.

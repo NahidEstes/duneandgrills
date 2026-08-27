@@ -15,6 +15,7 @@ import {
   Settings,
   LogOut,
   Flame,
+  Tag,
 } from "lucide-react";
 import {
   fetchMenuItems,
@@ -25,6 +26,7 @@ import {
 import { formatPrice } from "../utils/currency.js";
 import OrdersTab from "./OrdersTab.jsx";
 import BlogTab from "./BlogTab.jsx";
+import OffersTab from "./OffersTab.jsx";
 import SmartImage from "./SmartImage.jsx";
 
 const EMPTY_FORM = {
@@ -57,6 +59,7 @@ const NAV_ITEMS = [
   { id: "menu", label: "Menu Items", icon: UtensilsCrossed },
   { id: "orders", label: "Orders", icon: ClipboardList },
   { id: "blog", label: "Blog", icon: Newspaper },
+  { id: "offers", label: "Offers", icon: Tag },
   { id: "settings", label: "Website Settings", icon: Settings },
 ];
 
@@ -250,6 +253,7 @@ const AdminDashboard = () => {
                 {activeTab === "menu" && "Menu Items"}
                 {activeTab === "orders" && "Order Management"}
                 {activeTab === "blog" && "Blog Management"}
+                {activeTab === "offers" && "Offer Management"}
                 {activeTab === "settings" && "Website Settings"}
               </h1>
             </div>
@@ -362,6 +366,8 @@ const AdminDashboard = () => {
           {activeTab === "orders" && <OrdersTab />}
           {/* Blog tab */}
           {activeTab === "blog" && <BlogTab />}
+          {/* Offers tab */}
+          {activeTab === "offers" && <OffersTab />}
           {/* Settings tab */}
           {activeTab === "settings" && (
             <div className="rounded-2xl border border-dune-border bg-dune-surface p-10 text-center text-neutral-400">
