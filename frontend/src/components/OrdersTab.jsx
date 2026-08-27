@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Eye, X, MapPin, Phone, RefreshCw } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Eye, X, MapPin, Phone, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 import { fetchOrders, fetchOrderStats, updateOrderStatus } from "../api/api.js";
-import { formatPrice } from "../utils/currency.js";
+import { formatAdminCurrency } from "./admin/adminUi.js";
 
 const STATUS_STYLES = {
   pending: "bg-amber-500/10 text-amber-400 border-amber-500/40",
@@ -46,16 +47,20 @@ const StatCard = ({ label, value, sub }) => (
 );
 
 // ---- Order details modal with inline status control ----
-const OrderRowModal = ({ order, onClose, onStatusChange }) => {
+const OrderRowModal = ({ order, onClose, onStatusChange, onDataChanged }) => {
   const [status, setStatus] = useState(order.status);
   const [saving, setSaving] = useState(false);
 
   const handleStatusChange = async (newStatus) => {
-    setStatus(newStatus);
     setSaving(true);
     try {
       await updateOrderStatus(order._id, newStatus);
+      setStatus(newStatus);
       onStatusChange(order._id, newStatus);
+      onDataChanged?.();
+      toast.success(`Order #${order.orderNumber} marked ${STATUS_LABELS[newStatus]}.`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Unable to update order status.");
     } finally {
       setSaving(false);
     }
@@ -140,7 +145,7 @@ const OrderRowModal = ({ order, onClose, onStatusChange }) => {
                 <p className="text-neutral-500 text-xs">Qty: {item.quantity}</p>
               </div>
               <p className="text-dune-amber font-medium">
-                {formatPrice(item.price * item.quantity)}
+                {formatAdminCurrency(item.price * item.quantity)}
               </p>
             </div>
           ))}
@@ -149,7 +154,7 @@ const OrderRowModal = ({ order, onClose, onStatusChange }) => {
         <div className="mt-5 border-t border-dune-border pt-4 flex items-center justify-between">
           <span className="text-neutral-400">Total</span>
           <span className="font-display text-2xl text-dune-amber">
-            {formatPrice(order.totalAmount)}
+            {formatAdminCurrency(order.totalAmount)}
           </span>
         </div>
       </div>
@@ -157,12 +162,13 @@ const OrderRowModal = ({ order, onClose, onStatusChange }) => {
   );
 };
 
-const OrdersTab = () => {
+const OrdersTab = ({ onDataChanged }) => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [viewOrder, setViewOrder] = useState(null);
+  const [query, setQuery] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -174,7 +180,7 @@ const OrdersTab = () => {
       setOrders(orderData);
       setStats(statData);
     } catch (err) {
-      console.error(err);
+      toast.error(err.response?.data?.message || "Unable to load orders.");
     } finally {
       setLoading(false);
     }
@@ -192,6 +198,17 @@ const OrdersTab = () => {
     setStats((prev) => prev); // stats will refresh on next load()
   };
 
+  const filteredOrders = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return orders;
+    return orders.filter(
+      (order) =>
+        order.orderNumber?.toLowerCase().includes(normalized) ||
+        order.customer?.name?.toLowerCase().includes(normalized) ||
+        order.customer?.phone?.toLowerCase().includes(normalized)
+    );
+  }, [orders, query]);
+
   return (
     <div>
       {/* Stats overview for bookkeeping */}
@@ -199,12 +216,12 @@ const OrdersTab = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <StatCard
             label="Total Revenue"
-            value={formatPrice(stats.totalRevenue)}
+            value={formatAdminCurrency(stats.totalRevenue)}
           />
           <StatCard label="Total Orders" value={stats.totalOrders} />
           <StatCard
             label="Today's Revenue"
-            value={formatPrice(stats.todayRevenue)}
+            value={formatAdminCurrency(stats.todayRevenue)}
             sub={`${stats.todayOrders} orders today`}
           />
           <StatCard
@@ -240,6 +257,17 @@ const OrdersTab = () => {
         </button>
       </div>
 
+      <div className="relative mb-4 max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search order, customer or phone…"
+          className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.025] pl-9 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60"
+        />
+      </div>
+
       {/* Orders table */}
       {loading ? (
         <p className="text-neutral-500">Loading orders...</p>
@@ -258,7 +286,7 @@ const OrdersTab = () => {
               </tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
+              {filteredOrders.map((order) => (
                 <tr
                   key={order._id}
                   onClick={() => setViewOrder(order)}
@@ -281,7 +309,7 @@ const OrdersTab = () => {
                   </td>
                   <td className="p-4">{order.items.length}</td>
                   <td className="p-4 text-dune-amber font-medium">
-                    {formatPrice(order.totalAmount)}
+                    {formatAdminCurrency(order.totalAmount)}
                   </td>
                   <td className="p-4">
                     <StatusBadge status={order.status} />
@@ -299,7 +327,7 @@ const OrdersTab = () => {
                   </td>
                 </tr>
               ))}
-              {orders.length === 0 && (
+              {filteredOrders.length === 0 && (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-neutral-500">
                     No orders found for this filter.
@@ -319,6 +347,7 @@ const OrdersTab = () => {
             load(); // refresh list + stats after any status change
           }}
           onStatusChange={handleStatusChange}
+          onDataChanged={onDataChanged}
         />
       )}
     </div>

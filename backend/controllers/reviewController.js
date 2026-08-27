@@ -1,6 +1,31 @@
 import Review from "../models/Review.js";
 import Order from "../models/Order.js";
 
+export const getAllReviewsForAdmin = async (req, res) => {
+  try {
+    const reviews = await Review.find()
+      .sort({ createdAt: -1 })
+      .populate("user", "name email avatar")
+      .populate("menuItem", "name image")
+      .populate("order", "orderNumber status");
+    res.status(200).json({ success: true, count: reviews.length, data: reviews });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to load reviews" });
+  }
+};
+
+export const deleteReview = async (req, res) => {
+  try {
+    const review = await Review.findByIdAndDelete(req.params.id);
+    if (!review) {
+      return res.status(404).json({ success: false, message: "Review not found" });
+    }
+    return res.status(200).json({ success: true, message: "Review deleted" });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Failed to delete review" });
+  }
+};
+
 export const getMyReviews = async (req, res) => {
   try {
     const reviews = await Review.find({ user: req.user._id })
@@ -60,4 +85,3 @@ export const createReview = async (req, res) => {
     });
   }
 };
-

@@ -12,11 +12,9 @@ const slugify = (text) =>
 // @route   GET /api/blog?category=Recipes
 export const getBlogPosts = async (req, res) => {
   try {
-    const { category, all, search, limit, excludeSlug } = req.query;
-    const filter = {};
+    const { category, search, limit, excludeSlug } = req.query;
+    const filter = { isPublished: true };
     if (category && category !== "All") filter.category = category;
-    // Public visitors only see published posts; dashboard passes ?all=true
-    if (!all) filter.isPublished = true;
     if (excludeSlug) filter.slug = { $ne: excludeSlug };
     if (search) {
       filter.$or = [
@@ -38,6 +36,19 @@ export const getBlogPosts = async (req, res) => {
         message: "Failed to fetch blog posts",
         error: err.message,
       });
+  }
+};
+
+export const getAllBlogPostsForAdmin = async (req, res) => {
+  try {
+    const posts = await BlogPost.find().sort({ updatedAt: -1 });
+    res.status(200).json({ success: true, count: posts.length, data: posts });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch blog posts",
+      error: err.message,
+    });
   }
 };
 

@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import {
   createOffer,
   deleteOffer,
   fetchAllOffers,
   updateOffer,
 } from "../api/api.js";
-import { formatPrice } from "../utils/currency.js";
 import SmartImage from "./SmartImage.jsx";
+import { formatAdminCurrency } from "./admin/adminUi.js";
+import { confirmDelete } from "./admin/deleteToast.js";
 
 const toDateTimeInput = (value) => {
   if (!value) return "";
@@ -57,7 +59,7 @@ const getOfferStatus = (offer) => {
   return ["Active", "text-emerald-400 border-emerald-500/40"];
 };
 
-const OffersTab = () => {
+const OffersTab = ({ onDataChanged }) => {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,9 +74,10 @@ const OffersTab = () => {
     try {
       setOffers(await fetchAllOffers());
     } catch (requestError) {
-      setError(
-        requestError.response?.data?.message || "Failed to load offers."
-      );
+      const message =
+        requestError.response?.data?.message || "Failed to load offers.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -135,37 +138,40 @@ const OffersTab = () => {
     try {
       if (editingId) {
         await updateOffer(editingId, payload);
+        toast.success("Offer updated successfully.");
       } else {
         await createOffer(payload);
+        toast.success("Offer created successfully.");
       }
       setShowForm(false);
       await loadOffers();
+      onDataChanged?.();
     } catch (requestError) {
-      setError(
+      const message =
         requestError.response?.data?.error ||
           requestError.response?.data?.message ||
-          "Offer could not be saved."
-      );
+          "Offer could not be saved.";
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (offer) => {
-    if (!window.confirm(`Delete "${offer.title}"? This can't be undone.`)) {
-      return;
-    }
-
-    try {
-      await deleteOffer(offer._id);
-      setOffers((current) =>
-        current.filter((entry) => entry._id !== offer._id)
-      );
-    } catch (requestError) {
-      setError(
-        requestError.response?.data?.message || "Offer could not be deleted."
-      );
-    }
+    confirmDelete({
+      title: `Delete “${offer.title}”?`,
+      description: "The promotion will be removed from the Exclusive Offers section.",
+      onConfirm: async () => {
+        await deleteOffer(offer._id);
+        setOffers((current) =>
+          current.filter((entry) => entry._id !== offer._id)
+        );
+        onDataChanged?.();
+      },
+      successMessage: "Offer deleted.",
+      errorMessage: "Unable to delete offer.",
+    });
   };
 
   return (
@@ -229,7 +235,7 @@ const OffersTab = () => {
                     </td>
                     <td className="p-4 text-dune-amber">
                       {offer.offerPrice !== null
-                        ? formatPrice(offer.offerPrice)
+                        ? formatAdminCurrency(offer.offerPrice)
                         : "—"}
                     </td>
                     <td className="p-4 text-xs text-neutral-400">

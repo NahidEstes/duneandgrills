@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getBlogPosts,
+  getAllBlogPostsForAdmin,
   getBlogPostBySlug,
   getBlogPostById,
   createBlogPost,
@@ -11,6 +12,13 @@ import {
 import { protect, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
+
+router.get(
+  "/manage",
+  protect,
+  authorize("admin", "manager"),
+  getAllBlogPostsForAdmin
+);
 
 router
   .route("/")

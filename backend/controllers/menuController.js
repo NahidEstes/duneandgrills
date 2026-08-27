@@ -16,6 +16,22 @@ export const getMenuItems = async (req, res) => {
   }
 };
 
+// @desc    Get all menu items, including unavailable items
+// @route   GET /api/menu/manage
+// @access  Admin/Manager
+export const getAllMenuItemsForAdmin = async (req, res) => {
+  try {
+    const items = await MenuItem.find().sort({ updatedAt: -1 });
+    res.status(200).json({ success: true, count: items.length, data: items });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch menu items",
+      error: err.message,
+    });
+  }
+};
+
 // @desc    Get a single menu item
 // @route   GET /api/menu/:id
 // @access  Public

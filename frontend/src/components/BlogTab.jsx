@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import {
   fetchAllBlogPosts,
   createBlogPost,
@@ -9,6 +10,7 @@ import {
   deleteBlogPost,
 } from "../api/api.js";
 import SmartImage from "./SmartImage.jsx";
+import { confirmDelete } from "./admin/deleteToast.js";
 
 const EMPTY_FORM = {
   title: "",
@@ -21,7 +23,7 @@ const EMPTY_FORM = {
   isPublished: true,
 };
 
-const BlogTab = () => {
+const BlogTab = ({ onDataChanged }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -36,6 +38,7 @@ const BlogTab = () => {
       setPosts(await fetchAllBlogPosts());
     } catch (err) {
       setError("Failed to load blog posts.");
+      toast.error(err.response?.data?.message || "Unable to load blog posts.");
     } finally {
       setLoading(false);
     }
@@ -84,26 +87,38 @@ const BlogTab = () => {
     try {
       if (editingId) {
         await updateBlogPost(editingId, payload);
+        toast.success("Article updated successfully.");
       } else {
         await createBlogPost(payload);
+        toast.success("Article published successfully.");
       }
       setShowForm(false);
-      loadPosts();
+      await loadPosts();
+      onDataChanged?.();
     } catch (err) {
-      setError("Save failed. Check that all required fields are filled.");
+      const message =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Save failed. Check that all required fields are filled.";
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id, title) => {
-    if (!window.confirm(`Delete "${title}"? This can't be undone.`)) return;
-    try {
-      await deleteBlogPost(id);
-      setPosts((prev) => prev.filter((p) => p._id !== id));
-    } catch (err) {
-      alert("Delete failed.");
-    }
+    confirmDelete({
+      title: `Delete “${title}”?`,
+      description: "The article will be removed from the public blog.",
+      onConfirm: async () => {
+        await deleteBlogPost(id);
+        setPosts((prev) => prev.filter((post) => post._id !== id));
+        onDataChanged?.();
+      },
+      successMessage: "Article deleted.",
+      errorMessage: "Unable to delete article.",
+    });
   };
 
   return (

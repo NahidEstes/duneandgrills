@@ -48,6 +48,11 @@ export const createMenuItem = async (payload) => {
   return data.data;
 };
 
+export const fetchAllMenuItems = async () => {
+  const { data } = await api.get("/menu/manage");
+  return data.data;
+};
+
 export const updateMenuItem = async (id, payload) => {
   const { data } = await api.put(`/menu/${id}`, payload);
   await refreshAfterMutation("menu");
@@ -116,6 +121,34 @@ export const updateOrderStatus = async (id, status) => {
   const { data } = await api.patch(`/orders/${id}/status`, { status });
   await refreshAfterMutation("orders");
   return data.data;
+};
+
+// ---- Admin dashboard ----
+export const fetchAdminDashboard = async () => {
+  const { data } = await api.get("/admin/dashboard");
+  return data.data;
+};
+
+export const fetchAdminUsers = async (scope = "customers", search = "") => {
+  const { data } = await api.get("/admin/users", {
+    params: { scope, search: search || undefined },
+  });
+  return data.data;
+};
+
+export const searchAdmin = async (query) => {
+  const { data } = await api.get("/admin/search", { params: { q: query } });
+  return data.data;
+};
+
+export const fetchAdminReviews = async () => {
+  const { data } = await api.get("/reviews/manage");
+  return data.data;
+};
+
+export const deleteAdminReview = async (id) => {
+  const { data } = await api.delete(`/reviews/${id}`);
+  return data;
 };
 
 // ---- Auth ----
@@ -235,7 +268,7 @@ export const fetchBlogCategoryCounts = async () => {
 };
 
 export const fetchAllBlogPosts = async () => {
-  const { data } = await api.get("/blog", { params: { all: true } });
+  const { data } = await api.get("/blog/manage");
   return data.data;
 };
 

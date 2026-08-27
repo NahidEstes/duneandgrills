@@ -14,6 +14,7 @@ import blogRoutes from "./routes/blogRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import offerRoutes from "./routes/offerRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use("/api/blog", blogRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/offers", offerRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/api/health", (req, res) => {
   res

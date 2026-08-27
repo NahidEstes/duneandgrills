@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getMenuItems,
+  getAllMenuItemsForAdmin,
   getMenuItemById,
   createMenuItem,
   updateMenuItem,
@@ -9,6 +10,13 @@ import {
 import { protect, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
+
+router.get(
+  "/manage",
+  protect,
+  authorize("admin", "manager"),
+  getAllMenuItemsForAdmin
+);
 
 router
   .route("/")
