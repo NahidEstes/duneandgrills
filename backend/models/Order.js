@@ -10,6 +10,13 @@ const orderItemSchema = new mongoose.Schema(
     name: { type: String, required: true },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1 },
+    isReward: { type: Boolean, default: false },
+    reward: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Reward",
+      default: null,
+    },
+    redemptionId: { type: mongoose.Schema.Types.ObjectId, default: null },
   },
   { _id: false }
 );
@@ -50,12 +57,33 @@ const orderSchema = new mongoose.Schema(
         "out-for-delivery",
         "delivered",
         "cancelled",
+        "refunded",
+        "failed",
       ],
       default: "pending",
     },
     notes: {
       type: String,
       default: "",
+    },
+    eligiblePointsAmount: { type: Number, default: 0, min: 0 },
+    pointsEarned: { type: Number, default: 0, min: 0 },
+    pointsAwardedAt: { type: Date, default: null },
+    pointsReversedAt: { type: Date, default: null },
+    rewardRedemption: {
+      redemptionId: { type: mongoose.Schema.Types.ObjectId, default: null },
+      reward: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Reward",
+        default: null,
+      },
+      menuItem: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "MenuItem",
+        default: null,
+      },
+      title: { type: String, default: "" },
+      pointsSpent: { type: Number, default: 0, min: 0 },
     },
   },
   { timestamps: true }

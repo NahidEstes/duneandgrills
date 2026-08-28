@@ -78,13 +78,13 @@ const UserDirectory = ({ scope }) => {
       <div className={`${CARD} overflow-hidden`}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="border-b border-white/[0.07] text-xs text-neutral-500"><tr><th className="px-4 py-3 font-medium">Account</th><th className="px-3 py-3 font-medium">Contact</th>{!isStaff && <><th className="px-3 py-3 font-medium">Orders</th><th className="px-3 py-3 font-medium">Total Spent</th><th className="px-3 py-3 font-medium">Rewards</th></>}<th className="px-4 py-3 font-medium">Joined</th></tr></thead>
+            <thead className="border-b border-white/[0.07] text-xs text-neutral-500"><tr><th className="px-4 py-3 font-medium">Account</th><th className="px-3 py-3 font-medium">Contact</th>{!isStaff && <><th className="px-3 py-3 font-medium">Orders</th><th className="px-3 py-3 font-medium">Total Spent</th><th className="px-3 py-3 font-medium">Points</th></>}<th className="px-4 py-3 font-medium">Joined</th></tr></thead>
             <tbody className="divide-y divide-white/[0.055]">
               {users.map((user) => (
                 <tr key={user._id} className="hover:bg-white/[0.025]">
                   <td className="px-4 py-3"><div className="flex items-center gap-3">{user.avatar ? <SmartImage src={user.avatar} alt="" width={72} height={72} sizes="38px" className="h-10 w-10 rounded-full object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-dune-amber/10 font-semibold text-dune-amber">{user.name?.charAt(0)?.toUpperCase()}</span>}<span><span className="block font-medium text-white">{user.name}</span><span className="block text-xs capitalize text-neutral-500">{user.role}</span></span></div></td>
                   <td className="px-3 py-3"><span className="block text-neutral-300">{user.email}</span><span className="block text-xs text-neutral-500">{user.phone || "No phone saved"}</span></td>
-                  {!isStaff && <><td className="px-3 py-3 text-white">{user.ordersCount}</td><td className="px-3 py-3 font-medium text-white">{formatAdminCurrency(user.totalSpent)}</td><td className="px-3 py-3 text-dune-amber">{user.rewardPoints || 0} pts</td></>}
+                  {!isStaff && <><td className="px-3 py-3 text-white">{user.ordersCount}</td><td className="px-3 py-3 font-medium text-white">{formatAdminCurrency(user.totalSpent)}</td><td className="px-3 py-3 text-dune-amber">{user.pointsBalance || 0} pts</td></>}
                   <td className="px-4 py-3 text-xs text-neutral-500">{formatAdminDate(user.createdAt)}</td>
                 </tr>
               ))}

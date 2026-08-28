@@ -4,7 +4,7 @@ import MenuItem from "../models/MenuItem.js";
 import BlogPost from "../models/BlogPost.js";
 import Order from "../models/Order.js";
 import Review from "../models/Review.js";
-import { getMembershipDetails } from "../utils/rewards.js";
+import { ensurePointsBalance } from "../services/rewardService.js";
 
 const publicUser = (user) => ({
   _id: user._id,
@@ -15,8 +15,7 @@ const publicUser = (user) => ({
   address: user.address,
   bio: user.bio,
   avatar: user.avatar,
-  rewardPoints: user.rewardPoints,
-  membershipTier: getMembershipDetails(user.rewardPoints).tier,
+  pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
   createdAt: user.createdAt,
 });
 
@@ -28,6 +27,7 @@ const findUser = (id) =>
 
 export const getDashboard = async (req, res) => {
   try {
+    await ensurePointsBalance(req.user._id);
     const [user, orders, reviews] = await Promise.all([
       findUser(req.user._id),
       Order.find({ user: req.user._id })
@@ -44,8 +44,6 @@ export const getDashboard = async (req, res) => {
     }
 
     const favorites = user.favorites.filter(Boolean);
-    const rewards = getMembershipDetails(user.rewardPoints);
-
     res.status(200).json({
       success: true,
       data: {
@@ -53,10 +51,9 @@ export const getDashboard = async (req, res) => {
         stats: {
           orders: orders.length,
           favorites: favorites.length,
-          rewardPoints: user.rewardPoints,
+          pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
           reviews: reviews.length,
         },
-        rewards,
         recentOrders: orders.slice(0, 3),
         orders,
         favorites,
@@ -76,6 +73,7 @@ export const getDashboard = async (req, res) => {
 
 export const getProfileStats = async (req, res) => {
   try {
+    await ensurePointsBalance(req.user._id);
     const [orders, reviews, user] = await Promise.all([
       Order.countDocuments({ user: req.user._id }),
       Review.countDocuments({ user: req.user._id }),
@@ -87,9 +85,8 @@ export const getProfileStats = async (req, res) => {
       data: {
         orders,
         favorites: user.favorites.length,
-        rewardPoints: user.rewardPoints,
+        pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
         reviews,
-        rewards: getMembershipDetails(user.rewardPoints),
       },
     });
   } catch (err) {

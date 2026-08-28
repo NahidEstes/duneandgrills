@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import AdminShell from "./admin/AdminShell.jsx";
 import DashboardOverview from "./admin/DashboardOverview.jsx";
 import MenuItemsTab from "./admin/MenuItemsTab.jsx";
+import RewardsTab from "./admin/RewardsTab.jsx";
 import {
   AnalyticsView,
   CategoriesView,
@@ -39,11 +40,15 @@ const TAB_CONTENT = {
   },
   customers: {
     title: "Customers",
-    subtitle: "View safe account details, order counts and loyalty activity.",
+    subtitle: "View safe account details, order counts and points balances.",
   },
   offers: {
     title: "Offers & Promotions",
     subtitle: "Manage the same promotions displayed in Exclusive Offers.",
+  },
+  rewards: {
+    title: "Dune Rewards",
+    subtitle: "Manage point-based rewards independently from promotional offers.",
   },
   blog: {
     title: "Blog / Content Control",
@@ -163,6 +168,9 @@ const AdminDashboard = () => {
       {activeTab === "customers" && <CustomersView />}
       {activeTab === "offers" && (
         <OffersTab onDataChanged={refreshAfterMutation} />
+      )}
+      {activeTab === "rewards" && (
+        <RewardsTab onDataChanged={refreshAfterMutation} />
       )}
       {activeTab === "blog" && (
         <BlogTab onDataChanged={refreshAfterMutation} />

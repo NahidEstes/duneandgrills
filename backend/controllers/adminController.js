@@ -5,6 +5,8 @@ import Order from "../models/Order.js";
 import Review from "../models/Review.js";
 import User from "../models/User.js";
 
+const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
+
 const escapeRegex = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -83,7 +85,7 @@ export const getDashboard = async (req, res) => {
       Order.countDocuments({ status: "pending" }),
       Order.countDocuments({ status: { $in: openStatuses } }),
       Order.aggregate([
-        { $match: { status: { $ne: "cancelled" } } },
+        { $match: { status: { $nin: nonRevenueStatuses } } },
         { $group: { _id: null, total: { $sum: "$totalAmount" } } },
       ]),
       Review.aggregate([
@@ -122,7 +124,7 @@ export const getDashboard = async (req, res) => {
         {
           $match: {
             createdAt: { $gte: currentPeriodStart },
-            status: { $ne: "cancelled" },
+            status: { $nin: nonRevenueStatuses },
           },
         },
         {
@@ -134,7 +136,7 @@ export const getDashboard = async (req, res) => {
         { $sort: { _id: 1 } },
       ]),
       Order.aggregate([
-        { $match: { status: { $ne: "cancelled" } } },
+        { $match: { status: { $nin: nonRevenueStatuses } } },
         { $unwind: "$items" },
         {
           $group: {
@@ -174,7 +176,7 @@ export const getDashboard = async (req, res) => {
         {
           $match: {
             createdAt: { $gte: previousPeriodStart },
-            status: { $ne: "cancelled" },
+            status: { $nin: nonRevenueStatuses },
           },
         },
         {
@@ -314,14 +316,14 @@ export const getAdminUsers = async (req, res) => {
     }
 
     const users = await User.find(filter)
-      .select("name email role phone address avatar rewardPoints favorites createdAt updatedAt")
+      .select("name email role phone address avatar pointsBalance favorites createdAt updatedAt")
       .sort({ createdAt: -1 })
       .lean();
 
     const ids = users.map((user) => user._id);
     const orderRows = ids.length
       ? await Order.aggregate([
-          { $match: { user: { $in: ids }, status: { $ne: "cancelled" } } },
+          { $match: { user: { $in: ids }, status: { $nin: nonRevenueStatuses } } },
           {
             $group: {
               _id: "$user",
@@ -343,7 +345,7 @@ export const getAdminUsers = async (req, res) => {
       phone: user.phone,
       address: user.address,
       avatar: user.avatar,
-      rewardPoints: user.rewardPoints,
+      pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
       favoritesCount: user.favorites?.length || 0,
       ordersCount: orderMap.get(user._id.toString())?.orders || 0,
       totalSpent: orderMap.get(user._id.toString())?.totalSpent || 0,

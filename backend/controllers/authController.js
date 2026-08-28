@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-import { getMembershipDetails } from "../utils/rewards.js";
+import { ensurePointsBalance } from "../services/rewardService.js";
 
 const signToken = (user) =>
   jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
@@ -16,8 +16,7 @@ const sanitize = (user) => ({
   address: user.address,
   bio: user.bio,
   avatar: user.avatar,
-  rewardPoints: user.rewardPoints,
-  membershipTier: getMembershipDetails(user.rewardPoints).tier,
+  pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
   createdAt: user.createdAt,
 });
 
@@ -63,6 +62,7 @@ export const register = async (req, res) => {
           ]
         : [],
       role: "customer",
+      pointsBalance: 0,
     });
     const token = signToken(user);
 
@@ -95,8 +95,10 @@ export const login = async (req, res) => {
         .json({ success: false, message: "Invalid email or password" });
     }
 
+    await ensurePointsBalance(user._id);
+    const currentUser = await User.findById(user._id);
     const token = signToken(user);
-    res.status(200).json({ success: true, token, user: sanitize(user) });
+    res.status(200).json({ success: true, token, user: sanitize(currentUser) });
   } catch (err) {
     res
       .status(500)
@@ -106,7 +108,9 @@ export const login = async (req, res) => {
 
 // @route GET /api/auth/me
 export const getMe = async (req, res) => {
-  res.status(200).json({ success: true, user: sanitize(req.user) });
+  await ensurePointsBalance(req.user._id);
+  const user = await User.findById(req.user._id);
+  res.status(200).json({ success: true, user: sanitize(user) });
 };
 
 // @route PATCH /api/auth/me
@@ -124,7 +128,9 @@ export const updateMe = async (req, res) => {
     }
 
     await user.save();
-    res.status(200).json({ success: true, user: sanitize(user) });
+    await ensurePointsBalance(user._id);
+    const currentUser = await User.findById(user._id);
+    res.status(200).json({ success: true, user: sanitize(currentUser) });
   } catch (err) {
     const duplicateEmail = err.code === 11000;
     res

@@ -1,5 +1,20 @@
+import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Counter from "../models/Counter.js";
+import MenuItem from "../models/MenuItem.js";
+import User from "../models/User.js";
+import { calculateOrderPoints } from "../config/rewards.js";
+import {
+  applyRedemptionToOrder,
+  creditOrderPoints,
+  releaseExpiredRedemptions,
+  reopenRedemption,
+  restoreRedemption,
+  reverseOrderPoints,
+} from "../services/rewardService.js";
+
+const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
+const reversalStatuses = new Set(nonRevenueStatuses);
 
 // Generates a human-readable, date-based order number like 2026082301
 // (YYYYMMDD + sequence number for that day)
@@ -46,8 +61,10 @@ const generateOrderNumber = async () => {
 // @route   POST /api/orders
 // @access  Public
 export const createOrder = async (req, res) => {
+  let appliedRedemption = null;
+  let orderId = null;
   try {
-    const { customer, items, notes } = req.body;
+    const { customer, items = [], notes, rewardRedemptionId } = req.body;
 
     if (!customer?.name || !customer?.phone) {
       return res.status(400).json({
@@ -55,16 +72,58 @@ export const createOrder = async (req, res) => {
         message: "Customer name and phone are required",
       });
     }
-    if (!items || !Array.isArray(items) || items.length === 0) {
+    if (!Array.isArray(items) || (!items.length && !rewardRedemptionId)) {
       return res.status(400).json({
         success: false,
         message: "Order must contain at least one item",
       });
     }
 
-    const totalAmount = items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
+    const normalizedItems = items.map((item) => ({
+      menuItem: item.menuItem,
+      quantity: Number(item.quantity),
+    }));
+    if (
+      normalizedItems.some(
+        (item) =>
+          !mongoose.isValidObjectId(item.menuItem) ||
+          !Number.isInteger(item.quantity) ||
+          item.quantity < 1
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Order contains an invalid menu item or quantity",
+      });
+    }
+
+    const menuIds = [...new Set(normalizedItems.map((item) => item.menuItem))];
+    const menuItems = await MenuItem.find({
+      _id: { $in: menuIds },
+      isAvailable: true,
+    }).lean();
+    const menuMap = new Map(menuItems.map((item) => [item._id.toString(), item]));
+    if (menuMap.size !== menuIds.length) {
+      return res.status(409).json({
+        success: false,
+        message: "One or more menu items are no longer available",
+      });
+    }
+
+    const verifiedItems = normalizedItems.map((item) => {
+      const menuItem = menuMap.get(item.menuItem.toString());
+      return {
+        menuItem: menuItem._id,
+        name: menuItem.name,
+        price: menuItem.price,
+        quantity: item.quantity,
+        isReward: false,
+      };
+    });
+    const totalAmount = Number(
+      verifiedItems
+        .reduce((sum, item) => sum + item.price * item.quantity, 0)
+        .toFixed(2)
     );
 
     // const order = await Order.create({
@@ -81,18 +140,95 @@ export const createOrder = async (req, res) => {
     //   totalAmount,
     //   notes,
     // });
+    orderId = new mongoose.Types.ObjectId();
+    let rewardSnapshot = undefined;
+    if (rewardRedemptionId) {
+      if (!mongoose.isValidObjectId(rewardRedemptionId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid reward redemption",
+        });
+      }
+      await releaseExpiredRedemptions(req.user._id);
+      const rewardUser = await User.findById(req.user._id)
+        .select("rewardRedemptions")
+        .lean();
+      const redemption = rewardUser?.rewardRedemptions?.find(
+        (entry) => entry._id.toString() === rewardRedemptionId
+      );
+      if (
+        !redemption ||
+        redemption.status !== "reserved" ||
+        new Date(redemption.expiresAt) <= new Date()
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: "This reward reservation is no longer valid",
+        });
+      }
+      const rewardMenuItem = await MenuItem.findOne({
+        _id: redemption.menuItem,
+        isAvailable: true,
+      }).lean();
+      if (!rewardMenuItem) {
+        return res.status(409).json({
+          success: false,
+          message: "The redeemed menu item is no longer available",
+        });
+      }
+
+      const applied = await applyRedemptionToOrder({
+        userId: req.user._id,
+        redemptionId: redemption._id,
+        orderId,
+      });
+      if (!applied) {
+        return res.status(409).json({
+          success: false,
+          message: "This reward has already been used or expired",
+        });
+      }
+      appliedRedemption = redemption;
+      verifiedItems.push({
+        menuItem: rewardMenuItem._id,
+        name: `${redemption.title} (Reward)`,
+        price: 0,
+        quantity: 1,
+        isReward: true,
+        reward: redemption.reward,
+        redemptionId: redemption._id,
+      });
+      rewardSnapshot = {
+        redemptionId: redemption._id,
+        reward: redemption.reward,
+        menuItem: rewardMenuItem._id,
+        title: redemption.title,
+        pointsSpent: redemption.pointsSpent,
+      };
+    }
+
     const orderNumber = await generateOrderNumber();
     const order = await Order.create({
+      _id: orderId,
       orderNumber,
       user: req.user ? req.user._id : null,
       customer,
-      items,
+      items: verifiedItems,
       totalAmount,
+      eligiblePointsAmount: totalAmount,
+      rewardRedemption: rewardSnapshot,
       notes,
     });
 
     res.status(201).json({ success: true, data: order });
   } catch (err) {
+    if (appliedRedemption && orderId) {
+      await reopenRedemption({
+        userId: req.user._id,
+        redemptionId: appliedRedemption._id,
+        orderId,
+      }).catch(() => undefined);
+    }
     res.status(400).json({
       success: false,
       message: "Failed to create order",
@@ -150,12 +286,12 @@ export const getOrderStats = async (req, res) => {
     const allOrders = await Order.find();
 
     const totalRevenue = allOrders
-      .filter((o) => o.status !== "cancelled")
+      .filter((o) => !nonRevenueStatuses.includes(o.status))
       .reduce((sum, o) => sum + o.totalAmount, 0);
 
     const todayOrders = allOrders.filter((o) => o.createdAt >= startOfToday);
     const todayRevenue = todayOrders
-      .filter((o) => o.status !== "cancelled")
+      .filter((o) => !nonRevenueStatuses.includes(o.status))
       .reduce((sum, o) => sum + o.totalAmount, 0);
 
     const statusCounts = allOrders.reduce((acc, o) => {
@@ -211,16 +347,53 @@ export const getOrderById = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    );
+    const order = await Order.findById(req.params.id);
     if (!order) {
       return res
         .status(404)
         .json({ success: false, message: "Order not found" });
     }
+
+    order.status = status;
+    await order.validate();
+
+    if (status === "delivered" && order.user) {
+      const points = calculateOrderPoints(
+        order.eligiblePointsAmount ?? order.totalAmount
+      );
+      const credited = await creditOrderPoints({
+        userId: order.user,
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        points,
+      });
+      if (credited || !order.pointsAwardedAt) {
+        order.pointsEarned = points;
+        order.pointsAwardedAt = order.pointsAwardedAt || new Date();
+        order.pointsReversedAt = null;
+      }
+    }
+
+    if (reversalStatuses.has(status) && order.user) {
+      const reversed = await reverseOrderPoints({
+        userId: order.user,
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+      });
+      if (reversed) order.pointsReversedAt = order.pointsReversedAt || new Date();
+
+      if (order.rewardRedemption?.redemptionId) {
+        await restoreRedemption({
+          userId: order.user,
+          redemptionId: order.rewardRedemption.redemptionId,
+          expectedStatuses: ["applied"],
+          status: "restored",
+          description: `${order.rewardRedemption.title} returned after Order #${order.orderNumber} was ${status}`,
+        });
+      }
+    }
+
+    await order.save();
     res.status(200).json({ success: true, data: order });
   } catch (err) {
     res.status(400).json({

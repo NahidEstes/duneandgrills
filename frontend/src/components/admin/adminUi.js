@@ -48,6 +48,8 @@ export const statusStyles = {
   "out-for-delivery": "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
   delivered: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   cancelled: "border-red-500/30 bg-red-500/10 text-red-300",
+  refunded: "border-red-500/30 bg-red-500/10 text-red-300",
+  failed: "border-red-500/30 bg-red-500/10 text-red-300",
   active: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   upcoming: "border-sky-500/30 bg-sky-500/10 text-sky-300",
   expired: "border-red-500/30 bg-red-500/10 text-red-300",

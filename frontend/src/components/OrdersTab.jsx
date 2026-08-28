@@ -13,6 +13,8 @@ const STATUS_STYLES = {
   "out-for-delivery": "bg-purple-500/10 text-purple-400 border-purple-500/40",
   delivered: "bg-emerald-500/10 text-emerald-400 border-emerald-500/40",
   cancelled: "bg-red-500/10 text-red-400 border-red-500/40",
+  refunded: "bg-red-500/10 text-red-400 border-red-500/40",
+  failed: "bg-red-500/10 text-red-400 border-red-500/40",
 };
 
 const STATUS_LABELS = {
@@ -22,6 +24,8 @@ const STATUS_LABELS = {
   "out-for-delivery": "Out for Delivery",
   delivered: "Delivered",
   cancelled: "Cancelled",
+  refunded: "Refunded",
+  failed: "Failed",
 };
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);

@@ -18,6 +18,10 @@ const INVALIDATION_PATHS = {
     ["/profile", "page"],
   ],
   offers: [["/", "page"]],
+  rewards: [
+    ["/profile", "page"],
+    ["/admin", "page"],
+  ],
 };
 
 export const invalidateContent = (contentType) => {

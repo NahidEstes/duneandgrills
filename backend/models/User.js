@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import { getMembershipDetails } from "../utils/rewards.js";
 
 const addressSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true, maxlength: 40 },
@@ -26,6 +25,43 @@ const paymentMethodSchema = new mongoose.Schema({
   isDefault: { type: Boolean, default: false },
 });
 
+const pointTransactionSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    enum: ["EARN", "REDEEM", "REVERSAL"],
+    required: true,
+  },
+  points: { type: Number, required: true },
+  order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null },
+  reward: { type: mongoose.Schema.Types.ObjectId, ref: "Reward", default: null },
+  description: { type: String, required: true, trim: true, maxlength: 240 },
+  balanceAfter: { type: Number, required: true, min: 0 },
+  sourceKey: { type: String, required: true, trim: true },
+  createdAt: { type: Date, default: Date.now },
+});
+
+const rewardRedemptionSchema = new mongoose.Schema({
+  reward: { type: mongoose.Schema.Types.ObjectId, ref: "Reward", required: true },
+  menuItem: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "MenuItem",
+    required: true,
+  },
+  order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null },
+  title: { type: String, required: true, trim: true },
+  image: { type: String, default: "", trim: true },
+  pointsSpent: { type: Number, required: true, min: 1 },
+  status: {
+    type: String,
+    enum: ["reserved", "applied", "cancelled", "expired", "restored"],
+    default: "reserved",
+  },
+  expiresAt: { type: Date, required: true },
+  appliedAt: { type: Date, default: null },
+  restoredAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now },
+});
+
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -46,7 +82,9 @@ const userSchema = new mongoose.Schema(
     address: { type: String, default: "" },
     bio: { type: String, default: "", trim: true, maxlength: 240 },
     avatar: { type: String, default: "", trim: true },
-    rewardPoints: { type: Number, default: 0, min: 0 },
+    pointsBalance: { type: Number, min: 0 },
+    pointTransactions: { type: [pointTransactionSchema], default: [] },
+    rewardRedemptions: { type: [rewardRedemptionSchema], default: [] },
     favorites: [
       { type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" },
     ],
@@ -56,12 +94,8 @@ const userSchema = new mongoose.Schema(
     addresses: { type: [addressSchema], default: [] },
     paymentMethods: { type: [paymentMethodSchema], default: [] },
   },
-  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+  { timestamps: true }
 );
-
-userSchema.virtual("membershipTier").get(function () {
-  return getMembershipDetails(this.rewardPoints).tier;
-});
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();

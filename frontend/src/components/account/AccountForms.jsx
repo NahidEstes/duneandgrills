@@ -159,7 +159,7 @@ export const ReviewForm = ({ options, onClose, onSaved }) => {
   );
 };
 
-const statusStyles = { pending: "border-amber-500/40 bg-amber-500/10 text-amber-300", confirmed: "border-sky-500/40 bg-sky-500/10 text-sky-300", preparing: "border-amber-500/40 bg-amber-500/10 text-amber-300", "out-for-delivery": "border-violet-500/40 bg-violet-500/10 text-violet-300", delivered: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", cancelled: "border-red-500/40 bg-red-500/10 text-red-300" };
+const statusStyles = { pending: "border-amber-500/40 bg-amber-500/10 text-amber-300", confirmed: "border-sky-500/40 bg-sky-500/10 text-sky-300", preparing: "border-amber-500/40 bg-amber-500/10 text-amber-300", "out-for-delivery": "border-violet-500/40 bg-violet-500/10 text-violet-300", delivered: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", cancelled: "border-red-500/40 bg-red-500/10 text-red-300", refunded: "border-red-500/40 bg-red-500/10 text-red-300", failed: "border-red-500/40 bg-red-500/10 text-red-300" };
 
 export const OrderDetails = ({ order, onClose, onReorder }) => (
   <AccountModal title={`Order #${order.orderNumber}`} description={new Date(order.createdAt).toLocaleString()} onClose={onClose}>
@@ -172,4 +172,3 @@ export const OrderDetails = ({ order, onClose, onReorder }) => (
     <button type="button" onClick={() => onReorder(order)} className={`${primaryButton} mt-5 w-full`}><RefreshCw className="h-4 w-4" />Reorder These Items</button>
   </AccountModal>
 );
-

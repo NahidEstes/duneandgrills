@@ -71,7 +71,7 @@ remain active. It replaces only the offers collection and does not modify menu,
 blog, user, or order data.
 
 Populate the account dashboard with two demo customers, linked orders,
-favorites, addresses, demo payment descriptors, reward points, and reviews:
+favorites, addresses, demo payment descriptors, points balances, and reviews:
 
 ```bash
 npm run seed:profiles
@@ -85,6 +85,20 @@ or real orders. Demo logins:
 
 Payment-method seed data contains only a brand, fictional last four digits,
 expiry, and cardholder name. It never contains full card numbers or CVVs.
+
+Migrate balances from the retired membership-tier system, then seed the
+database-backed Dune Rewards catalogue:
+
+```bash
+npm run migrate:rewards
+npm run seed:rewards
+```
+
+The migration preserves each existing `rewardPoints` value as
+`pointsBalance`, records non-zero opening balances in points history, and then
+removes the obsolete field. Dune Rewards uses a centralized earning rule of
+10 points per 1 SAR. Points are credited once when an order is delivered and
+reversed when it is cancelled, refunded, or failed.
 
 Start the API:
 
@@ -112,6 +126,13 @@ The API runs at `http://localhost:5000`.
 | POST   | `/api/offers`                | Create an offer (admin/manager)        |
 | PUT    | `/api/offers/:id`            | Update an offer (admin/manager)        |
 | DELETE | `/api/offers/:id`            | Delete an offer (admin/manager)        |
+| GET    | `/api/rewards`                | List active points rewards             |
+| GET    | `/api/rewards/me`             | Current balance and points history     |
+| POST   | `/api/rewards/:id/redeem`     | Reserve a reward for the cart          |
+| GET    | `/api/rewards/manage`         | List rewards (admin/manager)           |
+| POST   | `/api/rewards`                | Create a reward (admin/manager)        |
+| PATCH  | `/api/rewards/:id`            | Update a reward (admin/manager)        |
+| DELETE | `/api/rewards/:id`            | Archive a reward (admin/manager)       |
 | GET    | `/api/orders`               | List all orders                       |
 | POST   | `/api/orders`               | Create a new order                    |
 | GET    | `/api/orders/:id`           | Get a single order                    |

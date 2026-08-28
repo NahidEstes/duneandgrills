@@ -10,7 +10,9 @@
     "seed": "node data/seed.js",
     "seed:blog": "node data/seedBlog.js",
     "seed:profiles": "node data/seedProfiles.js",
-    "seed:offers": "node data/seedOffers.js"
+    "seed:offers": "node data/seedOffers.js",
+    "seed:rewards": "node data/seedRewards.js",
+    "migrate:rewards": "node data/migrateRewards.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

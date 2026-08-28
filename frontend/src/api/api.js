@@ -123,6 +123,52 @@ export const updateOrderStatus = async (id, status) => {
   return data.data;
 };
 
+// ---- Dune Rewards ----
+export const fetchRewards = async () => {
+  const { data } = await api.get("/rewards");
+  return data.data;
+};
+
+export const fetchRewardAccount = async () => {
+  const { data } = await api.get("/rewards/me");
+  return data.data;
+};
+
+export const redeemReward = async (id) => {
+  const { data } = await api.post(`/rewards/${id}/redeem`);
+  await refreshAfterMutation("rewards");
+  return data.data;
+};
+
+export const cancelRewardRedemption = async (redemptionId) => {
+  const { data } = await api.delete(`/rewards/redemptions/${redemptionId}`);
+  await refreshAfterMutation("rewards");
+  return data.data;
+};
+
+export const fetchAllRewards = async () => {
+  const { data } = await api.get("/rewards/manage");
+  return data.data;
+};
+
+export const createReward = async (payload) => {
+  const { data } = await api.post("/rewards", payload);
+  await refreshAfterMutation("rewards");
+  return data.data;
+};
+
+export const updateReward = async (id, payload) => {
+  const { data } = await api.patch(`/rewards/${id}`, payload);
+  await refreshAfterMutation("rewards");
+  return data.data;
+};
+
+export const deleteReward = async (id) => {
+  const { data } = await api.delete(`/rewards/${id}`);
+  await refreshAfterMutation("rewards");
+  return data;
+};
+
 // ---- Admin dashboard ----
 export const fetchAdminDashboard = async () => {
   const { data } = await api.get("/admin/dashboard");

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   X,
   Plus,
@@ -14,7 +15,11 @@ import {
 import { formatPrice } from "../utils/currency.js";
 import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { placeOrder, updateMe } from "../api/api.js";
+import {
+  cancelRewardRedemption,
+  placeOrder,
+  updateMe,
+} from "../api/api.js";
 import LoginPromptModal from "./LoginPromptModal.jsx";
 import SmartImage from "./SmartImage.jsx";
 
@@ -90,23 +95,47 @@ const CartDrawer = ({ open, onClose }) => {
     try {
       const order = await placeOrder({
         customer,
-        items: cart.map((line) => ({
-          menuItem: line._id,
-          name: line.name,
-          price: line.price,
-          quantity: line.quantity,
-        })),
+        items: cart
+          .filter((line) => !line.isReward)
+          .map((line) => ({
+            menuItem: line._id,
+            quantity: line.quantity,
+          })),
+        rewardRedemptionId:
+          cart.find((line) => line.isReward)?.rewardRedemptionId || undefined,
       });
       setPlacedOrder(order);
       clearCart();
       setStep("success");
     } catch (err) {
       setError(
-        "Couldn't place your order. Please make sure the API server is running."
+        err.response?.data?.message ||
+          "Couldn't place your order. Please make sure the API server is running."
       );
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleRemoveLine = async (line) => {
+    if (line.isReward && line.rewardRedemptionId) {
+      try {
+        await cancelRewardRedemption(line.rewardRedemptionId);
+        toast.success("Reward removed and your points were returned.");
+      } catch (requestError) {
+        if ([404, 409].includes(requestError.response?.status)) {
+          removeFromCart(line._id);
+          toast.info("This reward reservation is no longer active.");
+          return;
+        }
+        toast.error(
+          requestError.response?.data?.message ||
+            "The reward could not be removed from your cart."
+        );
+        return;
+      }
+    }
+    removeFromCart(line._id);
   };
 
   const reset = () => {
@@ -178,7 +207,7 @@ const CartDrawer = ({ open, onClose }) => {
                           {line.name}
                         </h3>
                         <button
-                          onClick={() => removeFromCart(line._id)}
+                          onClick={() => handleRemoveLine(line)}
                           className="text-neutral-500 hover:text-red-400 shrink-0"
                           aria-label={`Remove ${line.name}`}
                         >
@@ -189,10 +218,10 @@ const CartDrawer = ({ open, onClose }) => {
                         ${line.price.toFixed(2)}
                       </p> */}
                       <p className="text-dune-amber text-sm mt-1">
-                        {formatPrice(line.price)}
+                        {line.isReward ? "Points Reward · FREE" : formatPrice(line.price)}
                       </p>
 
-                      <div className="mt-2 flex items-center gap-3">
+                      {!line.isReward && <div className="mt-2 flex items-center gap-3">
                         <button
                           onClick={() => decrementItem(line._id)}
                           className="w-7 h-7 flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white"
@@ -208,7 +237,7 @@ const CartDrawer = ({ open, onClose }) => {
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
-                      </div>
+                      </div>}
                     </div>
                   </div>
                 ))

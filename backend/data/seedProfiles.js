@@ -23,7 +23,7 @@ const demoUsers = [
     bio: "Food lover, grill enthusiast, and always ready to try something new.",
     avatar:
       "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80",
-    rewardPoints: 550,
+    pointsBalance: 550,
     addresses: [
       {
         label: "Home",
@@ -65,7 +65,7 @@ const demoUsers = [
     bio: "Weekend foodie with a soft spot for smoky flavors and fresh juices.",
     avatar:
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80",
-    rewardPoints: 1240,
+    pointsBalance: 1240,
     addresses: [
       {
         label: "Home",
@@ -95,6 +95,18 @@ const upsertDemoUser = async (profile, favorites) => {
     password: DEMO_PASSWORD,
     role: "customer",
     favorites,
+    pointTransactions: profile.pointsBalance
+      ? [
+          {
+            type: "EARN",
+            points: profile.pointsBalance,
+            description: "Demo opening points balance",
+            balanceAfter: profile.pointsBalance,
+            sourceKey: "SEED:DEMO_OPENING_BALANCE",
+          },
+        ]
+      : [],
+    rewardRedemptions: [],
   });
   await user.save();
   return user;

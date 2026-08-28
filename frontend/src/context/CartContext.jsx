@@ -10,6 +10,7 @@ const cartReducer = (state, action) => {
       const item = action.payload;
       const existing = state.find((line) => line._id === item._id);
       if (existing) {
+        if (existing.isReward) return state;
         return state.map((line) =>
           line._id === item._id ? { ...line, quantity: line.quantity + 1 } : line
         );
@@ -32,12 +33,16 @@ const cartReducer = (state, action) => {
     }
     case "INCREMENT":
       return state.map((line) =>
-        line._id === action.payload ? { ...line, quantity: line.quantity + 1 } : line
+        line._id === action.payload && !line.isReward
+          ? { ...line, quantity: line.quantity + 1 }
+          : line
       );
     case "DECREMENT":
       return state
         .map((line) =>
-          line._id === action.payload ? { ...line, quantity: line.quantity - 1 } : line
+          line._id === action.payload && !line.isReward
+            ? { ...line, quantity: line.quantity - 1 }
+            : line
         )
         .filter((line) => line.quantity > 0);
     case "REMOVE_ITEM":

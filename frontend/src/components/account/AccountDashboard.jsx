@@ -6,7 +6,6 @@ import {
   Award,
   CircleUserRound,
   CreditCard,
-  Crown,
   Edit3,
   Ellipsis,
   Eye,
@@ -24,13 +23,13 @@ import {
   ShoppingBag,
   Star,
   Trash2,
-  Trophy,
   UserRound,
 } from "lucide-react";
 import Navbar from "../Navbar.jsx";
 import CartDrawer from "../CartDrawer.jsx";
 import SmartImage from "../SmartImage.jsx";
 import AccountModal from "./AccountModal.jsx";
+import DuneRewards from "./DuneRewards.jsx";
 import {
   AddressForm,
   OrderDetails,
@@ -56,6 +55,7 @@ const NAV_ITEMS = [
   ["profile", "Profile", UserRound],
   ["orders", "My Orders", ShoppingBag],
   ["favorites", "Favorites", Heart],
+  ["rewards", "Dune Rewards", Award],
   ["addresses", "Addresses", MapPin],
   ["payments", "Payment Methods", CreditCard],
   ["reviews", "Reviews", Star],
@@ -69,6 +69,8 @@ const STATUS_STYLES = {
   "out-for-delivery": "border-violet-500/35 bg-violet-500/10 text-violet-300",
   delivered: "border-emerald-500/35 bg-emerald-500/10 text-emerald-300",
   cancelled: "border-red-500/35 bg-red-500/10 text-red-300",
+  refunded: "border-red-500/35 bg-red-500/10 text-red-300",
+  failed: "border-red-500/35 bg-red-500/10 text-red-300",
 };
 
 const compactOutline =
@@ -165,10 +167,25 @@ const AccountDashboard = () => {
     }));
   };
 
+  const handleRewardBalanceChanged = useCallback((pointsBalance) => {
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            user: { ...current.user, pointsBalance },
+            stats: { ...current.stats, pointsBalance },
+          }
+        : current
+    );
+  }, []);
+
   const reorder = (order) => {
     const items = order.items
       .filter(
-        (item) => item.menuItem?._id && item.menuItem.isAvailable !== false
+        (item) =>
+          !item.isReward &&
+          item.menuItem?._id &&
+          item.menuItem.isAvailable !== false
       )
       .map((item) => ({
         ...item.menuItem,
@@ -244,7 +261,6 @@ const AccountDashboard = () => {
   const {
     user,
     stats,
-    rewards,
     orders,
     recentOrders,
     favorites,
@@ -256,8 +272,6 @@ const AccountDashboard = () => {
     ? new Date(user.createdAt).getFullYear()
     : new Date().getFullYear();
   const firstName = user.name?.split(" ")[0] || "Member";
-  const rewardTarget =
-    rewards.nextTierPoints || Math.max(rewards.pointsAvailable, 1);
   const defaultAddress =
     addresses.find((entry) => entry.isDefault) || addresses[0];
   const defaultPayment =
@@ -673,69 +687,6 @@ const AccountDashboard = () => {
     </Card>
   );
 
-  const loyaltyCard = (
-    <Card className="min-h-[150px] p-[18px]">
-      <h2 className="mb-3 text-[14px] font-bold uppercase tracking-[0.1em] text-[#f58700]">
-        Loyalty &amp; Rewards
-      </h2>
-      <div className="grid min-h-[90px] gap-4 rounded-[8px] border border-[#aa5b00] bg-black/10 px-4 py-3 sm:grid-cols-[1.25fr_0.65fr_1fr_auto] sm:items-center sm:divide-x sm:divide-[#333]">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[#6b430f] bg-[radial-gradient(circle,#3a2a10_0%,#17130d_70%)]">
-            <Trophy className="h-7 w-7 text-[#f59e0b]" />
-          </div>
-          <div>
-            <p className="text-[16px] font-semibold text-white">
-              {rewards.tier} Member
-            </p>
-            <p className="mt-1 text-[11px] text-neutral-500">
-              Enjoy exclusive perks and special offers.
-            </p>
-          </div>
-        </div>
-
-        <div className="sm:pl-7">
-          <p className="font-display text-2xl text-white">
-            {rewards.pointsAvailable.toLocaleString()}
-          </p>
-          <p className="text-[11px] text-neutral-300">Points Available</p>
-          <button
-            type="button"
-            onClick={() =>
-              notify(
-                "Your available points can be redeemed during a qualifying order."
-              )
-            }
-            className="mt-1 rounded bg-gradient-to-r from-[#df7400] to-[#f58a00] px-3 py-1 text-[10px] font-semibold text-white"
-          >
-            Redeem Points
-          </button>
-        </div>
-
-        <div className="sm:pl-7">
-          <p className="text-[10px] text-neutral-500">Member Level</p>
-          <p className="mt-1 text-[13px] font-semibold text-[#f58700]">
-            {rewards.tier}
-          </p>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#4a3314]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#e17600] to-[#ff9300]"
-              style={{ width: `${rewards.progressPercent}%` }}
-            />
-          </div>
-          <p className="mt-1 text-[9px] text-neutral-600">
-            {rewards.nextTier
-              ? `Next level at ${rewards.nextTierPoints.toLocaleString()} points`
-              : "Highest level achieved"}
-          </p>
-        </div>
-
-        <div className="hidden h-16 w-16 items-center justify-center rounded-full border-2 border-[#f59e0b] bg-[#2d1b04] text-[#f59e0b] sm:flex">
-          <Crown className="h-8 w-8" />
-        </div>
-      </div>
-    </Card>
-  );
-
   const profileHeader = (
     <Card className="min-h-[190px] p-4 lg:p-[18px]">
       <div className="flex h-full flex-col gap-6 xl:flex-row xl:items-center">
@@ -781,7 +732,7 @@ const AccountDashboard = () => {
           {[
             [ShoppingBag, stats.orders, "Orders", "orders"],
             [Heart, stats.favorites, "Favorites", "favorites"],
-            [Award, stats.rewardPoints, "Reward Points", "profile"],
+            [Award, stats.pointsBalance, "Reward Points", "rewards"],
             [MessageSquareText, stats.reviews, "Reviews", "reviews"],
           ].map(([Icon, value, label, section], index) => (
             <button
@@ -809,50 +760,6 @@ const AccountDashboard = () => {
           ))}
         </div>
       </div>
-    </Card>
-  );
-
-  const nextRewardCard = (className = "") => (
-    <Card
-      className={`${className} min-h-[286px] p-[18px] text-center`}
-    >
-      <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#f58700]">
-        Your Next Reward
-      </p>
-      <p className="mx-auto mt-3 max-w-[200px] text-[12px] leading-5 text-neutral-300">
-        {rewards.nextTier
-          ? `You're only ${rewards.pointsToNextTier.toLocaleString()} points away from ${
-              rewards.nextTier
-            }.`
-          : "You have reached our highest reward tier."}
-      </p>
-      <div
-        className="relative mx-auto mt-3 flex h-[126px] w-[126px] items-center justify-center rounded-full"
-        style={{
-          background: `conic-gradient(from 225deg, #ff8a00 0deg, #ff8a00 ${
-            rewards.progressPercent * 2.7
-          }deg, #414141 ${
-            rewards.progressPercent * 2.7
-          }deg, #414141 270deg, transparent 270deg)`,
-        }}
-      >
-        <div className="flex h-[113px] w-[113px] flex-col items-center justify-center rounded-full bg-[#101010]">
-          <span className="font-body text-[23px] font-bold leading-none text-white">
-            {rewards.pointsAvailable.toLocaleString()}
-          </span>
-          <span className="mt-1 text-[11px] text-neutral-300">
-            / {rewardTarget.toLocaleString()}
-          </span>
-          <span className="mt-1 text-[10px] text-neutral-400">Points</span>
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={() => setActive("profile")}
-        className={`${compactAmber} mt-2 w-[164px]`}
-      >
-        View Rewards
-      </button>
     </Card>
   );
 
@@ -892,8 +799,6 @@ const AccountDashboard = () => {
           </button>
         </nav>
       </Card>
-
-      {nextRewardCard("mt-[14px]")}
     </aside>
   );
 
@@ -991,6 +896,12 @@ const AccountDashboard = () => {
         {favoritesView(favorites)}
       </Card>
     ),
+    rewards: (
+      <DuneRewards
+        onBalanceChanged={handleRewardBalanceChanged}
+        onOpenCart={() => setCartOpen(true)}
+      />
+    ),
     addresses: (
       <Card>
         <CardHeader
@@ -1078,7 +989,11 @@ const AccountDashboard = () => {
 
   const bottomOverview = (
     <div className="grid gap-[14px] lg:col-span-2 lg:grid-cols-[1.66fr_1fr]">
-      {loyaltyCard}
+      <DuneRewards
+        compact
+        onBalanceChanged={handleRewardBalanceChanged}
+        onOpenCart={() => setCartOpen(true)}
+      />
       <Card className="min-h-[150px]">
         <CardHeader
           title="Payment Methods"
@@ -1139,8 +1054,6 @@ const AccountDashboard = () => {
         </div>
 
         {active === "profile" && bottomOverview}
-
-        <div className="lg:hidden">{nextRewardCard()}</div>
       </main>
 
       {notice && (
