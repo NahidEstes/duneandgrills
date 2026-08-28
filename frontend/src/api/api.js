@@ -198,6 +198,21 @@ export const removeFavorite = async (menuItemId) => {
   return data.data;
 };
 
+export const fetchSavedBlogPosts = async () => {
+  const { data } = await api.get("/profile/saved-posts");
+  return data.data;
+};
+
+export const saveBlogPost = async (blogPostId) => {
+  const { data } = await api.post(`/profile/saved-posts/${blogPostId}`);
+  return data.data;
+};
+
+export const removeSavedBlogPost = async (blogPostId) => {
+  const { data } = await api.delete(`/profile/saved-posts/${blogPostId}`);
+  return data.data;
+};
+
 export const addAddress = async (payload) => {
   const { data } = await api.post("/profile/addresses", payload);
   return data.data;

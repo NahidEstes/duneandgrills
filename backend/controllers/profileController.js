@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import MenuItem from "../models/MenuItem.js";
+import BlogPost from "../models/BlogPost.js";
 import Order from "../models/Order.js";
 import Review from "../models/Review.js";
 import { getMembershipDetails } from "../utils/rewards.js";
@@ -242,6 +243,87 @@ export const removeFavorite = async (req, res) => {
   }
 };
 
+export const getSavedBlogPosts = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate({
+      path: "savedBlogPosts",
+      match: { isPublished: true },
+      options: { sort: { createdAt: -1 } },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: user.savedBlogPosts.filter(Boolean),
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to load saved articles",
+      error: err.message,
+    });
+  }
+};
+
+export const saveBlogPost = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.blogPostId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blog post",
+      });
+    }
+
+    const post = await BlogPost.findOne({
+      _id: req.params.blogPostId,
+      isPublished: true,
+    });
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: "Blog post not found",
+      });
+    }
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { savedBlogPosts: post._id },
+    });
+
+    return res.status(201).json({ success: true, data: post });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: "Failed to save article",
+      error: err.message,
+    });
+  }
+};
+
+export const removeSavedBlogPost = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.blogPostId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blog post",
+      });
+    }
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $pull: { savedBlogPosts: req.params.blogPostId },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: req.params.blogPostId,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: "Failed to remove saved article",
+      error: err.message,
+    });
+  }
+};
+
 export const getPaymentMethods = async (req, res) => {
   res.status(200).json({ success: true, data: req.user.paymentMethods });
 };
@@ -328,4 +410,3 @@ export const deletePaymentMethod = async (req, res) => {
     res.status(400).json({ success: false, message: "Failed to delete payment method" });
   }
 };
-

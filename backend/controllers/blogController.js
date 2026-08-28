@@ -97,6 +97,81 @@ export const getBlogPostBySlug = async (req, res) => {
   }
 };
 
+// @desc    Get related published posts ranked by category, shared tags, then recency
+// @route   GET /api/blog/slug/:slug/related
+export const getRelatedBlogPosts = async (req, res) => {
+  try {
+    const currentPost = await BlogPost.findOne({
+      slug: req.params.slug,
+      isPublished: true,
+    }).select("_id category tags");
+
+    if (!currentPost) {
+      return res.status(404).json({
+        success: false,
+        message: "Post not found",
+      });
+    }
+
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 1), 6)
+      : 3;
+
+    const posts = await BlogPost.aggregate([
+      {
+        $match: {
+          _id: { $ne: currentPost._id },
+          isPublished: true,
+        },
+      },
+      {
+        $addFields: {
+          relevanceScore: {
+            $add: [
+              {
+                $cond: [
+                  { $eq: ["$category", currentPost.category] },
+                  100,
+                  0,
+                ],
+              },
+              {
+                $multiply: [
+                  {
+                    $size: {
+                      $setIntersection: [
+                        { $ifNull: ["$tags", []] },
+                        currentPost.tags || [],
+                      ],
+                    },
+                  },
+                  10,
+                ],
+              },
+            ],
+          },
+        },
+      },
+      { $sort: { relevanceScore: -1, createdAt: -1 } },
+      { $limit: limit },
+      { $project: { relevanceScore: 0 } },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      count: posts.length,
+      data: posts,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch related posts",
+      error: err.message,
+    });
+  }
+};
+
 // @desc    Get a single post by id (admin edit form)
 // @route   GET /api/blog/:id
 export const getBlogPostById = async (req, res) => {

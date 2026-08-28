@@ -50,6 +50,9 @@ const userSchema = new mongoose.Schema(
     favorites: [
       { type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" },
     ],
+    savedBlogPosts: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "BlogPost" },
+    ],
     addresses: { type: [addressSchema], default: [] },
     paymentMethods: { type: [paymentMethodSchema], default: [] },
   },

@@ -12,6 +12,9 @@ import {
   getPaymentMethods,
   getProfileStats,
   removeFavorite,
+  getSavedBlogPosts,
+  removeSavedBlogPost,
+  saveBlogPost,
   setDefaultAddress,
   setDefaultPaymentMethod,
   updateAddress,
@@ -29,6 +32,12 @@ router
   .route("/favorites/:menuItemId")
   .post(addFavorite)
   .delete(removeFavorite);
+
+router.route("/saved-posts").get(getSavedBlogPosts);
+router
+  .route("/saved-posts/:blogPostId")
+  .post(saveBlogPost)
+  .delete(removeSavedBlogPost);
 
 router.route("/addresses").get(getAddresses).post(addAddress);
 router
@@ -48,4 +57,3 @@ router
 router.patch("/payment-methods/:id/default", setDefaultPaymentMethod);
 
 export default router;
-

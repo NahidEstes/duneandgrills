@@ -3,6 +3,7 @@ import {
   getBlogPosts,
   getAllBlogPostsForAdmin,
   getBlogPostBySlug,
+  getRelatedBlogPosts,
   getBlogPostById,
   createBlogPost,
   updateBlogPost,
@@ -26,6 +27,7 @@ router
   .post(protect, authorize("admin", "manager"), createBlogPost);
 
 router.get("/categories", getBlogCategoryCounts);
+router.get("/slug/:slug/related", getRelatedBlogPosts);
 router.get("/slug/:slug", getBlogPostBySlug);
 
 router

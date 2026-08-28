@@ -57,6 +57,14 @@ export const getBlogPost = async (slug) => {
   return response.data;
 };
 
+export const getRelatedBlogPosts = async (slug, limit = 3) => {
+  const response = await get(
+    `/blog/slug/${encodeURIComponent(slug)}/related`,
+    { limit }
+  );
+  return response.data;
+};
+
 export const getBlogCategoryCounts = async () => {
   const response = await get("/blog/categories");
   return response.data;

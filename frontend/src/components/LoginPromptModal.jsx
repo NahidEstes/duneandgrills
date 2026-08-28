@@ -4,7 +4,12 @@ import React, { useState } from "react";
 import { X, Lock } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 
-const LoginPromptModal = ({ onClose, onSuccess, onGoRegister }) => {
+const LoginPromptModal = ({
+  onClose,
+  onSuccess,
+  onGoRegister,
+  message = "অর্ডার করতে প্রথমে লগইন করুন",
+}) => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,9 +53,7 @@ const LoginPromptModal = ({ onClose, onSuccess, onGoRegister }) => {
           </button>
         </div>
 
-        <p className="text-white font-medium mt-4 mb-5">
-          অর্ডার করতে প্রথমে লগইন করুন
-        </p>
+        <p className="text-white font-medium mt-4 mb-5">{message}</p>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <input

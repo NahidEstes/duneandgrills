@@ -3,12 +3,12 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Navbar from "./Navbar.jsx";
 import Footer from "./Footer.jsx";
 import CartDrawer from "./CartDrawer.jsx";
 import BlogSidebar from "./BlogSidebar.jsx";
-import SmartImage from "./SmartImage.jsx";
+import BlogPostCard from "./BlogPostCard.jsx";
 
 const CATEGORIES = [
   "All",
@@ -123,36 +123,7 @@ const BlogPage = ({
             {status === "success" && posts.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {posts.map((post) => (
-                  <Link
-                    key={post._id}
-                    href={`/blog/${post.slug}`}
-                    className="group rounded-2xl border border-dune-border bg-dune-surface overflow-hidden hover:border-dune-amber/60 hover:-translate-y-1 transition-all duration-300"
-                  >
-                    <div className="h-48 overflow-hidden">
-                      <SmartImage
-                        src={post.coverImage}
-                        alt={post.title}
-                        width={700}
-                        height={400}
-                        sizes="(min-width: 1024px) 32vw, (min-width: 640px) 50vw, 100vw"
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                      />
-                    </div>
-                    <div className="p-5">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-dune-amber">
-                        {post.category}
-                      </span>
-                      <h3 className="mt-2 text-lg font-semibold text-white leading-snug">
-                        {post.title}
-                      </h3>
-                      <p className="mt-2 text-sm text-neutral-400 line-clamp-2">
-                        {post.excerpt}
-                      </p>
-                      <span className="mt-4 inline-flex items-center gap-1.5 text-sm text-dune-amber">
-                        Read more <ArrowRight className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                  </Link>
+                  <BlogPostCard key={post._id} post={post} />
                 ))}
               </div>
             )}
