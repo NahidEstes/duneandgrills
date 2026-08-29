@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  ArrowRight,
+  Check,
   Clock3,
   Gift,
   History,
+  LockKeyhole,
   LoaderCircle,
   RefreshCw,
   ShoppingBag,
@@ -23,7 +26,13 @@ import SmartImage from "../SmartImage.jsx";
 const panelClass =
   "overflow-hidden rounded-[10px] border border-[#2b2b2b] bg-[linear-gradient(135deg,#151515_0%,#0c0c0c_100%)]";
 
-const DuneRewards = ({ compact = false, onBalanceChanged, onOpenCart }) => {
+const DuneRewards = ({
+  compact = false,
+  profileDesktop = false,
+  onBalanceChanged,
+  onOpenCart,
+  onViewAll,
+}) => {
   const { addToCart, removeFromCart } = useCart();
   const [account, setAccount] = useState(null);
   const [rewards, setRewards] = useState([]);
@@ -139,6 +148,296 @@ const DuneRewards = ({ compact = false, onBalanceChanged, onOpenCart }) => {
   }
 
   const visibleRewards = compact ? rewards.slice(0, 3) : rewards;
+  const sortedRewards = [...rewards].sort(
+    (left, right) => left.pointsRequired - right.pointsRequired
+  );
+  const unlockedRewards = sortedRewards.filter(
+    (reward) => reward.pointsRequired <= account.pointsBalance
+  );
+  const featuredUnlocked = unlockedRewards.find(
+    (reward) => reward.menuItem?.isAvailable !== false
+  );
+  const currentMilestone = unlockedRewards.length
+    ? Math.max(...unlockedRewards.map((reward) => reward.pointsRequired))
+    : 0;
+  const nextMilestone = sortedRewards.find(
+    (reward) => reward.pointsRequired > account.pointsBalance
+  );
+  const remainingPoints = nextMilestone
+    ? nextMilestone.pointsRequired - account.pointsBalance
+    : 0;
+  const progressTarget = nextMilestone?.pointsRequired || currentMilestone || 1;
+  const progressPercent = Math.min(
+    100,
+    Math.max(0, (account.pointsBalance / progressTarget) * 100)
+  );
+  const currentMarkerPercent = Math.min(
+    100,
+    Math.max(0, (currentMilestone / progressTarget) * 100)
+  );
+
+  if (profileDesktop) {
+    const profileRewards = sortedRewards.slice(0, 3);
+
+    return (
+      <section className={`${panelClass} p-5`}>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-body text-[18px] font-bold uppercase tracking-[0.1em] text-[#f58700]">
+            Dune Rewards
+          </h2>
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber"
+          >
+            View All Rewards <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-0 border-y border-white/[0.08] py-5 xl:grid-cols-[175px_minmax(300px,0.9fr)_minmax(390px,1.35fr)]">
+          <div className="border-b border-white/[0.08] pb-5 xl:border-b-0 xl:border-r xl:pb-0 xl:pr-6">
+            <p className="text-sm text-neutral-300">Your Points</p>
+            <p className="mt-1 font-display text-5xl leading-none text-[#f58700]">
+              {account.pointsBalance.toLocaleString()}
+            </p>
+            <p className="mt-2 text-xs text-neutral-500">Points available</p>
+          </div>
+
+          <div className="border-b border-white/[0.08] py-5 xl:border-b-0 xl:border-r xl:px-7 xl:py-0">
+            {account.activeRedemption ? (
+              <>
+                <p className="flex items-center gap-2 text-lg font-semibold text-[#f58700]">
+                  <Clock3 className="h-5 w-5" /> Reward Reserved
+                </p>
+                <p className="mt-1 text-sm text-neutral-400">
+                  {account.activeRedemption.title} is ready for your order.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => addRedemptionToCart(account.activeRedemption)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#f58700] px-5 text-sm font-semibold text-black transition hover:bg-dune-amberLight"
+                  >
+                    <ShoppingBag className="h-4 w-4" /> Add to Cart
+                  </button>
+                  <button
+                    type="button"
+                    disabled={redeemingId === account.activeRedemption._id}
+                    onClick={handleCancelReservation}
+                    className="h-10 rounded-md border border-[#414141] px-4 text-xs font-medium text-neutral-300 transition hover:border-red-500/50 hover:text-red-300 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : featuredUnlocked ? (
+              <>
+                <p className="flex items-center gap-2 text-lg font-semibold text-[#f58700]">
+                  <Gift className="h-5 w-5" /> Reward Unlocked!
+                </p>
+                <p className="mt-1 text-sm text-neutral-400">
+                  You can now redeem {featuredUnlocked.title}.
+                </p>
+                <button
+                  type="button"
+                  disabled={redeemingId === featuredUnlocked._id}
+                  onClick={() => handleRedeem(featuredUnlocked)}
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[#f58700] px-6 text-sm font-semibold text-black transition hover:bg-dune-amberLight disabled:opacity-50"
+                >
+                  {redeemingId === featuredUnlocked._id
+                    ? "Redeeming…"
+                    : "Redeem Now"}
+                </button>
+              </>
+            ) : nextMilestone ? (
+              <>
+                <p className="flex items-center gap-2 text-lg font-semibold text-white">
+                  <Gift className="h-5 w-5 text-[#f58700]" /> Next Reward
+                </p>
+                <p className="mt-1 text-sm text-neutral-300">
+                  {nextMilestone.title}
+                </p>
+                <p className="mt-3 text-sm text-[#f58700]">
+                  {remainingPoints.toLocaleString()} points to unlock
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="flex items-center gap-2 text-lg font-semibold text-[#f58700]">
+                  <Sparkles className="h-5 w-5" /> Every Reward Unlocked
+                </p>
+                <p className="mt-1 text-sm text-neutral-400">
+                  Choose any available reward below.
+                </p>
+              </>
+            )}
+          </div>
+
+          <div className="pt-5 xl:pl-8 xl:pt-0">
+            {sortedRewards.length ? (
+              <>
+                <div className="relative mt-3 h-2 rounded-full bg-[#292929]">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#d66a00] to-[#f59e0b]"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                  {currentMilestone > 0 && (
+                    <span
+                      className="absolute top-1/2 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-[#f58700] bg-[#f58700] text-black"
+                      style={{ left: `${currentMarkerPercent}%` }}
+                    >
+                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                    </span>
+                  )}
+                  <span className="absolute right-0 top-1/2 h-6 w-6 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-neutral-500 bg-[#141414]" />
+                </div>
+                <div className="mt-5 flex items-start justify-between gap-5 text-xs">
+                  <div>
+                    <p className="font-semibold text-[#f58700]">
+                      {currentMilestone
+                        ? currentMilestone.toLocaleString()
+                        : account.pointsBalance.toLocaleString()}
+                    </p>
+                    <p className="mt-1 text-neutral-500">
+                      {currentMilestone ? "Unlocked" : "Current Points"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-neutral-200">
+                      {(nextMilestone?.pointsRequired || currentMilestone).toLocaleString()}
+                    </p>
+                    <p className="mt-1 text-neutral-500">
+                      {nextMilestone ? "Next Milestone" : "Top Milestone"}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm text-neutral-400">
+                  {nextMilestone ? (
+                    <>
+                      Next reward: {" "}
+                      <strong className="font-semibold text-[#f58700]">
+                        {nextMilestone.pointsRequired.toLocaleString()} Points
+                      </strong>
+                      <span className="mt-1 block text-neutral-500">
+                        {remainingPoints.toLocaleString()} points to go
+                      </span>
+                    </>
+                  ) : (
+                    "You have reached the highest available reward milestone."
+                  )}
+                </p>
+              </>
+            ) : (
+              <div className="grid min-h-28 place-items-center rounded-lg border border-dashed border-white/10 text-center">
+                <p className="text-sm text-neutral-500">
+                  No reward milestones are available right now.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2">
+          <Gift className="h-4 w-4 text-[#f58700]" />
+          <h3 className="font-body text-sm font-semibold uppercase tracking-[0.08em] text-white">
+            Available Rewards
+          </h3>
+        </div>
+
+        {profileRewards.length ? (
+          <div className="mt-3 grid gap-3 xl:grid-cols-3">
+            {profileRewards.map((reward) => {
+              const pointsNeeded = Math.max(
+                0,
+                reward.pointsRequired - account.pointsBalance
+              );
+              const isReserved =
+                String(account.activeRedemption?.reward || "") === reward._id;
+              const canRedeem =
+                pointsNeeded === 0 &&
+                reward.menuItem?.isAvailable !== false &&
+                !account.activeRedemption;
+
+              return (
+                <article
+                  key={reward._id}
+                  className={`flex min-h-[126px] gap-3 rounded-xl border p-2 transition ${
+                    canRedeem
+                      ? "border-[#b96300] bg-[#f58700]/[0.035] shadow-[0_0_24px_-16px_rgba(245,135,0,0.9)]"
+                      : "border-white/[0.1] bg-black/20"
+                  }`}
+                >
+                  <div className="relative h-[108px] w-[112px] shrink-0 overflow-hidden rounded-lg">
+                    <SmartImage
+                      src={reward.image}
+                      alt={reward.title}
+                      width={224}
+                      height={216}
+                      sizes="112px"
+                      className="h-full w-full object-cover"
+                    />
+                    {canRedeem && (
+                      <span className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white">
+                        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col py-1">
+                    <h4 className="truncate text-sm font-semibold text-white">
+                      {reward.title}
+                    </h4>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-neutral-500">
+                      {reward.description}
+                    </p>
+                    <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                      <p className="text-xs font-semibold text-[#f58700]">
+                        {reward.pointsRequired.toLocaleString()} Points
+                      </p>
+                      <button
+                        type="button"
+                        disabled={
+                          (!canRedeem && !isReserved) ||
+                          redeemingId === reward._id
+                        }
+                        onClick={() =>
+                          isReserved
+                            ? addRedemptionToCart(account.activeRedemption, reward)
+                            : handleRedeem(reward)
+                        }
+                        className={`inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-[11px] font-semibold transition ${
+                          canRedeem || isReserved
+                            ? "bg-[#f58700] text-black hover:bg-dune-amberLight"
+                            : "border border-[#3b3b3b] text-neutral-500"
+                        }`}
+                      >
+                        {!canRedeem && !isReserved && (
+                          <LockKeyhole className="h-3 w-3" />
+                        )}
+                        {redeemingId === reward._id
+                          ? "Redeeming…"
+                          : isReserved
+                            ? "Add"
+                            : canRedeem
+                              ? "Redeem"
+                              : "Locked"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-3 rounded-xl border border-dashed border-white/10 py-9 text-center">
+            <Sparkles className="mx-auto h-6 w-6 text-neutral-700" />
+            <p className="mt-3 text-sm text-neutral-400">
+              No rewards are available right now.
+            </p>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className={`${panelClass} ${compact ? "p-[18px]" : "p-5 sm:p-6"}`}>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Award,
+  ChevronRight,
   CircleUserRound,
   CreditCard,
   Edit3,
@@ -124,6 +125,7 @@ const AccountDashboard = () => {
   const [modal, setModal] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [isDesktop, setIsDesktop] = useState(false);
 
   const notify = useCallback((message) => {
     setNotice(message);
@@ -150,6 +152,14 @@ const AccountDashboard = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+    const syncDesktop = () => setIsDesktop(desktopQuery.matches);
+    syncDesktop();
+    desktopQuery.addEventListener("change", syncDesktop);
+    return () => desktopQuery.removeEventListener("change", syncDesktop);
+  }, []);
 
   const updateUser = (user) => {
     setUser(user);
@@ -418,6 +428,145 @@ const AccountDashboard = () => {
           <p className="mt-0.5 text-[13px] font-semibold text-[#f58700]">
             {formatPrice(item.price)}
           </p>
+        </article>
+      ))}
+    </div>
+  );
+
+  const desktopOrdersView = (list) => (
+    <div className="divide-y divide-[#292929] px-5 pb-1">
+      {!list.length && (
+        <div className="grid min-h-[280px] place-items-center text-center">
+          <div>
+            <Package className="mx-auto h-7 w-7 text-neutral-700" />
+            <p className="mt-3 text-sm text-neutral-500">No orders yet.</p>
+          </div>
+        </div>
+      )}
+      {list.map((order) => {
+        const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
+        const image = order.items[0]?.menuItem?.image;
+
+        return (
+          <article
+            key={order._id}
+            className="flex min-h-[91px] items-center gap-3 py-3"
+          >
+            {image ? (
+              <SmartImage
+                src={image}
+                alt=""
+                width={128}
+                height={128}
+                sizes="64px"
+                className="h-16 w-16 shrink-0 rounded-lg border border-white/[0.08] object-cover"
+              />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-black text-neutral-600">
+                <Package className="h-5 w-5" />
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-white">
+                Order #{order.orderNumber}
+              </p>
+              <p className="mt-1 text-[11px] text-neutral-500">
+                {new Date(order.createdAt).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}{" "}
+                · {count} item{count === 1 ? "" : "s"}
+              </p>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <p className="text-[13px] font-semibold text-white">
+                {formatPrice(order.totalAmount)}
+              </p>
+              <div className="mt-1.5">
+                <StatusBadge status={order.status} />
+              </div>
+            </div>
+
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => setModal({ type: "order", order })}
+                className={compactOutline}
+              >
+                View Details
+              </button>
+              <button
+                type="button"
+                onClick={() => reorder(order)}
+                className={compactAmber}
+              >
+                Reorder
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+
+  const desktopFavoritesView = (list) => (
+    <div className="divide-y divide-[#292929] px-5 pb-1">
+      {!list.length && (
+        <div className="grid min-h-[280px] place-items-center text-center">
+          <div>
+            <Heart className="mx-auto h-7 w-7 text-neutral-700" />
+            <p className="mt-3 text-sm text-neutral-500">
+              Your favorite dishes will appear here.
+            </p>
+          </div>
+        </div>
+      )}
+      {list.map((item) => (
+        <article
+          key={item._id}
+          className="group flex min-h-[91px] items-center gap-4 py-3"
+        >
+          <SmartImage
+            src={item.image}
+            alt={item.name}
+            width={236}
+            height={148}
+            sizes="118px"
+            className="h-[68px] w-[110px] shrink-0 rounded-lg border border-white/[0.08] object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-white">
+              {item.name}
+            </p>
+            <p className="mt-1 text-[13px] font-semibold text-[#f58700]">
+              {formatPrice(item.price)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await toggleFavorite(item);
+                updateCollection(
+                  "favorites",
+                  favorites.filter((entry) => entry._id !== item._id)
+                );
+                notify(`${item.name} was removed from your favorites.`);
+              } catch (requestError) {
+                notify(
+                  requestError.response?.data?.message ||
+                    "This favorite could not be updated."
+                );
+              }
+            }}
+            aria-label={`Remove ${item.name} from favorites`}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#373737] text-white transition hover:border-dune-amber hover:text-dune-amber"
+          >
+            <Heart className="h-5 w-5" fill="currentColor" />
+          </button>
         </article>
       ))}
     </div>
@@ -860,6 +1009,53 @@ const AccountDashboard = () => {
     </>
   );
 
+  const desktopOverview = (
+    <div className="space-y-[14px]">
+      <div className="grid gap-[14px] xl:grid-cols-[1.22fr_0.88fr]">
+        <Card className="min-h-[345px]">
+          <CardHeader
+            title="Recent Orders"
+            border
+            action={
+              <button
+                type="button"
+                onClick={() => setActive("orders")}
+                className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber"
+              >
+                View All Orders <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            }
+          />
+          {desktopOrdersView(recentOrders.slice(0, 3))}
+        </Card>
+
+        <Card className="min-h-[345px]">
+          <CardHeader
+            title="Favorite Dishes"
+            border
+            action={
+              <button
+                type="button"
+                onClick={() => setActive("favorites")}
+                className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber"
+              >
+                View All <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            }
+          />
+          {desktopFavoritesView(favorites.slice(-3).reverse())}
+        </Card>
+      </div>
+
+      <DuneRewards
+        profileDesktop
+        onBalanceChanged={handleRewardBalanceChanged}
+        onOpenCart={() => setCartOpen(true)}
+        onViewAll={() => setActive("rewards")}
+      />
+    </div>
+  );
+
   const sectionContent = {
     orders: (
       <Card>
@@ -1050,10 +1246,18 @@ const AccountDashboard = () => {
 
         <div className="min-w-0 space-y-[14px]">
           {profileHeader}
-          {active === "profile" ? overview : sectionContent[active]}
+          {active === "profile" ? (
+            isDesktop ? (
+              desktopOverview
+            ) : (
+              <div className="space-y-[14px]">{overview}</div>
+            )
+          ) : (
+            sectionContent[active]
+          )}
         </div>
 
-        {active === "profile" && bottomOverview}
+        {active === "profile" && !isDesktop && bottomOverview}
       </main>
 
       {notice && (
