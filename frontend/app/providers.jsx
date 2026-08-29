@@ -7,9 +7,9 @@ import { Toaster } from "sonner";
 
 export default function Providers({ children }) {
   return (
-    <AuthProvider>
-      <FavoritesProvider>
-        <CartProvider>
+    <CartProvider>
+      <AuthProvider>
+        <FavoritesProvider>
           {children}
           <Toaster
             position="top-right"
@@ -24,8 +24,8 @@ export default function Providers({ children }) {
               },
             }}
           />
-        </CartProvider>
-      </FavoritesProvider>
-    </AuthProvider>
+        </FavoritesProvider>
+      </AuthProvider>
+    </CartProvider>
   );
 }

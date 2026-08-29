@@ -123,6 +123,37 @@ export const updateOrderStatus = async (id, status) => {
   return data.data;
 };
 
+// ---- Persistent cart ----
+export const fetchUserCart = async () => {
+  const { data } = await api.get("/cart");
+  return data.data;
+};
+
+export const addItemToCart = async (menuItem, quantity = 1) => {
+  const { data } = await api.post("/cart", { menuItem, quantity });
+  return data.data;
+};
+
+export const updateCartItem = async (menuItemId, quantity) => {
+  const { data } = await api.patch(`/cart/${menuItemId}`, { quantity });
+  return data.data;
+};
+
+export const removeCartItem = async (menuItemId) => {
+  const { data } = await api.delete(`/cart/${menuItemId}`);
+  return data.data;
+};
+
+export const clearUserCart = async () => {
+  const { data } = await api.delete("/cart");
+  return data.data;
+};
+
+export const migrateCart = async (items) => {
+  const { data } = await api.post("/cart/migrate", { items });
+  return data.data;
+};
+
 // ---- Dune Rewards ----
 export const fetchRewards = async () => {
   const { data } = await api.get("/rewards");

@@ -2,32 +2,58 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { loginUser, registerUser, fetchMe } from "../api/api.js";
+import { useCart } from "./CartContext.jsx";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const {
+    clearCartOnLogout,
+    migrateGuestCart,
+    restoreGuestCart,
+    restoreUserCart,
+  } = useCart();
 
-  // On first load, if a token exists, fetch the current user
   useEffect(() => {
+    let cancelled = false;
     const token = localStorage.getItem("dg_token");
     if (!token) {
+      restoreGuestCart();
       setLoading(false);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
-    fetchMe()
-      .then(setUser)
-      .catch(() => {
+
+    const restoreSession = async () => {
+      try {
+        const currentUser = await fetchMe();
+        if (cancelled) return;
+        setUser(currentUser);
+        await restoreUserCart(currentUser._id).catch(() => undefined);
+      } catch {
+        if (cancelled) return;
         localStorage.removeItem("dg_token");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+        setUser(null);
+        restoreGuestCart();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    restoreSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [restoreGuestCart, restoreUserCart]);
 
   const login = async (email, password) => {
     const data = await loginUser({ email, password });
     localStorage.setItem("dg_token", data.token);
     setUser(data.user);
+    await migrateGuestCart(data.user._id).catch(() => undefined);
     return data.user;
   };
 
@@ -35,10 +61,12 @@ export const AuthProvider = ({ children }) => {
     const data = await registerUser(payload);
     localStorage.setItem("dg_token", data.token);
     setUser(data.user);
+    await migrateGuestCart(data.user._id).catch(() => undefined);
     return data.user;
   };
 
   const logout = () => {
+    clearCartOnLogout(user?._id);
     localStorage.removeItem("dg_token");
     setUser(null);
   };
