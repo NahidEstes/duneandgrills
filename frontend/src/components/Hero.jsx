@@ -40,8 +40,9 @@ const Hero = () => {
           className="mt-6 max-w-xl text-base md:text-lg text-neutral-300 animate-fadeUp"
           style={{ animationDelay: "0.2s" }}
         >
-          Dune &amp; Grills brings bold, char-grilled flavor to every plate — from
-          smoked burgers to spiced shawarma. Order online and taste the fire.
+          Dune &amp; Grills brings bold, char-grilled flavor to every plate —
+          from smoked burgers to spiced shawarma. Order online and taste the
+          fire.
         </p>
 
         <div

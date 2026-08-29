@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Award,
   ChevronRight,
@@ -63,6 +64,17 @@ const NAV_ITEMS = [
   ["settings", "Settings", Settings],
 ];
 
+const ACCOUNT_ROUTES = {
+  profile: "/profile",
+  orders: "/profile/orders",
+  favorites: "/profile/favorites",
+  rewards: "/profile/rewards",
+  addresses: "/profile/addresses",
+  payments: "/profile/payment-methods",
+  reviews: "/profile/reviews",
+  settings: "/profile/settings",
+};
+
 const STATUS_STYLES = {
   pending: "border-amber-500/35 bg-amber-500/10 text-amber-300",
   confirmed: "border-sky-500/35 bg-sky-500/10 text-sky-300",
@@ -118,14 +130,25 @@ const AccountDashboard = () => {
   const { addItemsToCart } = useCart();
   const { toggleFavorite } = useFavorites();
   const router = useRouter();
+  const pathname = usePathname();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [active, setActive] = useState("profile");
   const [modal, setModal] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [isDesktop, setIsDesktop] = useState(false);
+  const active =
+    Object.entries(ACCOUNT_ROUTES).find(([, route]) => route === pathname)?.[0] ||
+    "profile";
+
+  const navigateToSection = useCallback(
+    (section) => {
+      const destination = ACCOUNT_ROUTES[section];
+      if (destination && destination !== pathname) router.push(destination);
+    },
+    [pathname, router]
+  );
 
   const notify = useCallback((message) => {
     setNotice(message);
@@ -623,14 +646,13 @@ const AccountDashboard = () => {
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setActive("addresses")}
+          <Link
+            href={ACCOUNT_ROUTES.addresses}
             aria-label="Manage saved addresses"
             className="p-1 text-neutral-400 hover:text-white"
           >
             <Ellipsis className="h-5 w-5" />
-          </button>
+          </Link>
         )}
       </div>
       {editable && !entry.isDefault && (
@@ -884,10 +906,9 @@ const AccountDashboard = () => {
             [Award, stats.pointsBalance, "Reward Points", "rewards"],
             [MessageSquareText, stats.reviews, "Reviews", "reviews"],
           ].map(([Icon, value, label, section], index) => (
-            <button
+            <Link
               key={label}
-              type="button"
-              onClick={() => setActive(section)}
+              href={ACCOUNT_ROUTES[section]}
               className={`min-h-[98px] px-3 text-center transition hover:bg-white/[0.025] ${
                 index % 2 === 1
                   ? "border-l border-dashed border-[#343434]"
@@ -905,7 +926,7 @@ const AccountDashboard = () => {
               <span className="mt-2 block text-[11px] text-neutral-400">
                 {label}
               </span>
-            </button>
+            </Link>
           ))}
         </div>
       </div>
@@ -920,10 +941,10 @@ const AccountDashboard = () => {
         </p>
         <nav className="space-y-0.5 pb-3" aria-label="Account navigation">
           {NAV_ITEMS.map(([id, label, Icon]) => (
-            <button
+            <Link
               key={id}
-              type="button"
-              onClick={() => setActive(id)}
+              href={ACCOUNT_ROUTES[id]}
+              aria-current={active === id ? "page" : undefined}
               className={`relative flex h-[43px] w-full items-center gap-3 px-[20px] text-left text-[13px] transition-colors ${
                 active === id
                   ? "bg-[linear-gradient(90deg,#303030_0%,#242424_100%)] text-white before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#f58700]"
@@ -936,7 +957,7 @@ const AccountDashboard = () => {
                 }`}
               />
               {label}
-            </button>
+            </Link>
           ))}
           <button
             type="button"
@@ -960,13 +981,12 @@ const AccountDashboard = () => {
             title="Recent Orders"
             border
             action={
-              <button
-                type="button"
-                onClick={() => setActive("orders")}
+              <Link
+                href={ACCOUNT_ROUTES.orders}
                 className="text-[11px] text-neutral-300 hover:text-dune-amber"
               >
                 View All Orders
-              </button>
+              </Link>
             }
           />
           {ordersView(recentOrders.slice(0, 3), true)}
@@ -978,13 +998,12 @@ const AccountDashboard = () => {
           <CardHeader
             title="Favorite Dishes"
             action={
-              <button
-                type="button"
-                onClick={() => setActive("favorites")}
+              <Link
+                href={ACCOUNT_ROUTES.favorites}
                 className="text-[11px] text-neutral-400 hover:text-dune-amber"
               >
                 View All
-              </button>
+              </Link>
             }
           />
           {favoritesView(favorites.slice(0, 3), true)}
@@ -994,13 +1013,12 @@ const AccountDashboard = () => {
           <CardHeader
             title="Saved Addresses"
             action={
-              <button
-                type="button"
-                onClick={() => setActive("addresses")}
+              <Link
+                href={ACCOUNT_ROUTES.addresses}
                 className="text-[11px] text-neutral-400 hover:text-dune-amber"
               >
                 Manage Addresses
-              </button>
+              </Link>
             }
           />
           {addressesView(true)}
@@ -1017,13 +1035,12 @@ const AccountDashboard = () => {
             title="Recent Orders"
             border
             action={
-              <button
-                type="button"
-                onClick={() => setActive("orders")}
+              <Link
+                href={ACCOUNT_ROUTES.orders}
                 className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber"
               >
                 View All Orders <ChevronRight className="h-3.5 w-3.5" />
-              </button>
+              </Link>
             }
           />
           {desktopOrdersView(recentOrders.slice(0, 3))}
@@ -1034,13 +1051,12 @@ const AccountDashboard = () => {
             title="Favorite Dishes"
             border
             action={
-              <button
-                type="button"
-                onClick={() => setActive("favorites")}
+              <Link
+                href={ACCOUNT_ROUTES.favorites}
                 className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber"
               >
                 View All <ChevronRight className="h-3.5 w-3.5" />
-              </button>
+              </Link>
             }
           />
           {desktopFavoritesView(favorites.slice(-3).reverse())}
@@ -1051,7 +1067,7 @@ const AccountDashboard = () => {
         profileDesktop
         onBalanceChanged={handleRewardBalanceChanged}
         onOpenCart={() => setCartOpen(true)}
-        onViewAll={() => setActive("rewards")}
+        onViewAll={() => navigateToSection("rewards")}
       />
     </div>
   );
@@ -1194,13 +1210,12 @@ const AccountDashboard = () => {
         <CardHeader
           title="Payment Methods"
           action={
-            <button
-              type="button"
-              onClick={() => setActive("payments")}
+            <Link
+              href={ACCOUNT_ROUTES.payments}
               className="text-[11px] text-neutral-400 hover:text-dune-amber"
             >
               Manage
-            </button>
+            </Link>
           }
         />
         <div className="flex flex-col gap-3 px-[18px] pb-[18px] sm:flex-row sm:items-center">
@@ -1237,7 +1252,7 @@ const AccountDashboard = () => {
           icon,
         }))}
         activeAccountItem={active}
-        onAccountItemClick={setActive}
+        onAccountItemClick={navigateToSection}
         onAccountLogout={handleLogout}
       />
 

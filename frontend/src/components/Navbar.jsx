@@ -30,7 +30,7 @@ const Navbar = ({
   const router = useRouter();
   const pathname = usePathname();
   const hasAccountMenu = accountMenuItems.length > 0;
-  const hideDesktopNav = pathname === "/profile";
+  const hideDesktopNav = pathname === "/profile" || pathname.startsWith("/profile/");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
