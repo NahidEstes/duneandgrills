@@ -5,6 +5,12 @@ import MenuItem from "../models/MenuItem.js";
 import User from "../models/User.js";
 import { calculateOrderPoints } from "../config/rewards.js";
 import {
+  DEFAULT_ORDER_TYPE,
+  getDeliveryFee,
+  getPublicOrderConfig,
+  isValidOrderType,
+} from "../config/orders.js";
+import {
   applyRedemptionToOrder,
   creditOrderPoints,
   releaseExpiredRedemptions,
@@ -15,6 +21,12 @@ import {
 
 const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
 const reversalStatuses = new Set(nonRevenueStatuses);
+
+// @desc    Get server-authoritative order types and delivery pricing
+// @route   GET /api/orders/config
+// @access  Public
+export const getOrderConfig = (req, res) =>
+  res.status(200).json({ success: true, data: getPublicOrderConfig() });
 
 // Generates a human-readable, date-based order number like 2026082301
 // (YYYYMMDD + sequence number for that day)
@@ -64,12 +76,38 @@ export const createOrder = async (req, res) => {
   let appliedRedemption = null;
   let orderId = null;
   try {
-    const { customer, items = [], notes, rewardRedemptionId } = req.body;
+    const {
+      customer,
+      items = [],
+      notes,
+      rewardRedemptionId,
+      orderType = DEFAULT_ORDER_TYPE,
+    } = req.body;
 
-    if (!customer?.name || !customer?.phone) {
+    if (!isValidOrderType(orderType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select a valid order type",
+      });
+    }
+
+    const customerName =
+      typeof customer?.name === "string" ? customer.name.trim() : "";
+    const customerPhone =
+      typeof customer?.phone === "string" ? customer.phone.trim() : "";
+    const customerAddress =
+      typeof customer?.address === "string" ? customer.address.trim() : "";
+
+    if (!customerName || !customerPhone) {
       return res.status(400).json({
         success: false,
         message: "Customer name and phone are required",
+      });
+    }
+    if (orderType === "delivery" && !customerAddress) {
+      return res.status(400).json({
+        success: false,
+        message: "A delivery address is required for delivery orders",
       });
     }
     if (!Array.isArray(items) || (!items.length && !rewardRedemptionId)) {
@@ -120,11 +158,13 @@ export const createOrder = async (req, res) => {
         isReward: false,
       };
     });
-    const totalAmount = Number(
+    const subtotal = Number(
       verifiedItems
         .reduce((sum, item) => sum + item.price * item.quantity, 0)
         .toFixed(2)
     );
+    const deliveryFee = getDeliveryFee(orderType);
+    const totalAmount = Number((subtotal + deliveryFee).toFixed(2));
 
     // const order = await Order.create({
     //   customer,
@@ -212,10 +252,18 @@ export const createOrder = async (req, res) => {
       _id: orderId,
       orderNumber,
       user: req.user ? req.user._id : null,
-      customer,
+      customer: {
+        ...customer,
+        name: customerName,
+        phone: customerPhone,
+        address: orderType === "delivery" ? customerAddress : "",
+      },
       items: verifiedItems,
+      orderType,
+      subtotal,
+      deliveryFee,
       totalAmount,
-      eligiblePointsAmount: totalAmount,
+      eligiblePointsAmount: subtotal,
       rewardRedemption: rewardSnapshot,
       notes,
     });

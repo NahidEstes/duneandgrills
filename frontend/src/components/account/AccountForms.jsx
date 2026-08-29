@@ -13,6 +13,8 @@ import {
   updatePaymentMethod,
 } from "../../api/api.js";
 import { formatPrice } from "../../utils/currency.js";
+import { formatOrderType, getOrderSubtotal } from "../../utils/order.js";
+import OrderStatusBadge from "./OrderStatusBadge.jsx";
 
 export const inputClass = "w-full rounded-lg border border-dune-border bg-black px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-neutral-600 focus:border-dune-amber";
 export const primaryButton = "inline-flex items-center justify-center gap-2 rounded-lg bg-dune-amber px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-60";
@@ -159,16 +161,41 @@ export const ReviewForm = ({ options, onClose, onSaved }) => {
   );
 };
 
-const statusStyles = { pending: "border-amber-500/40 bg-amber-500/10 text-amber-300", confirmed: "border-sky-500/40 bg-sky-500/10 text-sky-300", preparing: "border-amber-500/40 bg-amber-500/10 text-amber-300", "out-for-delivery": "border-violet-500/40 bg-violet-500/10 text-violet-300", delivered: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", cancelled: "border-red-500/40 bg-red-500/10 text-red-300", refunded: "border-red-500/40 bg-red-500/10 text-red-300", failed: "border-red-500/40 bg-red-500/10 text-red-300" };
-
-export const OrderDetails = ({ order, onClose, onReorder }) => (
+export const OrderDetails = ({
+  order,
+  onClose,
+  onReorder,
+  showReorder = false,
+}) => (
   <AccountModal title={`Order #${order.orderNumber}`} description={new Date(order.createdAt).toLocaleString()} onClose={onClose}>
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusStyles[order.status] || "border-neutral-600 text-neutral-300"}`}>{order.status.replaceAll("-", " ")}</span>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <OrderStatusBadge status={order.status} />
+      <span className="text-xs font-medium text-neutral-400">
+        {formatOrderType(order.orderType)}
+      </span>
+    </div>
     <div className="my-5 space-y-3 border-y border-dune-border py-4">
       {order.items.map((item, index) => <div key={item.menuItem?._id || index} className="flex items-center gap-3">{item.menuItem?.image ? <SmartImage src={item.menuItem.image} alt={item.name} width={80} height={80} sizes="48px" className="h-12 w-12 rounded-lg object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-black text-neutral-500"><Package className="h-5 w-5" /></div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{item.name}</p><p className="text-xs text-neutral-500">Quantity {item.quantity}</p></div><p className="text-sm font-semibold text-dune-amber">{formatPrice(item.price * item.quantity)}</p></div>)}
     </div>
-    <div className="flex items-center justify-between"><span className="text-neutral-400">Order total</span><span className="font-display text-2xl text-dune-amber">{formatPrice(order.totalAmount)}</span></div>
+    <div className="space-y-2 text-sm">
+      <div className="flex items-center justify-between text-neutral-400">
+        <span>Subtotal</span>
+        <span>{formatPrice(getOrderSubtotal(order))}</span>
+      </div>
+      {Number(order.deliveryFee) > 0 && (
+        <div className="flex items-center justify-between text-neutral-400">
+          <span>Delivery fee</span>
+          <span>{formatPrice(order.deliveryFee)}</span>
+        </div>
+      )}
+      <div className="flex items-center justify-between border-t border-dune-border pt-3">
+        <span className="text-neutral-300">Order total</span>
+        <span className="font-display text-2xl text-dune-amber">{formatPrice(order.totalAmount)}</span>
+      </div>
+    </div>
     {order.customer?.address && <p className="mt-4 flex items-start gap-2 text-sm text-neutral-400"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-dune-amber" />{order.customer.address}</p>}
-    <button type="button" onClick={() => onReorder(order)} className={`${primaryButton} mt-5 w-full`}><RefreshCw className="h-4 w-4" />Reorder These Items</button>
+    {showReorder && (
+      <button type="button" onClick={() => onReorder(order)} className={`${primaryButton} mt-5 w-full`}><RefreshCw className="h-4 w-4" />Reorder These Items</button>
+    )}
   </AccountModal>
 );

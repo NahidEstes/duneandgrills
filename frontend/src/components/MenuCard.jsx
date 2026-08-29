@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Flame, Heart } from "lucide-react";
+import { toast } from "sonner";
 import { useCart } from "../context/CartContext.jsx";
 import { useFavorites } from "../context/FavoritesContext.jsx";
 import { formatPrice } from "../utils/currency.js";
@@ -72,7 +73,7 @@ const MenuCard = ({ item, onSelect }) => {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            addToCart(item);
+            if (addToCart(item)) toast.success("Added to cart");
           }}
           className="mt-5 inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-full border border-dune-amber/60 text-dune-amber font-medium hover:bg-dune-amber hover:text-black transition-colors duration-300"
         >

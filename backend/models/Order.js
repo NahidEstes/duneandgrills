@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { DEFAULT_ORDER_TYPE, ORDER_TYPES } from "../config/orders.js";
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -42,6 +43,23 @@ const orderSchema = new mongoose.Schema(
       type: [orderItemSchema],
       required: true,
       validate: (v) => Array.isArray(v) && v.length > 0,
+    },
+    orderType: {
+      type: String,
+      enum: ORDER_TYPES,
+      default: DEFAULT_ORDER_TYPE,
+    },
+    subtotal: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    deliveryFee: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
     },
     totalAmount: {
       type: Number,

@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { X, Flame, Plus, Heart } from "lucide-react";
+import { toast } from "sonner";
 import { useCart } from "../context/CartContext.jsx";
 import { useFavorites } from "../context/FavoritesContext.jsx";
 import { formatPrice } from "../utils/currency.js";
@@ -125,7 +126,7 @@ const ItemModal = ({ item, onClose }) => {
 
           <button
             onClick={() => {
-              addToCart(item);
+              if (addToCart(item)) toast.success("Added to cart");
               onClose();
             }}
             className="mt-6 w-full inline-flex items-center justify-center gap-2 bg-dune-amber hover:bg-dune-amberLight text-black font-semibold py-3 rounded-full transition-colors"

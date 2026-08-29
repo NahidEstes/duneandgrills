@@ -95,6 +95,11 @@ export const deleteOffer = async (id) => {
 };
 
 // ---- Orders ----
+export const fetchOrderConfig = async () => {
+  const { data } = await api.get("/orders/config");
+  return data.data;
+};
+
 export const placeOrder = async (orderPayload) => {
   const { data } = await api.post("/orders", orderPayload);
   await refreshAfterMutation("orders");

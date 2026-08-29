@@ -32,6 +32,7 @@ import CartDrawer from "../CartDrawer.jsx";
 import SmartImage from "../SmartImage.jsx";
 import AccountModal from "./AccountModal.jsx";
 import DuneRewards from "./DuneRewards.jsx";
+import OrderStatusBadge from "./OrderStatusBadge.jsx";
 import {
   AddressForm,
   OrderDetails,
@@ -52,6 +53,7 @@ import {
   setDefaultPaymentMethod,
 } from "../../api/api.js";
 import { formatPrice } from "../../utils/currency.js";
+import { formatOrderType } from "../../utils/order.js";
 
 const NAV_ITEMS = [
   ["profile", "Profile", UserRound],
@@ -75,24 +77,12 @@ const ACCOUNT_ROUTES = {
   settings: "/profile/settings",
 };
 
-const STATUS_STYLES = {
-  pending: "border-amber-500/35 bg-amber-500/10 text-amber-300",
-  confirmed: "border-sky-500/35 bg-sky-500/10 text-sky-300",
-  preparing: "border-amber-500/35 bg-amber-500/10 text-amber-300",
-  "out-for-delivery": "border-violet-500/35 bg-violet-500/10 text-violet-300",
-  delivered: "border-emerald-500/35 bg-emerald-500/10 text-emerald-300",
-  cancelled: "border-red-500/35 bg-red-500/10 text-red-300",
-  refunded: "border-red-500/35 bg-red-500/10 text-red-300",
-  failed: "border-red-500/35 bg-red-500/10 text-red-300",
-};
+const SHOW_REORDER_ACTIONS = false;
 
 const compactOutline =
   "inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#414141] px-3 text-xs font-medium text-white transition-colors hover:border-dune-amber hover:text-dune-amber";
 const compactAmber =
   "inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-[#df7400] to-[#f58a00] px-4 text-xs font-semibold text-white shadow-[0_0_18px_-8px_rgba(245,158,11,0.9)] transition hover:brightness-110";
-
-const titleCase = (value = "") =>
-  value.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const Card = ({ children, className = "" }) => (
   <section
@@ -113,16 +103,6 @@ const CardHeader = ({ title, action, border = false }) => (
     </h2>
     {action}
   </div>
-);
-
-const StatusBadge = ({ status }) => (
-  <span
-    className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none ${
-      STATUS_STYLES[status] || "border-neutral-600 text-neutral-300"
-    }`}
-  >
-    {titleCase(status)}
-  </span>
 );
 
 const AccountDashboard = () => {
@@ -241,7 +221,6 @@ const AccountDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    router.push("/");
   };
 
   const reviewOptions = useMemo(() => {
@@ -365,10 +344,11 @@ const AccountDashboard = () => {
                     day: "numeric",
                     year: "numeric",
                   })}{" "}
-                  · {count} item{count === 1 ? "" : "s"}
+                  · {count} item{count === 1 ? "" : "s"} ·{" "}
+                  {formatOrderType(order.orderType)}
                 </p>
                 <div className="mt-1.5 sm:hidden">
-                  <StatusBadge status={order.status} />
+                  <OrderStatusBadge status={order.status} />
                 </div>
               </div>
             </div>
@@ -379,7 +359,7 @@ const AccountDashboard = () => {
                   {formatPrice(order.totalAmount)}
                 </p>
                 <div className="mt-1 hidden sm:block">
-                  <StatusBadge status={order.status} />
+                  <OrderStatusBadge status={order.status} />
                 </div>
               </div>
               <button
@@ -390,13 +370,15 @@ const AccountDashboard = () => {
                 <Eye className="h-3.5 w-3.5 sm:hidden" />
                 View Details
               </button>
-              <button
-                type="button"
-                onClick={() => reorder(order)}
-                className={`${compactAmber} flex-1 sm:flex-none`}
-              >
-                Reorder
-              </button>
+              {SHOW_REORDER_ACTIONS && (
+                <button
+                  type="button"
+                  onClick={() => reorder(order)}
+                  className={`${compactAmber} flex-1 sm:flex-none`}
+                >
+                  Reorder
+                </button>
+              )}
             </div>
           </div>
         );
@@ -500,7 +482,8 @@ const AccountDashboard = () => {
                   day: "numeric",
                   year: "numeric",
                 })}{" "}
-                · {count} item{count === 1 ? "" : "s"}
+                · {count} item{count === 1 ? "" : "s"} ·{" "}
+                {formatOrderType(order.orderType)}
               </p>
             </div>
 
@@ -509,7 +492,7 @@ const AccountDashboard = () => {
                 {formatPrice(order.totalAmount)}
               </p>
               <div className="mt-1.5">
-                <StatusBadge status={order.status} />
+                <OrderStatusBadge status={order.status} />
               </div>
             </div>
 
@@ -521,13 +504,15 @@ const AccountDashboard = () => {
               >
                 View Details
               </button>
-              <button
-                type="button"
-                onClick={() => reorder(order)}
-                className={compactAmber}
-              >
-                Reorder
-              </button>
+              {SHOW_REORDER_ACTIONS && (
+                <button
+                  type="button"
+                  onClick={() => reorder(order)}
+                  className={compactAmber}
+                >
+                  Reorder
+                </button>
+              )}
             </div>
           </article>
         );
@@ -1373,6 +1358,7 @@ const AccountDashboard = () => {
           order={modal.order}
           onClose={() => setModal(null)}
           onReorder={reorder}
+          showReorder={SHOW_REORDER_ACTIONS}
         />
       )}
     </div>

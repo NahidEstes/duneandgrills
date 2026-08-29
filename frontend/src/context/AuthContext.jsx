@@ -1,12 +1,14 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { loginUser, registerUser, fetchMe } from "../api/api.js";
 import { useCart } from "./CartContext.jsx";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const {
@@ -69,6 +71,7 @@ export const AuthProvider = ({ children }) => {
     clearCartOnLogout(user?._id);
     localStorage.removeItem("dg_token");
     setUser(null);
+    router.replace("/");
   };
 
   return (

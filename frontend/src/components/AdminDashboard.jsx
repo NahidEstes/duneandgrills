@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { fetchAdminDashboard, searchAdmin } from "../api/api.js";
@@ -80,7 +79,6 @@ const AdminDashboard = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const { user, logout } = useAuth();
-  const router = useRouter();
 
   const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -128,7 +126,6 @@ const AdminDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    router.push("/");
   };
 
   const content = TAB_CONTENT[activeTab] || TAB_CONTENT.overview;

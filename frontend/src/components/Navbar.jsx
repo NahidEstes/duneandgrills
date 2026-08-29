@@ -24,19 +24,35 @@ const Navbar = ({
   onAccountLogout,
 }) => {
   const { itemCount } = useCart();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeNav, setActiveNav] = useState("");
   const router = useRouter();
   const pathname = usePathname();
   const hasAccountMenu = accountMenuItems.length > 0;
   const hideDesktopNav = pathname === "/profile" || pathname.startsWith("/profile/");
+  const accountActive = user
+    ? pathname === "/profile" || pathname.startsWith("/profile/")
+    : pathname === "/login";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (pathname === "/menu") {
+      setActiveNav("menu");
+    } else if (pathname === "/blog" || pathname.startsWith("/blog/")) {
+      setActiveNav("blog");
+    } else if (pathname === "/") {
+      setActiveNav(window.location.hash.slice(1) || "home");
+    } else {
+      setActiveNav("");
+    }
+  }, [pathname]);
 
   // Smoothly scrolls to a section, waiting a tick if we just navigated
   // from another page so the home page has time to render first.
@@ -52,6 +68,7 @@ const Navbar = ({
   const handleNavClick = (e, hash) => {
     e.preventDefault();
     setMobileOpen(false);
+    setActiveNav(hash);
 
     if (pathname !== "/") {
       router.push(`/#${hash}`);
@@ -64,6 +81,7 @@ const Navbar = ({
   const handleLogoClick = (e) => {
     e.preventDefault();
     setMobileOpen(false);
+    setActiveNav("home");
 
     if (pathname !== "/") {
       router.push("/");
@@ -120,7 +138,12 @@ const Navbar = ({
                 <a
                   href={`/#${link.hash}`}
                   onClick={(e) => handleNavClick(e, link.hash)}
-                  className="text-sm font-medium tracking-wide text-neutral-300 hover:text-dune-amber transition-colors cursor-pointer"
+                  aria-current={activeNav === link.hash ? "page" : undefined}
+                  className={`cursor-pointer text-sm font-medium tracking-wide transition-colors active:text-dune-amber ${
+                    activeNav === link.hash
+                      ? "text-dune-amber"
+                      : "text-neutral-300 hover:text-dune-amber"
+                  }`}
                 >
                   {link.label}
                 </a>
@@ -129,7 +152,13 @@ const Navbar = ({
             <li>
               <Link
                 href="/blog"
-                className="text-sm font-medium tracking-wide text-neutral-300 hover:text-dune-amber transition-colors"
+                onClick={() => setActiveNav("blog")}
+                aria-current={activeNav === "blog" ? "page" : undefined}
+                className={`text-sm font-medium tracking-wide transition-colors active:text-dune-amber ${
+                  activeNav === "blog"
+                    ? "text-dune-amber"
+                    : "text-neutral-300 hover:text-dune-amber"
+                }`}
               >
                 Blog
               </Link>
@@ -144,12 +173,21 @@ const Navbar = ({
         >
           <Link
             href={user ? "/profile" : "/login"}
-            className="flex items-center gap-2 px-3 py-2 rounded-full border border-dune-border hover:border-dune-amber transition-colors"
+            aria-current={accountActive ? "page" : undefined}
+            className={`group flex items-center gap-2 rounded-full border px-3 py-2 transition-colors active:border-dune-amber active:text-dune-amber ${
+              accountActive
+                ? "border-dune-amber text-dune-amber"
+                : "border-dune-border text-white hover:border-dune-amber hover:text-dune-amber"
+            }`}
           >
-            <User className="w-5 h-5 text-white" />
-            {user && (
-              <span className="hidden sm:inline text-sm text-white font-medium">
-                {user.name.split(" ")[0]}
+            <User className="h-5 w-5 text-current" />
+            {!authLoading && (
+              <span
+                className={`font-medium text-current ${
+                  user ? "hidden text-sm sm:inline" : "inline text-xs sm:text-sm"
+                }`}
+              >
+                {user ? user.name.split(" ")[0] : "Log In"}
               </span>
             )}
           </Link>
@@ -157,9 +195,9 @@ const Navbar = ({
           <button
             onClick={onCartClick}
             aria-label={`Open cart, ${itemCount} items`}
-            className="relative p-2.5 rounded-full border border-dune-border hover:border-dune-amber hover:shadow-amberGlow transition-all duration-300"
+            className="group relative rounded-full border border-dune-border p-2.5 transition-all duration-300 hover:border-dune-amber hover:shadow-amberGlow active:border-dune-amber"
           >
-            <ShoppingCart className="w-5 h-5 text-white" />
+            <ShoppingCart className="h-5 w-5 text-white transition-colors group-active:text-dune-amber" />
             {itemCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-dune-amber text-black text-xs font-bold">
                 {itemCount}
@@ -168,7 +206,7 @@ const Navbar = ({
           </button>
 
           <button
-            className={`p-2.5 rounded-full border border-dune-border text-white ${
+            className={`rounded-full border border-dune-border p-2.5 text-white active:border-dune-amber active:text-dune-amber ${
               hasAccountMenu ? "lg:hidden" : "md:hidden"
             }`}
             onClick={() => setMobileOpen((o) => !o)}
@@ -204,7 +242,7 @@ const Navbar = ({
                   }}
                   className={`flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-4 py-2.5 text-left text-sm transition-colors ${
                     activeAccountItem === id
-                      ? "border-dune-amber bg-white/10 text-white"
+                      ? "border-dune-amber bg-white/10 text-dune-amber"
                       : "border-transparent text-neutral-300 hover:bg-white/5 hover:text-dune-amber"
                   }`}
                 >
@@ -237,7 +275,12 @@ const Navbar = ({
                   <a
                     href={`/#${link.hash}`}
                     onClick={(e) => handleNavClick(e, link.hash)}
-                    className="block text-base font-medium text-neutral-200 hover:text-dune-amber transition-colors cursor-pointer"
+                    aria-current={activeNav === link.hash ? "page" : undefined}
+                    className={`block cursor-pointer text-base font-medium transition-colors active:text-dune-amber ${
+                      activeNav === link.hash
+                        ? "text-dune-amber"
+                        : "text-neutral-200 hover:text-dune-amber"
+                    }`}
                   >
                     {link.label}
                   </a>
@@ -246,8 +289,16 @@ const Navbar = ({
               <li>
                 <Link
                   href="/blog"
-                  onClick={() => setMobileOpen(false)}
-                  className="block text-base font-medium text-neutral-200 hover:text-dune-amber transition-colors"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setActiveNav("blog");
+                  }}
+                  aria-current={activeNav === "blog" ? "page" : undefined}
+                  className={`block text-base font-medium transition-colors active:text-dune-amber ${
+                    activeNav === "blog"
+                      ? "text-dune-amber"
+                      : "text-neutral-200 hover:text-dune-amber"
+                  }`}
                 >
                   Blog
                 </Link>

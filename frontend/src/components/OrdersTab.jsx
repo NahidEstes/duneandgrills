@@ -5,6 +5,7 @@ import { Eye, X, MapPin, Phone, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { fetchOrders, fetchOrderStats, updateOrderStatus } from "../api/api.js";
 import { formatAdminCurrency } from "./admin/adminUi.js";
+import { formatOrderType, getOrderSubtotal } from "../utils/order.js";
 
 const STATUS_STYLES = {
   pending: "bg-amber-500/10 text-amber-400 border-amber-500/40",
@@ -122,6 +123,15 @@ const OrderRowModal = ({ order, onClose, onStatusChange, onDataChanged }) => {
           </select>
         </div>
 
+        <div className="mt-4 rounded-lg border border-dune-border bg-black/30 px-4 py-3">
+          <p className="text-xs uppercase tracking-wide text-neutral-500">
+            Order Type
+          </p>
+          <p className="mt-1 text-sm font-medium text-white">
+            {formatOrderType(order.orderType)}
+          </p>
+        </div>
+
         {/* Customer info */}
         <div className="mt-5 border-t border-dune-border pt-4 space-y-2 text-sm">
           <p className="text-white font-medium">{order.customer?.name}</p>
@@ -155,11 +165,23 @@ const OrderRowModal = ({ order, onClose, onStatusChange, onDataChanged }) => {
           ))}
         </div>
 
-        <div className="mt-5 border-t border-dune-border pt-4 flex items-center justify-between">
-          <span className="text-neutral-400">Total</span>
-          <span className="font-display text-2xl text-dune-amber">
-            {formatAdminCurrency(order.totalAmount)}
-          </span>
+        <div className="mt-5 space-y-2 border-t border-dune-border pt-4 text-sm">
+          <div className="flex items-center justify-between text-neutral-400">
+            <span>Subtotal</span>
+            <span>{formatAdminCurrency(getOrderSubtotal(order))}</span>
+          </div>
+          {Number(order.deliveryFee) > 0 && (
+            <div className="flex items-center justify-between text-neutral-400">
+              <span>Delivery fee</span>
+              <span>{formatAdminCurrency(order.deliveryFee)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between border-t border-dune-border pt-3">
+            <span className="text-neutral-300">Total</span>
+            <span className="font-display text-2xl text-dune-amber">
+              {formatAdminCurrency(order.totalAmount)}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -284,6 +306,7 @@ const OrdersTab = ({ onDataChanged }) => {
                 <th className="p-4">Customer</th>
                 <th className="p-4">Date &amp; Time</th>
                 <th className="p-4">Items</th>
+                <th className="p-4">Type</th>
                 <th className="p-4">Total</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-right">Actions</th>
@@ -312,6 +335,9 @@ const OrdersTab = ({ onDataChanged }) => {
                     })}
                   </td>
                   <td className="p-4">{order.items.length}</td>
+                  <td className="p-4 text-xs text-neutral-300">
+                    {formatOrderType(order.orderType)}
+                  </td>
                   <td className="p-4 text-dune-amber font-medium">
                     {formatAdminCurrency(order.totalAmount)}
                   </td>
@@ -333,7 +359,7 @@ const OrdersTab = ({ onDataChanged }) => {
               ))}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-neutral-500">
+                  <td colSpan={8} className="p-8 text-center text-neutral-500">
                     No orders found for this filter.
                   </td>
                 </tr>

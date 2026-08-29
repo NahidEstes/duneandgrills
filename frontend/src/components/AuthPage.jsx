@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Flame } from "lucide-react";
+import { Flame, LoaderCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const AuthPage = () => {
@@ -17,6 +17,7 @@ const AuthPage = () => {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const { login, register } = useAuth();
   const router = useRouter();
 
@@ -25,6 +26,8 @@ const AuthPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError("");
     setLoading(true);
     try {
@@ -39,6 +42,7 @@ const AuthPage = () => {
         err.response?.data?.message || "Something went wrong. Please try again."
       );
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -58,10 +62,15 @@ const AuthPage = () => {
             {mode === "login" ? "Welcome Back" : "Create an Account"}
           </h1>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-4"
+            aria-busy={loading}
+          >
             {mode === "register" && (
               <input
                 required
+                disabled={loading}
                 name="name"
                 placeholder="Full Name"
                 value={form.name}
@@ -71,6 +80,7 @@ const AuthPage = () => {
             )}
             <input
               required
+              disabled={loading}
               type="email"
               name="email"
               placeholder="Email"
@@ -80,6 +90,7 @@ const AuthPage = () => {
             />
             <input
               required
+              disabled={loading}
               type="password"
               name="password"
               placeholder="Password"
@@ -92,6 +103,7 @@ const AuthPage = () => {
               <>
                 <input
                   name="phone"
+                  disabled={loading}
                   placeholder="Phone (optional)"
                   value={form.phone}
                   onChange={handleChange}
@@ -99,6 +111,7 @@ const AuthPage = () => {
                 />
                 <input
                   name="address"
+                  disabled={loading}
                   placeholder="Address (optional)"
                   value={form.address}
                   onChange={handleChange}
@@ -112,13 +125,16 @@ const AuthPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-dune-amber hover:bg-dune-amberLight disabled:opacity-60 text-black font-semibold py-3 rounded-full transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-dune-amber py-3 font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-60"
             >
+              {loading && <LoaderCircle className="h-4 w-4 animate-spin" />}
               {loading
-                ? "Please wait..."
+                ? mode === "login"
+                  ? "Logging in..."
+                  : "Creating account..."
                 : mode === "login"
-                ? "Log In"
-                : "Create Account"}
+                  ? "Log In"
+                  : "Create Account"}
             </button>
           </form>
 
@@ -127,11 +143,13 @@ const AuthPage = () => {
               ? "Don't have an account?"
               : "Already have an account?"}{" "}
             <button
+              type="button"
+              disabled={loading}
               onClick={() => {
                 setMode(mode === "login" ? "register" : "login");
                 setError("");
               }}
-              className="text-dune-amber hover:underline"
+              className="text-dune-amber hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
               {mode === "login" ? "Sign up" : "Log in"}
             </button>

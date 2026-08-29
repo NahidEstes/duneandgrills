@@ -364,12 +364,13 @@ export const CartProvider = ({ children }) => {
     (item) => {
       const current = cartRef.current.find((line) => line._id === item._id);
       if (current && (current.isReward || current.quantity >= MAX_CART_QUANTITY)) {
-        return;
+        return false;
       }
       applyLocalAction({ type: "ADD_ITEM", payload: item });
       if (!item.isReward && objectIdPattern.test(item._id)) {
         enqueueUserSync(() => addItemToCart(item._id, 1));
       }
+      return true;
     },
     [applyLocalAction, enqueueUserSync]
   );

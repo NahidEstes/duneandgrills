@@ -49,6 +49,24 @@
   .eyebrow {
     @apply text-xs font-semibold uppercase tracking-[0.3em] text-dune-amber;
   }
+
+  .order-status-glow {
+    animation: order-status-glow 2.8s ease-in-out infinite;
+    will-change: box-shadow;
+  }
+}
+
+@keyframes order-status-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 transparent;
+  }
+
+  50% {
+    box-shadow:
+      0 0 5px var(--order-status-glow),
+      0 0 11px -3px var(--order-status-glow);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

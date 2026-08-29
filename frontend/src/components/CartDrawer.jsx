@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -13,17 +13,57 @@ import {
   Check,
   AlertTriangle,
   LoaderCircle,
+  PackageCheck,
+  Truck,
+  UtensilsCrossed,
 } from "lucide-react";
 import { formatPrice } from "../utils/currency.js";
 import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   cancelRewardRedemption,
+  fetchOrderConfig,
   placeOrder,
   updateMe,
 } from "../api/api.js";
 import LoginPromptModal from "./LoginPromptModal.jsx";
 import SmartImage from "./SmartImage.jsx";
+
+const ORDER_TYPE_ICONS = {
+  "dine-in": UtensilsCrossed,
+  pickup: PackageCheck,
+  delivery: Truck,
+};
+
+const OrderTypeSelector = ({ options, value, onChange, disabled = false }) => (
+  <fieldset disabled={disabled}>
+    <legend className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-400">
+      Order Type
+    </legend>
+    <div className="grid grid-cols-3 gap-2">
+      {options.map((option) => {
+        const Icon = ORDER_TYPE_ICONS[option.value] || ShoppingBag;
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            aria-pressed={selected}
+            className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              selected
+                ? "border-dune-amber bg-dune-amber/10 text-dune-amber"
+                : "border-dune-border bg-black/30 text-neutral-400 hover:border-dune-amber/60 hover:text-dune-amber"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  </fieldset>
+);
 
 const CartDrawer = ({ open, onClose }) => {
   const {
@@ -54,6 +94,41 @@ const CartDrawer = ({ open, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [placedOrder, setPlacedOrder] = useState(null);
+  const [orderConfig, setOrderConfig] = useState(null);
+  const [orderType, setOrderType] = useState("");
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState("");
+
+  const loadOrderConfig = useCallback(async () => {
+    setConfigLoading(true);
+    setConfigError("");
+    try {
+      const config = await fetchOrderConfig();
+      setOrderConfig(config);
+      setOrderType((current) =>
+        config.orderTypes.some((option) => option.value === current)
+          ? current
+          : config.defaultOrderType
+      );
+    } catch (requestError) {
+      setConfigError(
+        requestError.response?.data?.message ||
+          "Order options could not be loaded."
+      );
+    } finally {
+      setConfigLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOrderConfig();
+  }, [loadOrderConfig]);
+
+  const selectedOrderType = orderConfig?.orderTypes.find(
+    (option) => option.value === orderType
+  );
+  const deliveryFee = Number(selectedOrderType?.deliveryFee) || 0;
+  const orderTotal = Number((subtotal + deliveryFee).toFixed(2));
 
   // Prefill checkout fields from the logged-in user's saved profile
   useEffect(() => {
@@ -67,6 +142,7 @@ const CartDrawer = ({ open, onClose }) => {
   }, [user, step]);
 
   const handleProceed = () => {
+    if (!orderConfig || !orderType) return;
     if (!user) {
       setShowLoginModal(true);
       return;
@@ -100,7 +176,11 @@ const CartDrawer = ({ open, onClose }) => {
     setError("");
     try {
       const order = await placeOrder({
-        customer,
+        customer: {
+          ...customer,
+          address: orderType === "delivery" ? customer.address : "",
+        },
+        orderType,
         items: cart
           .filter((line) => !line.isReward)
           .map((line) => ({
@@ -274,24 +354,60 @@ const CartDrawer = ({ open, onClose }) => {
             </div>
 
             {cartReady && cart.length > 0 && (
-              <div className="border-t border-dune-border px-6 py-5">
-                <div className="flex items-center justify-between text-white mb-4">
-                  <span className="text-neutral-400">Subtotal</span>
-                  {/* <span className="font-display text-2xl text-dune-amber">
-                    ${subtotal.toFixed(2)}
-                  </span> */}
-                  <span className="font-display text-2xl text-dune-amber">
-                    {formatPrice(subtotal)}
-                  </span>
+              <div className="space-y-4 border-t border-dune-border px-6 py-5">
+                {configLoading && (
+                  <p className="flex items-center gap-2 text-xs text-neutral-500">
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-dune-amber" />
+                    Loading order options...
+                  </p>
+                )}
+                {configError && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-3 text-xs text-red-200">
+                    <span>{configError}</span>
+                    <button
+                      type="button"
+                      onClick={loadOrderConfig}
+                      className="shrink-0 font-semibold text-dune-amber hover:text-dune-amberLight"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+                {orderConfig && (
+                  <OrderTypeSelector
+                    options={orderConfig.orderTypes}
+                    value={orderType}
+                    onChange={setOrderType}
+                    disabled={submitting}
+                  />
+                )}
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between text-neutral-400">
+                    <span>Subtotal</span>
+                    <span>{formatPrice(subtotal)}</span>
+                  </div>
+                  {deliveryFee > 0 && (
+                    <div className="flex items-center justify-between text-neutral-400">
+                      <span>Delivery fee</span>
+                      <span>{formatPrice(deliveryFee)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between border-t border-dune-border pt-3 text-white">
+                    <span>Total</span>
+                    <span className="font-display text-2xl text-dune-amber">
+                      {formatPrice(orderTotal)}
+                    </span>
+                  </div>
                 </div>
                 {syncing && (
-                  <p className="mb-3 flex items-center justify-end gap-1.5 text-[11px] text-neutral-500">
+                  <p className="flex items-center justify-end gap-1.5 text-[11px] text-neutral-500">
                     <LoaderCircle className="h-3 w-3 animate-spin" /> Saving cart...
                   </p>
                 )}
                 <button
                   onClick={handleProceed}
-                  className="w-full bg-dune-amber hover:bg-dune-amberLight text-black font-semibold py-3.5 rounded-full transition-colors"
+                  disabled={!orderConfig || configLoading}
+                  className="w-full rounded-full bg-dune-amber py-3.5 font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Proceed to Checkout
                 </button>
@@ -306,6 +422,15 @@ const CartDrawer = ({ open, onClose }) => {
             className="flex-1 overflow-y-auto px-6 py-5 flex flex-col"
           >
             <div className="space-y-5 flex-1">
+              {orderConfig && (
+                <OrderTypeSelector
+                  options={orderConfig.orderTypes}
+                  value={orderType}
+                  onChange={setOrderType}
+                  disabled={submitting}
+                />
+              )}
+
               {/* Name — always read-only, tied to the account */}
               <div>
                 <label className="block text-sm text-neutral-400 mb-1.5">
@@ -359,12 +484,13 @@ const CartDrawer = ({ open, onClose }) => {
                 </div>
               </div>
 
-              {/* Address — editable via Edit/Save toggle */}
-              <div>
+              {/* Delivery address is only needed for delivery orders. */}
+              {orderType === "delivery" && <div>
                 <label className="block text-sm text-neutral-400 mb-1.5">
                   Delivery Address
                 </label>
                 <textarea
+                  required
                   rows={3}
                   disabled={!editAddress}
                   value={customer.address}
@@ -400,24 +526,33 @@ const CartDrawer = ({ open, onClose }) => {
                     )}
                   </button>
                 </div>
-              </div>
+              </div>}
 
               {error && <p className="text-sm text-red-400">{error}</p>}
             </div>
 
-            <div className="border-t border-dune-border pt-5 mt-5">
-              <div className="flex items-center justify-between text-white mb-4">
-                <span className="text-neutral-400">Total</span>
-                {/* <span className="font-display text-2xl text-dune-amber">
-                  ${subtotal.toFixed(2)}
-                </span> */}
-                <span className="font-display text-2xl text-dune-amber">
-                  {formatPrice(subtotal)}
-                </span>
+            <div className="mt-5 border-t border-dune-border pt-5">
+              <div className="mb-4 space-y-2 text-sm">
+                <div className="flex items-center justify-between text-neutral-400">
+                  <span>Subtotal</span>
+                  <span>{formatPrice(subtotal)}</span>
+                </div>
+                {deliveryFee > 0 && (
+                  <div className="flex items-center justify-between text-neutral-400">
+                    <span>Delivery fee</span>
+                    <span>{formatPrice(deliveryFee)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-dune-border pt-3 text-white">
+                  <span>Total</span>
+                  <span className="font-display text-2xl text-dune-amber">
+                    {formatPrice(orderTotal)}
+                  </span>
+                </div>
               </div>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !orderConfig}
                 className="w-full bg-dune-amber hover:bg-dune-amberLight disabled:opacity-60 text-black font-semibold py-3.5 rounded-full transition-colors"
               >
                 {submitting ? "Placing Order..." : "Place Order"}
