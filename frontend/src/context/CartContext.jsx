@@ -26,6 +26,9 @@ const MAX_CART_QUANTITY = 99;
 const objectIdPattern = /^[a-f\d]{24}$/i;
 
 const userCartKey = (userId) => `${USER_CART_KEY_PREFIX}${userId}`;
+const productTypeOf = (line) =>
+  line?.productType === "combo" ? "combo" : "menuItem";
+const lineKey = (line) => `${productTypeOf(line)}:${line._id}`;
 
 const normalizeLine = (line) => {
   if (!line || typeof line !== "object" || !line._id) return null;
@@ -45,6 +48,16 @@ const normalizeLine = (line) => {
     isFeatured: Boolean(line.isFeatured),
     calories: Number(line.calories) || 0,
     ingredients: Array.isArray(line.ingredients) ? line.ingredients : [],
+    productType: productTypeOf(line),
+    regularPrice: Number(line.regularPrice) || Number(line.price) || 0,
+    comboPrice: Number(line.comboPrice) || Number(line.price) || 0,
+    discountAmount: Number(line.discountAmount) || 0,
+    discountPercentage: Number(line.discountPercentage) || 0,
+    includedItems: Array.isArray(line.includedItems)
+      ? line.includedItems
+      : Array.isArray(line.items)
+        ? line.items
+        : [],
     isReward: Boolean(line.isReward),
     rewardRedemptionId:
       typeof line.rewardRedemptionId === "string"
@@ -60,7 +73,7 @@ const normalizeCart = (items) => {
   const unique = new Map();
   items.forEach((item) => {
     const normalized = normalizeLine(item);
-    if (normalized) unique.set(normalized._id, normalized);
+    if (normalized) unique.set(lineKey(normalized), normalized);
   });
   return [...unique.values()];
 };
@@ -87,11 +100,11 @@ const cartReducer = (state, action) => {
     case "ADD_ITEM": {
       const item = normalizeLine({ ...action.payload, quantity: 1 });
       if (!item) return state;
-      const existing = state.find((line) => line._id === item._id);
+      const existing = state.find((line) => lineKey(line) === lineKey(item));
       if (existing) {
         if (existing.isReward) return state;
         return state.map((line) =>
-          line._id === item._id
+          lineKey(line) === lineKey(item)
             ? {
                 ...line,
                 quantity: Math.min(MAX_CART_QUANTITY, line.quantity + 1),
@@ -109,11 +122,11 @@ const cartReducer = (state, action) => {
         );
         const item = normalizeLine({ ...rawItem, quantity });
         if (!item) return nextState;
-        const existing = nextState.find((line) => line._id === item._id);
+        const existing = nextState.find((line) => lineKey(line) === lineKey(item));
         if (existing) {
           if (existing.isReward) return nextState;
           return nextState.map((line) =>
-            line._id === item._id
+            lineKey(line) === lineKey(item)
               ? {
                   ...line,
                   quantity: Math.min(
@@ -308,6 +321,8 @@ export const CartProvider = ({ children }) => {
         .filter((line) => !line.isReward && objectIdPattern.test(line._id))
         .map((line) => ({
           menuItem: line._id,
+          productId: line._id,
+          productType: productTypeOf(line),
           quantity: line.quantity,
         }));
       const sessionVersion = ++sessionVersionRef.current;
@@ -362,13 +377,17 @@ export const CartProvider = ({ children }) => {
 
   const addToCart = useCallback(
     (item) => {
-      const current = cartRef.current.find((line) => line._id === item._id);
+      const current = cartRef.current.find(
+        (line) => lineKey(line) === lineKey(item)
+      );
       if (current && (current.isReward || current.quantity >= MAX_CART_QUANTITY)) {
         return false;
       }
       applyLocalAction({ type: "ADD_ITEM", payload: item });
       if (!item.isReward && objectIdPattern.test(item._id)) {
-        enqueueUserSync(() => addItemToCart(item._id, 1));
+        enqueueUserSync(() =>
+          addItemToCart(item._id, 1, productTypeOf(item))
+        );
       }
       return true;
     },
@@ -382,6 +401,8 @@ export const CartProvider = ({ children }) => {
         .filter((item) => !item.isReward && objectIdPattern.test(item._id))
         .map((item) => ({
           menuItem: item._id,
+          productId: item._id,
+          productType: productTypeOf(item),
           quantity: Math.min(
             MAX_CART_QUANTITY,
             Math.max(1, Number(item.quantity) || 1)
@@ -391,7 +412,11 @@ export const CartProvider = ({ children }) => {
       if (regularItems.length) {
         enqueueUserSync(async () => {
           for (const item of regularItems) {
-            await addItemToCart(item.menuItem, item.quantity);
+            await addItemToCart(
+              item.productId,
+              item.quantity,
+              item.productType
+            );
           }
         });
       }
@@ -411,7 +436,9 @@ export const CartProvider = ({ children }) => {
       }
       applyLocalAction({ type: "INCREMENT", payload: id });
       if (objectIdPattern.test(id)) {
-        enqueueUserSync(() => addItemToCart(id, 1));
+        enqueueUserSync(() =>
+          addItemToCart(id, 1, productTypeOf(current))
+        );
       }
     },
     [applyLocalAction, enqueueUserSync]
@@ -425,7 +452,9 @@ export const CartProvider = ({ children }) => {
       applyLocalAction({ type: "DECREMENT", payload: id });
       if (objectIdPattern.test(id)) {
         enqueueUserSync(() =>
-          quantity > 0 ? updateCartItem(id, quantity) : removeCartItem(id)
+          quantity > 0
+            ? updateCartItem(id, quantity, productTypeOf(current))
+            : removeCartItem(id, productTypeOf(current))
         );
       }
     },
@@ -438,7 +467,7 @@ export const CartProvider = ({ children }) => {
       if (!current) return;
       applyLocalAction({ type: "REMOVE_ITEM", payload: id });
       if (!current.isReward && objectIdPattern.test(id)) {
-        enqueueUserSync(() => removeCartItem(id));
+        enqueueUserSync(() => removeCartItem(id, productTypeOf(current)));
       }
     },
     [applyLocalAction, enqueueUserSync]

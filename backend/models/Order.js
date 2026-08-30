@@ -3,14 +3,50 @@ import { DEFAULT_ORDER_TYPE, ORDER_TYPES } from "../config/orders.js";
 
 const orderItemSchema = new mongoose.Schema(
   {
+    productType: {
+      type: String,
+      enum: ["menuItem", "combo"],
+      default: "menuItem",
+      required: true,
+    },
     menuItem: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "MenuItem",
-      required: true,
+      required() {
+        return this.productType !== "combo";
+      },
+      default: null,
+    },
+    combo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Combo",
+      required() {
+        return this.productType === "combo";
+      },
+      default: null,
     },
     name: { type: String, required: true },
+    image: { type: String, default: "" },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1 },
+    comboItems: {
+      type: [
+        new mongoose.Schema(
+          {
+            menuItem: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "MenuItem",
+              required: true,
+            },
+            name: { type: String, required: true },
+            price: { type: Number, required: true, min: 0 },
+            quantity: { type: Number, required: true, min: 1 },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     isReward: { type: Boolean, default: false },
     reward: {
       type: mongoose.Schema.Types.ObjectId,

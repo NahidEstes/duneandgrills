@@ -3,6 +3,12 @@ import Order from "../models/Order.js";
 import Counter from "../models/Counter.js";
 import MenuItem from "../models/MenuItem.js";
 import User from "../models/User.js";
+import {
+  PRODUCT_TYPES,
+  findAvailableProduct,
+  getProductIdentity,
+  productKey,
+} from "../services/catalogService.js";
 import { calculateOrderPoints } from "../config/rewards.js";
 import {
   DEFAULT_ORDER_TYPE,
@@ -118,42 +124,70 @@ export const createOrder = async (req, res) => {
     }
 
     const normalizedItems = items.map((item) => ({
-      menuItem: item.menuItem,
+      ...getProductIdentity(item),
       quantity: Number(item.quantity),
     }));
     if (
       normalizedItems.some(
         (item) =>
-          !mongoose.isValidObjectId(item.menuItem) ||
+          !mongoose.isValidObjectId(item.productId) ||
           !Number.isInteger(item.quantity) ||
-          item.quantity < 1
+          item.quantity < 1 ||
+          item.quantity > 99
       )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Order contains an invalid menu item or quantity",
+        message: "Order contains an invalid product or quantity",
+      });
+    }
+    const normalizedKeys = normalizedItems.map((item) =>
+      productKey(item.productType, item.productId)
+    );
+    if (normalizedKeys.length !== new Set(normalizedKeys).size) {
+      return res.status(400).json({
+        success: false,
+        message: "Order cannot contain duplicate product lines",
       });
     }
 
-    const menuIds = [...new Set(normalizedItems.map((item) => item.menuItem))];
-    const menuItems = await MenuItem.find({
-      _id: { $in: menuIds },
-      isAvailable: true,
-    }).lean();
-    const menuMap = new Map(menuItems.map((item) => [item._id.toString(), item]));
-    if (menuMap.size !== menuIds.length) {
+    const products = await Promise.all(
+      normalizedItems.map((item) =>
+        findAvailableProduct(item.productType, item.productId)
+      )
+    );
+    if (products.some((product) => !product)) {
       return res.status(409).json({
         success: false,
-        message: "One or more menu items are no longer available",
+        message: "One or more products are no longer available",
       });
     }
 
-    const verifiedItems = normalizedItems.map((item) => {
-      const menuItem = menuMap.get(item.menuItem.toString());
+    const verifiedItems = normalizedItems.map((item, index) => {
+      const product = products[index];
+      if (item.productType === PRODUCT_TYPES.COMBO) {
+        return {
+          productType: PRODUCT_TYPES.COMBO,
+          combo: product._id,
+          name: product.name,
+          image: product.image,
+          price: product.comboPrice,
+          quantity: item.quantity,
+          comboItems: product.items.map((entry) => ({
+            menuItem: entry.menuItem._id,
+            name: entry.menuItem.name,
+            price: entry.menuItem.price,
+            quantity: entry.quantity,
+          })),
+          isReward: false,
+        };
+      }
       return {
-        menuItem: menuItem._id,
-        name: menuItem.name,
-        price: menuItem.price,
+        productType: PRODUCT_TYPES.MENU_ITEM,
+        menuItem: product._id,
+        name: product.name,
+        image: product.image,
+        price: product.price,
         quantity: item.quantity,
         isReward: false,
       };
@@ -230,8 +264,10 @@ export const createOrder = async (req, res) => {
       }
       appliedRedemption = redemption;
       verifiedItems.push({
+        productType: PRODUCT_TYPES.MENU_ITEM,
         menuItem: rewardMenuItem._id,
         name: `${redemption.title} (Reward)`,
+        image: rewardMenuItem.image,
         price: 0,
         quantity: 1,
         isReward: true,
@@ -459,7 +495,8 @@ export const getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id })
       .sort({ createdAt: -1 })
-      .populate("items.menuItem", "name image price isAvailable");
+      .populate("items.menuItem", "name image price isAvailable")
+      .populate("items.combo", "name image comboPrice isAvailable status");
     res.status(200).json({ success: true, count: orders.length, data: orders });
   } catch (err) {
     res.status(500).json({

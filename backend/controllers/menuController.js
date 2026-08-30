@@ -1,4 +1,18 @@
 import MenuItem from "../models/MenuItem.js";
+import Combo from "../models/Combo.js";
+import { calculateComboPricing } from "../services/catalogService.js";
+
+const refreshComboPrices = async (menuItemId) => {
+  const combos = await Combo.find({ "items.menuItem": menuItemId }).populate(
+    "items.menuItem"
+  );
+  await Promise.all(
+    combos.map((combo) => {
+      combo.set(calculateComboPricing(combo.items, combo.comboPrice));
+      return combo.save();
+    })
+  );
+};
 
 // @desc    Get all menu items (optionally filter by category)
 // @route   GET /api/menu?category=Food
@@ -71,6 +85,7 @@ export const updateMenuItem = async (req, res) => {
     if (!item) {
       return res.status(404).json({ success: false, message: "Menu item not found" });
     }
+    await refreshComboPrices(item._id);
     res.status(200).json({ success: true, data: item });
   } catch (err) {
     res.status(400).json({ success: false, message: "Failed to update menu item", error: err.message });
@@ -82,6 +97,15 @@ export const updateMenuItem = async (req, res) => {
 // @access  Admin
 export const deleteMenuItem = async (req, res) => {
   try {
+    const referencedCombo = await Combo.findOne({
+      "items.menuItem": req.params.id,
+    }).select("name");
+    if (referencedCombo) {
+      return res.status(409).json({
+        success: false,
+        message: `This menu item is used by “${referencedCombo.name}”. Remove it from the combo first.`,
+      });
+    }
     const item = await MenuItem.findByIdAndDelete(req.params.id);
     if (!item) {
       return res.status(404).json({ success: false, message: "Menu item not found" });

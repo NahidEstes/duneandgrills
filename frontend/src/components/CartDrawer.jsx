@@ -184,7 +184,8 @@ const CartDrawer = ({ open, onClose }) => {
         items: cart
           .filter((line) => !line.isReward)
           .map((line) => ({
-            menuItem: line._id,
+            productId: line._id,
+            productType: line.productType || "menuItem",
             quantity: line.quantity,
           })),
         rewardRedemptionId:
@@ -299,7 +300,7 @@ const CartDrawer = ({ open, onClose }) => {
               ) : (
                 cart.map((line) => (
                   <div
-                    key={line._id}
+                    key={`${line.productType || "menuItem"}-${line._id}`}
                     className="flex gap-4 border-b border-dune-border pb-5"
                   >
                     <SmartImage
@@ -329,6 +330,16 @@ const CartDrawer = ({ open, onClose }) => {
                       <p className="text-dune-amber text-sm mt-1">
                         {line.isReward ? "Points Reward · FREE" : formatPrice(line.price)}
                       </p>
+                      {line.productType === "combo" && line.includedItems?.length > 0 && (
+                        <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-neutral-500">
+                          {line.includedItems
+                            .map(
+                              (entry) =>
+                                `${entry.menuItem?.name || "Item"} ×${entry.quantity}`
+                            )
+                            .join(" · ")}
+                        </p>
+                      )}
 
                       {!line.isReward && <div className="mt-2 flex items-center gap-3">
                         <button

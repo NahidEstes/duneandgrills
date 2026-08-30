@@ -4,7 +4,9 @@ import MenuItem from "../models/MenuItem.js";
 import BlogPost from "../models/BlogPost.js";
 import Order from "../models/Order.js";
 import Review from "../models/Review.js";
+import Combo from "../models/Combo.js";
 import { ensurePointsBalance } from "../services/rewardService.js";
+import { comboHasAvailableItems, serializeCombo } from "../services/catalogService.js";
 
 const publicUser = (user) => ({
   _id: user._id,
@@ -20,10 +22,26 @@ const publicUser = (user) => ({
 });
 
 const findUser = (id) =>
-  User.findById(id).populate({
-    path: "favorites",
-    match: { isAvailable: true },
-  });
+  User.findById(id)
+    .populate({
+      path: "favorites",
+      match: { isAvailable: true },
+    })
+    .populate({
+      path: "favoriteCombos",
+      match: { status: "published", isAvailable: true },
+      populate: { path: "items.menuItem" },
+    });
+
+const availableFavorites = (user) => [
+  ...user.favorites.filter(Boolean).map((item) => ({
+    ...item.toObject(),
+    productType: "menuItem",
+  })),
+  ...user.favoriteCombos
+    .filter((combo) => combo && comboHasAvailableItems(combo))
+    .map((combo) => serializeCombo(combo)),
+];
 
 export const getDashboard = async (req, res) => {
   try {
@@ -32,7 +50,8 @@ export const getDashboard = async (req, res) => {
       findUser(req.user._id),
       Order.find({ user: req.user._id })
         .sort({ createdAt: -1 })
-        .populate("items.menuItem", "name image price isAvailable"),
+        .populate("items.menuItem", "name image price isAvailable")
+        .populate("items.combo", "name image comboPrice isAvailable status"),
       Review.find({ user: req.user._id })
         .sort({ createdAt: -1 })
         .populate("menuItem", "name image")
@@ -43,7 +62,7 @@ export const getDashboard = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    const favorites = user.favorites.filter(Boolean);
+    const favorites = availableFavorites(user);
     res.status(200).json({
       success: true,
       data: {
@@ -84,7 +103,8 @@ export const getProfileStats = async (req, res) => {
       success: true,
       data: {
         orders,
-        favorites: user.favorites.length,
+        favorites:
+          user.favorites.length + (user.favoriteCombos?.length || 0),
         pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
         reviews,
       },
@@ -201,7 +221,7 @@ export const getFavorites = async (req, res) => {
     const user = await findUser(req.user._id);
     res.status(200).json({
       success: true,
-      data: user.favorites.filter(Boolean),
+      data: availableFavorites(user),
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to load favorites" });
@@ -237,6 +257,45 @@ export const removeFavorite = async (req, res) => {
     res.status(200).json({ success: true, data: req.params.menuItemId });
   } catch (err) {
     res.status(400).json({ success: false, message: "Failed to remove favorite" });
+  }
+};
+
+export const addComboFavorite = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.comboId)) {
+      return res.status(400).json({ success: false, message: "Invalid combo" });
+    }
+    const combo = await Combo.findOne({
+      _id: req.params.comboId,
+      status: "published",
+      isAvailable: true,
+    }).populate("items.menuItem");
+    if (!combo || !comboHasAvailableItems(combo)) {
+      return res.status(404).json({ success: false, message: "Combo not found" });
+    }
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { favoriteCombos: combo._id },
+    });
+    return res.status(201).json({ success: true, data: serializeCombo(combo) });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: "Failed to add combo favorite",
+    });
+  }
+};
+
+export const removeComboFavorite = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, {
+      $pull: { favoriteCombos: req.params.comboId },
+    });
+    return res.status(200).json({ success: true, data: req.params.comboId });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: "Failed to remove combo favorite",
+    });
   }
 };
 

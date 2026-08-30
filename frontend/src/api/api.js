@@ -65,6 +65,35 @@ export const deleteMenuItem = async (id) => {
   return data;
 };
 
+// ---- Combos ----
+export const fetchCombos = async () => {
+  const { data } = await api.get("/combos");
+  return data.data;
+};
+
+export const fetchAllCombos = async () => {
+  const { data } = await api.get("/combos/manage");
+  return data.data;
+};
+
+export const createCombo = async (payload) => {
+  const { data } = await api.post("/combos", payload);
+  await refreshAfterMutation("combos");
+  return data.data;
+};
+
+export const updateCombo = async (id, payload) => {
+  const { data } = await api.put(`/combos/${id}`, payload);
+  await refreshAfterMutation("combos");
+  return data.data;
+};
+
+export const deleteCombo = async (id) => {
+  const { data } = await api.delete(`/combos/${id}`);
+  await refreshAfterMutation("combos");
+  return data;
+};
+
 // ---- Offers ----
 export const fetchOffers = async () => {
   const { data } = await api.get("/offers");
@@ -134,18 +163,18 @@ export const fetchUserCart = async () => {
   return data.data;
 };
 
-export const addItemToCart = async (menuItem, quantity = 1) => {
-  const { data } = await api.post("/cart", { menuItem, quantity });
+export const addItemToCart = async (productId, quantity = 1, productType = "menuItem") => {
+  const { data } = await api.post("/cart", { productId, productType, quantity });
   return data.data;
 };
 
-export const updateCartItem = async (menuItemId, quantity) => {
-  const { data } = await api.patch(`/cart/${menuItemId}`, { quantity });
+export const updateCartItem = async (productId, quantity, productType = "menuItem") => {
+  const { data } = await api.patch(`/cart/${productId}`, { quantity }, { params: { productType } });
   return data.data;
 };
 
-export const removeCartItem = async (menuItemId) => {
-  const { data } = await api.delete(`/cart/${menuItemId}`);
+export const removeCartItem = async (productId, productType = "menuItem") => {
+  const { data } = await api.delete(`/cart/${productId}`, { params: { productType } });
   return data.data;
 };
 
@@ -277,6 +306,16 @@ export const addFavorite = async (menuItemId) => {
 
 export const removeFavorite = async (menuItemId) => {
   const { data } = await api.delete(`/profile/favorites/${menuItemId}`);
+  return data.data;
+};
+
+export const addComboFavorite = async (comboId) => {
+  const { data } = await api.post(`/profile/favorite-combos/${comboId}`);
+  return data.data;
+};
+
+export const removeComboFavorite = async (comboId) => {
+  const { data } = await api.delete(`/profile/favorite-combos/${comboId}`);
   return data.data;
 };
 

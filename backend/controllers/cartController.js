@@ -1,13 +1,27 @@
 import mongoose from "mongoose";
-import MenuItem from "../models/MenuItem.js";
 import UserCart, { MAX_CART_QUANTITY } from "../models/UserCart.js";
+import {
+  PRODUCT_TYPES,
+  comboHasAvailableItems,
+  findAvailableProduct,
+  getProductIdentity,
+  getProductReference,
+  normalizeProductType,
+  productKey,
+  serializeCombo,
+} from "../services/catalogService.js";
 
-const menuItemPopulation = {
-  path: "items.menuItem",
-  match: { isAvailable: true },
-  select:
-    "name description price category image tags isAvailable isFeatured calories ingredients",
-};
+const cartPopulation = [
+  {
+    path: "items.menuItem",
+    select:
+      "name description price category image tags isAvailable isFeatured calories ingredients",
+  },
+  {
+    path: "items.combo",
+    populate: { path: "items.menuItem" },
+  },
+];
 
 const parseQuantity = (value) => {
   const quantity = Number(value);
@@ -21,7 +35,6 @@ const parseQuantity = (value) => {
 const getOrCreateCart = async (userId) => {
   const existing = await UserCart.findOne({ userId });
   if (existing) return existing;
-
   try {
     return await UserCart.create({ userId, items: [] });
   } catch (error) {
@@ -30,34 +43,65 @@ const getOrCreateCart = async (userId) => {
   }
 };
 
+const entryIdentity = (entry) => {
+  const productType = normalizeProductType(entry.productType);
+  return {
+    productType,
+    productId:
+      productType === PRODUCT_TYPES.COMBO
+        ? entry.combo?._id || entry.combo
+        : entry.menuItem?._id || entry.menuItem,
+  };
+};
+
 const cartResponseItems = async (cart) => {
-  await cart.populate(menuItemPopulation);
-  const availableItems = cart.items.filter((item) => item.menuItem);
+  await cart.populate(cartPopulation);
+  const availableItems = cart.items.filter((entry) => {
+    const { productType } = entryIdentity(entry);
+    if (productType === PRODUCT_TYPES.COMBO) {
+      return (
+        entry.combo &&
+        entry.combo.status === "published" &&
+        entry.combo.isAvailable &&
+        comboHasAvailableItems(entry.combo)
+      );
+    }
+    return entry.menuItem && entry.menuItem.isAvailable;
+  });
 
   if (availableItems.length !== cart.items.length) {
-    cart.items = availableItems;
+    cart.items = availableItems.map((entry) => {
+      const { productType, productId } = entryIdentity(entry);
+      return {
+        ...getProductReference(productType, productId),
+        quantity: entry.quantity,
+      };
+    });
     await cart.save();
   }
 
-  return availableItems.map((item) => ({
-    ...item.menuItem.toObject(),
-    quantity: item.quantity,
-  }));
+  return availableItems.map((entry) => {
+    const { productType } = entryIdentity(entry);
+    const product =
+      productType === PRODUCT_TYPES.COMBO
+        ? serializeCombo(entry.combo)
+        : {
+            ...entry.menuItem.toObject(),
+            productType: PRODUCT_TYPES.MENU_ITEM,
+          };
+    return { ...product, quantity: entry.quantity };
+  });
 };
 
 const sendCart = async (res, cart, status = 200) =>
-  res.status(status).json({
-    success: true,
-    data: await cartResponseItems(cart),
-  });
+  res.status(status).json({ success: true, data: await cartResponseItems(cart) });
 
-const findAvailableMenuItem = async (menuItemId) => {
-  if (!mongoose.isValidObjectId(menuItemId)) return null;
-  return MenuItem.findOne({
-    _id: menuItemId,
-    isAvailable: true,
-  }).select("_id");
-};
+const requestIdentity = (req) =>
+  getProductIdentity({
+    ...req.body,
+    productId: req.params.productId || req.body.productId,
+    productType: req.query.productType || req.body.productType,
+  });
 
 export const getCart = async (req, res) => {
   try {
@@ -73,27 +117,31 @@ export const getCart = async (req, res) => {
 
 export const addToCart = async (req, res) => {
   try {
-    const menuItemId = req.body.menuItem || req.body.menuItemId;
+    const { productType, productId } = requestIdentity(req);
     const quantity = parseQuantity(req.body.quantity ?? 1);
-    if (!mongoose.isValidObjectId(menuItemId) || !quantity) {
+    if (!mongoose.isValidObjectId(productId) || !quantity) {
       return res.status(400).json({
         success: false,
-        message: `A valid menu item and quantity from 1 to ${MAX_CART_QUANTITY} are required`,
+        message: `A valid product and quantity from 1 to ${MAX_CART_QUANTITY} are required`,
       });
     }
 
-    const menuItem = await findAvailableMenuItem(menuItemId);
-    if (!menuItem) {
+    if (!(await findAvailableProduct(productType, productId))) {
       return res.status(404).json({
         success: false,
-        message: "Menu item was not found or is unavailable",
+        message: "Product was not found or is unavailable",
       });
     }
 
     const cart = await getOrCreateCart(req.user._id);
-    const existing = cart.items.find(
-      (item) => item.menuItem.toString() === menuItemId.toString()
-    );
+    const requestedKey = productKey(productType, productId);
+    const existing = cart.items.find((entry) => {
+      const identity = entryIdentity(entry);
+      return (
+        identity.productId &&
+        productKey(identity.productType, identity.productId) === requestedKey
+      );
+    });
 
     if (existing) {
       if (existing.quantity + quantity > MAX_CART_QUANTITY) {
@@ -104,7 +152,10 @@ export const addToCart = async (req, res) => {
       }
       existing.quantity += quantity;
     } else {
-      cart.items.push({ menuItem: menuItem._id, quantity });
+      cart.items.push({
+        ...getProductReference(productType, productId),
+        quantity,
+      });
     }
 
     await cart.save();
@@ -112,7 +163,7 @@ export const addToCart = async (req, res) => {
   } catch (error) {
     return res.status(400).json({
       success: false,
-      message: "Failed to add item to cart",
+      message: "Failed to add product to cart",
       error: error.message,
     });
   }
@@ -120,31 +171,34 @@ export const addToCart = async (req, res) => {
 
 export const updateItem = async (req, res) => {
   try {
-    const { menuItemId } = req.params;
+    const { productType, productId } = requestIdentity(req);
     const quantity = parseQuantity(req.body.quantity);
-    if (!mongoose.isValidObjectId(menuItemId) || !quantity) {
+    if (!mongoose.isValidObjectId(productId) || !quantity) {
       return res.status(400).json({
         success: false,
-        message: `A valid menu item and quantity from 1 to ${MAX_CART_QUANTITY} are required`,
+        message: `A valid product and quantity from 1 to ${MAX_CART_QUANTITY} are required`,
       });
     }
-
-    const menuItem = await findAvailableMenuItem(menuItemId);
-    if (!menuItem) {
+    if (!(await findAvailableProduct(productType, productId))) {
       return res.status(404).json({
         success: false,
-        message: "Menu item was not found or is unavailable",
+        message: "Product was not found or is unavailable",
       });
     }
 
     const cart = await getOrCreateCart(req.user._id);
-    const item = cart.items.find(
-      (entry) => entry.menuItem.toString() === menuItemId
-    );
+    const requestedKey = productKey(productType, productId);
+    const item = cart.items.find((entry) => {
+      const identity = entryIdentity(entry);
+      return (
+        identity.productId &&
+        productKey(identity.productType, identity.productId) === requestedKey
+      );
+    });
     if (!item) {
       return res.status(404).json({
         success: false,
-        message: "Item is not in your cart",
+        message: "Product is not in your cart",
       });
     }
 
@@ -154,7 +208,7 @@ export const updateItem = async (req, res) => {
   } catch (error) {
     return res.status(400).json({
       success: false,
-      message: "Failed to update cart item",
+      message: "Failed to update cart product",
       error: error.message,
     });
   }
@@ -162,23 +216,25 @@ export const updateItem = async (req, res) => {
 
 export const removeItem = async (req, res) => {
   try {
-    const { menuItemId } = req.params;
-    if (!mongoose.isValidObjectId(menuItemId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid menu item",
-      });
+    const { productType, productId } = requestIdentity(req);
+    if (!mongoose.isValidObjectId(productId)) {
+      return res.status(400).json({ success: false, message: "Invalid product" });
     }
 
     const cart = await getOrCreateCart(req.user._id);
+    const requestedKey = productKey(productType, productId);
     const originalLength = cart.items.length;
-    cart.items = cart.items.filter(
-      (item) => item.menuItem.toString() !== menuItemId
-    );
+    cart.items = cart.items.filter((entry) => {
+      const identity = entryIdentity(entry);
+      return (
+        !identity.productId ||
+        productKey(identity.productType, identity.productId) !== requestedKey
+      );
+    });
     if (cart.items.length === originalLength) {
       return res.status(404).json({
         success: false,
-        message: "Item is not in your cart",
+        message: "Product is not in your cart",
       });
     }
 
@@ -187,7 +243,7 @@ export const removeItem = async (req, res) => {
   } catch (error) {
     return res.status(400).json({
       success: false,
-      message: "Failed to remove cart item",
+      message: "Failed to remove cart product",
       error: error.message,
     });
   }
@@ -220,43 +276,51 @@ export const migrateCart = async (req, res) => {
 
     const guestItems = new Map();
     for (const item of incoming) {
-      const menuItemId = item.menuItem || item.menuItemId || item._id;
+      const { productType, productId } = getProductIdentity(item);
       const quantity = parseQuantity(item.quantity);
-      if (!mongoose.isValidObjectId(menuItemId) || !quantity) {
+      if (!mongoose.isValidObjectId(productId) || !quantity) {
         return res.status(400).json({
           success: false,
-          message: "Guest cart contains an invalid menu item or quantity",
+          message: "Guest cart contains an invalid product or quantity",
         });
       }
-      guestItems.set(menuItemId.toString(), quantity);
+      guestItems.set(productKey(productType, productId), {
+        productType,
+        productId,
+        quantity,
+      });
     }
 
-    if (guestItems.size) {
-      const availableItems = await MenuItem.find({
-        _id: { $in: [...guestItems.keys()] },
-        isAvailable: true,
-      }).select("_id");
-      if (availableItems.length !== guestItems.size) {
-        return res.status(409).json({
-          success: false,
-          message: "One or more guest cart items are no longer available",
-        });
-      }
+    const availability = await Promise.all(
+      [...guestItems.values()].map(({ productType, productId }) =>
+        findAvailableProduct(productType, productId)
+      )
+    );
+    if (availability.some((product) => !product)) {
+      return res.status(409).json({
+        success: false,
+        message: "One or more guest cart products are no longer available",
+      });
     }
 
     const cart = await getOrCreateCart(req.user._id);
     const mergedItems = new Map(
-      cart.items.map((item) => [item.menuItem.toString(), item.quantity])
+      cart.items.map((entry) => {
+        const identity = entryIdentity(entry);
+        return [
+          productKey(identity.productType, identity.productId),
+          { ...identity, quantity: entry.quantity },
+        ];
+      })
     );
+    for (const [key, value] of guestItems) mergedItems.set(key, value);
 
-    for (const [menuItemId, quantity] of guestItems) {
-      mergedItems.set(menuItemId, quantity);
-    }
-
-    cart.items = [...mergedItems].map(([menuItem, quantity]) => ({
-      menuItem,
-      quantity,
-    }));
+    cart.items = [...mergedItems.values()].map(
+      ({ productType, productId, quantity }) => ({
+        ...getProductReference(productType, productId),
+        quantity,
+      })
+    );
     await cart.save();
     return sendCart(res, cart);
   } catch (error) {

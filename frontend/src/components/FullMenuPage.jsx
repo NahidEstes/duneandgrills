@@ -8,15 +8,15 @@ import Footer from "./Footer.jsx";
 import MenuCard from "./MenuCard.jsx";
 import ItemModal from "./ItemModal.jsx";
 import CartDrawer from "./CartDrawer.jsx";
-import { fetchMenuItems } from "../api/api.js";
+import { fetchCombos, fetchMenuItems } from "../api/api.js";
 
-const CATEGORIES = ["All", "Food", "Appetizers", "Drinks"];
+const CATEGORIES = ["All", "Food", "Appetizers", "Drinks", "Combos"];
 
-const FullMenuPage = ({ initialItems = [] }) => {
-  const [items, setItems] = useState(initialItems);
+const FullMenuPage = ({ initialItems = [], initialCombos = [] }) => {
+  const [items, setItems] = useState([...initialItems, ...initialCombos]);
   const [activeCategory, setActiveCategory] = useState("All");
   const [status, setStatus] = useState(
-    initialItems.length > 0 ? "success" : "loading"
+    initialItems.length + initialCombos.length > 0 ? "success" : "loading"
   );
   const [selectedItem, setSelectedItem] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -24,7 +24,11 @@ const FullMenuPage = ({ initialItems = [] }) => {
   const firstLoad = useRef(true);
 
   useEffect(() => {
-    if (firstLoad.current && initialItems.length > 0 && activeCategory === "All") {
+    if (
+      firstLoad.current &&
+      initialItems.length + initialCombos.length > 0 &&
+      activeCategory === "All"
+    ) {
       firstLoad.current = false;
       return;
     }
@@ -35,7 +39,14 @@ const FullMenuPage = ({ initialItems = [] }) => {
     const load = async () => {
       setStatus("loading");
       try {
-        const data = await fetchMenuItems(activeCategory);
+        const data =
+          activeCategory === "Combos"
+            ? await fetchCombos()
+            : activeCategory === "All"
+              ? await Promise.all([fetchMenuItems(), fetchCombos()]).then(
+                  ([menu, combos]) => [...menu, ...combos]
+                )
+              : await fetchMenuItems(activeCategory);
         if (!cancelled) {
           setItems(data);
           setStatus("success");
@@ -49,7 +60,7 @@ const FullMenuPage = ({ initialItems = [] }) => {
     return () => {
       cancelled = true;
     };
-  }, [activeCategory, initialItems.length]);
+  }, [activeCategory, initialCombos.length, initialItems.length]);
 
   return (
     <div className="bg-black min-h-screen">
@@ -117,7 +128,7 @@ const FullMenuPage = ({ initialItems = [] }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {items.map((item) => (
                 <MenuCard
-                  key={item._id}
+                  key={`${item.productType || "menuItem"}-${item._id}`}
                   item={item}
                   onSelect={setSelectedItem}
                 />

@@ -197,16 +197,27 @@ const AccountDashboard = () => {
       .filter(
         (item) =>
           !item.isReward &&
-          item.menuItem?._id &&
-          item.menuItem.isAvailable !== false
+          (item.menuItem?._id || item.combo?._id) &&
+          (item.productType === "combo"
+            ? item.combo?.isAvailable !== false && item.combo?.status === "published"
+            : item.menuItem?.isAvailable !== false)
       )
-      .map((item) => ({
-        ...item.menuItem,
-        _id: item.menuItem._id,
-        name: item.menuItem.name || item.name,
-        price: item.menuItem.price ?? item.price,
-        quantity: item.quantity,
-      }));
+      .map((item) => {
+        const product = item.productType === "combo" ? item.combo : item.menuItem;
+        return {
+          ...product,
+          _id: product._id,
+          productType: item.productType || "menuItem",
+          name: product.name || item.name,
+          image: product.image || item.image,
+          price:
+            item.productType === "combo"
+              ? product.comboPrice ?? item.price
+              : product.price ?? item.price,
+          quantity: item.quantity,
+          includedItems: item.comboItems,
+        };
+      });
 
     if (!items.length) {
       notify("These items are no longer available on the menu.");
@@ -304,7 +315,10 @@ const AccountDashboard = () => {
       )}
       {list.map((order) => {
         const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
-        const image = order.items[0]?.menuItem?.image;
+        const image =
+          order.items[0]?.menuItem?.image ||
+          order.items[0]?.combo?.image ||
+          order.items[0]?.image;
 
         return (
           <div
@@ -450,7 +464,10 @@ const AccountDashboard = () => {
       )}
       {list.map((order) => {
         const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
-        const image = order.items[0]?.menuItem?.image;
+        const image =
+          order.items[0]?.menuItem?.image ||
+          order.items[0]?.combo?.image ||
+          order.items[0]?.image;
 
         return (
           <article

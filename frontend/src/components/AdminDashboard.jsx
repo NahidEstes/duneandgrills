@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import AdminShell from "./admin/AdminShell.jsx";
 import DashboardOverview from "./admin/DashboardOverview.jsx";
 import MenuItemsTab from "./admin/MenuItemsTab.jsx";
+import CombosTab from "./admin/CombosTab.jsx";
 import RewardsTab from "./admin/RewardsTab.jsx";
 import {
   AnalyticsView,
@@ -32,6 +33,10 @@ const TAB_CONTENT = {
   menu: {
     title: "Menu Items",
     subtitle: "Manage dishes, pricing, categories and public availability.",
+  },
+  combos: {
+    title: "Combo Packages",
+    subtitle: "Build and publish value packages from existing menu items.",
   },
   categories: {
     title: "Categories",
@@ -158,6 +163,9 @@ const AdminDashboard = () => {
       )}
       {activeTab === "menu" && (
         <MenuItemsTab onDataChanged={refreshAfterMutation} />
+      )}
+      {activeTab === "combos" && (
+        <CombosTab onDataChanged={refreshAfterMutation} />
       )}
       {activeTab === "categories" && (
         <CategoriesView dashboard={dashboard} onNavigate={setActiveTab} />

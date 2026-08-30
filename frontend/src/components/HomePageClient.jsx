@@ -10,7 +10,11 @@ import Contact from "./Contact.jsx";
 import Footer from "./Footer.jsx";
 import CartDrawer from "./CartDrawer.jsx";
 
-const HomePageClient = ({ initialMenuItems = [], initialOffers = [] }) => {
+const HomePageClient = ({
+  initialMenuItems = [],
+  initialCombos = [],
+  initialOffers = [],
+}) => {
   const [cartOpen, setCartOpen] = useState(false);
 
   return (
@@ -18,7 +22,10 @@ const HomePageClient = ({ initialMenuItems = [], initialOffers = [] }) => {
       <Navbar onCartClick={() => setCartOpen(true)} />
       <main>
         <Hero />
-        <MenuSection initialItems={initialMenuItems} />
+        <MenuSection
+          initialItems={initialMenuItems}
+          initialCombos={initialCombos}
+        />
         <OffersSection initialOffers={initialOffers} />
         <About />
         <Contact />

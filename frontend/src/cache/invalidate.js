@@ -7,6 +7,11 @@ const INVALIDATION_PATHS = {
     ["/blog", "page"],
     ["/blog/[slug]", "page"],
   ],
+  combos: [
+    ["/", "page"],
+    ["/menu", "page"],
+    ["/profile", "page"],
+  ],
   blog: [
     ["/", "page"],
     ["/blog", "page"],

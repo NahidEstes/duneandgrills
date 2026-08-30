@@ -1,6 +1,6 @@
 import HomePageClient from "@/src/components/HomePageClient.jsx";
 import JsonLd from "@/src/components/JsonLd.jsx";
-import { getMenuItems, getOffers } from "@/src/api/server.js";
+import { getCombos, getMenuItems, getOffers } from "@/src/api/server.js";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +16,9 @@ const offerUrl = (value) => {
 };
 
 export default async function HomePage() {
-  const [menuItems, offers] = await Promise.all([
+  const [menuItems, combos, offers] = await Promise.all([
     getMenuItems().catch(() => []),
+    getCombos().catch(() => []),
     getOffers().catch(() => []),
   ]);
 
@@ -59,7 +60,11 @@ export default async function HomePage() {
   return (
     <>
       <JsonLd data={restaurantData} />
-      <HomePageClient initialMenuItems={menuItems} initialOffers={offers} />
+      <HomePageClient
+        initialMenuItems={menuItems}
+        initialCombos={combos}
+        initialOffers={offers}
+      />
     </>
   );
 }

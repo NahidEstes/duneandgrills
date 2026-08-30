@@ -32,6 +32,11 @@ export const getMenuItems = async (category) => {
   return response.data;
 };
 
+export const getCombos = async () => {
+  const response = await get("/combos");
+  return response.data;
+};
+
 export const getOffers = async () => {
   const response = await get("/offers");
   return response.data;
@@ -71,14 +76,16 @@ export const getBlogCategoryCounts = async () => {
 };
 
 export const getPublicPageData = async () => {
-  const [menu, posts, categories] = await Promise.allSettled([
+  const [menu, combos, posts, categories] = await Promise.allSettled([
     getMenuItems(),
+    getCombos(),
     getBlogPosts(),
     getBlogCategoryCounts(),
   ]);
 
   return {
     menu: menu.status === "fulfilled" ? menu.value : [],
+    combos: combos.status === "fulfilled" ? combos.value : [],
     posts: posts.status === "fulfilled" ? posts.value : [],
     categories: categories.status === "fulfilled" ? categories.value : [],
   };

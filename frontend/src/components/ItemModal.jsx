@@ -38,6 +38,7 @@ const ItemModal = ({ item, onClose }) => {
   }, [item, onClose]);
   if (!item) return null;
   const isFavorite = favoriteIds.has(item._id);
+  const isCombo = item.productType === "combo";
 
   const handleFavorite = async () => {
     const result = await toggleFavorite(item);
@@ -92,14 +93,45 @@ const ItemModal = ({ item, onClose }) => {
             {/* <span className="font-display text-2xl text-dune-amber shrink-0">
               ${item.price.toFixed(2)}
             </span> */}
-            <span className="font-display text-2xl text-dune-amber shrink-0">
-              {formatPrice(item.price)}
+            <span className="shrink-0 text-right">
+              {isCombo && item.discountAmount > 0 && (
+                <span className="block text-xs text-neutral-500 line-through">
+                  {formatPrice(item.regularPrice)}
+                </span>
+              )}
+              <span className="block font-display text-2xl text-dune-amber">
+                {formatPrice(item.price)}
+              </span>
             </span>
           </div>
 
           <p className="mt-3 text-sm text-neutral-400 leading-relaxed">
             {item.description}
           </p>
+
+          {isCombo && item.includedItems?.length > 0 && (
+            <div className="mt-5 rounded-xl border border-dune-border bg-black/30 p-4">
+              <p className="eyebrow mb-3">Package Includes</p>
+              <div className="space-y-2">
+                {item.includedItems.map((entry) => (
+                  <div
+                    key={entry.menuItem?._id || entry.menuItem}
+                    className="flex items-center justify-between gap-4 text-sm"
+                  >
+                    <span className="text-neutral-300">
+                      {entry.menuItem?.name || "Menu item"}
+                    </span>
+                    <span className="text-dune-amber">×{entry.quantity}</span>
+                  </div>
+                ))}
+              </div>
+              {item.discountAmount > 0 && (
+                <p className="mt-3 border-t border-dune-border pt-3 text-sm font-semibold text-emerald-400">
+                  Save {formatPrice(item.discountAmount)} ({item.discountPercentage}%)
+                </p>
+              )}
+            </div>
+          )}
 
           {item.calories > 0 && (
             <div className="mt-4 inline-flex items-center gap-2 text-xs font-medium text-dune-amber border border-dune-amber/40 rounded-full px-3 py-1.5">

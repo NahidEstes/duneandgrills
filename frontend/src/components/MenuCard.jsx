@@ -14,6 +14,7 @@ const MenuCard = ({ item, onSelect }) => {
   const { favoriteIds, toggleFavorite } = useFavorites();
   const router = useRouter();
   const isBestseller = item.tags?.includes("bestseller");
+  const isCombo = item.productType === "combo";
   const isFavorite = favoriteIds.has(item._id);
 
   const handleFavorite = async (event) => {
@@ -43,6 +44,11 @@ const MenuCard = ({ item, onSelect }) => {
             <Flame className="w-3 h-3" /> Bestseller
           </span>
         )}
+        {isCombo && (
+          <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full border border-dune-amber/40 bg-black/75 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-dune-amber backdrop-blur">
+            <Flame className="h-3 w-3" /> Combo Package
+          </span>
+        )}
         <button
           type="button"
           onClick={handleFavorite}
@@ -62,13 +68,38 @@ const MenuCard = ({ item, onSelect }) => {
           {/* <span className="shrink-0 font-display text-xl text-dune-amber">
             ${item.price.toFixed(2)}
           </span> */}
-          <span className="shrink-0 font-display text-xl text-dune-amber">
-            {formatPrice(item.price)}
+          <span className="shrink-0 text-right">
+            {isCombo && item.discountAmount > 0 && (
+              <span className="block text-xs text-neutral-500 line-through">
+                {formatPrice(item.regularPrice)}
+              </span>
+            )}
+            <span className="block font-display text-xl text-dune-amber">
+              {formatPrice(item.price)}
+            </span>
           </span>
         </div>
         <p className="mt-2 text-sm text-neutral-400 leading-relaxed flex-1">
           {item.description}
         </p>
+        {isCombo && item.includedItems?.length > 0 && (
+          <div className="mt-3 space-y-1 border-t border-dune-border pt-3">
+            {item.includedItems.slice(0, 4).map((entry) => (
+              <p
+                key={entry.menuItem?._id || entry.menuItem}
+                className="flex justify-between gap-3 text-xs text-neutral-400"
+              >
+                <span className="truncate">{entry.menuItem?.name || "Menu item"}</span>
+                <span className="shrink-0 text-dune-amber">×{entry.quantity}</span>
+              </p>
+            ))}
+            {item.discountAmount > 0 && (
+              <p className="pt-1 text-xs font-semibold text-emerald-400">
+                Save {formatPrice(item.discountAmount)}
+              </p>
+            )}
+          </div>
+        )}
 
         <button
           onClick={(e) => {

@@ -5,20 +5,27 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import MenuCard from "./MenuCard.jsx";
 import ItemModal from "./ItemModal.jsx";
-import { fetchMenuItems } from "../api/api.js";
+import { fetchCombos, fetchMenuItems } from "../api/api.js";
 
 const PREVIEW_LIMIT = 6;
 
 const sortPreviewItems = (items) => {
-  const featured = items.filter((item) => item.isFeatured);
+  const featured = items
+    .filter((item) => item.isFeatured)
+    .sort(
+      (a, b) =>
+        (a.featuredOrder ?? Number.MAX_SAFE_INTEGER) -
+        (b.featuredOrder ?? Number.MAX_SAFE_INTEGER)
+    );
   const rest = items.filter((item) => !item.isFeatured);
   return [...featured, ...rest].slice(0, PREVIEW_LIMIT);
 };
 
-const MenuSection = ({ initialItems = [] }) => {
-  const [items, setItems] = useState(sortPreviewItems(initialItems));
+const MenuSection = ({ initialItems = [], initialCombos = [] }) => {
+  const initialProducts = [...initialItems, ...initialCombos];
+  const [items, setItems] = useState(sortPreviewItems(initialProducts));
   const [status, setStatus] = useState(
-    initialItems.length > 0 ? "success" : "loading"
+    initialProducts.length > 0 ? "success" : "loading"
   );
   const [selectedItem, setSelectedItem] = useState(null);
 
@@ -28,9 +35,12 @@ const MenuSection = ({ initialItems = [] }) => {
     const load = async () => {
       setStatus("loading");
       try {
-        const data = await fetchMenuItems();
+        const [menu, combos] = await Promise.all([
+          fetchMenuItems(),
+          fetchCombos(),
+        ]);
         if (!cancelled) {
-          setItems(sortPreviewItems(data));
+          setItems(sortPreviewItems([...menu, ...combos]));
           setStatus("success");
         }
       } catch (err) {
@@ -38,11 +48,11 @@ const MenuSection = ({ initialItems = [] }) => {
       }
     };
 
-    if (initialItems.length === 0) load();
+    if (initialProducts.length === 0) load();
     return () => {
       cancelled = true;
     };
-  }, [initialItems.length]);
+  }, [initialProducts.length]);
 
   return (
     <section id="menu" className="relative bg-black py-20 md:py-28">
@@ -81,7 +91,7 @@ const MenuSection = ({ initialItems = [] }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {items.map((item) => (
                 <MenuCard
-                  key={item._id}
+                  key={`${item.productType || "menuItem"}-${item._id}`}
                   item={item}
                   onSelect={setSelectedItem}
                 />

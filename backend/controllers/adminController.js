@@ -4,6 +4,7 @@ import Offer from "../models/Offer.js";
 import Order from "../models/Order.js";
 import Review from "../models/Review.js";
 import User from "../models/User.js";
+import Combo from "../models/Combo.js";
 
 const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
 
@@ -316,7 +317,7 @@ export const getAdminUsers = async (req, res) => {
     }
 
     const users = await User.find(filter)
-      .select("name email role phone address avatar pointsBalance favorites createdAt updatedAt")
+      .select("name email role phone address avatar pointsBalance favorites favoriteCombos createdAt updatedAt")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -346,7 +347,8 @@ export const getAdminUsers = async (req, res) => {
       address: user.address,
       avatar: user.avatar,
       pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
-      favoritesCount: user.favorites?.length || 0,
+      favoritesCount:
+        (user.favorites?.length || 0) + (user.favoriteCombos?.length || 0),
       ordersCount: orderMap.get(user._id.toString())?.orders || 0,
       totalSpent: orderMap.get(user._id.toString())?.totalSpent || 0,
       createdAt: user.createdAt,
@@ -371,7 +373,7 @@ export const searchAdmin = async (req, res) => {
     }
 
     const expression = new RegExp(escapeRegex(query), "i");
-    const [orders, menuItems, users, posts, offers] = await Promise.all([
+    const [orders, menuItems, combos, users, posts, offers] = await Promise.all([
       Order.find({
         $or: [
           { orderNumber: expression },
@@ -387,6 +389,16 @@ export const searchAdmin = async (req, res) => {
         $or: [{ name: expression }, { description: expression }, { category: expression }],
       })
         .select("name category image isAvailable updatedAt")
+        .limit(4)
+        .lean(),
+      Combo.find({
+        $or: [
+          { name: expression },
+          { description: expression },
+          { slug: expression },
+        ],
+      })
+        .select("name slug image status isAvailable")
         .limit(4)
         .lean(),
       User.find({ $or: [{ name: expression }, { email: expression }, { phone: expression }] })
@@ -418,6 +430,14 @@ export const searchAdmin = async (req, res) => {
         subtitle: `${item.category} · ${item.isAvailable ? "Available" : "Unavailable"}`,
         image: item.image,
         tab: "menu",
+      })),
+      ...combos.map((combo) => ({
+        id: combo._id,
+        type: "Combo",
+        title: combo.name,
+        subtitle: `${combo.status} · ${combo.isAvailable ? "Available" : "Inactive"}`,
+        image: combo.image,
+        tab: "combos",
       })),
       ...users.map((user) => ({
         id: user._id,

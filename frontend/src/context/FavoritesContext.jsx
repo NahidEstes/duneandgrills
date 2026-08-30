@@ -4,8 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useAuth } from "./AuthContext.jsx";
 import {
   addFavorite as addFavoriteRequest,
+  addComboFavorite,
   fetchFavorites,
   removeFavorite as removeFavoriteRequest,
+  removeComboFavorite,
 } from "../api/api.js";
 
 const FavoritesContext = createContext(null);
@@ -51,9 +53,13 @@ export const FavoritesProvider = ({ children }) => {
 
     try {
       if (wasFavorite) {
-        await removeFavoriteRequest(item._id);
+        await (item.productType === "combo"
+          ? removeComboFavorite(item._id)
+          : removeFavoriteRequest(item._id));
       } else {
-        const storedItem = await addFavoriteRequest(item._id);
+        const storedItem = await (item.productType === "combo"
+          ? addComboFavorite(item._id)
+          : addFavoriteRequest(item._id));
         setFavorites((current) =>
           current.map((favorite) =>
             favorite._id === storedItem._id ? storedItem : favorite

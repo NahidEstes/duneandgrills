@@ -17,6 +17,7 @@ import offerRoutes from "./routes/offerRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import rewardRoutes from "./routes/rewardRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
+import comboRoutes from "./routes/comboRoutes.js";
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use("/api/offers", offerRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/rewards", rewardRoutes);
 app.use("/api/cart", cartRoutes);
+app.use("/api/combos", comboRoutes);
 
 app.get("/api/health", (req, res) => {
   res

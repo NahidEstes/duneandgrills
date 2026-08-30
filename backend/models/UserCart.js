@@ -4,10 +4,27 @@ const MAX_CART_QUANTITY = 99;
 
 const cartItemSchema = new mongoose.Schema(
   {
+    productType: {
+      type: String,
+      enum: ["menuItem", "combo"],
+      default: "menuItem",
+      required: true,
+    },
     menuItem: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "MenuItem",
-      required: true,
+      required() {
+        return this.productType !== "combo";
+      },
+      default: null,
+    },
+    combo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Combo",
+      required() {
+        return this.productType === "combo";
+      },
+      default: null,
     },
     quantity: {
       type: Number,
@@ -33,10 +50,17 @@ const userCartSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator(items) {
-          const ids = items.map((item) => item.menuItem.toString());
-          return ids.length === new Set(ids).size;
+          const keys = items.map((item) => {
+            const type = item.productType === "combo" ? "combo" : "menuItem";
+            const id = type === "combo" ? item.combo : item.menuItem;
+            return `${type}:${id?.toString()}`;
+          });
+          return (
+            keys.every((key) => !key.endsWith(":undefined")) &&
+            keys.length === new Set(keys).size
+          );
         },
-        message: "Cart cannot contain duplicate menu items",
+        message: "Cart cannot contain duplicate products",
       },
     },
   },

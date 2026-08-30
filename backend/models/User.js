@@ -88,6 +88,9 @@ const userSchema = new mongoose.Schema(
     favorites: [
       { type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" },
     ],
+    favoriteCombos: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "Combo" },
+    ],
     savedBlogPosts: [
       { type: mongoose.Schema.Types.ObjectId, ref: "BlogPost" },
     ],

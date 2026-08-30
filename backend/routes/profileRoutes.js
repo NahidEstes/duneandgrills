@@ -3,6 +3,7 @@ import { protect } from "../middleware/auth.js";
 import {
   addAddress,
   addFavorite,
+  addComboFavorite,
   addPaymentMethod,
   deleteAddress,
   deletePaymentMethod,
@@ -12,6 +13,7 @@ import {
   getPaymentMethods,
   getProfileStats,
   removeFavorite,
+  removeComboFavorite,
   getSavedBlogPosts,
   removeSavedBlogPost,
   saveBlogPost,
@@ -32,6 +34,10 @@ router
   .route("/favorites/:menuItemId")
   .post(addFavorite)
   .delete(removeFavorite);
+router
+  .route("/favorite-combos/:comboId")
+  .post(addComboFavorite)
+  .delete(removeComboFavorite);
 
 router.route("/saved-posts").get(getSavedBlogPosts);
 router

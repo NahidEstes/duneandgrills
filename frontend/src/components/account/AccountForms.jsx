@@ -175,7 +175,10 @@ export const OrderDetails = ({
       </span>
     </div>
     <div className="my-5 space-y-3 border-y border-dune-border py-4">
-      {order.items.map((item, index) => <div key={item.menuItem?._id || index} className="flex items-center gap-3">{item.menuItem?.image ? <SmartImage src={item.menuItem.image} alt={item.name} width={80} height={80} sizes="48px" className="h-12 w-12 rounded-lg object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-black text-neutral-500"><Package className="h-5 w-5" /></div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{item.name}</p><p className="text-xs text-neutral-500">Quantity {item.quantity}</p></div><p className="text-sm font-semibold text-dune-amber">{formatPrice(item.price * item.quantity)}</p></div>)}
+      {order.items.map((item, index) => {
+        const image = item.menuItem?.image || item.combo?.image || item.image;
+        return <div key={`${item.productType || "menuItem"}-${item.menuItem?._id || item.combo?._id || index}`} className="flex items-center gap-3">{image ? <SmartImage src={image} alt={item.name} width={80} height={80} sizes="48px" className="h-12 w-12 rounded-lg object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-black text-neutral-500"><Package className="h-5 w-5" /></div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{item.name}</p><p className="text-xs text-neutral-500">{item.productType === "combo" ? "Combo package · " : ""}Quantity {item.quantity}</p>{item.productType === "combo" && item.comboItems?.length > 0 && <p className="mt-1 line-clamp-1 text-[11px] text-neutral-600">{item.comboItems.map((entry) => `${entry.name} ×${entry.quantity}`).join(" · ")}</p>}</div><p className="text-sm font-semibold text-dune-amber">{formatPrice(item.price * item.quantity)}</p></div>;
+      })}
     </div>
     <div className="space-y-2 text-sm">
       <div className="flex items-center justify-between text-neutral-400">
