@@ -58,6 +58,76 @@ const offerSchema = new mongoose.Schema(
       uppercase: true,
       maxlength: 40,
     },
+    orderProductType: {
+      type: String,
+      enum: ["menuItem", "combo"],
+      default: "menuItem",
+    },
+    menuItem: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MenuItem",
+      default: null,
+    },
+    combo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Combo",
+      default: null,
+    },
+    orderQuantity: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 99,
+      validate: {
+        validator: Number.isInteger,
+        message: "Order quantity must be a whole number",
+      },
+    },
+    discountType: {
+      type: String,
+      enum: ["fixed", "percentage"],
+      default: "fixed",
+    },
+    discountValue: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    couponScope: {
+      type: String,
+      enum: ["order", "product", "category"],
+      default: "order",
+    },
+    applicableCategory: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 80,
+    },
+    minimumOrderAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    maximumDiscount: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    usageLimit: {
+      type: Number,
+      default: null,
+      min: 1,
+      validate: {
+        validator: (value) => value === null || Number.isInteger(value),
+        message: "Usage limit must be a whole number",
+      },
+    },
+    usageCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     startDate: {
       type: Date,
       default: Date.now,
@@ -115,11 +185,53 @@ offerSchema.pre("validate", function validateOfferDates(next) {
     );
   }
 
+  if (this.promoCode && this.discountValue <= 0) {
+    this.invalidate(
+      "discountValue",
+      "A coupon must have a discount value greater than zero"
+    );
+  }
+
+  if (this.discountType === "percentage" && this.discountValue > 100) {
+    this.invalidate("discountValue", "Percentage discount cannot exceed 100");
+  }
+
+  if (this.orderProductType === "combo") {
+    this.menuItem = null;
+  } else {
+    this.combo = null;
+  }
+
+  if (this.couponScope === "product") {
+    const productId =
+      this.orderProductType === "combo" ? this.combo : this.menuItem;
+    if (!productId) {
+      this.invalidate(
+        "couponScope",
+        "A product-specific coupon requires an Order Now product"
+      );
+    }
+  }
+
+  if (this.couponScope === "category" && !this.applicableCategory) {
+    this.invalidate(
+      "applicableCategory",
+      "A category-specific coupon requires a category"
+    );
+  }
+
   next();
 });
 
 offerSchema.index({ isActive: 1, startDate: 1, expiresAt: 1 });
 offerSchema.index({ isFeatured: -1, sortOrder: 1, createdAt: -1 });
+offerSchema.index(
+  { promoCode: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { promoCode: { $type: "string", $gt: "" } },
+  }
+);
 
 const Offer = mongoose.model("Offer", offerSchema);
 

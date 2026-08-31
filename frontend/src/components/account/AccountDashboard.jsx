@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Award,
+  Bookmark,
   ChevronRight,
   CircleUserRound,
   CreditCard,
@@ -48,7 +49,9 @@ import { useFavorites } from "../../context/FavoritesContext.jsx";
 import {
   deleteAddress,
   deletePaymentMethod,
+  fetchSavedBlogPosts,
   fetchProfileDashboard,
+  removeSavedBlogPost,
   setDefaultAddress,
   setDefaultPaymentMethod,
 } from "../../api/api.js";
@@ -118,6 +121,9 @@ const AccountDashboard = () => {
   const [cartOpen, setCartOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [isDesktop, setIsDesktop] = useState(false);
+  const [savedBlogPosts, setSavedBlogPosts] = useState([]);
+  const [savedBlogsLoading, setSavedBlogsLoading] = useState(false);
+  const [savedBlogsError, setSavedBlogsError] = useState("");
   const active =
     Object.entries(ACCOUNT_ROUTES).find(([, route]) => route === pathname)?.[0] ||
     "profile";
@@ -155,6 +161,33 @@ const AccountDashboard = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (active !== "favorites") return undefined;
+
+    let cancelled = false;
+    setSavedBlogsLoading(true);
+    setSavedBlogsError("");
+    fetchSavedBlogPosts()
+      .then((posts) => {
+        if (!cancelled) setSavedBlogPosts(posts);
+      })
+      .catch((requestError) => {
+        if (!cancelled) {
+          setSavedBlogsError(
+            requestError.response?.data?.message ||
+              "We could not load your favorite blogs."
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSavedBlogsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
 
   useEffect(() => {
     const desktopQuery = window.matchMedia("(min-width: 1024px)");
@@ -594,6 +627,124 @@ const AccountDashboard = () => {
           </button>
         </article>
       ))}
+    </div>
+  );
+
+  const favoriteBlogsView = () => (
+    <div className="divide-y divide-[#292929] px-5 pb-1">
+      {savedBlogsLoading && (
+        <div className="flex min-h-[280px] items-center justify-center gap-2 text-sm text-neutral-500">
+          <LoaderCircle className="h-4 w-4 animate-spin text-dune-amber" />
+          Loading favorite blogs...
+        </div>
+      )}
+
+      {!savedBlogsLoading && savedBlogsError && (
+        <div className="grid min-h-[280px] place-items-center px-5 text-center">
+          <div>
+            <p className="text-sm text-red-400">{savedBlogsError}</p>
+            <button
+              type="button"
+              onClick={async () => {
+                setSavedBlogsLoading(true);
+                setSavedBlogsError("");
+                try {
+                  setSavedBlogPosts(await fetchSavedBlogPosts());
+                } catch (requestError) {
+                  setSavedBlogsError(
+                    requestError.response?.data?.message ||
+                      "We could not load your favorite blogs."
+                  );
+                } finally {
+                  setSavedBlogsLoading(false);
+                }
+              }}
+              className={`${compactOutline} mt-4`}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!savedBlogsLoading && !savedBlogsError && !savedBlogPosts.length && (
+        <div className="grid min-h-[280px] place-items-center px-5 text-center">
+          <div>
+            <Bookmark className="mx-auto h-7 w-7 text-neutral-700" />
+            <p className="mt-3 text-sm text-neutral-500">
+              Your favorite blogs will appear here.
+            </p>
+            <Link href="/blog" className={`${compactOutline} mt-4`}>
+              Browse Blogs
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {!savedBlogsLoading &&
+        !savedBlogsError &&
+        savedBlogPosts.map((post) => (
+          <article
+            key={post._id}
+            className="group flex min-h-[112px] items-center gap-4 py-3"
+          >
+            <Link
+              href={`/blog/${post.slug}`}
+              className="relative h-[72px] w-20 shrink-0 overflow-hidden rounded-lg border border-white/[0.08] sm:h-[82px] sm:w-[126px]"
+            >
+              <SmartImage
+                src={post.coverImage}
+                alt={post.title}
+                width={252}
+                height={164}
+                sizes="126px"
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            </Link>
+
+            <div className="min-w-0 flex-1">
+              <Link
+                href={`/blog/${post.slug}`}
+                className="line-clamp-1 text-sm font-semibold text-white transition hover:text-dune-amber"
+              >
+                {post.title}
+              </Link>
+              <p className="mt-1 text-[11px] text-neutral-500">
+                {post.category} ·{" "}
+                {new Date(post.createdAt).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
+              <p className="mt-1.5 line-clamp-2 text-[11px] leading-[17px] text-neutral-400">
+                {post.excerpt}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await removeSavedBlogPost(post._id);
+                  setSavedBlogPosts((current) =>
+                    current.filter((entry) => entry._id !== post._id)
+                  );
+                  notify(`${post.title} was removed from your favorite blogs.`);
+                } catch (requestError) {
+                  notify(
+                    requestError.response?.data?.message ||
+                      "This favorite blog could not be updated."
+                  );
+                }
+              }}
+              aria-label={`Remove ${post.title} from favorite blogs`}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#373737] text-white transition hover:border-dune-amber hover:text-dune-amber"
+            >
+              <Bookmark className="h-5 w-5" fill="currentColor" />
+            </button>
+          </article>
+        ))}
     </div>
   );
 
@@ -1094,21 +1245,32 @@ const AccountDashboard = () => {
       </Card>
     ),
     favorites: (
-      <Card>
-        <CardHeader
-          title="Favorite Dishes"
-          action={
-            <button
-              type="button"
-              onClick={() => router.push("/menu")}
-              className="text-xs text-neutral-300 hover:text-dune-amber"
-            >
-              Browse Menu
-            </button>
-          }
-        />
-        {favoritesView(favorites)}
-      </Card>
+      <div className="grid gap-[14px] xl:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Favorite Dishes"
+            border
+            action={
+              <button
+                type="button"
+                onClick={() => router.push("/menu")}
+                className="text-xs text-neutral-300 hover:text-dune-amber"
+              >
+                Browse Menu
+              </button>
+            }
+          />
+          <div className="xl:hidden">{favoritesView(favorites)}</div>
+          <div className="hidden xl:block">
+            {desktopFavoritesView(favorites)}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="Favorite Blogs" border />
+          {favoriteBlogsView()}
+        </Card>
+      </div>
     ),
     rewards: (
       <DuneRewards

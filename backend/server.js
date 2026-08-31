@@ -18,6 +18,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import rewardRoutes from "./routes/rewardRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import comboRoutes from "./routes/comboRoutes.js";
+import inventoryRoutes from "./routes/inventoryRoutes.js";
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/rewards", rewardRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/combos", comboRoutes);
+app.use("/api/inventory", inventoryRoutes);
 
 app.get("/api/health", (req, res) => {
   res
@@ -60,7 +62,11 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res
     .status(err.status || 500)
-    .json({ success: false, message: err.message || "Server error" });
+    .json({
+      success: false,
+      message: err.message || "Server error",
+      ...(err.fields ? { fields: err.fields } : {}),
+    });
 });
 
 const start = async () => {

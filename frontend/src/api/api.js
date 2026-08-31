@@ -123,6 +123,11 @@ export const deleteOffer = async (id) => {
   return data;
 };
 
+export const validateCoupon = async (code, items) => {
+  const { data } = await api.post("/offers/validate-coupon", { code, items });
+  return data.data;
+};
+
 // ---- Orders ----
 export const fetchOrderConfig = async () => {
   const { data } = await api.get("/orders/config");

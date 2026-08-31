@@ -111,3 +111,110 @@ export const getProductReference = (productType, productId) =>
   normalizeProductType(productType) === PRODUCT_TYPES.COMBO
     ? { productType: PRODUCT_TYPES.COMBO, combo: productId, menuItem: null }
     : { productType: PRODUCT_TYPES.MENU_ITEM, menuItem: productId, combo: null };
+
+export class CatalogValidationError extends Error {
+  constructor(message, status = 400) {
+    super(message);
+    this.name = "CatalogValidationError";
+    this.status = status;
+  }
+}
+
+export const resolveCartLines = async (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new CatalogValidationError("Cart must contain at least one item");
+  }
+  if (items.length > 100) {
+    throw new CatalogValidationError("Cart contains too many product lines");
+  }
+
+  const normalizedItems = items.map((item) => ({
+    ...getProductIdentity(item),
+    quantity: Number(item.quantity),
+  }));
+
+  if (
+    normalizedItems.some(
+      (item) =>
+        !mongoose.isValidObjectId(item.productId) ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity < 1 ||
+        item.quantity > 99
+    )
+  ) {
+    throw new CatalogValidationError(
+      "Cart contains an invalid product or quantity"
+    );
+  }
+
+  const keys = normalizedItems.map((item) =>
+    productKey(item.productType, item.productId)
+  );
+  if (keys.length !== new Set(keys).size) {
+    throw new CatalogValidationError(
+      "Cart cannot contain duplicate product lines"
+    );
+  }
+
+  const products = await Promise.all(
+    normalizedItems.map((item) =>
+      findAvailableProduct(item.productType, item.productId)
+    )
+  );
+  if (products.some((product) => !product)) {
+    throw new CatalogValidationError(
+      "One or more products are no longer available",
+      409
+    );
+  }
+
+  return normalizedItems.map((item, index) => ({
+    ...item,
+    product: products[index],
+    unitPrice:
+      item.productType === PRODUCT_TYPES.COMBO
+        ? Number(products[index].comboPrice)
+        : Number(products[index].price),
+  }));
+};
+
+export const calculateCartSubtotal = (lines = []) =>
+  Number(
+    lines
+      .reduce(
+        (sum, line) => sum + Number(line.unitPrice) * Number(line.quantity),
+        0
+      )
+      .toFixed(2)
+  );
+
+export const cartLineToOrderItem = (line) => {
+  const { product, productType, quantity } = line;
+  if (productType === PRODUCT_TYPES.COMBO) {
+    return {
+      productType: PRODUCT_TYPES.COMBO,
+      combo: product._id,
+      name: product.name,
+      image: product.image,
+      price: product.comboPrice,
+      quantity,
+      comboItems: product.items.map((entry) => ({
+        menuItem: entry.menuItem._id,
+        name: entry.menuItem.name,
+        price: entry.menuItem.price,
+        quantity: entry.quantity,
+      })),
+      isReward: false,
+    };
+  }
+
+  return {
+    productType: PRODUCT_TYPES.MENU_ITEM,
+    menuItem: product._id,
+    name: product.name,
+    image: product.image,
+    price: product.price,
+    quantity,
+    isReward: false,
+  };
+};

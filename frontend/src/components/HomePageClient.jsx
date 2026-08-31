@@ -26,7 +26,10 @@ const HomePageClient = ({
           initialItems={initialMenuItems}
           initialCombos={initialCombos}
         />
-        <OffersSection initialOffers={initialOffers} />
+        <OffersSection
+          initialOffers={initialOffers}
+          onCartOpen={() => setCartOpen(true)}
+        />
         <About />
         <Contact />
       </main>

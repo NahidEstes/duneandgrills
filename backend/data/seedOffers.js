@@ -1,6 +1,8 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import Offer from "../models/Offer.js";
+import Combo from "../models/Combo.js";
+import MenuItem from "../models/MenuItem.js";
 import createOfferSeedData from "./offerSeedData.js";
 
 const run = async () => {
@@ -10,8 +12,15 @@ const run = async () => {
     await mongoose.connect(uri);
     console.log("Connected to MongoDB for offer seeding...");
 
+    const [menuItems, combos] = await Promise.all([
+      MenuItem.find({}).select("name price").lean(),
+      Combo.find({}).select("name comboPrice").lean(),
+    ]);
+
     await Offer.deleteMany({});
-    const inserted = await Offer.insertMany(createOfferSeedData());
+    const inserted = await Offer.insertMany(
+      createOfferSeedData(new Date(), { menuItems, combos })
+    );
     console.log(`Inserted ${inserted.length} offers.`);
   } catch (err) {
     console.error("Offer seeding failed:", err.message);

@@ -91,6 +91,38 @@ const orderSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    originalSubtotal: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    discountAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    couponCode: {
+      type: String,
+      default: "",
+      trim: true,
+      uppercase: true,
+    },
+    offer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Offer",
+      default: null,
+    },
+    couponSnapshot: {
+      title: { type: String, default: "" },
+      discountType: {
+        type: String,
+        enum: ["fixed", "percentage", ""],
+        default: "",
+      },
+      discountValue: { type: Number, default: 0, min: 0 },
+    },
     deliveryFee: {
       type: Number,
       required: true,

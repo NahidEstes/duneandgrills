@@ -52,31 +52,38 @@ const MenuCard = ({ item, onSelect }) => {
         <button
           type="button"
           onClick={handleFavorite}
-          aria-label={isFavorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+          aria-label={
+            isFavorite
+              ? `Remove ${item.name} from favorites`
+              : `Add ${item.name} to favorites`
+          }
           aria-pressed={isFavorite}
           className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full border border-white/20 bg-black/70 backdrop-blur flex items-center justify-center text-white hover:border-dune-amber hover:text-dune-amber transition-colors"
         >
-          <Heart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
+          <Heart
+            className="w-4 h-4"
+            fill={isFavorite ? "currentColor" : "none"}
+          />
         </button>
       </div>
 
       <div className="flex flex-col flex-1 p-5">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="text-lg font-semibold text-white leading-snug">
+          <h3 className="text-xl font-bold text-white leading-snug">
             {item.name}
           </h3>
           {/* <span className="shrink-0 font-display text-xl text-dune-amber">
             ${item.price.toFixed(2)}
           </span> */}
           <span className="shrink-0 text-right">
+            <span className="block font-display text-2xl text-dune-amber">
+              {formatPrice(item.price)}
+            </span>
             {isCombo && item.discountAmount > 0 && (
-              <span className="block text-xs text-neutral-500 line-through">
+              <span className="block text-sm text-neutral-200 line-through">
                 {formatPrice(item.regularPrice)}
               </span>
             )}
-            <span className="block font-display text-xl text-dune-amber">
-              {formatPrice(item.price)}
-            </span>
           </span>
         </div>
         <p className="mt-2 text-sm text-neutral-400 leading-relaxed flex-1">
@@ -89,8 +96,12 @@ const MenuCard = ({ item, onSelect }) => {
                 key={entry.menuItem?._id || entry.menuItem}
                 className="flex justify-between gap-3 text-xs text-neutral-400"
               >
-                <span className="truncate">{entry.menuItem?.name || "Menu item"}</span>
-                <span className="shrink-0 text-dune-amber">×{entry.quantity}</span>
+                <span className="truncate">
+                  {entry.menuItem?.name || "Menu item"}
+                </span>
+                <span className="shrink-0 text-dune-amber">
+                  ×{entry.quantity}
+                </span>
               </p>
             ))}
             {item.discountAmount > 0 && (

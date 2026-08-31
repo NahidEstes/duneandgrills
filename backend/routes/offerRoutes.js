@@ -6,6 +6,7 @@ import {
   getOfferById,
   getOffers,
   updateOffer,
+  validateCoupon,
 } from "../controllers/offerController.js";
 import { authorize, protect } from "../middleware/auth.js";
 
@@ -18,6 +19,7 @@ router
   .post(...manageOffers, createOffer);
 
 router.get("/manage", ...manageOffers, getAllOffersForAdmin);
+router.post("/validate-coupon", validateCoupon);
 
 router
   .route("/:id")

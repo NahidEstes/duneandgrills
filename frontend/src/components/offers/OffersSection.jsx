@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Flame } from "lucide-react";
+import { toast } from "sonner";
 import { fetchOffers } from "../../api/api.js";
+import { useCart } from "../../context/CartContext.jsx";
 import FeaturedOffer from "./FeaturedOffer.jsx";
 import OfferCard from "./OfferCard.jsx";
 
-const OffersSection = ({ initialOffers = [] }) => {
+const OffersSection = ({ initialOffers = [], onCartOpen }) => {
+  const { addItemsToCart, suggestCoupon } = useCart();
   const [offers, setOffers] = useState(initialOffers);
   const [status, setStatus] = useState(
     initialOffers.length ? "success" : "loading"
@@ -51,6 +54,32 @@ const OffersSection = ({ initialOffers = [] }) => {
   const removeExpiredOffer = useCallback((offerId) => {
     setOffers((current) => current.filter((offer) => offer._id !== offerId));
   }, []);
+
+  const handleOrderNow = useCallback(
+    (offer) => {
+      const target = offer.orderProduct;
+      if (!target?.product?._id) {
+        toast.error("This offer is temporarily unavailable to order.");
+        return;
+      }
+
+      addItemsToCart([
+        {
+          ...target.product,
+          productType: target.productType,
+          quantity: target.quantity || 1,
+        },
+      ]);
+      if (offer.promoCode) suggestCoupon(offer.promoCode);
+      onCartOpen?.();
+      toast.success(
+        offer.promoCode
+          ? `Offer added — use ${offer.promoCode} at checkout.`
+          : "Offer added to cart."
+      );
+    },
+    [addItemsToCart, onCartOpen, suggestCoupon]
+  );
 
   if (status === "success" && offers.length === 0) return null;
 
@@ -113,12 +142,17 @@ const OffersSection = ({ initialOffers = [] }) => {
             <FeaturedOffer
               offer={featured}
               onExpire={() => removeExpiredOffer(featured._id)}
+              onOrderNow={() => handleOrderNow(featured)}
             />
 
             {otherOffers.length > 0 && (
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {otherOffers.map((offer) => (
-                  <OfferCard key={offer._id} offer={offer} />
+                  <OfferCard
+                    key={offer._id}
+                    offer={offer}
+                    onOrderNow={() => handleOrderNow(offer)}
+                  />
                 ))}
               </div>
             )}

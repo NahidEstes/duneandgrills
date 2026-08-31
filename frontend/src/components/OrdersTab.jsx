@@ -170,6 +170,14 @@ const OrderRowModal = ({ order, onClose, onStatusChange, onDataChanged }) => {
             <span>Subtotal</span>
             <span>{formatAdminCurrency(getOrderSubtotal(order))}</span>
           </div>
+          {Number(order.discountAmount) > 0 && (
+            <div className="flex items-center justify-between text-emerald-400">
+              <span>
+                Discount{order.couponCode ? ` (${order.couponCode})` : ""}
+              </span>
+              <span>-{formatAdminCurrency(order.discountAmount)}</span>
+            </div>
+          )}
           {Number(order.deliveryFee) > 0 && (
             <div className="flex items-center justify-between text-neutral-400">
               <span>Delivery fee</span>

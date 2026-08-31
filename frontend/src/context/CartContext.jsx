@@ -22,10 +22,13 @@ const CartContext = createContext(null);
 
 const GUEST_CART_KEY = "dg_cart_guest";
 const USER_CART_KEY_PREFIX = "dg_cart_user:";
+const GUEST_COUPON_KEY = "dg_coupon_guest";
+const USER_COUPON_KEY_PREFIX = "dg_coupon_user:";
 const MAX_CART_QUANTITY = 99;
 const objectIdPattern = /^[a-f\d]{24}$/i;
 
 const userCartKey = (userId) => `${USER_CART_KEY_PREFIX}${userId}`;
+const userCouponKey = (userId) => `${USER_COUPON_KEY_PREFIX}${userId}`;
 const productTypeOf = (line) =>
   line?.productType === "combo" ? "combo" : "menuItem";
 const lineKey = (line) => `${productTypeOf(line)}:${line._id}`;
@@ -91,6 +94,11 @@ const readCart = (key) => {
 const writeCart = (key, items) => {
   if (typeof window === "undefined") return;
   localStorage.setItem(key, JSON.stringify(items));
+};
+
+const readCoupon = (key) => {
+  if (typeof window === "undefined") return "";
+  return (localStorage.getItem(key) || "").trim().toUpperCase();
 };
 
 const cartReducer = (state, action) => {
@@ -170,6 +178,7 @@ export const CartProvider = ({ children }) => {
   const [cartReady, setCartReady] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
+  const [suggestedCouponCode, setSuggestedCouponCode] = useState("");
   const cartRef = useRef([]);
   const scopeRef = useRef({ type: "initializing", userId: null });
   const sessionVersionRef = useRef(0);
@@ -184,6 +193,31 @@ export const CartProvider = ({ children }) => {
       writeCart(userCartKey(scope.userId), items);
     }
   }, []);
+
+  const persistCouponForCurrentScope = useCallback((code) => {
+    const scope = scopeRef.current;
+    const key =
+      scope.type === "user" && scope.userId
+        ? userCouponKey(scope.userId)
+        : GUEST_COUPON_KEY;
+    if (code) localStorage.setItem(key, code);
+    else localStorage.removeItem(key);
+  }, []);
+
+  const suggestCoupon = useCallback(
+    (code) => {
+      const normalized =
+        typeof code === "string" ? code.trim().toUpperCase() : "";
+      setSuggestedCouponCode(normalized);
+      persistCouponForCurrentScope(normalized);
+    },
+    [persistCouponForCurrentScope]
+  );
+
+  const removeSuggestedCoupon = useCallback(() => {
+    setSuggestedCouponCode("");
+    persistCouponForCurrentScope("");
+  }, [persistCouponForCurrentScope]);
 
   const commitCart = useCallback(
     (items, { persist = true } = {}) => {
@@ -277,6 +311,7 @@ export const CartProvider = ({ children }) => {
     setSyncing(false);
     setSyncError("");
     commitCart(readCart(GUEST_CART_KEY));
+    setSuggestedCouponCode(readCoupon(GUEST_COUPON_KEY));
     setCartReady(true);
   }, [commitCart]);
 
@@ -292,6 +327,7 @@ export const CartProvider = ({ children }) => {
 
       const cachedCart = readCart(userCartKey(userId));
       commitCart(cachedCart);
+      setSuggestedCouponCode(readCoupon(userCouponKey(userId)));
 
       try {
         const serverCart = await fetchUserCart();
@@ -317,6 +353,7 @@ export const CartProvider = ({ children }) => {
   const migrateGuestCart = useCallback(
     async (userId) => {
       const guestCart = readCart(GUEST_CART_KEY);
+      const guestCoupon = readCoupon(GUEST_COUPON_KEY);
       const migrationItems = guestCart
         .filter((line) => !line.isReward && objectIdPattern.test(line._id))
         .map((line) => ({
@@ -337,7 +374,12 @@ export const CartProvider = ({ children }) => {
         const mergedCart = await migrateCartRequest(migrationItems);
         if (sessionVersion === sessionVersionRef.current) {
           localStorage.removeItem(GUEST_CART_KEY);
+          localStorage.removeItem(GUEST_COUPON_KEY);
           commitCart(mergedCart);
+          setSuggestedCouponCode(guestCoupon);
+          if (guestCoupon) {
+            localStorage.setItem(userCouponKey(userId), guestCoupon);
+          }
           setCartReady(true);
         }
         return mergedCart;
@@ -368,10 +410,13 @@ export const CartProvider = ({ children }) => {
     cartRef.current = [];
     dispatch({ type: "CLEAR" });
     localStorage.removeItem(GUEST_CART_KEY);
+    localStorage.removeItem(GUEST_COUPON_KEY);
     if (userId) localStorage.removeItem(userCartKey(userId));
+    if (userId) localStorage.removeItem(userCouponKey(userId));
     scopeRef.current = { type: "guest", userId: null };
     setSyncing(false);
     setSyncError("");
+    setSuggestedCouponCode("");
     setCartReady(true);
   }, []);
 
@@ -475,8 +520,9 @@ export const CartProvider = ({ children }) => {
 
   const clearCart = useCallback(() => {
     applyLocalAction({ type: "CLEAR" });
+    removeSuggestedCoupon();
     enqueueUserSync(clearUserCart);
-  }, [applyLocalAction, enqueueUserSync]);
+  }, [applyLocalAction, enqueueUserSync, removeSuggestedCoupon]);
 
   const itemCount = useMemo(
     () => cart.reduce((sum, line) => sum + line.quantity, 0),
@@ -505,6 +551,9 @@ export const CartProvider = ({ children }) => {
     restoreUserCart,
     migrateGuestCart,
     clearCartOnLogout,
+    suggestedCouponCode,
+    suggestCoupon,
+    removeSuggestedCoupon,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

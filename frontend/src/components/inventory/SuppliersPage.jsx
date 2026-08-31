@@ -1,0 +1,20 @@
+"use client";
+
+import { useState } from "react";
+import { Archive, Building2, Mail, Pencil, Phone, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { archiveSupplier, createSupplier, fetchSuppliers, updateSupplier } from "@/src/api/inventoryApi.js";
+import SupplierForm from "./SupplierForm.jsx";
+import { Badge, Button, EmptyState, LoadingState, Modal, Money, PageHeader, cardClass } from "./InventoryUI.jsx";
+import { apiErrorMessage, formatDate } from "./inventoryUtils.js";
+import useInventoryResource from "./useInventoryResource.js";
+
+export default function SuppliersPage() {
+  const { data = [], loading, reload } = useInventoryResource(() => fetchSuppliers({ includeInactive: true }), []);
+  const [editing, setEditing] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const save = async (payload) => { setSubmitting(true); try { if (editing) await updateSupplier(editing._id, payload); else await createSupplier(payload); toast.success(editing ? "Supplier updated." : "Supplier created."); setOpen(false); setEditing(null); reload({ silent: true }); } catch (error) { toast.error(apiErrorMessage(error, "Unable to save supplier.")); } finally { setSubmitting(false); } };
+  const archive = async (row) => { if (!window.confirm(`Archive ${row.name}? Purchase history will be preserved.`)) return; try { await archiveSupplier(row._id); toast.success("Supplier archived."); reload({ silent: true }); } catch (error) { toast.error(apiErrorMessage(error)); } };
+  return <div className="mx-auto max-w-[1500px]"><PageHeader title="Suppliers" description="Manage supplier contacts, terms and their dynamic purchase history." actions={<Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" />Add supplier</Button>} />{loading ? <div className={cardClass}><LoadingState /></div> : data.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.map((row) => <article key={row._id} className={`${cardClass} p-5`}><div className="flex items-start justify-between gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-orange-500/10 text-orange-400"><Building2 className="h-5 w-5" /></span><div className="flex items-center gap-1"><Badge tone={row.isActive ? "success" : "neutral"}>{row.isActive ? "Active" : "Inactive"}</Badge><button type="button" onClick={() => { setEditing(row); setOpen(true); }} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => archive(row)} className="rounded-lg p-2 text-neutral-500 hover:bg-red-500/10 hover:text-red-300"><Archive className="h-4 w-4" /></button></div></div><h2 className="mt-4 font-body text-base font-semibold text-white">{row.name}</h2><p className="text-xs font-semibold text-dune-amber">{row.code}</p><div className="mt-4 space-y-2 text-xs text-neutral-500">{row.contactName && <p>{row.contactName}</p>}{row.email && <p className="flex items-center gap-2"><Mail className="h-3.5 w-3.5" />{row.email}</p>}{row.phone && <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" />{row.phone}</p>}</div><div className="mt-5 grid grid-cols-3 gap-3 border-t border-white/10 pt-4 text-xs"><div><p className="text-neutral-600">Orders</p><p className="mt-1 font-semibold text-neutral-300">{row.purchaseCount}</p></div><div><p className="text-neutral-600">Purchased</p><p className="mt-1 font-semibold text-neutral-300"><Money value={row.totalPurchases} /></p></div><div><p className="text-neutral-600">Last order</p><p className="mt-1 font-semibold text-neutral-300">{formatDate(row.lastPurchaseAt)}</p></div></div></article>)}</div> : <div className={cardClass}><EmptyState title="No suppliers yet" action={<Button onClick={() => setOpen(true)}>Create supplier</Button>} /></div>}<Modal open={open} onClose={() => { setOpen(false); setEditing(null); }} title={editing ? `Edit ${editing.name}` : "Add supplier"} maxWidth="max-w-3xl"><SupplierForm supplier={editing} onSubmit={save} submitting={submitting} /></Modal></div>;
+}

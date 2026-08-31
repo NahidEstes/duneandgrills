@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { ArrowRight, Tag } from "lucide-react";
 import { formatPrice } from "../../utils/currency.js";
 import SmartImage from "../SmartImage.jsx";
 import CountdownTimer from "./CountdownTimer.jsx";
 import OfferBadge from "./OfferBadge.jsx";
 
-const FeaturedOffer = ({ offer, onExpire }) => (
+const FeaturedOffer = ({ offer, onExpire, onOrderNow }) => (
   <article className="relative overflow-hidden rounded-2xl border border-dune-amber/70 bg-[#0d0d0d] shadow-[0_24px_80px_-55px_rgba(245,158,11,0.8)]">
     <div className="grid min-h-[420px] lg:grid-cols-[0.95fr_0.62fr_1.25fr] lg:items-stretch">
       <div className="order-2 flex flex-col justify-center px-6 py-8 sm:px-9 lg:order-1 lg:px-10">
@@ -39,13 +38,14 @@ const FeaturedOffer = ({ offer, onExpire }) => (
           </div>
         )}
 
-        <Link
-          href={offer.ctaLink || "/menu"}
+        <button
+          type="button"
+          onClick={onOrderNow}
           className="group mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-dune-amber to-dune-amberLight px-7 py-3 text-sm font-bold uppercase tracking-[0.08em] text-black shadow-amberGlow transition hover:brightness-110"
         >
           {offer.ctaText || "Order Now"}
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-        </Link>
+        </button>
       </div>
 
       <div className="order-3 flex flex-col justify-center gap-4 px-6 pb-8 sm:px-9 lg:order-2 lg:px-2 lg:py-10">

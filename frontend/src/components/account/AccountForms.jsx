@@ -185,6 +185,14 @@ export const OrderDetails = ({
         <span>Subtotal</span>
         <span>{formatPrice(getOrderSubtotal(order))}</span>
       </div>
+      {Number(order.discountAmount) > 0 && (
+        <div className="flex items-center justify-between text-emerald-400">
+          <span>
+            Discount{order.couponCode ? ` (${order.couponCode})` : ""}
+          </span>
+          <span>-{formatPrice(order.discountAmount)}</span>
+        </div>
+      )}
       {Number(order.deliveryFee) > 0 && (
         <div className="flex items-center justify-between text-neutral-400">
           <span>Delivery fee</span>

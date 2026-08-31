@@ -16,6 +16,8 @@ import {
   PackageCheck,
   Truck,
   UtensilsCrossed,
+  TicketPercent,
+  CircleCheck,
 } from "lucide-react";
 import { formatPrice } from "../utils/currency.js";
 import { useCart } from "../context/CartContext.jsx";
@@ -25,6 +27,7 @@ import {
   fetchOrderConfig,
   placeOrder,
   updateMe,
+  validateCoupon,
 } from "../api/api.js";
 import LoginPromptModal from "./LoginPromptModal.jsx";
 import SmartImage from "./SmartImage.jsx";
@@ -77,6 +80,9 @@ const CartDrawer = ({ open, onClose }) => {
     syncing,
     syncError,
     dismissCartError,
+    suggestedCouponCode,
+    suggestCoupon,
+    removeSuggestedCoupon,
   } = useCart();
   const { user, setUser } = useAuth();
   const router = useRouter();
@@ -98,6 +104,11 @@ const CartDrawer = ({ open, onClose }) => {
   const [orderType, setOrderType] = useState("");
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [validatedCartKey, setValidatedCartKey] = useState("");
 
   const loadOrderConfig = useCallback(async () => {
     setConfigLoading(true);
@@ -128,7 +139,31 @@ const CartDrawer = ({ open, onClose }) => {
     (option) => option.value === orderType
   );
   const deliveryFee = Number(selectedOrderType?.deliveryFee) || 0;
-  const orderTotal = Number((subtotal + deliveryFee).toFixed(2));
+  const discountAmount = Number(appliedCoupon?.discountAmount) || 0;
+  const orderTotal = Number(
+    (Math.max(0, subtotal - discountAmount) + deliveryFee).toFixed(2)
+  );
+  const cartKey = cart
+    .filter((line) => !line.isReward)
+    .map(
+      (line) =>
+        `${line.productType || "menuItem"}:${line._id}:${line.quantity}`
+    )
+    .sort()
+    .join("|");
+
+  useEffect(() => {
+    if (!appliedCoupon && suggestedCouponCode) {
+      setCouponInput(suggestedCouponCode);
+    }
+  }, [appliedCoupon, suggestedCouponCode]);
+
+  useEffect(() => {
+    if (appliedCoupon && validatedCartKey && validatedCartKey !== cartKey) {
+      setAppliedCoupon(null);
+      setCouponError("Your cart changed. Please apply the coupon again.");
+    }
+  }, [appliedCoupon, cartKey, validatedCartKey]);
 
   // Prefill checkout fields from the logged-in user's saved profile
   useEffect(() => {
@@ -153,6 +188,48 @@ const CartDrawer = ({ open, onClose }) => {
   const handleLoginSuccess = () => {
     setShowLoginModal(false);
     setStep("checkout");
+  };
+
+  const checkoutItems = () =>
+    cart
+      .filter((line) => !line.isReward)
+      .map((line) => ({
+        productId: line._id,
+        productType: line.productType || "menuItem",
+        quantity: line.quantity,
+      }));
+
+  const handleApplyCoupon = async () => {
+    if (!couponInput.trim()) {
+      setCouponError("Enter a coupon code.");
+      return;
+    }
+
+    setApplyingCoupon(true);
+    setCouponError("");
+    try {
+      const result = await validateCoupon(couponInput, checkoutItems());
+      setAppliedCoupon(result);
+      setCouponInput(result.code);
+      setValidatedCartKey(cartKey);
+      suggestCoupon(result.code);
+    } catch (requestError) {
+      setAppliedCoupon(null);
+      setCouponError(
+        requestError.response?.data?.message ||
+          "This coupon could not be applied."
+      );
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponError("");
+    setValidatedCartKey("");
+    removeSuggestedCoupon();
   };
 
   const handleFieldSave = async (field) => {
@@ -181,13 +258,8 @@ const CartDrawer = ({ open, onClose }) => {
           address: orderType === "delivery" ? customer.address : "",
         },
         orderType,
-        items: cart
-          .filter((line) => !line.isReward)
-          .map((line) => ({
-            productId: line._id,
-            productType: line.productType || "menuItem",
-            quantity: line.quantity,
-          })),
+        items: checkoutItems(),
+        couponCode: appliedCoupon?.code || undefined,
         rewardRedemptionId:
           cart.find((line) => line.isReward)?.rewardRedemptionId || undefined,
       });
@@ -230,6 +302,10 @@ const CartDrawer = ({ open, onClose }) => {
     setEditPhone(false);
     setEditAddress(false);
     setError("");
+    setCouponInput("");
+    setAppliedCoupon(null);
+    setCouponError("");
+    setValidatedCartKey("");
     onClose();
   };
 
@@ -539,6 +615,81 @@ const CartDrawer = ({ open, onClose }) => {
                 </div>
               </div>}
 
+              <section
+                aria-labelledby="coupon-heading"
+                className="rounded-xl border border-dune-border bg-black/35 p-4"
+              >
+                <div className="mb-3 flex items-center gap-2">
+                  <TicketPercent className="h-4 w-4 text-dune-amber" />
+                  <h3
+                    id="coupon-heading"
+                    className="text-sm font-semibold text-white"
+                  >
+                    Coupon code
+                  </h3>
+                </div>
+
+                {appliedCoupon ? (
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-400">
+                          <CircleCheck className="h-4 w-4" /> Coupon applied
+                        </p>
+                        <p className="mt-1 text-xs text-neutral-400">
+                          {appliedCoupon.code} · {appliedCoupon.title}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="text-xs font-semibold text-dune-amber hover:text-dune-amberLight"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-neutral-300">
+                      <span>Discount</span>
+                      <span className="font-semibold text-emerald-400">
+                        -{formatPrice(discountAmount)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      value={couponInput}
+                      onChange={(event) => {
+                        setCouponInput(event.target.value.toUpperCase());
+                        setCouponError("");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleApplyCoupon();
+                        }
+                      }}
+                      placeholder="e.g. SHAWARMA1"
+                      aria-label="Coupon code"
+                      className="min-w-0 flex-1 rounded-lg border border-dune-border bg-black px-3 py-2.5 text-sm uppercase text-white outline-none placeholder:normal-case placeholder:text-neutral-600 focus:border-dune-amber"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={applyingCoupon}
+                      className="rounded-lg bg-dune-amber px-4 py-2.5 text-xs font-bold text-black transition hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {applyingCoupon ? "Applying..." : "Apply"}
+                    </button>
+                  </div>
+                )}
+                {couponError && (
+                  <p role="alert" className="mt-2 text-xs text-red-400">
+                    {couponError}
+                  </p>
+                )}
+              </section>
+
               {error && <p className="text-sm text-red-400">{error}</p>}
             </div>
 
@@ -548,6 +699,12 @@ const CartDrawer = ({ open, onClose }) => {
                   <span>Subtotal</span>
                   <span>{formatPrice(subtotal)}</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="flex items-center justify-between text-emerald-400">
+                    <span>Discount ({appliedCoupon.code})</span>
+                    <span>-{formatPrice(discountAmount)}</span>
+                  </div>
+                )}
                 {deliveryFee > 0 && (
                   <div className="flex items-center justify-between text-neutral-400">
                     <span>Delivery fee</span>

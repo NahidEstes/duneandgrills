@@ -5,9 +5,9 @@ import MenuItem from "../models/MenuItem.js";
 import User from "../models/User.js";
 import {
   PRODUCT_TYPES,
-  findAvailableProduct,
-  getProductIdentity,
-  productKey,
+  calculateCartSubtotal,
+  cartLineToOrderItem,
+  resolveCartLines,
 } from "../services/catalogService.js";
 import { calculateOrderPoints } from "../config/rewards.js";
 import {
@@ -24,13 +24,18 @@ import {
   restoreRedemption,
   reverseOrderPoints,
 } from "../services/rewardService.js";
+import {
+  calculateCoupon,
+  releaseCouponUsage,
+  reserveCouponUsage,
+} from "../services/couponService.js";
 
 const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
 const reversalStatuses = new Set(nonRevenueStatuses);
 
 // @desc    Get server-authoritative order types and delivery pricing
 // @route   GET /api/orders/config
-// @access  Public
+// @access  Private
 export const getOrderConfig = (req, res) =>
   res.status(200).json({ success: true, data: getPublicOrderConfig() });
 
@@ -80,6 +85,7 @@ const generateOrderNumber = async () => {
 // @access  Public
 export const createOrder = async (req, res) => {
   let appliedRedemption = null;
+  let reservedCouponId = null;
   let orderId = null;
   try {
     const {
@@ -87,6 +93,7 @@ export const createOrder = async (req, res) => {
       items = [],
       notes,
       rewardRedemptionId,
+      couponCode,
       orderType = DEFAULT_ORDER_TYPE,
     } = req.body;
 
@@ -123,82 +130,16 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    const normalizedItems = items.map((item) => ({
-      ...getProductIdentity(item),
-      quantity: Number(item.quantity),
-    }));
-    if (
-      normalizedItems.some(
-        (item) =>
-          !mongoose.isValidObjectId(item.productId) ||
-          !Number.isInteger(item.quantity) ||
-          item.quantity < 1 ||
-          item.quantity > 99
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Order contains an invalid product or quantity",
-      });
-    }
-    const normalizedKeys = normalizedItems.map((item) =>
-      productKey(item.productType, item.productId)
-    );
-    if (normalizedKeys.length !== new Set(normalizedKeys).size) {
-      return res.status(400).json({
-        success: false,
-        message: "Order cannot contain duplicate product lines",
-      });
-    }
-
-    const products = await Promise.all(
-      normalizedItems.map((item) =>
-        findAvailableProduct(item.productType, item.productId)
-      )
-    );
-    if (products.some((product) => !product)) {
-      return res.status(409).json({
-        success: false,
-        message: "One or more products are no longer available",
-      });
-    }
-
-    const verifiedItems = normalizedItems.map((item, index) => {
-      const product = products[index];
-      if (item.productType === PRODUCT_TYPES.COMBO) {
-        return {
-          productType: PRODUCT_TYPES.COMBO,
-          combo: product._id,
-          name: product.name,
-          image: product.image,
-          price: product.comboPrice,
-          quantity: item.quantity,
-          comboItems: product.items.map((entry) => ({
-            menuItem: entry.menuItem._id,
-            name: entry.menuItem.name,
-            price: entry.menuItem.price,
-            quantity: entry.quantity,
-          })),
-          isReward: false,
-        };
-      }
-      return {
-        productType: PRODUCT_TYPES.MENU_ITEM,
-        menuItem: product._id,
-        name: product.name,
-        image: product.image,
-        price: product.price,
-        quantity: item.quantity,
-        isReward: false,
-      };
-    });
-    const subtotal = Number(
-      verifiedItems
-        .reduce((sum, item) => sum + item.price * item.quantity, 0)
-        .toFixed(2)
-    );
+    const catalogLines = items.length ? await resolveCartLines(items) : [];
+    const verifiedItems = catalogLines.map(cartLineToOrderItem);
+    const subtotal = calculateCartSubtotal(catalogLines);
+    const coupon = couponCode
+      ? await calculateCoupon({ code: couponCode, lines: catalogLines })
+      : null;
+    const discountAmount = coupon?.discountAmount || 0;
+    const discountedSubtotal = Number((subtotal - discountAmount).toFixed(2));
     const deliveryFee = getDeliveryFee(orderType);
-    const totalAmount = Number((subtotal + deliveryFee).toFixed(2));
+    const totalAmount = Number((discountedSubtotal + deliveryFee).toFixed(2));
 
     // const order = await Order.create({
     //   customer,
@@ -284,6 +225,10 @@ export const createOrder = async (req, res) => {
     }
 
     const orderNumber = await generateOrderNumber();
+    if (coupon) {
+      await reserveCouponUsage(coupon.offer._id);
+      reservedCouponId = coupon.offer._id;
+    }
     const order = await Order.create({
       _id: orderId,
       orderNumber,
@@ -297,12 +242,24 @@ export const createOrder = async (req, res) => {
       items: verifiedItems,
       orderType,
       subtotal,
+      originalSubtotal: subtotal,
+      discountAmount,
+      couponCode: coupon?.code || "",
+      offer: coupon?.offer._id || null,
+      couponSnapshot: coupon
+        ? {
+            title: coupon.offer.title,
+            discountType: coupon.offer.discountType,
+            discountValue: coupon.offer.discountValue,
+          }
+        : undefined,
       deliveryFee,
       totalAmount,
-      eligiblePointsAmount: subtotal,
+      eligiblePointsAmount: discountedSubtotal,
       rewardRedemption: rewardSnapshot,
       notes,
     });
+    reservedCouponId = null;
 
     res.status(201).json({ success: true, data: order });
   } catch (err) {
@@ -313,9 +270,12 @@ export const createOrder = async (req, res) => {
         orderId,
       }).catch(() => undefined);
     }
-    res.status(400).json({
+    if (reservedCouponId) {
+      await releaseCouponUsage(reservedCouponId).catch(() => undefined);
+    }
+    res.status(err.status || 400).json({
       success: false,
-      message: "Failed to create order",
+      message: err.status ? err.message : "Failed to create order",
       error: err.message,
     });
   }

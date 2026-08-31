@@ -12,7 +12,9 @@
     "seed:profiles": "node data/seedProfiles.js",
     "seed:offers": "node data/seedOffers.js",
     "seed:rewards": "node data/seedRewards.js",
-    "migrate:rewards": "node data/migrateRewards.js"
+    "migrate:rewards": "node data/migrateRewards.js",
+    "migrate:offers": "node data/migrateOfferCoupons.js",
+    "test:inventory": "node tests/inventoryIntegration.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
