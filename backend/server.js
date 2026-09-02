@@ -27,10 +27,35 @@ const MONGO_URI =
   process.env.MONGO_URI || "mongodb://127.0.0.1:27017/duneandgrills";
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 
+let mongoConnectionPromise;
+
+const connectToMongo = () => {
+  if (mongoose.connection.readyState === 1) {
+    return Promise.resolve(mongoose.connection);
+  }
+
+  if (!mongoConnectionPromise || mongoose.connection.readyState === 0) {
+    mongoConnectionPromise = mongoose.connect(MONGO_URI).catch((error) => {
+      mongoConnectionPromise = undefined;
+      throw error;
+    });
+  }
+
+  return mongoConnectionPromise;
+};
+
 // Middleware
 app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use(express.json());
 app.use(morgan("dev"));
+app.use(async (req, res, next) => {
+  try {
+    await connectToMongo();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -67,18 +92,18 @@ app.use((err, req, res, next) => {
   });
 });
 
-const start = async () => {
-  try {
-    await mongoose.connect(MONGO_URI);
-    console.log("MongoDB connected.");
-    app.listen(PORT, () => {
-      console.log(`Dune & Grills API listening on http://localhost:${PORT}`);
+if (!process.env.VERCEL) {
+  connectToMongo()
+    .then(() => {
+      console.log("MongoDB connected.");
+      app.listen(PORT, () => {
+        console.log(`Dune & Grills API listening on http://localhost:${PORT}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Failed to connect to MongoDB:", error.message);
+      process.exitCode = 1;
     });
-  } catch (err) {
-    console.error("Failed to connect to MongoDB:", err.message);
-    process.exit(1);
-  }
-};
+}
 
-start();
 export default app;
