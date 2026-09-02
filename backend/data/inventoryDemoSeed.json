@@ -1,0 +1,246 @@
+{
+  "currency": "SAR",
+  "categories": [
+    {
+      "code": "MEAT",
+      "name": "Meat & Poultry",
+      "description": "Fresh and frozen proteins used in core menu items.",
+      "color": "#ef4444",
+      "isActive": true
+    },
+    {
+      "code": "BAKERY",
+      "name": "Bakery",
+      "description": "Breads, buns and baked service items.",
+      "color": "#f59e0b",
+      "isActive": true
+    },
+    {
+      "code": "PRODUCE",
+      "name": "Fresh Produce",
+      "description": "Vegetables, herbs and other fresh ingredients.",
+      "color": "#22c55e",
+      "isActive": true
+    },
+    {
+      "code": "DAIRY",
+      "name": "Dairy",
+      "description": "Cheese and refrigerated dairy products.",
+      "color": "#3b82f6",
+      "isActive": true
+    },
+    {
+      "code": "BEVERAGES",
+      "name": "Beverages",
+      "description": "Coffee, tea and beverage concentrates.",
+      "color": "#8b5cf6",
+      "isActive": true
+    },
+    {
+      "code": "SAUCES",
+      "name": "Sauces & Condiments",
+      "description": "Prepared sauces, dressings and condiments.",
+      "color": "#f97316",
+      "isActive": true
+    }
+  ],
+  "suppliers": [
+    {
+      "code": "SUP-RAWDAH",
+      "name": "Al Rawdah Foods",
+      "contactName": "Sales Team",
+      "email": "orders@example.test",
+      "phone": "+966 50 000 1001",
+      "paymentTerms": "Net 30",
+      "isActive": true
+    },
+    {
+      "code": "SUP-AMEEN",
+      "name": "Al Ameen Bakery",
+      "contactName": "Wholesale Desk",
+      "email": "bakery@example.test",
+      "phone": "+966 50 000 1002",
+      "paymentTerms": "Net 15",
+      "isActive": true
+    },
+    {
+      "code": "SUP-FRESH",
+      "name": "Fresh & Green Farm",
+      "contactName": "Produce Desk",
+      "email": "produce@example.test",
+      "phone": "+966 50 000 1003",
+      "paymentTerms": "Cash on delivery",
+      "isActive": true
+    },
+    {
+      "code": "SUP-GULF",
+      "name": "Gulf Beverages",
+      "contactName": "Account Manager",
+      "email": "beverages@example.test",
+      "phone": "+966 50 000 1004",
+      "paymentTerms": "Net 30",
+      "isActive": true
+    },
+    {
+      "code": "SUP-CITY",
+      "name": "Food City Supplies",
+      "contactName": "Restaurant Supply Desk",
+      "email": "supplies@example.test",
+      "phone": "+966 50 000 1005",
+      "paymentTerms": "Net 30",
+      "isActive": true
+    }
+  ],
+  "items": [
+    {
+      "name": "Chicken Breast",
+      "sku": "INV-MEAT-001",
+      "categoryCode": "MEAT",
+      "unit": "kg",
+      "openingStock": 28.5,
+      "reorderLevel": 20,
+      "unitCost": 24.75,
+      "supplierCode": "SUP-RAWDAH",
+      "tracksExpiry": true,
+      "expiryDate": "2026-09-10",
+      "storageLocation": "Walk-in Chiller · Shelf A1",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Burger Buns",
+      "sku": "INV-BAKE-001",
+      "categoryCode": "BAKERY",
+      "unit": "pcs",
+      "openingStock": 120,
+      "reorderLevel": 60,
+      "unitCost": 1.25,
+      "supplierCode": "SUP-AMEEN",
+      "tracksExpiry": true,
+      "expiryDate": "2026-09-04",
+      "storageLocation": "Dry Store · Rack B2",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Shawarma Bread",
+      "sku": "INV-BAKE-002",
+      "categoryCode": "BAKERY",
+      "unit": "pack",
+      "openingStock": 18,
+      "reorderLevel": 20,
+      "unitCost": 6.5,
+      "supplierCode": "SUP-AMEEN",
+      "tracksExpiry": true,
+      "expiryDate": "2026-09-03",
+      "storageLocation": "Dry Store · Rack B3",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Lettuce",
+      "sku": "INV-PROD-001",
+      "categoryCode": "PRODUCE",
+      "unit": "kg",
+      "openingStock": 4.2,
+      "reorderLevel": 5,
+      "unitCost": 8.75,
+      "supplierCode": "SUP-FRESH",
+      "tracksExpiry": true,
+      "expiryDate": "2026-09-02",
+      "storageLocation": "Produce Chiller · Bin C1",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Tomatoes",
+      "sku": "INV-PROD-002",
+      "categoryCode": "PRODUCE",
+      "unit": "kg",
+      "openingStock": 3.1,
+      "reorderLevel": 5,
+      "unitCost": 7.2,
+      "supplierCode": "SUP-FRESH",
+      "tracksExpiry": true,
+      "expiryDate": "2026-09-03",
+      "storageLocation": "Produce Chiller · Bin C2",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Cheese Slices",
+      "sku": "INV-DAIRY-001",
+      "categoryCode": "DAIRY",
+      "unit": "pack",
+      "openingStock": 8,
+      "reorderLevel": 10,
+      "unitCost": 32,
+      "supplierCode": "SUP-RAWDAH",
+      "tracksExpiry": true,
+      "expiryDate": "2026-09-12",
+      "storageLocation": "Walk-in Chiller · Shelf D2",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Coffee Beans",
+      "sku": "INV-BEV-001",
+      "categoryCode": "BEVERAGES",
+      "unit": "kg",
+      "openingStock": 12,
+      "reorderLevel": 5,
+      "unitCost": 78,
+      "supplierCode": "SUP-GULF",
+      "tracksExpiry": true,
+      "expiryDate": "2027-02-28",
+      "storageLocation": "Dry Store · Airtight Bin E1",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Orange Juice Concentrate",
+      "sku": "INV-BEV-002",
+      "categoryCode": "BEVERAGES",
+      "unit": "L",
+      "openingStock": 3,
+      "reorderLevel": 5,
+      "unitCost": 18.5,
+      "supplierCode": "SUP-GULF",
+      "tracksExpiry": true,
+      "expiryDate": "2026-10-15",
+      "storageLocation": "Beverage Chiller · Shelf F1",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Garlic Sauce",
+      "sku": "INV-SAUCE-001",
+      "categoryCode": "SAUCES",
+      "unit": "kg",
+      "openingStock": 2.1,
+      "reorderLevel": 3,
+      "unitCost": 16.25,
+      "supplierCode": "SUP-CITY",
+      "tracksExpiry": true,
+      "expiryDate": "2026-09-08",
+      "storageLocation": "Sauce Chiller · Shelf G2",
+      "isActive": true,
+      "allowNegativeStock": false
+    },
+    {
+      "name": "Karak Tea Mix",
+      "sku": "INV-BEV-003",
+      "categoryCode": "BEVERAGES",
+      "unit": "kg",
+      "openingStock": 6.5,
+      "reorderLevel": 5,
+      "unitCost": 42,
+      "supplierCode": "SUP-GULF",
+      "tracksExpiry": true,
+      "expiryDate": "2027-01-31",
+      "storageLocation": "Dry Store · Rack E3",
+      "isActive": true,
+      "allowNegativeStock": false
+    }
+  ]
+}

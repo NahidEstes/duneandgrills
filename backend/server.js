@@ -1,6 +1,6 @@
-// const dns = require("dns");
+import dns from "dns";
 
-// dns.setServers(["8.8.8.8", "1.1.1.1"]);
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -60,13 +60,11 @@ app.use((req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res
-    .status(err.status || 500)
-    .json({
-      success: false,
-      message: err.message || "Server error",
-      ...(err.fields ? { fields: err.fields } : {}),
-    });
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Server error",
+    ...(err.fields ? { fields: err.fields } : {}),
+  });
 });
 
 const start = async () => {
