@@ -2,8 +2,9 @@ import Counter from "../../models/Counter.js";
 import InventoryCount from "../../models/InventoryCount.js";
 import InventoryItem from "../../models/InventoryItem.js";
 import StockTransaction from "../../models/StockTransaction.js";
+import User from "../../models/User.js";
 import { performStockMovement, runInventoryTransaction } from "../../services/inventoryStockService.js";
-import { parsePagination, validateMovementPayload, ValidationError } from "../../utils/inventoryValidation.js";
+import { escapeRegex, parsePagination, validateMovementPayload, ValidationError } from "../../utils/inventoryValidation.js";
 
 export const createMovement = async (req, res, next) => {
   try {
@@ -35,7 +36,12 @@ export const listMovements = async (req, res, next) => {
     const { page, limit, skip } = parsePagination(req.query, 25);
     const filter = {};
     if (req.query.item) filter.item = req.query.item;
-    if (req.query.movementType) filter.movementType = req.query.movementType;
+    if (req.query.user) filter.user = req.query.user;
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.movementType) {
+      const types = String(req.query.movementType).split(",").filter(Boolean);
+      filter.movementType = types.length > 1 ? { $in: types } : types[0];
+    }
     if (req.query.from || req.query.to) {
       filter.occurredAt = {};
       if (req.query.from) filter.occurredAt.$gte = new Date(req.query.from);
@@ -45,18 +51,41 @@ export const listMovements = async (req, res, next) => {
         filter.occurredAt.$lte = to;
       }
     }
-    const [rows, total] = await Promise.all([
+    if (req.query.search?.trim()) {
+      const value = new RegExp(escapeRegex(req.query.search.trim()), "i");
+      const itemIds = await InventoryItem.find({ $or: [{ name: value }, { sku: value }] }).distinct("_id");
+      filter.$or = [{ item: { $in: itemIds } }, { reason: value }, { notes: value }, { reference: value }];
+    }
+    const summaryFilter = { ...filter };
+    delete summaryFilter.movementType;
+    const [rows, total, summaryRows, userIds] = await Promise.all([
       StockTransaction.find(filter)
-        .populate("item", "name sku unit")
-        .populate("user", "name email")
+        .populate({ path: "item", select: "name sku unit category", populate: { path: "category", select: "name" } })
+        .populate("user", "name email role")
         .populate("purchaseOrder", "orderNumber")
+        .populate("inventoryCount", "countNumber")
         .sort({ occurredAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
       StockTransaction.countDocuments(filter),
+      StockTransaction.aggregate([
+        { $match: summaryFilter },
+        { $group: { _id: "$movementType", count: { $sum: 1 }, quantity: { $sum: "$quantity" } } },
+      ]),
+      StockTransaction.distinct("user", summaryFilter),
     ]);
-    res.json({ success: true, data: rows, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+    const users = await User.find({ _id: { $in: userIds } }).select("name role").sort({ name: 1 }).lean();
+    const byType = Object.fromEntries(summaryRows.map((row) => [row._id, { count: row.count, quantity: row.quantity }]));
+    const summary = {
+      total: summaryRows.reduce((sum, row) => sum + row.count, 0),
+      stockIn: (byType.STOCK_IN?.count || 0) + (byType.PURCHASE_RECEIPT?.count || 0) + (byType.OPENING_BALANCE?.count || 0),
+      stockOut: byType.STOCK_OUT?.count || 0,
+      adjustments: (byType.ADJUSTMENT?.count || 0) + (byType.INVENTORY_COUNT?.count || 0),
+      wasteDamaged: (byType.WASTE?.count || 0) + (byType.DAMAGED?.count || 0),
+      byType,
+    };
+    res.json({ success: true, data: rows, summary, filters: { users }, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) { next(error); }
 };
 
@@ -117,6 +146,7 @@ export const completeCount = async (req, res, next) => {
               notes: line.notes,
               userId: req.user._id,
               inventoryCount: count._id,
+              reference: count.countNumber,
             },
             { session }
           );

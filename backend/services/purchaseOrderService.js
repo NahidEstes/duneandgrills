@@ -119,6 +119,7 @@ export const receivePurchaseOrder = async (purchaseOrderId, receiptLines, userId
           notes: receipt.notes || notes,
           userId,
           purchaseOrder: order._id,
+          reference: order.orderNumber,
           unitCost: line.unitCost,
           expiryDate: receipt.expiryDate || line.expiryDate,
         },

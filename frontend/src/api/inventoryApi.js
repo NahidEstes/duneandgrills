@@ -27,6 +27,13 @@ export const fetchSupplierPurchases = (id) => unwrap(api.get(`/inventory/supplie
 export const fetchStockMovements = (params = {}) => unwrap(api.get("/inventory/movements", { params }));
 export const createStockMovement = (payload) => unwrap(api.post("/inventory/movements", payload)).then((response) => response.data);
 
+export const fetchInventoryRecipes = (params = {}) => unwrap(api.get("/inventory/recipes", { params }));
+export const fetchInventoryRecipe = (menuItemId) => unwrap(api.get(`/inventory/recipes/${menuItemId}`)).then((response) => response.data);
+export const updateInventoryRecipe = (menuItemId, payload) => unwrap(api.put(`/inventory/recipes/${menuItemId}`, payload)).then((response) => response.data);
+
+export const fetchWasteRecords = (params = {}) => unwrap(api.get("/inventory/waste", { params }));
+export const createWasteRecord = (payload) => unwrap(api.post("/inventory/waste", payload)).then((response) => response.data);
+
 export const fetchPurchaseOrders = (params = {}) => unwrap(api.get("/inventory/purchase-orders", { params }));
 export const fetchPurchaseOrder = (id) => unwrap(api.get(`/inventory/purchase-orders/${id}`)).then((response) => response.data);
 export const createPurchaseOrder = (payload) => unwrap(api.post("/inventory/purchase-orders", payload)).then((response) => response.data);

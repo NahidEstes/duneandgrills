@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import InventoryItem from "../models/InventoryItem.js";
 import StockTransaction from "../models/StockTransaction.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
+import { nextInventoryReference } from "./inventoryReferenceService.js";
 
 const INBOUND_TYPES = new Set(["STOCK_IN", "PURCHASE_RECEIPT", "OPENING_BALANCE"]);
 const OUTBOUND_TYPES = new Set(["STOCK_OUT", "WASTE", "DAMAGED"]);
@@ -44,10 +45,14 @@ export const performStockMovement = async (
     notes = "",
     userId,
     allowNegativeStock = false,
+    respectItemNegativeStock = true,
     purchaseOrder = null,
     inventoryCount = null,
     unitCost = null,
     expiryDate = null,
+    reasonCode = null,
+    reference = null,
+    occurredAt = null,
   },
   { session = null } = {}
 ) => {
@@ -61,14 +66,14 @@ export const performStockMovement = async (
 
   if (direction === "adjustment") {
     stockAfter = numericQuantity;
-    if (stockAfter < 0 && !(allowNegativeStock || item.allowNegativeStock)) {
+    if (stockAfter < 0 && !(allowNegativeStock || (respectItemNegativeStock && item.allowNegativeStock))) {
       throw new ValidationError("Negative stock is not allowed for this item");
     }
     update = { $set: { currentStock: stockAfter } };
   } else {
     const delta = direction === "in" ? numericQuantity : -numericQuantity;
     stockAfter = item.currentStock + delta;
-    if (stockAfter < 0 && !(allowNegativeStock || item.allowNegativeStock)) {
+    if (stockAfter < 0 && !(allowNegativeStock || (respectItemNegativeStock && item.allowNegativeStock))) {
       throw new ValidationError(`Insufficient stock. ${item.name} has ${item.currentStock} ${item.unit} available`);
     }
     update = { $inc: { currentStock: delta } };
@@ -86,21 +91,29 @@ export const performStockMovement = async (
   if (!updated) throw new ValidationError("Stock changed while this operation was being saved. Please try again");
 
   try {
+    const transactionReference = reference || await nextInventoryReference(movementType, session);
+    const transactionUnitCost = unitCost == null ? Number(item.unitCost || 0) : Number(unitCost);
     const [transaction] = await StockTransaction.create(
       [
         {
           item: item._id,
           movementType,
-          quantity: Math.abs(numericQuantity),
+          quantity: direction === "adjustment"
+            ? Math.abs(Number(updated.currentStock) - Number(item.currentStock))
+            : Math.abs(numericQuantity),
           stockBefore: item.currentStock,
           stockAfter: updated.currentStock,
           reason,
+          reasonCode,
           notes,
+          reference: transactionReference,
+          status: "COMPLETED",
           user: userId,
           purchaseOrder,
           inventoryCount,
-          unitCost: unitCost == null ? null : Number(unitCost),
+          unitCost: transactionUnitCost,
           expiryDate: expiryDate || null,
+          occurredAt: occurredAt || new Date(),
         },
       ],
       sessionOptions(session)

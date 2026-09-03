@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { INVENTORY_UNITS } from "../models/InventoryItem.js";
 import { PURCHASE_ORDER_STATUSES } from "../models/PurchaseOrder.js";
-import { STOCK_MOVEMENT_TYPES } from "../models/StockTransaction.js";
+import { STOCK_MOVEMENT_TYPES, WASTE_REASON_CODES } from "../models/StockTransaction.js";
 
 export class ValidationError extends Error {
   constructor(message, fields = {}) {
@@ -81,6 +81,32 @@ export const validateMovementPayload = (payload) => {
     reason,
     notes: text(payload.notes),
     allowNegativeStock: Boolean(payload.allowNegativeStock),
+  };
+};
+
+export const validateWastePayload = (payload) => {
+  const movementType = text(payload.movementType).toUpperCase();
+  if (!["WASTE", "DAMAGED"].includes(movementType)) {
+    throw new ValidationError("Waste record type must be WASTE or DAMAGED");
+  }
+  assertObjectId(payload.item, "item");
+  const quantity = number(payload.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new ValidationError("quantity must be greater than zero");
+  }
+  const reasonCode = text(payload.reasonCode).toUpperCase();
+  if (!WASTE_REASON_CODES.includes(reasonCode)) throw new ValidationError("Invalid waste reason");
+  const occurredAt = payload.occurredAt ? new Date(payload.occurredAt) : new Date();
+  if (Number.isNaN(occurredAt.getTime())) throw new ValidationError("recorded date is invalid");
+  if (occurredAt.getTime() > Date.now() + 60000) throw new ValidationError("recorded date cannot be in the future");
+  return {
+    item: payload.item,
+    movementType,
+    quantity,
+    reasonCode,
+    reason: text(payload.reason) || reasonCode.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (value) => value.toUpperCase()),
+    notes: text(payload.notes),
+    occurredAt,
   };
 };
 

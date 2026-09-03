@@ -42,6 +42,8 @@ import {
   updateSettings,
 } from "../controllers/inventory/dashboardController.js";
 import { authorize, protect } from "../middleware/auth.js";
+import { getRecipe, listRecipes, updateRecipe } from "../controllers/inventory/recipeController.js";
+import { createWasteRecord, listWasteRecords } from "../controllers/inventory/wasteController.js";
 
 const router = express.Router();
 
@@ -64,6 +66,9 @@ router.get("/suppliers/:id/purchases", supplierPurchases);
 router.route("/suppliers/:id").patch(updateSupplier).delete(archiveSupplier);
 
 router.route("/movements").get(listMovements).post(createMovement);
+router.get("/recipes", listRecipes);
+router.route("/recipes/:menuItemId").get(getRecipe).put(updateRecipe);
+router.route("/waste").get(listWasteRecords).post(createWasteRecord);
 router.route("/counts").get(listCounts).post(createCount);
 router.post("/counts/:id/complete", completeCount);
 router.post("/counts/:id/cancel", cancelCount);

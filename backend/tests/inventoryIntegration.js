@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import InventoryCategory from "../models/InventoryCategory.js";
 import InventoryItem from "../models/InventoryItem.js";
+import InventoryRecipe from "../models/InventoryRecipe.js";
+import MenuItem from "../models/MenuItem.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import StockTransaction from "../models/StockTransaction.js";
 import Supplier from "../models/Supplier.js";
@@ -37,8 +39,27 @@ const run = async () => {
   const receipt = await receivePurchaseOrder(order._id, [{ lineId: order.items[0]._id, quantity: 5 }], user._id);
   assert.equal(receipt.order.status, "received");
   assert.equal((await InventoryItem.findById(item._id)).currentStock, 12);
-  assert.equal(await StockTransaction.countDocuments({ item: item._id }), 3);
   assert.equal((await PurchaseOrder.findById(order._id)).items[0].receivedQuantity, 5);
+
+  const waste = await performStockMovement({ itemId: item._id, movementType: "WASTE", quantity: 1, reason: "Spoiled", reasonCode: "SPOILED", userId: user._id });
+  assert.equal((await InventoryItem.findById(item._id)).currentStock, 11);
+  assert.equal(waste.transaction.unitCost, 11);
+  assert.match(waste.transaction.reference, /^WST-/);
+  await InventoryItem.updateOne({ _id: item._id }, { allowNegativeStock: true });
+  await assert.rejects(
+    performStockMovement({ itemId: item._id, movementType: "WASTE", quantity: 12, reason: "Must fail", reasonCode: "OTHER", userId: user._id, respectItemNegativeStock: false }),
+    /Insufficient stock/
+  );
+
+  const menuItem = await MenuItem.create({ name: "Test Burger", description: "Integration recipe", price: 25, category: "Burgers", image: "/test.jpg" });
+  const recipe = await InventoryRecipe.create({ menuItem: menuItem._id, ingredients: [{ inventoryItem: item._id, quantityPerSale: 0.2, unit: "kg" }], updatedBy: user._id });
+  assert.equal(recipe.ingredients.length, 1);
+  const duplicateMenuItem = await MenuItem.create({ name: "Duplicate Test", description: "Duplicate ingredient check", price: 10, category: "Test", image: "/test.jpg" });
+  await assert.rejects(
+    InventoryRecipe.create({ menuItem: duplicateMenuItem._id, ingredients: [{ inventoryItem: item._id, quantityPerSale: 1, unit: "kg" }, { inventoryItem: item._id, quantityPerSale: 2, unit: "kg" }], updatedBy: user._id }),
+    /same inventory item twice/
+  );
+  assert.equal(await StockTransaction.countDocuments({ item: item._id }), 4);
 
   console.log("Inventory integration checks passed");
 };

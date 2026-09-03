@@ -20,6 +20,9 @@ import {
   Settings,
   Tags,
   TimerReset,
+  ArrowLeftRight,
+  ChefHat,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -31,6 +34,9 @@ const navigation = [
   ["Purchase Orders", "/inventory/purchase-orders", ReceiptText],
   ["Stock In", "/inventory/stock-in", PackagePlus],
   ["Stock Out", "/inventory/stock-out", PackageMinus],
+  ["Stock Movements", "/inventory/stock-movements", ArrowLeftRight],
+  ["Recipes", "/inventory/recipes", ChefHat],
+  ["Waste / Damaged", "/inventory/waste-damaged", Trash2],
   ["Inventory Count", "/inventory/inventory-count", ClipboardCheck],
   ["Expiry Tracking", "/inventory/expiry-tracking", TimerReset],
   ["Low Stock Alerts", "/inventory/low-stock-alerts", BellRing],
