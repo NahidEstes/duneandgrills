@@ -8,12 +8,15 @@ import Footer from "./Footer.jsx";
 import MenuCard from "./MenuCard.jsx";
 import ItemModal from "./ItemModal.jsx";
 import CartDrawer from "./CartDrawer.jsx";
-import { fetchCombos, fetchMenuItems } from "../api/api.js";
+import { fetchCategories, fetchCombos, fetchMenuItems } from "../api/api.js";
 
-const CATEGORIES = ["All", "Food", "Appetizers", "Drinks", "Combos"];
-
-const FullMenuPage = ({ initialItems = [], initialCombos = [] }) => {
+const FullMenuPage = ({
+  initialItems = [],
+  initialCombos = [],
+  initialCategories = [],
+}) => {
   const [items, setItems] = useState([...initialItems, ...initialCombos]);
+  const [categories, setCategories] = useState(initialCategories);
   const [activeCategory, setActiveCategory] = useState("All");
   const [status, setStatus] = useState(
     initialItems.length + initialCombos.length > 0 ? "success" : "loading"
@@ -22,6 +25,19 @@ const FullMenuPage = ({ initialItems = [], initialCombos = [] }) => {
   const [cartOpen, setCartOpen] = useState(false);
 
   const firstLoad = useRef(true);
+
+  useEffect(() => {
+    if (initialCategories.length) return undefined;
+    let cancelled = false;
+    fetchCategories("menu")
+      .then((data) => {
+        if (!cancelled) setCategories(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [initialCategories.length]);
 
   useEffect(() => {
     if (
@@ -83,7 +99,7 @@ const FullMenuPage = ({ initialItems = [], initialCombos = [] }) => {
         </div>
 
         <div className="mt-10 flex flex-wrap gap-3">
-          {CATEGORIES.map((cat) => (
+          {[...new Set(["All", ...categories.map((entry) => entry.name), "Combos"])].map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}

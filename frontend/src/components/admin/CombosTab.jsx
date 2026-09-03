@@ -31,24 +31,6 @@ const FIELD_CLASS =
   "mt-1.5 w-full rounded-lg border border-white/10 bg-black/45 px-3.5 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-neutral-600 focus:border-dune-amber/60";
 const PANEL_CLASS =
   "rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.045] to-white/[0.018]";
-const COMMON_ITEM_FILTERS = [
-  "All",
-  "Burgers",
-  "Shawarma",
-  "Sandwiches",
-  "Sides",
-  "Drinks",
-  "Appetizers",
-];
-const FILTER_TERMS = {
-  Burgers: "burger",
-  Shawarma: "shawarma",
-  Sandwiches: "sandwich",
-  Sides: "side",
-  Drinks: "drink",
-  Appetizers: "appetizer",
-};
-
 const emptyForm = () => ({
   name: "",
   description: "",
@@ -150,26 +132,12 @@ const ComboBuilder = ({ combo, menuItems, onCancel, onSaved }) => {
     : 0;
 
   const filters = useMemo(() => {
-    const values = new Set(COMMON_ITEM_FILTERS);
-    menuItems.forEach((item) => {
-      values.add(item.category);
-      (item.tags || []).forEach((tag) => values.add(tag));
-    });
-    return [...values].slice(0, 12);
+    return ["All", ...new Set(menuItems.map((item) => item.category).filter(Boolean))];
   }, [menuItems]);
   const availableItems = useMemo(() => {
     const query = itemQuery.trim().toLowerCase();
     return menuItems.filter((item) => {
-      const filterTerm = (FILTER_TERMS[itemFilter] || itemFilter).toLowerCase();
-      const filterText = [
-        item.name,
-        item.description,
-        item.category,
-        ...(item.tags || []),
-      ]
-        .join(" ")
-        .toLowerCase();
-      const matchesFilter = itemFilter === "All" || filterText.includes(filterTerm);
+      const matchesFilter = itemFilter === "All" || item.category === itemFilter;
       const matchesQuery =
         !query ||
         item.name.toLowerCase().includes(query) ||

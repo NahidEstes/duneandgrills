@@ -1,4 +1,12 @@
 import BlogPost from "../models/BlogPost.js";
+import ContentCategory from "../models/ContentCategory.js";
+import {
+  CATEGORY_TYPES,
+  getPublicCategoryMatch,
+  resolveCategory,
+  serializeCategory,
+  synchronizeLegacyCategories,
+} from "../services/categoryService.js";
 
 // Turns "10 Spices Every Grill Master Needs" into "10-spices-every-grill-master-needs"
 const slugify = (text) =>
@@ -13,8 +21,11 @@ const slugify = (text) =>
 export const getBlogPosts = async (req, res) => {
   try {
     const { category, search, limit, excludeSlug } = req.query;
-    const filter = { isPublished: true };
-    if (category && category !== "All") filter.category = category;
+    const categoryMatch = await getPublicCategoryMatch(
+      CATEGORY_TYPES.BLOG,
+      category
+    );
+    const filter = { isPublished: true, $and: [categoryMatch] };
     if (excludeSlug) filter.slug = { $ne: excludeSlug };
     if (search) {
       filter.$or = [
@@ -23,7 +34,9 @@ export const getBlogPosts = async (req, res) => {
       ];
     }
 
-    let query = BlogPost.find(filter).sort({ createdAt: -1 });
+    let query = BlogPost.find(filter)
+      .populate("categoryRef", "name slug isActive type")
+      .sort({ createdAt: -1 });
     if (limit) query = query.limit(Number(limit));
 
     const posts = await query;
@@ -41,7 +54,10 @@ export const getBlogPosts = async (req, res) => {
 
 export const getAllBlogPostsForAdmin = async (req, res) => {
   try {
-    const posts = await BlogPost.find().sort({ updatedAt: -1 });
+    await synchronizeLegacyCategories();
+    const posts = await BlogPost.find()
+      .populate("categoryRef", "name slug isActive type")
+      .sort({ updatedAt: -1 });
     res.status(200).json({ success: true, count: posts.length, data: posts });
   } catch (err) {
     res.status(500).json({
@@ -56,13 +72,18 @@ export const getAllBlogPostsForAdmin = async (req, res) => {
 // @route   GET /api/blog/categories
 export const getBlogCategoryCounts = async (req, res) => {
   try {
-    const counts = await BlogPost.aggregate([
-      { $match: { isPublished: true } },
-      { $group: { _id: "$category", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-    ]);
-
-    const data = counts.map((c) => ({ category: c._id, count: c.count }));
+    await synchronizeLegacyCategories();
+    const categories = await ContentCategory.find({
+      type: CATEGORY_TYPES.BLOG,
+      isActive: true,
+    }).sort({ sortOrder: 1, name: 1 });
+    const summaries = await Promise.all(categories.map(serializeCategory));
+    const data = summaries.map((category) => ({
+      _id: category._id,
+      category: category.name,
+      slug: category.slug,
+      count: category.visibleCount,
+    }));
     res.status(200).json({ success: true, data });
   } catch (err) {
     res
@@ -78,10 +99,12 @@ export const getBlogCategoryCounts = async (req, res) => {
 // @route   GET /api/blog/slug/:slug
 export const getBlogPostBySlug = async (req, res) => {
   try {
+    const categoryMatch = await getPublicCategoryMatch(CATEGORY_TYPES.BLOG);
     const post = await BlogPost.findOne({
       slug: req.params.slug,
       isPublished: true,
-    });
+      $and: [categoryMatch],
+    }).populate("categoryRef", "name slug isActive type");
     if (!post) {
       return res
         .status(404)
@@ -101,9 +124,11 @@ export const getBlogPostBySlug = async (req, res) => {
 // @route   GET /api/blog/slug/:slug/related
 export const getRelatedBlogPosts = async (req, res) => {
   try {
+    const categoryMatch = await getPublicCategoryMatch(CATEGORY_TYPES.BLOG);
     const currentPost = await BlogPost.findOne({
       slug: req.params.slug,
       isPublished: true,
+      $and: [categoryMatch],
     }).select("_id category tags");
 
     if (!currentPost) {
@@ -123,6 +148,7 @@ export const getRelatedBlogPosts = async (req, res) => {
         $match: {
           _id: { $ne: currentPost._id },
           isPublished: true,
+          $and: [categoryMatch],
         },
       },
       {
@@ -176,7 +202,11 @@ export const getRelatedBlogPosts = async (req, res) => {
 // @route   GET /api/blog/:id
 export const getBlogPostById = async (req, res) => {
   try {
-    const post = await BlogPost.findById(req.params.id);
+    await synchronizeLegacyCategories();
+    const post = await BlogPost.findById(req.params.id).populate(
+      "categoryRef",
+      "name slug isActive type"
+    );
     if (!post)
       return res
         .status(404)
@@ -196,7 +226,17 @@ export const getBlogPostById = async (req, res) => {
 export const createBlogPost = async (req, res) => {
   try {
     const slug = slugify(req.body.title);
-    const post = await BlogPost.create({ ...req.body, slug });
+    const categoryValues = await resolveCategory({
+      type: CATEGORY_TYPES.BLOG,
+      categoryId: req.body.categoryId,
+      categoryName: req.body.category,
+    });
+    const post = await BlogPost.create({
+      ...req.body,
+      ...categoryValues,
+      slug,
+    });
+    await post.populate("categoryRef", "name slug isActive type");
     res.status(201).json({ success: true, data: post });
   } catch (err) {
     res.status(400).json({
@@ -211,17 +251,34 @@ export const createBlogPost = async (req, res) => {
 // @route   PUT /api/blog/:id
 export const updateBlogPost = async (req, res) => {
   try {
-    const payload = { ...req.body };
-    if (payload.title) payload.slug = slugify(payload.title);
-
-    const post = await BlogPost.findByIdAndUpdate(req.params.id, payload, {
-      new: true,
-      runValidators: true,
-    });
+    const post = await BlogPost.findById(req.params.id);
     if (!post)
       return res
         .status(404)
         .json({ success: false, message: "Post not found" });
+
+    const payload = { ...req.body };
+    if (payload.title) payload.slug = slugify(payload.title);
+
+    if (payload.categoryId !== undefined || payload.category !== undefined) {
+      const sameCategory = payload.categoryId
+        ? post.categoryRef?.toString() === String(payload.categoryId)
+        : post.category.toLowerCase() ===
+          String(payload.category || "").trim().toLowerCase();
+      Object.assign(
+        payload,
+        await resolveCategory({
+          type: CATEGORY_TYPES.BLOG,
+          categoryId: payload.categoryId,
+          categoryName: payload.category,
+          allowInactive: sameCategory,
+        })
+      );
+    }
+
+    post.set(payload);
+    await post.save();
+    await post.populate("categoryRef", "name slug isActive type");
     res.status(200).json({ success: true, data: post });
   } catch (err) {
     res.status(400).json({

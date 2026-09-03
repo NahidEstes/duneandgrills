@@ -19,13 +19,14 @@ import rewardRoutes from "./routes/rewardRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import comboRoutes from "./routes/comboRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
+import categoryRoutes from "./routes/categoryRoutes.js";
 
 const app = express();
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI =
   process.env.MONGO_URI || "mongodb://127.0.0.1:27017/duneandgrills";
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:3000";
 
 let mongoConnectionPromise;
 
@@ -70,6 +71,7 @@ app.use("/api/rewards", rewardRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/combos", comboRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/categories", categoryRoutes);
 
 app.get("/api/health", (req, res) => {
   res

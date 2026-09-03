@@ -8,10 +8,10 @@ import AdminShell from "./admin/AdminShell.jsx";
 import DashboardOverview from "./admin/DashboardOverview.jsx";
 import MenuItemsTab from "./admin/MenuItemsTab.jsx";
 import CombosTab from "./admin/CombosTab.jsx";
+import CategoriesTab from "./admin/CategoriesTab.jsx";
 import RewardsTab from "./admin/RewardsTab.jsx";
 import {
   AnalyticsView,
-  CategoriesView,
   CustomersView,
   ReviewsView,
   SettingsView,
@@ -40,7 +40,7 @@ const TAB_CONTENT = {
   },
   categories: {
     title: "Categories",
-    subtitle: "Review how the current menu is distributed and available.",
+    subtitle: "Organize and manage both menu and blog categories.",
   },
   customers: {
     title: "Customers",
@@ -168,7 +168,7 @@ const AdminDashboard = () => {
         <CombosTab onDataChanged={refreshAfterMutation} />
       )}
       {activeTab === "categories" && (
-        <CategoriesView dashboard={dashboard} onNavigate={setActiveTab} />
+        <CategoriesTab onDataChanged={refreshAfterMutation} />
       )}
       {activeTab === "customers" && <CustomersView />}
       {activeTab === "offers" && (

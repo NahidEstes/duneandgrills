@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  ArrowRight,
   Boxes,
   CheckCircle2,
   Clock3,
@@ -13,7 +12,6 @@ import {
   ShieldCheck,
   Star,
   Trash2,
-  UtensilsCrossed,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -101,30 +99,6 @@ const UserDirectory = ({ scope }) => {
 
 export const CustomersView = () => <UserDirectory scope="customers" />;
 export const StaffView = () => <UserDirectory scope="staff" />;
-
-export const CategoriesView = ({ dashboard, onNavigate }) => {
-  const categories = dashboard?.analytics?.categories || [];
-  const total = categories.reduce((sum, entry) => sum + entry.count, 0);
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {categories.map((entry) => {
-          const availability = entry.count ? Math.round((entry.available / entry.count) * 100) : 0;
-          return (
-            <article key={entry.category} className={`${CARD} p-5`}>
-              <div className="flex items-start justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-dune-amber/10 text-dune-amber"><UtensilsCrossed className="h-5 w-5" /></span><span className="text-xs text-neutral-500">{Math.round((entry.count / Math.max(total, 1)) * 100)}% of menu</span></div>
-              <h2 className="mt-4 font-body text-lg font-semibold text-white">{entry.category}</h2>
-              <p className="mt-1 text-sm text-neutral-400">{entry.count} items · {entry.available} available</p>
-              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-dune-amber" style={{ width: `${availability}%` }} /></div>
-              <p className="mt-2 text-xs text-neutral-600">{availability}% currently visible</p>
-            </article>
-          );
-        })}
-      </div>
-      <div className={`${CARD} flex flex-col items-start justify-between gap-4 p-5 sm:flex-row sm:items-center`}><div><h2 className="font-body text-base font-semibold text-white">Category structure follows the Menu Item schema</h2><p className="mt-1 text-sm text-neutral-500">Manage item category and availability from Menu Items. No duplicate category database is used.</p></div><button type="button" onClick={() => onNavigate("menu")} className="inline-flex items-center gap-2 rounded-lg bg-dune-amber px-4 py-2 text-sm font-semibold text-black">Manage Menu <ArrowRight className="h-4 w-4" /></button></div>
-    </div>
-  );
-};
 
 export const ReviewsView = ({ onDataChanged }) => {
   const [reviews, setReviews] = useState([]);

@@ -65,6 +65,35 @@ export const deleteMenuItem = async (id) => {
   return data;
 };
 
+// ---- Content categories ----
+export const fetchCategories = async (type) => {
+  const { data } = await api.get("/categories", { params: { type } });
+  return data.data;
+};
+
+export const fetchManagedCategories = async (type) => {
+  const { data } = await api.get("/categories/manage", { params: { type } });
+  return data.data;
+};
+
+export const createContentCategory = async (payload) => {
+  const { data } = await api.post("/categories", payload);
+  await refreshAfterMutation(payload.type);
+  return data.data;
+};
+
+export const updateContentCategory = async (id, payload) => {
+  const { data } = await api.patch(`/categories/${id}`, payload);
+  await refreshAfterMutation(payload.type);
+  return data.data;
+};
+
+export const deleteContentCategory = async (id, type) => {
+  const { data } = await api.delete(`/categories/${id}`);
+  await refreshAfterMutation(type);
+  return data;
+};
+
 // ---- Combos ----
 export const fetchCombos = async () => {
   const { data } = await api.get("/combos");

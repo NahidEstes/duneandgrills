@@ -8,6 +8,7 @@ import {
   createBlogPost,
   updateBlogPost,
   deleteBlogPost,
+  fetchManagedCategories,
 } from "../api/api.js";
 import SmartImage from "./SmartImage.jsx";
 import { confirmDelete } from "./admin/deleteToast.js";
@@ -17,7 +18,7 @@ const EMPTY_FORM = {
   excerpt: "",
   content: "",
   coverImage: "",
-  category: "Recipes",
+  categoryId: "",
   author: "Dune & Grills Team",
   tags: "",
   isPublished: true,
@@ -25,6 +26,7 @@ const EMPTY_FORM = {
 
 const BlogTab = ({ onDataChanged }) => {
   const [posts, setPosts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -35,7 +37,12 @@ const BlogTab = ({ onDataChanged }) => {
   const loadPosts = async () => {
     setLoading(true);
     try {
-      setPosts(await fetchAllBlogPosts());
+      const [nextPosts, nextCategories] = await Promise.all([
+        fetchAllBlogPosts(),
+        fetchManagedCategories("blog"),
+      ]);
+      setPosts(nextPosts);
+      setCategories(nextCategories);
     } catch (err) {
       setError("Failed to load blog posts.");
       toast.error(err.response?.data?.message || "Unable to load blog posts.");
@@ -49,7 +56,10 @@ const BlogTab = ({ onDataChanged }) => {
   }, []);
 
   const openAddForm = () => {
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      categoryId: categories.find((entry) => entry.isActive)?._id || "",
+    });
     setEditingId(null);
     setShowForm(true);
   };
@@ -60,7 +70,11 @@ const BlogTab = ({ onDataChanged }) => {
       excerpt: post.excerpt,
       content: post.content,
       coverImage: post.coverImage,
-      category: post.category,
+      categoryId:
+        post.categoryRef?._id ||
+        post.categoryRef ||
+        categories.find((entry) => entry.name === post.category)?._id ||
+        "",
       author: post.author,
       tags: (post.tags || []).join(", "),
       isPublished: post.isPublished,
@@ -270,17 +284,21 @@ const BlogTab = ({ onDataChanged }) => {
               />
               <div className="grid grid-cols-2 gap-4">
                 <select
-                  value={form.category}
+                  required
+                  value={form.categoryId}
                   onChange={(e) =>
-                    setForm({ ...form, category: e.target.value })
+                    setForm({ ...form, categoryId: e.target.value })
                   }
                   className="w-full rounded-lg bg-black border border-dune-border px-4 py-2.5 text-white focus:border-dune-amber outline-none"
                 >
-                  <option value="Recipes">Recipes</option>
-                  <option value="Behind the Scenes">Behind the Scenes</option>
-                  <option value="Nutrition">Nutrition</option>
-                  <option value="News">News</option>
-                  <option value="Tips">Tips</option>
+                  <option value="" disabled>Select a category</option>
+                  {categories
+                    .filter((entry) => entry.isActive || entry._id === form.categoryId)
+                    .map((entry) => (
+                      <option key={entry._id} value={entry._id}>
+                        {entry.name}{entry.isActive ? "" : " (Inactive)"}
+                      </option>
+                    ))}
                 </select>
                 <input
                   placeholder="Author"

@@ -15,6 +15,7 @@ import {
   createMenuItem,
   deleteMenuItem,
   fetchAllMenuItems,
+  fetchManagedCategories,
   updateMenuItem,
 } from "../../api/api.js";
 import SmartImage from "../SmartImage.jsx";
@@ -25,7 +26,7 @@ const EMPTY_FORM = {
   name: "",
   description: "",
   price: "",
-  category: "Food",
+  categoryId: "",
   image: "",
   tags: "",
   calories: "",
@@ -39,6 +40,7 @@ const FIELD_CLASS =
 
 const MenuItemsTab = ({ onDataChanged }) => {
   const [items, setItems] = useState([]);
+  const [managedCategories, setManagedCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
@@ -51,7 +53,12 @@ const MenuItemsTab = ({ onDataChanged }) => {
   const loadItems = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      setItems(await fetchAllMenuItems());
+      const [nextItems, nextCategories] = await Promise.all([
+        fetchAllMenuItems(),
+        fetchManagedCategories("menu"),
+      ]);
+      setItems(nextItems);
+      setManagedCategories(nextCategories);
     } catch (error) {
       toast.error(error.response?.data?.message || "Unable to load menu items.");
     } finally {
@@ -81,7 +88,10 @@ const MenuItemsTab = ({ onDataChanged }) => {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      categoryId: managedCategories.find((entry) => entry.isActive)?._id || "",
+    });
     setShowForm(true);
   };
 
@@ -91,7 +101,11 @@ const MenuItemsTab = ({ onDataChanged }) => {
       name: item.name || "",
       description: item.description || "",
       price: item.price ?? "",
-      category: item.category || "Food",
+      categoryId:
+        item.categoryRef?._id ||
+        item.categoryRef ||
+        managedCategories.find((entry) => entry.name === item.category)?._id ||
+        "",
       image: item.image || "",
       tags: (item.tags || []).join(", "),
       calories: item.calories || "",
@@ -268,7 +282,7 @@ const MenuItemsTab = ({ onDataChanged }) => {
               <label className="text-xs text-neutral-400 sm:col-span-2">Item name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400 sm:col-span-2">Description<textarea required rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${FIELD_CLASS} resize-none`} /></label>
               <label className="text-xs text-neutral-400">Price (SAR)<input required min="0" step="0.01" type="number" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} className={FIELD_CLASS} /></label>
-              <label className="text-xs text-neutral-400">Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className={FIELD_CLASS}><option>Food</option><option>Drinks</option><option>Appetizers</option></select></label>
+              <label className="text-xs text-neutral-400">Category<select required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className={FIELD_CLASS}><option value="" disabled>Select a category</option>{managedCategories.filter((entry) => entry.isActive || entry._id === form.categoryId).map((entry) => <option key={entry._id} value={entry._id}>{entry.name}{entry.isActive ? "" : " (Inactive)"}</option>)}</select></label>
               <label className="text-xs text-neutral-400 sm:col-span-2">Image URL or local path<input required value={form.image} onChange={(event) => setForm({ ...form, image: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400">Tags (comma separated)<input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400">Calories<input min="0" type="number" value={form.calories} onChange={(event) => setForm({ ...form, calories: event.target.value })} className={FIELD_CLASS} /></label>

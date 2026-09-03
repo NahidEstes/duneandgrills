@@ -20,7 +20,12 @@ const menuItemSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ["Food", "Drinks", "Appetizers"],
+      trim: true,
+    },
+    categoryRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ContentCategory",
+      index: true,
     },
     image: {
       type: String,

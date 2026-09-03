@@ -10,15 +10,6 @@ import CartDrawer from "./CartDrawer.jsx";
 import BlogSidebar from "./BlogSidebar.jsx";
 import BlogPostCard from "./BlogPostCard.jsx";
 
-const CATEGORIES = [
-  "All",
-  "Recipes",
-  "Behind the Scenes",
-  "Nutrition",
-  "News",
-  "Tips",
-];
-
 const BlogPage = ({
   initialPosts = [],
   activeCategory = "All",
@@ -30,6 +21,10 @@ const BlogPage = ({
   const router = useRouter();
   const posts = initialPosts;
   const status = initialStatus;
+  const categories = [
+    "All",
+    ...(sidebarData?.categories || []).map((entry) => entry.category),
+  ];
 
   const navigateWithFilters = (category, search) => {
     const params = new URLSearchParams();
@@ -73,7 +68,7 @@ const BlogPage = ({
           </div>
 
           <div className="mt-10 flex flex-wrap gap-3">
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => handleCategoryChange(cat)}

@@ -1,6 +1,12 @@
 import MenuItem from "../models/MenuItem.js";
 import Combo from "../models/Combo.js";
 import { calculateComboPricing } from "../services/catalogService.js";
+import {
+  CATEGORY_TYPES,
+  getPublicCategoryMatch,
+  resolveCategory,
+  synchronizeLegacyCategories,
+} from "../services/categoryService.js";
 
 const refreshComboPrices = async (menuItemId) => {
   const combos = await Combo.find({ "items.menuItem": menuItemId }).populate(
@@ -20,10 +26,15 @@ const refreshComboPrices = async (menuItemId) => {
 export const getMenuItems = async (req, res) => {
   try {
     const { category } = req.query;
-    const filter = { isAvailable: true };
-    if (category) filter.category = category;
+    const categoryMatch = await getPublicCategoryMatch(
+      CATEGORY_TYPES.MENU,
+      category
+    );
+    const filter = { isAvailable: true, $and: [categoryMatch] };
 
-    const items = await MenuItem.find(filter).sort({ createdAt: -1 });
+    const items = await MenuItem.find(filter)
+      .populate("categoryRef", "name slug isActive type")
+      .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: items.length, data: items });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch menu items", error: err.message });
@@ -35,7 +46,10 @@ export const getMenuItems = async (req, res) => {
 // @access  Admin/Manager
 export const getAllMenuItemsForAdmin = async (req, res) => {
   try {
-    const items = await MenuItem.find().sort({ updatedAt: -1 });
+    await synchronizeLegacyCategories();
+    const items = await MenuItem.find()
+      .populate("categoryRef", "name slug isActive type")
+      .sort({ updatedAt: -1 });
     res.status(200).json({ success: true, count: items.length, data: items });
   } catch (err) {
     res.status(500).json({
@@ -51,7 +65,12 @@ export const getAllMenuItemsForAdmin = async (req, res) => {
 // @access  Public
 export const getMenuItemById = async (req, res) => {
   try {
-    const item = await MenuItem.findById(req.params.id);
+    const categoryMatch = await getPublicCategoryMatch(CATEGORY_TYPES.MENU);
+    const item = await MenuItem.findOne({
+      _id: req.params.id,
+      isAvailable: true,
+      $and: [categoryMatch],
+    }).populate("categoryRef", "name slug isActive type");
     if (!item) {
       return res.status(404).json({ success: false, message: "Menu item not found" });
     }
@@ -66,7 +85,13 @@ export const getMenuItemById = async (req, res) => {
 // @access  Admin (add auth middleware in production)
 export const createMenuItem = async (req, res) => {
   try {
-    const item = await MenuItem.create(req.body);
+    const categoryValues = await resolveCategory({
+      type: CATEGORY_TYPES.MENU,
+      categoryId: req.body.categoryId,
+      categoryName: req.body.category,
+    });
+    const item = await MenuItem.create({ ...req.body, ...categoryValues });
+    await item.populate("categoryRef", "name slug isActive type");
     res.status(201).json({ success: true, data: item });
   } catch (err) {
     res.status(400).json({ success: false, message: "Failed to create menu item", error: err.message });
@@ -78,14 +103,29 @@ export const createMenuItem = async (req, res) => {
 // @access  Admin
 export const updateMenuItem = async (req, res) => {
   try {
-    const item = await MenuItem.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const item = await MenuItem.findById(req.params.id);
     if (!item) {
       return res.status(404).json({ success: false, message: "Menu item not found" });
     }
+
+    let categoryValues = {};
+    if (req.body.categoryId !== undefined || req.body.category !== undefined) {
+      const sameCategory = req.body.categoryId
+        ? item.categoryRef?.toString() === String(req.body.categoryId)
+        : item.category.toLowerCase() ===
+          String(req.body.category || "").trim().toLowerCase();
+      categoryValues = await resolveCategory({
+        type: CATEGORY_TYPES.MENU,
+        categoryId: req.body.categoryId,
+        categoryName: req.body.category,
+        allowInactive: sameCategory,
+      });
+    }
+
+    item.set({ ...req.body, ...categoryValues });
+    await item.save();
     await refreshComboPrices(item._id);
+    await item.populate("categoryRef", "name slug isActive type");
     res.status(200).json({ success: true, data: item });
   } catch (err) {
     res.status(400).json({ success: false, message: "Failed to update menu item", error: err.message });

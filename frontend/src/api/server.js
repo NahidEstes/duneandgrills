@@ -37,6 +37,11 @@ export const getCombos = async () => {
   return response.data;
 };
 
+export const getCategories = async (type) => {
+  const response = await get("/categories", { type });
+  return response.data;
+};
+
 export const getOffers = async () => {
   const response = await get("/offers");
   return response.data;

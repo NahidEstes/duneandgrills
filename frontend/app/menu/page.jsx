@@ -1,6 +1,6 @@
 import FullMenuPage from "@/src/components/FullMenuPage.jsx";
 import JsonLd from "@/src/components/JsonLd.jsx";
-import { getCombos, getMenuItems } from "@/src/api/server.js";
+import { getCategories, getCombos, getMenuItems } from "@/src/api/server.js";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +18,10 @@ export const metadata = {
 };
 
 export default async function MenuPage() {
-  const [items, combos] = await Promise.all([
+  const [items, combos, categories] = await Promise.all([
     getMenuItems().catch(() => []),
     getCombos().catch(() => []),
+    getCategories("menu").catch(() => []),
   ]);
   const groupedItems = [...items, ...combos].reduce((groups, item) => {
     groups[item.category] = [...(groups[item.category] || []), item];
@@ -55,7 +56,11 @@ export default async function MenuPage() {
   return (
     <>
       <JsonLd data={menuData} />
-      <FullMenuPage initialItems={items} initialCombos={combos} />
+      <FullMenuPage
+        initialItems={items}
+        initialCombos={combos}
+        initialCategories={categories}
+      />
     </>
   );
 }

@@ -15,8 +15,13 @@ const blogPostSchema = new mongoose.Schema(
     coverImage: { type: String, required: true },
     category: {
       type: String,
-      enum: ["Recipes", "Behind the Scenes", "Nutrition", "News", "Tips"],
-      default: "Recipes",
+      required: true,
+      trim: true,
+    },
+    categoryRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ContentCategory",
+      index: true,
     },
     author: { type: String, default: "Dune & Grills Team" },
     tags: { type: [String], default: [] },

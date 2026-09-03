@@ -14,6 +14,7 @@
     "seed:rewards": "node data/seedRewards.js",
     "migrate:rewards": "node data/migrateRewards.js",
     "migrate:offers": "node data/migrateOfferCoupons.js",
+    "migrate:categories": "node data/migrateCategories.js",
     "test:inventory": "node tests/inventoryIntegration.js",
     "seed:inventory": "node data/seedInventory.js"
   },
