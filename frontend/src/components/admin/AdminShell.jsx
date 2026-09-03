@@ -22,6 +22,8 @@ import {
   Users,
   UserRoundCog,
   UtensilsCrossed,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -173,6 +175,10 @@ const AdminShell = ({
   onSearchChange,
   searchResults,
   searching,
+  pendingOrderCount = 0,
+  orderAlertsEnabled = true,
+  onEnableOrderAlerts,
+  onToggleOrderAlerts,
   children,
 }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -251,20 +257,39 @@ const AdminShell = ({
               />
             </div>
 
-            <div className="ml-auto hidden items-center gap-2 sm:flex">
+            <div className="ml-auto flex items-center gap-1 sm:gap-2">
               <div className="hidden rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-400 xl:block">
                 Live data · {new Date().toLocaleDateString("en-SA", { month: "short", day: "numeric", year: "numeric" })}
               </div>
               <button
                 type="button"
-                onClick={() => onTabChange("orders")}
-                className="relative flex h-10 w-10 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-white"
+                onClick={() => {
+                  onEnableOrderAlerts?.();
+                  onTabChange("orders");
+                }}
+                className={`relative flex h-10 w-10 items-center justify-center rounded-lg hover:bg-white/5 hover:text-white ${
+                  pendingOrderCount > 0 ? "text-dune-amber" : "text-neutral-400"
+                }`}
                 aria-label="Open orders needing attention"
+                title="Open pending orders and enable browser notifications"
               >
-                <Bell className="h-5 w-5" />
-                {(dashboard?.stats?.openOrders || 0) > 0 && (
-                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-dune-amber ring-2 ring-[#080b0d]" />
+                <Bell className={`h-5 w-5 ${pendingOrderCount > 0 ? "animate-pulse" : ""}`} />
+                {pendingOrderCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-dune-amber px-1 text-center text-[0.6rem] font-bold leading-4 text-black ring-2 ring-[#080b0d]">
+                    {pendingOrderCount > 99 ? "99+" : pendingOrderCount}
+                  </span>
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={onToggleOrderAlerts}
+                className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-white/5 hover:text-white ${
+                  orderAlertsEnabled ? "text-dune-amber" : "text-neutral-500"
+                }`}
+                aria-label={orderAlertsEnabled ? "Mute new-order sound" : "Enable new-order sound"}
+                title={orderAlertsEnabled ? "Mute new-order sound" : "Enable new-order sound"}
+              >
+                {orderAlertsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
               </button>
             </div>
 

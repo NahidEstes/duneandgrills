@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { fetchAdminDashboard, searchAdmin } from "../api/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useAdminOrderAlerts } from "../hooks/useAdminOrderAlerts.js";
 import AdminShell from "./admin/AdminShell.jsx";
 import DashboardOverview from "./admin/DashboardOverview.jsx";
 import MenuItemsTab from "./admin/MenuItemsTab.jsx";
@@ -83,6 +84,7 @@ const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [orderRefreshKey, setOrderRefreshKey] = useState(0);
   const { user, logout } = useAuth();
 
   const loadDashboard = useCallback(async (silent = false) => {
@@ -101,6 +103,22 @@ const AdminDashboard = () => {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  const handlePendingOrdersChange = useCallback(() => {
+    setOrderRefreshKey((current) => current + 1);
+    loadDashboard(true);
+  }, [loadDashboard]);
+
+  const {
+    alertsEnabled,
+    dismissPendingOrder,
+    pendingCount,
+    pollPendingOrders,
+    requestBrowserPermission,
+    toggleAlerts,
+  } = useAdminOrderAlerts({
+    onPendingOrdersChange: handlePendingOrdersChange,
+  });
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -133,6 +151,15 @@ const AdminDashboard = () => {
     logout();
   };
 
+  const handleOrderStatusChanged = (orderId, status) => {
+    if (status === "pending") {
+      pollPendingOrders();
+    } else {
+      dismissPendingOrder(orderId);
+    }
+    setOrderRefreshKey((current) => current + 1);
+  };
+
   const content = TAB_CONTENT[activeTab] || TAB_CONTENT.overview;
   const refreshAfterMutation = () => loadDashboard(true);
 
@@ -149,6 +176,10 @@ const AdminDashboard = () => {
       onSearchChange={setSearchQuery}
       searchResults={searchResults}
       searching={searching}
+      pendingOrderCount={pendingCount}
+      orderAlertsEnabled={alertsEnabled}
+      onEnableOrderAlerts={requestBrowserPermission}
+      onToggleOrderAlerts={toggleAlerts}
     >
       {activeTab === "overview" && (
         <DashboardOverview
@@ -159,7 +190,11 @@ const AdminDashboard = () => {
         />
       )}
       {activeTab === "orders" && (
-        <OrdersTab onDataChanged={refreshAfterMutation} />
+        <OrdersTab
+          onDataChanged={refreshAfterMutation}
+          onOrderStatusChanged={handleOrderStatusChanged}
+          refreshKey={orderRefreshKey}
+        />
       )}
       {activeTab === "menu" && (
         <MenuItemsTab onDataChanged={refreshAfterMutation} />

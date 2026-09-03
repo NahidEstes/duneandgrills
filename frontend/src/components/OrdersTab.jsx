@@ -196,7 +196,7 @@ const OrderRowModal = ({ order, onClose, onStatusChange, onDataChanged }) => {
   );
 };
 
-const OrdersTab = ({ onDataChanged }) => {
+const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -223,13 +223,14 @@ const OrdersTab = ({ onDataChanged }) => {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFilter]);
+  }, [activeFilter, refreshKey]);
 
   const handleStatusChange = (orderId, newStatus) => {
     setOrders((prev) =>
       prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o))
     );
     setStats((prev) => prev); // stats will refresh on next load()
+    onOrderStatusChanged?.(orderId, newStatus);
   };
 
   const filteredOrders = useMemo(() => {
