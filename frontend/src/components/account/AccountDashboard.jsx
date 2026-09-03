@@ -49,6 +49,7 @@ import { useFavorites } from "../../context/FavoritesContext.jsx";
 import {
   deleteAddress,
   deletePaymentMethod,
+  fetchMyOrders,
   fetchSavedBlogPosts,
   fetchProfileDashboard,
   removeSavedBlogPost,
@@ -81,6 +82,19 @@ const ACCOUNT_ROUTES = {
 };
 
 const SHOW_REORDER_ACTIONS = false;
+const DEFAULT_ORDER_STATUS_POLL_SECONDS = 10;
+const MIN_ORDER_STATUS_POLL_SECONDS = 5;
+const configuredOrderStatusPollSeconds = Number(
+  process.env.NEXT_PUBLIC_ORDER_STATUS_POLL_SECONDS
+);
+const ORDER_STATUS_POLL_INTERVAL_MS =
+  (Number.isFinite(configuredOrderStatusPollSeconds) &&
+  configuredOrderStatusPollSeconds > 0
+    ? Math.max(
+        MIN_ORDER_STATUS_POLL_SECONDS,
+        configuredOrderStatusPollSeconds
+      )
+    : DEFAULT_ORDER_STATUS_POLL_SECONDS) * 1000;
 
 const compactOutline =
   "inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#414141] px-3 text-xs font-medium text-white transition-colors hover:border-dune-amber hover:text-dune-amber";
@@ -161,6 +175,68 @@ const AccountDashboard = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  const refreshOrders = useCallback(async () => {
+    const latestOrders = await fetchMyOrders();
+
+    setData((current) => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        orders: latestOrders,
+        recentOrders: latestOrders.slice(0, 3),
+        stats: {
+          ...current.stats,
+          orders: latestOrders.length,
+        },
+      };
+    });
+
+    setModal((current) => {
+      if (current?.type !== "order") return current;
+      const updatedOrder = latestOrders.find(
+        (order) => order._id === current.order?._id
+      );
+      return updatedOrder ? { ...current, order: updatedOrder } : current;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (active !== "profile" && active !== "orders") return undefined;
+
+    let requestInFlight = false;
+
+    const refreshVisibleOrders = async () => {
+      if (document.visibilityState !== "visible" || requestInFlight) return;
+
+      requestInFlight = true;
+      try {
+        await refreshOrders();
+      } catch {
+        // Keep the last successful order data during a background refresh.
+      } finally {
+        requestInFlight = false;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshVisibleOrders();
+    };
+
+    const intervalId = window.setInterval(
+      refreshVisibleOrders,
+      ORDER_STATUS_POLL_INTERVAL_MS
+    );
+    window.addEventListener("focus", refreshVisibleOrders);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshVisibleOrders);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [active, refreshOrders]);
 
   useEffect(() => {
     if (active !== "favorites") return undefined;
