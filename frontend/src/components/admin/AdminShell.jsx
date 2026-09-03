@@ -16,6 +16,7 @@ import {
   Menu as MenuIcon,
   Search,
   Settings,
+  ShoppingBasket,
   Star,
   Store,
   Tag,
@@ -31,6 +32,7 @@ import SmartImage from "../SmartImage.jsx";
 
 const NAV_ITEMS = [
   { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+  { id: "pos", label: "POS / New Sale", icon: ShoppingBasket },
   { id: "orders", label: "Orders", icon: ClipboardList, badge: "orders" },
   { id: "menu", label: "Menu Items", icon: UtensilsCrossed },
   { id: "combos", label: "Combos", icon: Layers3 },

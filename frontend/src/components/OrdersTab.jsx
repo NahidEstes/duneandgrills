@@ -31,6 +31,10 @@ const STATUS_LABELS = {
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const FILTER_TABS = ["all", ...STATUS_OPTIONS];
+const SOURCE_OPTIONS = ["all", "website", "pos", "phone", "jahez", "hungerstation"];
+const ORDER_TYPE_OPTIONS = ["all", "dine-in", "pickup", "takeaway", "delivery"];
+
+const labelSource = (value = "website") => value === "pos" ? "POS / Counter" : value.charAt(0).toUpperCase() + value.slice(1);
 
 const StatusBadge = ({ status }) => (
   <span
@@ -130,6 +134,9 @@ const OrderRowModal = ({ order, onClose, onStatusChange, onDataChanged }) => {
           <p className="mt-1 text-sm font-medium text-white">
             {formatOrderType(order.orderType)}
           </p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {labelSource(order.source)} · {order.paymentMethod === "unrecorded" || !order.paymentMethod ? "Payment not recorded" : `${formatOrderType(order.paymentMethod)} · ${formatOrderType(order.paymentStatus)}`}
+          </p>
         </div>
 
         {/* Customer info */}
@@ -203,13 +210,16 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
   const [loading, setLoading] = useState(true);
   const [viewOrder, setViewOrder] = useState(null);
   const [query, setQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [orderTypeFilter, setOrderTypeFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
 
   const load = async () => {
     setLoading(true);
     try {
       const [orderData, statData] = await Promise.all([
-        fetchOrders(activeFilter),
-        fetchOrderStats(),
+        fetchOrders({ status: activeFilter, source: sourceFilter, orderType: orderTypeFilter, paymentMethod: paymentFilter }),
+        fetchOrderStats({ source: sourceFilter, orderType: orderTypeFilter, paymentMethod: paymentFilter }),
       ]);
       setOrders(orderData);
       setStats(statData);
@@ -223,7 +233,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFilter, refreshKey]);
+  }, [activeFilter, sourceFilter, orderTypeFilter, paymentFilter, refreshKey]);
 
   const handleStatusChange = (orderId, newStatus) => {
     setOrders((prev) =>
@@ -292,15 +302,11 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
         </button>
       </div>
 
-      <div className="relative mb-4 max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search order, customer or phone…"
-          className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.025] pl-9 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60"
-        />
+      <div className="mb-4 grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_repeat(3,1fr)]">
+        <label className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search order, customer or phone…" className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.025] pl-9 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60" /></label>
+        <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">{SOURCE_OPTIONS.map((value) => <option key={value} value={value}>{value === "all" ? "All sales sources" : labelSource(value)}</option>)}</select>
+        <select value={orderTypeFilter} onChange={(event) => setOrderTypeFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">{ORDER_TYPE_OPTIONS.map((value) => <option key={value} value={value}>{value === "all" ? "All order types" : formatOrderType(value)}</option>)}</select>
+        <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60"><option value="all">All payments</option><option value="cash">Cash</option><option value="card">Card</option><option value="other">Other</option><option value="unrecorded">Not recorded</option></select>
       </div>
 
       {/* Orders table */}
@@ -316,6 +322,8 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                 <th className="p-4">Date &amp; Time</th>
                 <th className="p-4">Items</th>
                 <th className="p-4">Type</th>
+                <th className="p-4">Source</th>
+                <th className="p-4">Payment</th>
                 <th className="p-4">Total</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-right">Actions</th>
@@ -347,6 +355,8 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                   <td className="p-4 text-xs text-neutral-300">
                     {formatOrderType(order.orderType)}
                   </td>
+                  <td className="p-4 text-xs text-neutral-300">{labelSource(order.source)}</td>
+                  <td className="p-4 text-xs text-neutral-300">{order.paymentMethod && order.paymentMethod !== "unrecorded" ? formatOrderType(order.paymentMethod) : "—"}</td>
                   <td className="p-4 text-dune-amber font-medium">
                     {formatAdminCurrency(order.totalAmount)}
                   </td>
@@ -368,7 +378,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
               ))}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-neutral-500">
+                  <td colSpan={10} className="p-8 text-center text-neutral-500">
                     No orders found for this filter.
                   </td>
                 </tr>

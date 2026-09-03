@@ -10,6 +10,7 @@ import StockTransaction from "../models/StockTransaction.js";
 import Supplier from "../models/Supplier.js";
 import User from "../models/User.js";
 import { createOpeningBalance, performStockMovement } from "../services/inventoryStockService.js";
+import { deductOrderInventory, restoreOrderInventory } from "../services/orderInventoryService.js";
 import { createPurchaseOrder, receivePurchaseOrder } from "../services/purchaseOrderService.js";
 
 const testUri = process.env.MONGO_TEST_URI || "mongodb://127.0.0.1:27017/duneandgrills_inventory_test";
@@ -60,6 +61,40 @@ const run = async () => {
     /same inventory item twice/
   );
   assert.equal(await StockTransaction.countDocuments({ item: item._id }), 4);
+
+  const posOrderId = new mongoose.Types.ObjectId();
+  const deductions = await deductOrderInventory({
+    catalogLines: [{ productType: "menuItem", product: menuItem, quantity: 2 }],
+    orderId: posOrderId,
+    orderNumber: "POS-TEST-0001",
+    source: "pos",
+    actorId: user._id,
+    strictRecipes: true,
+  });
+  assert.equal(deductions.length, 1);
+  assert.equal((await InventoryItem.findById(item._id)).currentStock, 10.6);
+  assert.equal(String(deductions[0].order), String(posOrderId));
+
+  const restorations = await restoreOrderInventory({
+    transactionIds: deductions.map((transaction) => transaction._id),
+    orderId: posOrderId,
+    orderNumber: "POS-TEST-0001",
+    actorId: user._id,
+    status: "cancelled",
+  });
+  assert.equal(restorations.length, 1);
+  assert.equal((await InventoryItem.findById(item._id)).currentStock, 11);
+  await assert.rejects(
+    deductOrderInventory({
+      catalogLines: [{ productType: "menuItem", product: duplicateMenuItem, quantity: 1 }],
+      orderId: new mongoose.Types.ObjectId(),
+      orderNumber: "POS-TEST-0002",
+      source: "pos",
+      actorId: user._id,
+      strictRecipes: true,
+    }),
+    /Configure a recipe or mark Do Not Track/
+  );
 
   console.log("Inventory integration checks passed");
 };

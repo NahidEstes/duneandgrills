@@ -11,6 +11,7 @@ import MenuItemsTab from "./admin/MenuItemsTab.jsx";
 import CombosTab from "./admin/CombosTab.jsx";
 import CategoriesTab from "./admin/CategoriesTab.jsx";
 import RewardsTab from "./admin/RewardsTab.jsx";
+import PosTab from "./admin/pos/PosTab.jsx";
 import {
   AnalyticsView,
   CustomersView,
@@ -26,6 +27,10 @@ const TAB_CONTENT = {
   overview: {
     title: "Restaurant Dashboard",
     subtitle: "A live overview of orders, content and restaurant performance.",
+  },
+  pos: {
+    title: "POS / New Sale",
+    subtitle: "Create a fast, secure in-person sale using the live menu catalog.",
   },
   orders: {
     title: "Order Management",
@@ -194,6 +199,14 @@ const AdminDashboard = () => {
           onDataChanged={refreshAfterMutation}
           onOrderStatusChanged={handleOrderStatusChanged}
           refreshKey={orderRefreshKey}
+        />
+      )}
+      {activeTab === "pos" && (
+        <PosTab
+          onSaleCompleted={() => {
+            setOrderRefreshKey((current) => current + 1);
+            loadDashboard(true);
+          }}
         />
       )}
       {activeTab === "menu" && (

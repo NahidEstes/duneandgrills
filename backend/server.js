@@ -20,6 +20,7 @@ import cartRoutes from "./routes/cartRoutes.js";
 import comboRoutes from "./routes/comboRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
+import posRoutes from "./routes/posRoutes.js";
 
 const app = express();
 
@@ -72,6 +73,7 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/combos", comboRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/pos", posRoutes);
 
 app.get("/api/health", (req, res) => {
   res

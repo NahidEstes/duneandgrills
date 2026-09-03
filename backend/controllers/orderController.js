@@ -29,6 +29,9 @@ import {
   releaseCouponUsage,
   reserveCouponUsage,
 } from "../services/couponService.js";
+import { deductOrderInventory, restoreOrderInventory } from "../services/orderInventoryService.js";
+import { runInventoryTransaction } from "../services/inventoryStockService.js";
+import { PAYMENT_METHODS, SALES_SOURCES } from "../config/sales.js";
 
 const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
 const reversalStatuses = new Set(nonRevenueStatuses);
@@ -131,6 +134,7 @@ export const createOrder = async (req, res) => {
     }
 
     const catalogLines = items.length ? await resolveCartLines(items) : [];
+    const inventoryCatalogLines = [...catalogLines];
     const verifiedItems = catalogLines.map(cartLineToOrderItem);
     const subtotal = calculateCartSubtotal(catalogLines);
     const coupon = couponCode
@@ -222,6 +226,13 @@ export const createOrder = async (req, res) => {
         title: redemption.title,
         pointsSpent: redemption.pointsSpent,
       };
+      inventoryCatalogLines.push({
+        productType: PRODUCT_TYPES.MENU_ITEM,
+        productId: rewardMenuItem._id,
+        product: rewardMenuItem,
+        quantity: 1,
+        unitPrice: 0,
+      });
     }
 
     const orderNumber = await generateOrderNumber();
@@ -229,40 +240,59 @@ export const createOrder = async (req, res) => {
       await reserveCouponUsage(coupon.offer._id);
       reservedCouponId = coupon.offer._id;
     }
-    const order = await Order.create({
-      _id: orderId,
-      orderNumber,
-      user: req.user ? req.user._id : null,
-      customer: {
-        ...customer,
-        name: customerName,
-        phone: customerPhone,
-        address: orderType === "delivery" ? customerAddress : "",
-      },
-      items: verifiedItems,
-      orderType,
-      subtotal,
-      originalSubtotal: subtotal,
-      discountAmount,
-      couponCode: coupon?.code || "",
-      offer: coupon?.offer._id || null,
-      couponSnapshot: coupon
-        ? {
-            title: coupon.offer.title,
-            discountType: coupon.offer.discountType,
-            discountValue: coupon.offer.discountValue,
-          }
-        : undefined,
-      deliveryFee,
-      totalAmount,
-      eligiblePointsAmount: discountedSubtotal,
-      rewardRedemption: rewardSnapshot,
-      notes,
+    const order = await runInventoryTransaction(async (session) => {
+      const [created] = await Order.create([{
+        _id: orderId,
+        orderNumber,
+        source: "website",
+        user: req.user ? req.user._id : null,
+        customer: {
+          ...customer,
+          name: customerName,
+          phone: customerPhone,
+          address: orderType === "delivery" ? customerAddress : "",
+        },
+        items: verifiedItems,
+        orderType,
+        subtotal,
+        originalSubtotal: subtotal,
+        discountAmount,
+        couponCode: coupon?.code || "",
+        offer: coupon?.offer._id || null,
+        couponSnapshot: coupon
+          ? {
+              title: coupon.offer.title,
+              discountType: coupon.offer.discountType,
+              discountValue: coupon.offer.discountValue,
+            }
+          : undefined,
+        deliveryFee,
+        totalAmount,
+        eligiblePointsAmount: discountedSubtotal,
+        rewardRedemption: rewardSnapshot,
+        notes,
+        inventoryStatus: "pending",
+      }], session ? { session } : {});
+      const transactions = await deductOrderInventory({
+        catalogLines: inventoryCatalogLines,
+        orderId,
+        orderNumber,
+        source: "website",
+        actorId: req.user._id,
+        strictRecipes: false,
+        session,
+      });
+      created.inventoryTransactions = transactions.map((transaction) => transaction._id);
+      created.inventoryStatus = transactions.length ? "deducted" : "not_required";
+      created.inventoryDeductedAt = transactions.length ? new Date() : null;
+      await created.save(session ? { session } : {});
+      return created;
     });
     reservedCouponId = null;
 
     res.status(201).json({ success: true, data: order });
   } catch (err) {
+    if (orderId) await Order.deleteOne({ _id: orderId }).catch(() => undefined);
     if (appliedRedemption && orderId) {
       await reopenRedemption({
         userId: req.user._id,
@@ -302,11 +332,17 @@ export const createOrder = async (req, res) => {
 // @access  Admin/Manager
 export const getOrders = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, source, orderType, paymentMethod } = req.query;
     const filter = {};
     if (status && status !== "all") filter.status = status;
+    if (source && SALES_SOURCES.includes(source)) {
+      if (source === "website") filter.$or = [{ source: "website" }, { source: { $exists: false } }];
+      else filter.source = source;
+    }
+    if (orderType && ["dine-in", "pickup", "takeaway", "delivery"].includes(orderType)) filter.orderType = orderType;
+    if (paymentMethod && PAYMENT_METHODS.includes(paymentMethod)) filter.paymentMethod = paymentMethod;
 
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
+    const orders = await Order.find(filter).populate("createdBy", "name role").sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: orders.length, data: orders });
   } catch (err) {
     res
@@ -327,7 +363,14 @@ export const getOrderStats = async (req, res) => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const allOrders = await Order.find();
+    const filter = {};
+    if (req.query.source && SALES_SOURCES.includes(req.query.source)) {
+      if (req.query.source === "website") filter.$or = [{ source: "website" }, { source: { $exists: false } }];
+      else filter.source = req.query.source;
+    }
+    if (req.query.orderType && ["dine-in", "pickup", "takeaway", "delivery"].includes(req.query.orderType)) filter.orderType = req.query.orderType;
+    if (req.query.paymentMethod && PAYMENT_METHODS.includes(req.query.paymentMethod)) filter.paymentMethod = req.query.paymentMethod;
+    const allOrders = await Order.find(filter);
 
     const totalRevenue = allOrders
       .filter((o) => !nonRevenueStatuses.includes(o.status))
@@ -400,6 +443,28 @@ export const updateOrderStatus = async (req, res) => {
 
     order.status = status;
     await order.validate();
+
+    if (reversalStatuses.has(status) && order.inventoryStatus === "deducted" && order.inventoryTransactions?.length) {
+      await runInventoryTransaction(async (session) => {
+        const restorations = await restoreOrderInventory({
+          transactionIds: order.inventoryTransactions,
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          actorId: req.user._id,
+          status,
+          session,
+        });
+        order.inventoryRestorationTransactions = restorations.map((transaction) => transaction._id);
+        order.inventoryStatus = "restored";
+        order.inventoryRestoredAt = new Date();
+        await order.save(session ? { session } : {});
+      });
+    }
+    if (order.source === "pos") {
+      if (["cancelled", "refunded"].includes(status)) order.paymentStatus = "refunded";
+      else if (status === "failed") order.paymentStatus = "failed";
+      else if (status === "delivered") order.paymentStatus = "paid";
+    }
 
     if (status === "delivered" && order.user) {
       const points = calculateOrderPoints(

@@ -16,6 +16,7 @@
     "migrate:offers": "node data/migrateOfferCoupons.js",
     "migrate:categories": "node data/migrateCategories.js",
     "test:inventory": "node tests/inventoryIntegration.js",
+    "test:pos": "node tests/posIntegration.js",
     "seed:inventory": "node data/seedInventory.js"
   },
   "dependencies": {

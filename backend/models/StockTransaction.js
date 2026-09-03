@@ -37,6 +37,7 @@ const stockTransactionSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
     purchaseOrder: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseOrder", default: null, immutable: true },
     inventoryCount: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryCount", default: null, immutable: true },
+    order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null, immutable: true },
     unitCost: { type: Number, default: null, min: 0, immutable: true },
     expiryDate: { type: Date, default: null, immutable: true },
     occurredAt: { type: Date, default: Date.now, immutable: true },
@@ -48,6 +49,7 @@ const stockTransactionSchema = new mongoose.Schema(
 stockTransactionSchema.index({ item: 1, occurredAt: -1 });
 stockTransactionSchema.index({ movementType: 1, occurredAt: -1 });
 stockTransactionSchema.index({ purchaseOrder: 1 }, { sparse: true });
+stockTransactionSchema.index({ order: 1, occurredAt: -1 }, { sparse: true });
 stockTransactionSchema.index({ reference: 1 }, { sparse: true });
 stockTransactionSchema.index({ reasonCode: 1, occurredAt: -1 }, { sparse: true });
 

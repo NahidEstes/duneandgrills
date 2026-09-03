@@ -16,7 +16,10 @@ export const ORDER_TYPE_OPTIONS = Object.freeze([
   Object.freeze({ value: "delivery", label: "Delivery" }),
 ]);
 
-export const ORDER_TYPES = ORDER_TYPE_OPTIONS.map(({ value }) => value);
+export const ORDER_TYPES = [
+  ...ORDER_TYPE_OPTIONS.map(({ value }) => value),
+  "takeaway",
+];
 
 export const isValidOrderType = (value) => ORDER_TYPES.includes(value);
 

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { DEFAULT_ORDER_TYPE, ORDER_TYPES } from "../config/orders.js";
+import { PAYMENT_METHODS, PAYMENT_STATUSES, SALES_SOURCES } from "../config/sales.js";
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -69,6 +70,9 @@ const orderSchema = new mongoose.Schema(
       type: String,
       unique: true,
     },
+    source: { type: String, enum: SALES_SOURCES, default: "website", index: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    idempotencyKey: { type: String, trim: true, default: undefined },
     customer: {
       name: { type: String, required: true },
       phone: { type: String, required: true },
@@ -103,6 +107,7 @@ const orderSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    discountReason: { type: String, default: "", trim: true, maxlength: 160 },
     couponCode: {
       type: String,
       default: "",
@@ -134,6 +139,10 @@ const orderSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    paymentMethod: { type: String, enum: PAYMENT_METHODS, default: "unrecorded" },
+    paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: "pending" },
+    cashReceived: { type: Number, min: 0, default: 0 },
+    changeDue: { type: Number, min: 0, default: 0 },
     status: {
       type: String,
       enum: [
@@ -171,9 +180,22 @@ const orderSchema = new mongoose.Schema(
       title: { type: String, default: "" },
       pointsSpent: { type: Number, default: 0, min: 0 },
     },
+    inventoryStatus: {
+      type: String,
+      enum: ["pending", "deducted", "restored", "not_required"],
+      default: "pending",
+    },
+    inventoryTransactions: [{ type: mongoose.Schema.Types.ObjectId, ref: "StockTransaction" }],
+    inventoryRestorationTransactions: [{ type: mongoose.Schema.Types.ObjectId, ref: "StockTransaction" }],
+    inventoryDeductedAt: { type: Date, default: null },
+    inventoryRestoredAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
+
+orderSchema.index({ source: 1, createdAt: -1 });
+orderSchema.index({ orderType: 1, createdAt: -1 });
+orderSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 const Order = mongoose.model("Order", orderSchema);
 

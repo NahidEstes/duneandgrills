@@ -174,14 +174,17 @@ export const fetchMyOrders = async () => {
   return data.data;
 };
 
-export const fetchOrders = async (status) => {
-  const params = status && status !== "all" ? { status } : {};
+export const fetchOrders = async (filters = {}) => {
+  const params = typeof filters === "string"
+    ? (filters && filters !== "all" ? { status: filters } : {})
+    : Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
   const { data } = await api.get("/orders", { params });
   return data.data;
 };
 
-export const fetchOrderStats = async () => {
-  const { data } = await api.get("/orders/stats");
+export const fetchOrderStats = async (filters = {}) => {
+  const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
+  const { data } = await api.get("/orders/stats", { params });
   return data.data;
 };
 
@@ -189,6 +192,18 @@ export const updateOrderStatus = async (id, status) => {
   const { data } = await api.patch(`/orders/${id}/status`, { status });
   await refreshAfterMutation("orders");
   return data.data;
+};
+
+// ---- Web POS ----
+export const fetchPosSales = async (params = {}) => {
+  const { data } = await api.get("/pos/sales", { params });
+  return data.data;
+};
+
+export const completePosSale = async (payload) => {
+  const { data } = await api.post("/pos/sales", payload);
+  await refreshAfterMutation("orders");
+  return data;
 };
 
 // ---- Persistent cart ----
