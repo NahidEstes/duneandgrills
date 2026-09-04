@@ -123,6 +123,13 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose }) => (
 
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5" aria-label="Admin navigation">
       {NAV_ITEMS.map(({ id, label, icon: Icon, badge }) => {
+        if (id === "pos") {
+          return (
+            <Link key={id} href="/pos" onClick={() => onClose?.()} className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3.5 text-sm font-medium text-neutral-300 hover:bg-white/[0.04] hover:text-dune-amber">
+              <Icon className="h-[1.1rem] w-[1.1rem]" />{label}
+            </Link>
+          );
+        }
         const active = activeTab === id;
         return (
           <button
