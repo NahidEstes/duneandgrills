@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Flame, LockKeyhole, LogOut, Settings, UserRound } from "lucide-react";
+import { ChevronDown, Flame, LockKeyhole, LogOut, Monitor, Settings, UserRound } from "lucide-react";
 
-export default function PosTopBar({ user, onLock, onLogout, clock24, onClockChange }) {
+export default function PosTopBar({ user, onLock, onLogout, clock24, onClockChange, displayUrl }) {
   const [now, setNow] = useState(null);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -45,6 +45,7 @@ export default function PosTopBar({ user, onLock, onLogout, clock24, onClockChan
           <p className="text-[0.55rem] font-semibold tracking-widest text-dune-amber">SMOKE. SAVOR. REPEAT.</p>
         </div>
       </div>
+      {displayUrl && <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm text-neutral-300 hover:border-dune-amber/50 hover:text-dune-amber"><Monitor className="h-4 w-4" /><span className="hidden md:inline">Customer Display</span><span className="sr-only md:hidden">Open Customer Display</span></a>}
       <time dateTime={now?.toISOString()} className="hidden min-w-32 text-right sm:block">
         <span className="block text-[0.65rem] text-neutral-400">{now?.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) || "—"}</span>
         <span className="block text-lg font-semibold tabular-nums text-white">{now?.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: !clock24 }) || "—"}</span>

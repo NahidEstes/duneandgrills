@@ -5,9 +5,11 @@ import { useAuth } from "@/src/context/AuthContext.jsx";
 import PosTab from "../admin/pos/PosTab.jsx";
 import PosTopBar from "./PosTopBar.jsx";
 import PosLockScreen from "./PosLockScreen.jsx";
+import { usePosCustomerDisplay } from "@/src/hooks/usePosCustomerDisplay.js";
 
 export default function PosWorkspace() {
   const { user, logout } = useAuth();
+  const { displayUrl, publishBill } = usePosCustomerDisplay();
   const [ready, setReady] = useState(false);
   const [locked, setLocked] = useState(true);
   const [clock24, setClock24] = useState(false);
@@ -44,10 +46,10 @@ export default function PosWorkspace() {
     <div className="min-h-dvh bg-[#070a0c] font-body text-neutral-200">
       {/* Keep the shared POS mounted so locking never clears its sale state. */}
       <div hidden={locked}>
-        <PosTopBar user={user} onLock={() => changeLock(true)} onLogout={handleLogout} clock24={clock24} onClockChange={changeClock} />
+        <PosTopBar user={user} onLock={() => changeLock(true)} onLogout={handleLogout} clock24={clock24} onClockChange={changeClock} displayUrl={displayUrl} />
         <main className="p-4 sm:p-6" aria-label="POS / New Sale">
           <h1 className="sr-only">POS / New Sale</h1>
-          <PosTab />
+          <PosTab onDisplayChange={publishBill} />
         </main>
       </div>
       {locked && <PosLockScreen user={user} onUnlock={() => changeLock(false)} />}
