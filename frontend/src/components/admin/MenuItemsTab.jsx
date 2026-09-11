@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import {
   Check,
   Pencil,
@@ -217,9 +219,9 @@ const MenuItemsTab = ({ onDataChanged }) => {
             className="h-10 w-full rounded-lg border border-white/10 bg-black/30 pl-9 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60"
           />
         </div>
-        <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#0d1113] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">
+        <DarkSelect value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#0d1113] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">
           {categories.map((entry) => <option key={entry}>{entry}</option>)}
-        </select>
+        </DarkSelect>
         <button type="button" onClick={() => loadItems()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-neutral-300 hover:border-dune-amber/40 hover:text-white">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
@@ -282,7 +284,7 @@ const MenuItemsTab = ({ onDataChanged }) => {
               <label className="text-xs text-neutral-400 sm:col-span-2">Item name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400 sm:col-span-2">Description<textarea required rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${FIELD_CLASS} resize-none`} /></label>
               <label className="text-xs text-neutral-400">Price (SAR)<input required min="0" step="0.01" type="number" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} className={FIELD_CLASS} /></label>
-              <label className="text-xs text-neutral-400">Category<select required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className={FIELD_CLASS}><option value="" disabled>Select a category</option>{managedCategories.filter((entry) => entry.isActive || entry._id === form.categoryId).map((entry) => <option key={entry._id} value={entry._id}>{entry.name}{entry.isActive ? "" : " (Inactive)"}</option>)}</select></label>
+              <label className="text-xs text-neutral-400">Category<DarkSelect required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className={FIELD_CLASS}><option value="" disabled>Select a category</option>{managedCategories.filter((entry) => entry.isActive || entry._id === form.categoryId).map((entry) => <option key={entry._id} value={entry._id}>{entry.name}{entry.isActive ? "" : " (Inactive)"}</option>)}</DarkSelect></label>
               <label className="text-xs text-neutral-400 sm:col-span-2">Image URL or local path<input required value={form.image} onChange={(event) => setForm({ ...form, image: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400">Tags (comma separated)<input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400">Calories<input min="0" type="number" value={form.calories} onChange={(event) => setForm({ ...form, calories: event.target.value })} className={FIELD_CLASS} /></label>

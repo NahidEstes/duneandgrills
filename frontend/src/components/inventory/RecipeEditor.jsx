@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import { useEffect, useMemo, useState } from "react";
 import { ChefHat, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -74,7 +76,7 @@ export default function RecipeEditor({ selected, inventoryItems, onSaved }) {
           {ingredients.map((line, index) => {
             const detail = detailsFor(line);
             return <div key={`${index}-${line.inventoryItem}`} className="grid gap-3 rounded-xl border border-white/[0.07] bg-black/20 p-3 md:grid-cols-[minmax(210px,1.5fr)_0.75fr_0.55fr_0.7fr_auto] md:items-end">
-              <Field label="Inventory item"><select className={inputClass} value={line.inventoryItem} onChange={(event) => updateLine(index, "inventoryItem", event.target.value)}><option value="">Choose ingredient</option>{detail && !inventoryLookup.has(detail._id) && <option value={detail._id}>{detail.name} (inactive)</option>}{inventoryItems.map((item) => <option key={item._id} value={item._id} disabled={selectedIds.has(item._id) && item._id !== line.inventoryItem}>{item.name} · {item.sku}</option>)}</select></Field>
+              <Field label="Inventory item"><DarkSelect className={inputClass} value={line.inventoryItem} onChange={(event) => updateLine(index, "inventoryItem", event.target.value)}><option value="">Choose ingredient</option>{detail && !inventoryLookup.has(detail._id) && <option value={detail._id}>{detail.name} (inactive)</option>}{inventoryItems.map((item) => <option key={item._id} value={item._id} disabled={selectedIds.has(item._id) && item._id !== line.inventoryItem}>{item.name} · {item.sku}</option>)}</DarkSelect></Field>
               <Field label="Quantity per sale"><input className={inputClass} type="number" min="0.000001" step="any" value={line.quantityPerSale} onChange={(event) => updateLine(index, "quantityPerSale", event.target.value)} /></Field>
               <Field label="Unit"><div className={`${inputClass} flex items-center text-neutral-400`}>{detail?.unit || "—"}</div></Field>
               <Field label="Available"><div className={`${inputClass} flex items-center text-emerald-400`}>{detail ? formatQuantity(detail.currentStock, detail.unit) : "—"}</div></Field>

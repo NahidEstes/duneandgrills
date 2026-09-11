@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Archive, ArrowDownToLine, ArrowUpFromLine, Pencil, Plus, Search, SlidersHorizontal } from "lucide-react";
@@ -69,10 +71,10 @@ export default function StockItemsPage() {
     <section className={cardClass}>
       <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_1fr_1fr_0.8fr_0.9fr]">
         <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by item, SKU or location…" /></label>
-        <select className={inputClass} value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}><option value="">All categories</option>{metadata.categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</select>
-        <select className={inputClass} value={supplier} onChange={(event) => { setSupplier(event.target.value); setPage(1); }}><option value="">All suppliers</option>{metadata.suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</select>
-        <select className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">Active items</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="inactive">Inactive</option></select>
-        <div className="flex gap-2"><select className={inputClass} value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="updatedAt">Recently updated</option><option value="name">Name</option><option value="currentStock">Stock</option><option value="unitCost">Unit cost</option></select><button type="button" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 text-neutral-500 hover:text-white" onClick={() => setSortOrder((value) => value === "asc" ? "desc" : "asc")} aria-label="Toggle sort direction"><SlidersHorizontal className="h-4 w-4" /></button></div>
+        <DarkSelect className={inputClass} value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}><option value="">All categories</option>{metadata.categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
+        <DarkSelect className={inputClass} value={supplier} onChange={(event) => { setSupplier(event.target.value); setPage(1); }}><option value="">All suppliers</option>{metadata.suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
+        <DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">Active items</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="inactive">Inactive</option></DarkSelect>
+        <div className="flex gap-2"><DarkSelect className={inputClass} value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="updatedAt">Recently updated</option><option value="name">Name</option><option value="currentStock">Stock</option><option value="unitCost">Unit cost</option></DarkSelect><button type="button" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 text-neutral-500 hover:text-white" onClick={() => setSortOrder((value) => value === "asc" ? "desc" : "asc")} aria-label="Toggle sort direction"><SlidersHorizontal className="h-4 w-4" /></button></div>
       </div>
       {loading ? <LoadingState /> : <DataTable columns={columns} rows={data?.data} empty={<EmptyState title="No stock items found" description="Add an item or change the current filters." action={<Button onClick={openCreate}><Plus className="h-4 w-4" />Add first item</Button>} />} />}
       <Pagination pagination={data?.pagination} onPageChange={setPage} />

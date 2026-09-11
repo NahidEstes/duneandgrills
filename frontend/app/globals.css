@@ -79,3 +79,23 @@
     scroll-behavior: auto !important;
   }
 }
+
+.dune-select-scrollbar {
+  color-scheme: dark;
+  scrollbar-color: #4b4038 #111618;
+  scrollbar-width: thin;
+}
+
+.dune-select-scrollbar::-webkit-scrollbar {
+  width: 9px;
+}
+
+.dune-select-scrollbar::-webkit-scrollbar-track {
+  background: #111618;
+}
+
+.dune-select-scrollbar::-webkit-scrollbar-thumb {
+  border: 2px solid #111618;
+  border-radius: 999px;
+  background: #4b4038;
+}

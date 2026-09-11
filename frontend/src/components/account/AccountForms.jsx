@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import { useState } from "react";
 import { LoaderCircle, MapPin, Package, RefreshCw, Star } from "lucide-react";
 import AccountModal from "./AccountModal.jsx";
@@ -125,7 +127,7 @@ export const PaymentForm = ({ method, onClose, onSaved }) => {
   };
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Card Brand"><select className={inputClass} value={form.cardBrand} onChange={(event) => setForm({ ...form, cardBrand: event.target.value })}>{["Visa", "Mastercard", "Mada", "American Express"].map((brand) => <option key={brand}>{brand}</option>)}</select></Field>
+      <Field label="Card Brand"><DarkSelect className={inputClass} value={form.cardBrand} onChange={(event) => setForm({ ...form, cardBrand: event.target.value })}>{["Visa", "Mastercard", "Mada", "American Express"].map((brand) => <option key={brand}>{brand}</option>)}</DarkSelect></Field>
       <Field label="Last 4 Digits"><input required inputMode="numeric" pattern="\d{4}" maxLength={4} className={inputClass} value={form.lastFourDigits} onChange={(event) => setForm({ ...form, lastFourDigits: event.target.value.replace(/\D/g, "") })} placeholder="4242" /></Field>
       <Field label="Expiry Month"><input required type="number" min="1" max="12" className={inputClass} value={form.expiryMonth} onChange={(event) => setForm({ ...form, expiryMonth: event.target.value })} /></Field>
       <Field label="Expiry Year"><input required type="number" min="2026" max="2200" className={inputClass} value={form.expiryYear} onChange={(event) => setForm({ ...form, expiryYear: event.target.value })} /></Field>
@@ -152,7 +154,7 @@ export const ReviewForm = ({ options, onClose, onSaved }) => {
   };
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Field label="Delivered Item"><select required className={inputClass} value={selection} onChange={(event) => setSelection(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+      <Field label="Delivered Item"><DarkSelect required className={inputClass} value={selection} onChange={(event) => setSelection(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</DarkSelect></Field>
       <Field label="Rating"><div className="flex gap-2">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" onClick={() => setRating(value)} aria-label={`${value} stars`} className="text-dune-amber"><Star className="h-7 w-7" fill={value <= rating ? "currentColor" : "none"} /></button>)}</div></Field>
       <Field label="Comment"><textarea required rows={4} maxLength={1000} className={`${inputClass} resize-none`} value={comment} onChange={(event) => setComment(event.target.value)} /></Field>
       {error && <p className="text-sm text-red-400">{error}</p>}

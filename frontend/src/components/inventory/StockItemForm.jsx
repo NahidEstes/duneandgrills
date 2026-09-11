@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import { useEffect, useState } from "react";
 import { LoaderCircle, Save } from "lucide-react";
 import { Button, Field, inputClass, textareaClass } from "./InventoryUI.jsx";
@@ -39,12 +41,12 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="Item name"><input required className={inputClass} value={form.name} onChange={(event) => set("name", event.target.value)} placeholder="e.g. Chicken breast" /></Field>
       <Field label="SKU / stable inventory ID" hint="Used for future integrations and must remain unique."><input required className={inputClass} value={form.sku} onChange={(event) => set("sku", event.target.value.toUpperCase())} placeholder="INV-CHKN-001" /></Field>
-      <Field label="Category"><select required className={inputClass} value={form.category} onChange={(event) => set("category", event.target.value)}><option value="">Choose category</option>{categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</select></Field>
-      <Field label="Unit"><select required className={inputClass} value={form.unit} onChange={(event) => set("unit", event.target.value)}>{INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></Field>
+      <Field label="Category"><DarkSelect required className={inputClass} value={form.category} onChange={(event) => set("category", event.target.value)}><option value="">Choose category</option>{categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
+      <Field label="Unit"><DarkSelect required className={inputClass} value={form.unit} onChange={(event) => set("unit", event.target.value)}>{INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</DarkSelect></Field>
       {!item && <Field label="Opening stock" hint="Saved as an opening-balance transaction."><input required min="0" step="any" type="number" className={inputClass} value={form.openingStock} onChange={(event) => set("openingStock", event.target.value)} /></Field>}
       <Field label="Reorder level"><input required min="0" step="any" type="number" className={inputClass} value={form.reorderLevel} onChange={(event) => set("reorderLevel", event.target.value)} /></Field>
       <Field label="Unit cost (SAR)"><input required min="0" step="0.01" type="number" className={inputClass} value={form.unitCost} onChange={(event) => set("unitCost", event.target.value)} /></Field>
-      <Field label="Primary supplier"><select className={inputClass} value={form.supplier} onChange={(event) => set("supplier", event.target.value)}><option value="">No supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</select></Field>
+      <Field label="Primary supplier"><DarkSelect className={inputClass} value={form.supplier} onChange={(event) => set("supplier", event.target.value)}><option value="">No supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
       <Field label="Storage location"><input className={inputClass} value={form.storageLocation} onChange={(event) => set("storageLocation", event.target.value)} placeholder="Walk-in freezer · Shelf B2" /></Field>
       {form.tracksExpiry && <Field label="Next expiry date"><input type="date" className={inputClass} value={form.expiryDate} onChange={(event) => set("expiryDate", event.target.value)} /></Field>}
     </div>

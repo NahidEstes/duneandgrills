@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import {
   ArrowLeft,
   Check,
@@ -682,7 +684,7 @@ const CombosTab = ({ onDataChanged }) => {
             className="h-10 w-full rounded-lg border border-white/10 bg-black/30 pl-9 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60"
           />
         </div>
-        <select
+        <DarkSelect
           value={status}
           onChange={(event) => setStatus(event.target.value)}
           className="h-10 rounded-lg border border-white/10 bg-[#0d1113] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60"
@@ -690,7 +692,7 @@ const CombosTab = ({ onDataChanged }) => {
           <option value="all">All statuses</option>
           <option value="published">Published</option>
           <option value="draft">Draft</option>
-        </select>
+        </DarkSelect>
         <button
           type="button"
           onClick={() => load()}

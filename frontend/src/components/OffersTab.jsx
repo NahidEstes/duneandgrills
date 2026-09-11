@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -486,7 +488,7 @@ const OffersTab = ({ onDataChanged }) => {
               </label>
               <label className="text-xs text-neutral-400">
                 Order Now product
-                <select
+                <DarkSelect
                   required
                   value={form.orderProduct}
                   onChange={(event) =>
@@ -519,7 +521,7 @@ const OffersTab = ({ onDataChanged }) => {
                         </option>
                       ))}
                   </optgroup>
-                </select>
+                </DarkSelect>
               </label>
               <label className="text-xs text-neutral-400">
                 Quantity added
@@ -537,7 +539,7 @@ const OffersTab = ({ onDataChanged }) => {
               </label>
               <label className="text-xs text-neutral-400">
                 Discount type
-                <select
+                <DarkSelect
                   value={form.discountType}
                   onChange={(event) =>
                     updateField("discountType", event.target.value)
@@ -546,7 +548,7 @@ const OffersTab = ({ onDataChanged }) => {
                 >
                   <option value="fixed">Fixed amount (SAR)</option>
                   <option value="percentage">Percentage</option>
-                </select>
+                </DarkSelect>
               </label>
               <label className="text-xs text-neutral-400">
                 Discount value
@@ -565,7 +567,7 @@ const OffersTab = ({ onDataChanged }) => {
               </label>
               <label className="text-xs text-neutral-400">
                 Coupon applies to
-                <select
+                <DarkSelect
                   value={form.couponScope}
                   onChange={(event) =>
                     updateField("couponScope", event.target.value)
@@ -575,12 +577,12 @@ const OffersTab = ({ onDataChanged }) => {
                   <option value="order">Entire order</option>
                   <option value="product">Order Now product only</option>
                   <option value="category">A category</option>
-                </select>
+                </DarkSelect>
               </label>
               {form.couponScope === "category" && (
                 <label className="text-xs text-neutral-400">
                   Applicable category
-                  <select
+                  <DarkSelect
                     required
                     value={form.applicableCategory}
                     onChange={(event) =>
@@ -596,7 +598,7 @@ const OffersTab = ({ onDataChanged }) => {
                         </option>
                       )
                     )}
-                  </select>
+                  </DarkSelect>
                 </label>
               )}
               <label className="text-xs text-neutral-400">

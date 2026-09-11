@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
 import { Button, Field, Money, inputClass, textareaClass } from "./InventoryUI.jsx";
@@ -59,8 +61,8 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
 
   return <form onSubmit={submit} className="space-y-5">
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="Supplier"><select required className={inputClass} value={form.supplier} onChange={(event) => setForm({ ...form, supplier: event.target.value })}><option value="">Choose supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</select></Field>
-      <Field label="Status"><select className={inputClass} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="draft">Draft</option><option value="ordered">Ordered</option></select></Field>
+      <Field label="Supplier"><DarkSelect required className={inputClass} value={form.supplier} onChange={(event) => setForm({ ...form, supplier: event.target.value })}><option value="">Choose supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
+      <Field label="Status"><DarkSelect className={inputClass} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="draft">Draft</option><option value="ordered">Ordered</option></DarkSelect></Field>
       <Field label="Expected date"><input type="date" className={inputClass} value={form.expectedAt} onChange={(event) => setForm({ ...form, expectedAt: event.target.value })} /></Field>
       <Field label="Tax (SAR)"><input min="0" step="0.01" type="number" className={inputClass} value={form.tax} onChange={(event) => setForm({ ...form, tax: event.target.value })} /></Field>
     </div>
@@ -74,7 +76,7 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
       </div>
       <div className="space-y-3">
         {form.items.map((line, index) => <div key={line.key} className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-3 md:grid-cols-[minmax(180px,1.4fr)_0.6fr_0.7fr_0.8fr_auto]">
-          <Field label={`Item ${index + 1}`}><select required className={inputClass} value={line.item} onChange={(event) => chooseItem(line.key, event.target.value)}><option value="">Choose item</option>{items.map((item) => <option key={item._id} value={item._id}>{item.name} · {item.sku}</option>)}</select></Field>
+          <Field label={`Item ${index + 1}`}><DarkSelect required className={inputClass} value={line.item} onChange={(event) => chooseItem(line.key, event.target.value)}><option value="">Choose item</option>{items.map((item) => <option key={item._id} value={item._id}>{item.name} · {item.sku}</option>)}</DarkSelect></Field>
           <Field label="Quantity"><input required min="0.0001" step="any" type="number" className={inputClass} value={line.quantity} onChange={(event) => updateLine(line.key, "quantity", event.target.value)} /></Field>
           <Field label="Unit cost (SAR)"><input required min="0" step="0.01" type="number" className={inputClass} value={line.unitCost} onChange={(event) => updateLine(line.key, "unitCost", event.target.value)} /></Field>
           <Field label="Expiry"><input type="date" className={inputClass} value={line.expiryDate} onChange={(event) => updateLine(line.key, "expiryDate", event.target.value)} /></Field>

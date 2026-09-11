@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import {
   Check,
   Eye,
@@ -236,11 +238,11 @@ const CategoriesTab = ({ onDataChanged }) => {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
               <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search categories…" className="h-10 w-full rounded-lg border border-white/10 bg-black/30 pl-9 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60 sm:w-64" />
             </div>
-            <select value={visibility} onChange={(event) => setVisibility(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#0d1113] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">
+            <DarkSelect value={visibility} onChange={(event) => setVisibility(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#0d1113] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">
               <option value="all">All statuses</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
-            </select>
+            </DarkSelect>
             <button type="button" onClick={() => loadCategories(type)} aria-label="Refresh categories" className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-neutral-400 hover:border-dune-amber/40 hover:text-white"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /></button>
           </div>
         </div>

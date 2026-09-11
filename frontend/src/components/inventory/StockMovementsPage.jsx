@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Download, RefreshCw, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -79,9 +81,9 @@ export default function StockMovementsPage() {
     <section className={cardClass}>
       <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-[1.4fr_repeat(3,1fr)_0.9fr_0.9fr_auto]">
         <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search item, SKU, reference, notes…" /></label>
-        <select className={inputClass} value={movementType} onChange={(event) => { setMovementType(event.target.value); setPage(1); }}><option value="">All movement types</option>{movementTypes.map((type) => <option key={type} value={type}>{humanize(type)}</option>)}</select>
-        <select className={inputClass} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="">All inventory items</option>{items.map((row) => <option key={row._id} value={row._id}>{row.name} · {row.sku}</option>)}</select>
-        <select className={inputClass} value={user} onChange={(event) => { setUser(event.target.value); setPage(1); }}><option value="">All users</option>{(data?.filters?.users || []).map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</select>
+        <DarkSelect className={inputClass} value={movementType} onChange={(event) => { setMovementType(event.target.value); setPage(1); }}><option value="">All movement types</option>{movementTypes.map((type) => <option key={type} value={type}>{humanize(type)}</option>)}</DarkSelect>
+        <DarkSelect className={inputClass} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="">All inventory items</option>{items.map((row) => <option key={row._id} value={row._id}>{row.name} · {row.sku}</option>)}</DarkSelect>
+        <DarkSelect className={inputClass} value={user} onChange={(event) => { setUser(event.target.value); setPage(1); }}><option value="">All users</option>{(data?.filters?.users || []).map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
         <input aria-label="From date" title="From date" type="date" className={inputClass} value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} />
         <input aria-label="To date" title="To date" type="date" className={inputClass} value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} />
         <Button variant="secondary" onClick={clearFilters}>Clear</Button>

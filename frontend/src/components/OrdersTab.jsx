@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import React, { useEffect, useMemo, useState } from "react";
 import { Eye, X, MapPin, Phone, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -113,7 +115,7 @@ const OrderRowModal = ({ order, onClose, onStatusChange, onDataChanged }) => {
         {/* Status control */}
         <div>
           <p className="eyebrow mb-2">Order Status</p>
-          <select
+          <DarkSelect
             value={status}
             disabled={saving}
             onChange={(e) => handleStatusChange(e.target.value)}
@@ -124,7 +126,7 @@ const OrderRowModal = ({ order, onClose, onStatusChange, onDataChanged }) => {
                 {STATUS_LABELS[s]}
               </option>
             ))}
-          </select>
+          </DarkSelect>
         </div>
 
         <div className="mt-4 rounded-lg border border-dune-border bg-black/30 px-4 py-3">
@@ -304,9 +306,9 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
 
       <div className="mb-4 grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_repeat(3,1fr)]">
         <label className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search order, customer or phone…" className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.025] pl-9 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60" /></label>
-        <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">{SOURCE_OPTIONS.map((value) => <option key={value} value={value}>{value === "all" ? "All sales sources" : labelSource(value)}</option>)}</select>
-        <select value={orderTypeFilter} onChange={(event) => setOrderTypeFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">{ORDER_TYPE_OPTIONS.map((value) => <option key={value} value={value}>{value === "all" ? "All order types" : formatOrderType(value)}</option>)}</select>
-        <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60"><option value="all">All payments</option><option value="cash">Cash</option><option value="card">Card</option><option value="other">Other</option><option value="unrecorded">Not recorded</option></select>
+        <DarkSelect value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">{SOURCE_OPTIONS.map((value) => <option key={value} value={value}>{value === "all" ? "All sales sources" : labelSource(value)}</option>)}</DarkSelect>
+        <DarkSelect value={orderTypeFilter} onChange={(event) => setOrderTypeFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60">{ORDER_TYPE_OPTIONS.map((value) => <option key={value} value={value}>{value === "all" ? "All order types" : formatOrderType(value)}</option>)}</DarkSelect>
+        <DarkSelect value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-neutral-300 outline-none focus:border-dune-amber/60"><option value="all">All payments</option><option value="cash">Cash</option><option value="card">Card</option><option value="other">Other</option><option value="unrecorded">Not recorded</option></DarkSelect>
       </div>
 
       {/* Orders table */}

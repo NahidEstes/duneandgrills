@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import React, { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -283,7 +285,7 @@ const BlogTab = ({ onDataChanged }) => {
                 className="w-full rounded-lg bg-black border border-dune-border px-4 py-2.5 text-white focus:border-dune-amber outline-none"
               />
               <div className="grid grid-cols-2 gap-4">
-                <select
+                <DarkSelect
                   required
                   value={form.categoryId}
                   onChange={(e) =>
@@ -299,7 +301,7 @@ const BlogTab = ({ onDataChanged }) => {
                         {entry.name}{entry.isActive ? "" : " (Inactive)"}
                       </option>
                     ))}
-                </select>
+                </DarkSelect>
                 <input
                   placeholder="Author"
                   value={form.author}

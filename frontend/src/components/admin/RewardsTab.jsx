@@ -1,5 +1,7 @@
 "use client";
 
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+
 import { useEffect, useState } from "react";
 import { Gift, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -317,7 +319,7 @@ const RewardsTab = ({ onDataChanged }) => {
               </label>
               <label className="text-xs text-neutral-400 sm:col-span-2">
                 Linked menu item
-                <select
+                <DarkSelect
                   required
                   value={form.menuItem}
                   onChange={(event) =>
@@ -331,7 +333,7 @@ const RewardsTab = ({ onDataChanged }) => {
                       {item.name} {item.isAvailable ? "" : "(Unavailable)"}
                     </option>
                   ))}
-                </select>
+                </DarkSelect>
               </label>
               <label className="flex items-center gap-2 text-sm text-neutral-300 sm:col-span-2">
                 <input
