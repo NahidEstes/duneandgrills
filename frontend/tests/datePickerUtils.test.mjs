@@ -3,9 +3,11 @@ import test from "node:test";
 import {
   addDays,
   buildCalendarDays,
+  formatDateEntry,
   formatDateValue,
   isDateAllowed,
   parseDateValue,
+  parseDateEntry,
   sameDay,
 } from "../src/components/ui/datePickerUtils.js";
 
@@ -16,6 +18,9 @@ test("parses and formats API-compatible local date values", () => {
   assert.equal(formatDateValue(date), "2026-09-11");
   assert.equal(formatDateValue(dateTime, "datetime-local"), "2026-09-11T14:35");
   assert.equal(parseDateValue("2026-02-30"), null);
+  assert.equal(formatDateEntry(date), "11-09-2026");
+  assert.equal(formatDateValue(parseDateEntry("11-09-2028")), "2028-09-11");
+  assert.equal(formatDateValue(parseDateEntry("11/09/2028 14:35"), "datetime-local"), "2028-09-11T14:35");
 });
 
 test("builds a six-week Sunday-first calendar grid", () => {

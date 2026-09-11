@@ -24,6 +24,25 @@ export const formatDateValue = (date, type = "date") => {
     : datePart;
 };
 
+export const formatDateEntry = (date, type = "date") => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const datePart = `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
+  return type === "datetime-local"
+    ? `${datePart} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    : datePart;
+};
+
+export const parseDateEntry = (value) => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  const localMatch = normalized.match(/^(\d{2})[-/](\d{2})[-/](\d{4})(?:[ T](\d{2}):(\d{2}))?$/);
+  if (localMatch) {
+    const [, day, month, year, hour = "0", minute = "0"] = localMatch;
+    return parseDateValue(`${year}-${month}-${day}T${hour}:${minute}`);
+  }
+  return parseDateValue(normalized.replace(" ", "T"));
+};
+
 export const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
 export const addMonths = (date, amount) =>

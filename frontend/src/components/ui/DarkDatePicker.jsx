@@ -7,8 +7,10 @@ import {
   addDays,
   addMonths,
   buildCalendarDays,
+  formatDateEntry,
   formatDateValue,
   isDateAllowed,
+  parseDateEntry,
   parseDateValue,
   sameDay,
   startOfMonth,
@@ -39,6 +41,85 @@ const timeFrom = (date) => ({
   minute: String(date.getMinutes()).padStart(2, "0"),
 });
 
+const monthNames = Array.from({ length: 12 }, (_, month) =>
+  new Intl.DateTimeFormat("en-SA", { month: "long" }).format(new Date(2026, month, 1))
+);
+
+const CalendarSelector = ({ ariaLabel, label, value, options, open, onToggle, onChange }) => {
+  const listRef = useRef(null);
+  const triggerRef = useRef(null);
+
+  const restoreTriggerFocus = () => {
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => {
+      listRef.current?.querySelector('[aria-selected="true"]')?.focus();
+    });
+  }, [open]);
+
+  return (
+    <div className="relative min-w-0">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${ariaLabel}: ${label}`}
+        onClick={onToggle}
+        className="flex h-9 w-full items-center justify-between gap-1 rounded-lg border border-white/10 bg-black/20 px-2.5 text-left text-xs font-semibold text-white hover:border-dune-amber/40"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-dune-amber transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div
+          ref={listRef}
+          role="listbox"
+          aria-label={ariaLabel}
+          onKeyDown={(event) => {
+            const choices = [...event.currentTarget.querySelectorAll('[role="option"]')];
+            const index = choices.indexOf(document.activeElement);
+            if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+              event.preventDefault();
+              const nextIndex = event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? choices.length - 1
+                  : (index + (event.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length;
+              choices[nextIndex]?.focus();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              onToggle();
+              restoreTriggerFocus();
+            }
+          }}
+          className="dune-select-scrollbar absolute left-0 top-10 z-10 max-h-56 min-w-full overflow-y-auto rounded-xl border border-white/15 bg-[#111618] p-1.5 shadow-2xl shadow-black/70"
+        >
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={String(option.value) === String(value)}
+              onClick={() => {
+                onChange(option.value);
+                restoreTriggerFocus();
+              }}
+              className={`block w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs transition ${String(option.value) === String(value) ? "bg-dune-amber text-black" : "text-neutral-300 hover:bg-white/[0.07] hover:text-white"}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function DarkDatePicker({
   type = "date",
   value = "",
@@ -68,16 +149,31 @@ export default function DarkDatePicker({
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(selectedDate || today));
   const [activeDate, setActiveDate] = useState(selectedDate || today);
   const [time, setTime] = useState(() => timeFrom(selectedDate || today));
+  const [draftEntry, setDraftEntry] = useState(() => formatDateEntry(selectedDate, type));
+  const [entryError, setEntryError] = useState(false);
+  const [openSelector, setOpenSelector] = useState(null);
   const [invalid, setInvalid] = useState(false);
   const [panelStyle, setPanelStyle] = useState(null);
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
   const days = useMemo(() => buildCalendarDays(viewMonth), [viewMonth]);
   const isDateTime = type === "datetime-local";
+  const yearOptions = useMemo(() => {
+    const minimumYear = parseDateValue(min)?.getFullYear() ?? today.getFullYear() - 10;
+    const maximumYear = parseDateValue(max)?.getFullYear() ?? today.getFullYear() + 20;
+    const start = Math.min(minimumYear, viewMonth.getFullYear());
+    const end = Math.max(maximumYear, viewMonth.getFullYear());
+    return Array.from({ length: end - start + 1 }, (_, index) => ({
+      value: start + index,
+      label: String(start + index),
+    }));
+  }, [max, min, today, viewMonth]);
 
   const emitValue = (date) => {
     const nextValue = date ? formatDateValue(date, type) : "";
     setInvalid(false);
+    setEntryError(false);
+    setDraftEntry(date ? formatDateEntry(date, type) : "");
     onChange?.({
       target: { value: nextValue, name },
       currentTarget: { value: nextValue, name },
@@ -105,12 +201,16 @@ export default function DarkDatePicker({
     setViewMonth(startOfMonth(focusDate));
     setActiveDate(focusDate);
     setTime(timeFrom(selectedDate || today));
+    setDraftEntry(formatDateEntry(selectedDate, type));
+    setEntryError(false);
+    setOpenSelector(null);
     positionPanel();
     setOpen(true);
   };
 
   const closePicker = ({ restoreFocus = false } = {}) => {
     setOpen(false);
+    setOpenSelector(null);
     if (restoreFocus) triggerRef.current?.focus();
   };
 
@@ -130,6 +230,46 @@ export default function DarkDatePicker({
   };
 
   const selectToday = () => selectDate(today);
+
+  const setCalendarMonth = (month) => {
+    const nextMonth = new Date(viewMonth.getFullYear(), Number(month), 1);
+    setViewMonth(nextMonth);
+    setActiveDate(new Date(
+      nextMonth.getFullYear(),
+      nextMonth.getMonth(),
+      1,
+      activeDate.getHours(),
+      activeDate.getMinutes()
+    ));
+    setOpenSelector(null);
+  };
+
+  const setCalendarYear = (year) => {
+    const nextMonth = new Date(Number(year), viewMonth.getMonth(), 1);
+    setViewMonth(nextMonth);
+    setActiveDate(new Date(
+      nextMonth.getFullYear(),
+      nextMonth.getMonth(),
+      1,
+      activeDate.getHours(),
+      activeDate.getMinutes()
+    ));
+    setOpenSelector(null);
+  };
+
+  const applyTypedDate = () => {
+    const parsed = parseDateEntry(draftEntry);
+    if (!parsed || !isDateAllowed(parsed, type, min, max)) {
+      setEntryError(true);
+      return;
+    }
+    setEntryError(false);
+    setTime(timeFrom(parsed));
+    setActiveDate(parsed);
+    setViewMonth(startOfMonth(parsed));
+    emitValue(parsed);
+    if (!isDateTime) closePicker({ restoreFocus: true });
+  };
 
   const changeViewedMonth = (amount) => {
     const nextMonth = addMonths(viewMonth, amount);
@@ -293,8 +433,65 @@ export default function DarkDatePicker({
             }
           }}
         >
-          <div className="flex items-center justify-between gap-3 px-1 pb-3">
-            <p className="font-semibold text-white">{monthFormatter.format(viewMonth)}</p>
+          <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <label className="sr-only" htmlFor={`${pickerId}-direct-entry`}>
+              {isDateTime ? "Enter date and time" : "Enter date"}
+            </label>
+            <input
+              id={`${pickerId}-direct-entry`}
+              type="text"
+              inputMode="numeric"
+              value={draftEntry}
+              placeholder={isDateTime ? "DD-MM-YYYY HH:mm" : "DD-MM-YYYY"}
+              aria-invalid={entryError}
+              onChange={(event) => {
+                setDraftEntry(event.target.value);
+                setEntryError(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  applyTypedDate();
+                }
+              }}
+              className={`h-10 min-w-0 rounded-xl border bg-black/30 px-3 text-sm tabular-nums text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/70 ${entryError ? "border-red-500/70" : "border-white/10"}`}
+            />
+            <button
+              type="button"
+              onClick={applyTypedDate}
+              className="h-10 rounded-xl bg-dune-amber px-3 text-xs font-bold text-black hover:bg-dune-amberLight"
+            >
+              Go
+            </button>
+          </div>
+          {entryError && (
+            <p className="-mt-1 mb-3 px-1 text-xs text-red-400">
+              Use {isDateTime ? "DD-MM-YYYY HH:mm" : "DD-MM-YYYY"} within the allowed range.
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-2 px-1 pb-3">
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_88px] gap-1.5">
+              <CalendarSelector
+                ariaLabel="Choose month"
+                label={monthNames[viewMonth.getMonth()]}
+                value={viewMonth.getMonth()}
+                options={monthNames.map((month, index) => ({ label: month, value: index }))}
+                open={openSelector === "month"}
+                onToggle={() => setOpenSelector((current) => current === "month" ? null : "month")}
+                onChange={setCalendarMonth}
+              />
+              <CalendarSelector
+                ariaLabel="Choose year"
+                label={String(viewMonth.getFullYear())}
+                value={viewMonth.getFullYear()}
+                options={yearOptions}
+                open={openSelector === "year"}
+                onToggle={() => setOpenSelector((current) => current === "year" ? null : "year")}
+                onChange={setCalendarYear}
+              />
+            </div>
             <div className="flex gap-1">
               <button
                 type="button"
