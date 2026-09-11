@@ -1,6 +1,7 @@
 "use client";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Download, RefreshCw, Search, SlidersHorizontal, Trash2 } from "lucide-react";
@@ -84,8 +85,8 @@ export default function StockMovementsPage() {
         <DarkSelect className={inputClass} value={movementType} onChange={(event) => { setMovementType(event.target.value); setPage(1); }}><option value="">All movement types</option>{movementTypes.map((type) => <option key={type} value={type}>{humanize(type)}</option>)}</DarkSelect>
         <DarkSelect className={inputClass} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="">All inventory items</option>{items.map((row) => <option key={row._id} value={row._id}>{row.name} · {row.sku}</option>)}</DarkSelect>
         <DarkSelect className={inputClass} value={user} onChange={(event) => { setUser(event.target.value); setPage(1); }}><option value="">All users</option>{(data?.filters?.users || []).map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
-        <input aria-label="From date" title="From date" type="date" className={inputClass} value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} />
-        <input aria-label="To date" title="To date" type="date" className={inputClass} value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} />
+        <DarkDatePicker aria-label="From date" title="From date" className={inputClass} value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} />
+        <DarkDatePicker aria-label="To date" title="To date" className={inputClass} value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} />
         <Button variant="secondary" onClick={clearFilters}>Clear</Button>
       </div>
       {loading ? <LoadingState label="Loading stock movements…" /> : error ? <EmptyState title="Unable to load movements" description={apiErrorMessage(error)} action={<Button onClick={() => reload()}>Try again</Button>} /> : <DataTable columns={columns} rows={rows} empty={<EmptyState title="No stock movements found" description="Try changing the current filters." />} />}

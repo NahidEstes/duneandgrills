@@ -1,6 +1,7 @@
 "use client";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
@@ -653,7 +654,7 @@ const OffersTab = ({ onDataChanged }) => {
               </label>
               <label className="text-xs text-neutral-400">
                 Starts at
-                <input
+                <DarkDatePicker
                   required
                   type="datetime-local"
                   value={form.startDate}
@@ -665,7 +666,7 @@ const OffersTab = ({ onDataChanged }) => {
               </label>
               <label className="text-xs text-neutral-400">
                 Expires at
-                <input
+                <DarkDatePicker
                   required
                   type="datetime-local"
                   value={form.expiresAt}

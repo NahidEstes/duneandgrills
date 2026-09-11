@@ -1,6 +1,7 @@
 "use client";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
 import { useEffect, useState } from "react";
 import { LoaderCircle, Save } from "lucide-react";
@@ -48,7 +49,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
       <Field label="Unit cost (SAR)"><input required min="0" step="0.01" type="number" className={inputClass} value={form.unitCost} onChange={(event) => set("unitCost", event.target.value)} /></Field>
       <Field label="Primary supplier"><DarkSelect className={inputClass} value={form.supplier} onChange={(event) => set("supplier", event.target.value)}><option value="">No supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
       <Field label="Storage location"><input className={inputClass} value={form.storageLocation} onChange={(event) => set("storageLocation", event.target.value)} placeholder="Walk-in freezer · Shelf B2" /></Field>
-      {form.tracksExpiry && <Field label="Next expiry date"><input type="date" className={inputClass} value={form.expiryDate} onChange={(event) => set("expiryDate", event.target.value)} /></Field>}
+      {form.tracksExpiry && <Field label="Next expiry date"><DarkDatePicker className={inputClass} value={form.expiryDate} onChange={(event) => set("expiryDate", event.target.value)} /></Field>}
     </div>
     <div className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-4 sm:grid-cols-3">
       <label className="flex items-center gap-3 text-xs text-neutral-300"><input type="checkbox" checked={form.tracksExpiry} onChange={(event) => set("tracksExpiry", event.target.checked)} className="h-4 w-4 accent-amber-500" /> Track expiry</label>

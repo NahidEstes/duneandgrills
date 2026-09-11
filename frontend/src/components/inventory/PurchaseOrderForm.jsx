@@ -1,6 +1,7 @@
 "use client";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
@@ -63,7 +64,7 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="Supplier"><DarkSelect required className={inputClass} value={form.supplier} onChange={(event) => setForm({ ...form, supplier: event.target.value })}><option value="">Choose supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
       <Field label="Status"><DarkSelect className={inputClass} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="draft">Draft</option><option value="ordered">Ordered</option></DarkSelect></Field>
-      <Field label="Expected date"><input type="date" className={inputClass} value={form.expectedAt} onChange={(event) => setForm({ ...form, expectedAt: event.target.value })} /></Field>
+      <Field label="Expected date"><DarkDatePicker className={inputClass} value={form.expectedAt} onChange={(event) => setForm({ ...form, expectedAt: event.target.value })} /></Field>
       <Field label="Tax (SAR)"><input min="0" step="0.01" type="number" className={inputClass} value={form.tax} onChange={(event) => setForm({ ...form, tax: event.target.value })} /></Field>
     </div>
     <div>
@@ -79,7 +80,7 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
           <Field label={`Item ${index + 1}`}><DarkSelect required className={inputClass} value={line.item} onChange={(event) => chooseItem(line.key, event.target.value)}><option value="">Choose item</option>{items.map((item) => <option key={item._id} value={item._id}>{item.name} · {item.sku}</option>)}</DarkSelect></Field>
           <Field label="Quantity"><input required min="0.0001" step="any" type="number" className={inputClass} value={line.quantity} onChange={(event) => updateLine(line.key, "quantity", event.target.value)} /></Field>
           <Field label="Unit cost (SAR)"><input required min="0" step="0.01" type="number" className={inputClass} value={line.unitCost} onChange={(event) => updateLine(line.key, "unitCost", event.target.value)} /></Field>
-          <Field label="Expiry"><input type="date" className={inputClass} value={line.expiryDate} onChange={(event) => updateLine(line.key, "expiryDate", event.target.value)} /></Field>
+          <Field label="Expiry"><DarkDatePicker className={inputClass} value={line.expiryDate} onChange={(event) => updateLine(line.key, "expiryDate", event.target.value)} /></Field>
           <button type="button" disabled={form.items.length === 1} onClick={() => setForm((current) => ({ ...current, items: current.items.filter((item) => item.key !== line.key) }))} className="mt-6 grid h-10 w-10 place-items-center rounded-xl text-neutral-600 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button>
         </div>)}
       </div>
