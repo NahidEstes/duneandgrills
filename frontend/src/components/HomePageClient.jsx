@@ -7,7 +7,8 @@ import MenuSection from "./MenuSection.jsx";
 import OffersSection from "./offers/OffersSection.jsx";
 import About from "./About.jsx";
 import Contact from "./Contact.jsx";
-import Footer from "./Footer.jsx";
+import VisitUs from "./VisitUs.jsx";
+import LandingFooter from "./LandingFooter.jsx";
 import CartDrawer from "./CartDrawer.jsx";
 
 const HomePageClient = ({
@@ -32,8 +33,9 @@ const HomePageClient = ({
         />
         <About />
         <Contact />
+        <VisitUs />
       </main>
-      <Footer />
+      <LandingFooter />
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
     </div>
   );
