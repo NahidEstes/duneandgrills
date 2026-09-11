@@ -53,6 +53,7 @@ export default function StockMovementsPage() {
     { key: "quantity", label: "Quantity", render: (row) => formatQuantity(row.quantity, row.item?.unit) },
     { key: "before", label: "Stock before", render: (row) => formatQuantity(row.stockBefore, row.item?.unit) },
     { key: "after", label: "Stock after", render: (row) => <span className={row.stockAfter < row.stockBefore ? "text-red-400" : "text-emerald-400"}>{formatQuantity(row.stockAfter, row.item?.unit)}</span> },
+    { key: "batch", label: "Batch / Lot", render: (row) => <div className="max-w-40 whitespace-normal text-xs">{row.batchAllocations?.map((allocation) => allocation.lotNumber).join(", ") || "—"}</div> },
     { key: "reason", label: "Reason / notes", render: (row) => <div className="max-w-56 whitespace-normal"><p>{row.reason}</p>{row.notes && <p className="mt-0.5 line-clamp-1 text-[0.65rem] text-neutral-600">{row.notes}</p>}</div> },
     { key: "reference", label: "Reference", render: (row) => row.reference || row.purchaseOrder?.orderNumber || row.inventoryCount?.countNumber || "—" },
     { key: "user", label: "Performed by", render: (row) => <div><p>{row.user?.name || "—"}</p><p className="text-[0.65rem] capitalize text-neutral-600">{row.user?.role || ""}</p></div> },
@@ -65,7 +66,7 @@ export default function StockMovementsPage() {
       ["Date", (row) => new Date(row.occurredAt).toISOString()], ["Item", (row) => row.item?.name], ["SKU", (row) => row.item?.sku],
       ["Movement", (row) => row.movementType], ["Quantity", (row) => row.quantity], ["Unit", (row) => row.item?.unit],
       ["Stock Before", (row) => row.stockBefore], ["Stock After", (row) => row.stockAfter], ["Reason", (row) => row.reason],
-      ["Notes", (row) => row.notes], ["Reference", (row) => row.reference], ["Performed By", (row) => row.user?.name], ["Status", (row) => row.status || "COMPLETED"],
+      ["Batch / Lot", (row) => row.batchAllocations?.map((allocation) => allocation.lotNumber).join(" | ")], ["Notes", (row) => row.notes], ["Reference", (row) => row.reference], ["Performed By", (row) => row.user?.name], ["Status", (row) => row.status || "COMPLETED"],
     ], rows);
   };
   const summary = data?.summary || {};

@@ -3,6 +3,7 @@ import InventorySettings from "../../models/InventorySettings.js";
 import PurchaseOrder from "../../models/PurchaseOrder.js";
 import StockTransaction from "../../models/StockTransaction.js";
 import { buildInventoryDashboard, getInventorySettings } from "../../services/inventoryAnalyticsService.js";
+import { getBatchSnapshots } from "../../services/inventoryBatchService.js";
 import { parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
 
 export const getDashboard = async (req, res, next) => {
@@ -15,10 +16,25 @@ export const getAlerts = async (req, res, next) => {
     const now = new Date();
     const expiryEnd = new Date(now);
     expiryEnd.setUTCDate(expiryEnd.getUTCDate() + settings.expiryAlertDays);
-    const [stock, expiry] = await Promise.all([
+    const [stock, batchRows] = await Promise.all([
       InventoryItem.find({ isActive: true, $expr: { $lte: ["$currentStock", "$reorderLevel"] } }).populate("category supplier", "name code").sort({ currentStock: 1 }).lean(),
-      InventoryItem.find({ isActive: true, tracksExpiry: true, expiryDate: { $ne: null, $lte: expiryEnd } }).populate("category supplier", "name code").sort({ expiryDate: 1 }).lean(),
+      getBatchSnapshots({ includeDepleted: false }),
     ]);
+    const expiry = batchRows
+      .filter((batch) => batch.item?.isActive !== false && batch.expiryDate && new Date(batch.expiryDate) <= expiryEnd && Number(batch.remainingQuantity) > 0)
+      .sort((left, right) => new Date(left.expiryDate) - new Date(right.expiryDate))
+      .map((batch) => ({
+        _id: batch._id,
+        name: batch.item?.name || "Archived item",
+        sku: batch.item?.sku || "—",
+        category: batch.item?.category || null,
+        supplier: batch.supplier || batch.item?.supplier || null,
+        currentStock: batch.remainingQuantity,
+        unit: batch.item?.unit,
+        expiryDate: batch.expiryDate,
+        storageLocation: batch.item?.storageLocation || "",
+        lotNumber: batch.lotNumber,
+      }));
     res.json({ success: true, data: { stock, expiry, expiryAlertDays: settings.expiryAlertDays } });
   } catch (error) { next(error); }
 };
@@ -62,8 +78,23 @@ export const getReport = async (req, res, next) => {
       const filter = { isActive: true, $expr: { $lte: ["$currentStock", "$reorderLevel"] } };
       [data, total] = await Promise.all([InventoryItem.find(filter).populate("category supplier", "name code").sort({ currentStock: 1 }).skip(skip).limit(limit).lean(), InventoryItem.countDocuments(filter)]);
     } else if (type === "expiry") {
-      const filter = { isActive: true, tracksExpiry: true, expiryDate: { $ne: null } };
-      [data, total] = await Promise.all([InventoryItem.find(filter).populate("category supplier", "name code").sort({ expiryDate: 1 }).skip(skip).limit(limit).lean(), InventoryItem.countDocuments(filter)]);
+      const batches = (await getBatchSnapshots({ includeDepleted: false }))
+        .filter((batch) => batch.item?.isActive !== false && batch.expiryDate && Number(batch.remainingQuantity) > 0)
+        .sort((left, right) => new Date(left.expiryDate) - new Date(right.expiryDate))
+        .map((batch) => ({
+          _id: batch._id,
+          name: batch.item?.name || "Archived item",
+          sku: batch.item?.sku || "—",
+          currentStock: batch.remainingQuantity,
+          unit: batch.item?.unit,
+          expiryDate: batch.expiryDate,
+          storageLocation: batch.item?.storageLocation || "",
+          supplier: batch.supplier || batch.item?.supplier || null,
+          category: batch.item?.category || null,
+          lotNumber: batch.lotNumber,
+        }));
+      total = batches.length;
+      data = batches.slice(skip, skip + limit);
     } else throw new ValidationError("Unknown inventory report type");
     res.json({ success: true, data, pagination: { page, limit, total, pages: Math.ceil(total / limit) }, currency: "SAR" });
   } catch (error) { next(error); }

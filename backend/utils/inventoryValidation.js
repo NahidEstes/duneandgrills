@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { INVENTORY_UNITS } from "../models/InventoryItem.js";
+import { INVENTORY_UNITS, PURCHASE_UNITS } from "../models/InventoryItem.js";
 import { PURCHASE_ORDER_STATUSES } from "../models/PurchaseOrder.js";
 import { STOCK_MOVEMENT_TYPES, WASTE_REASON_CODES } from "../models/StockTransaction.js";
 
@@ -32,6 +32,20 @@ export const validateItemPayload = (payload, { partial = false } = {}) => {
   }
   if (result.unit && !INVENTORY_UNITS.includes(result.unit)) {
     throw new ValidationError(`unit must be one of: ${INVENTORY_UNITS.join(", ")}`);
+  }
+  if ("purchaseUnit" in payload) {
+    const purchaseUnit = text(payload.purchaseUnit);
+    if (purchaseUnit && !PURCHASE_UNITS.includes(purchaseUnit)) {
+      throw new ValidationError(`purchaseUnit must be one of: ${PURCHASE_UNITS.join(", ")}`);
+    }
+    result.purchaseUnit = purchaseUnit || null;
+  }
+  if ("purchaseConversionFactor" in payload) {
+    const factor = number(payload.purchaseConversionFactor);
+    if (!Number.isFinite(factor) || factor <= 0) {
+      throw new ValidationError("purchaseConversionFactor must be greater than zero");
+    }
+    result.purchaseConversionFactor = factor;
   }
   if (result.category) assertObjectId(result.category, "category");
   if ("supplier" in payload) {
@@ -74,6 +88,15 @@ export const validateMovementPayload = (payload) => {
   if (movementType !== "ADJUSTMENT" && quantity <= 0) throw new ValidationError("quantity must be greater than zero");
   const reason = text(payload.reason);
   if (!reason) throw new ValidationError("reason is required");
+  const unitCost = payload.unitCost === "" || payload.unitCost == null ? null : number(payload.unitCost);
+  if (unitCost != null && (!Number.isFinite(unitCost) || unitCost < 0)) {
+    throw new ValidationError("unitCost must be zero or greater");
+  }
+  const expiryDate = payload.expiryDate ? new Date(payload.expiryDate) : null;
+  if (expiryDate && Number.isNaN(expiryDate.getTime())) throw new ValidationError("expiryDate is invalid");
+  const receivedAt = payload.receivedAt ? new Date(payload.receivedAt) : null;
+  if (receivedAt && Number.isNaN(receivedAt.getTime())) throw new ValidationError("receivedAt is invalid");
+  const supplier = payload.supplier ? assertObjectId(payload.supplier, "supplier") : null;
   return {
     item: payload.item,
     movementType,
@@ -81,6 +104,11 @@ export const validateMovementPayload = (payload) => {
     reason,
     notes: text(payload.notes),
     allowNegativeStock: Boolean(payload.allowNegativeStock),
+    unitCost,
+    expiryDate,
+    lotNumber: text(payload.lotNumber) || null,
+    receivedAt,
+    supplier,
   };
 };
 

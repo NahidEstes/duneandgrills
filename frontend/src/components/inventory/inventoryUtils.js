@@ -37,6 +37,7 @@ export const humanize = (value = "") =>
 export const apiErrorMessage = (error, fallback = "Something went wrong") => error?.response?.data?.message || error?.message || fallback;
 
 export const INVENTORY_UNITS = ["kg", "g", "L", "ml", "pcs", "box", "pack", "bottle", "can", "tray"];
+export const PURCHASE_UNITS = [...new Set([...INVENTORY_UNITS, "carton", "case", "bag", "sack"])];
 
 export const downloadCsv = (filename, headers, rows) => {
   const escape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;

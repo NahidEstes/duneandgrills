@@ -1,7 +1,9 @@
 import InventoryItem from "../models/InventoryItem.js";
+import InventoryBatch from "../models/InventoryBatch.js";
 import InventoryRecipe from "../models/InventoryRecipe.js";
 import StockTransaction from "../models/StockTransaction.js";
 import { PRODUCT_TYPES } from "./catalogService.js";
+import { updateItemNextExpiry } from "./inventoryBatchService.js";
 import { performStockMovement } from "./inventoryStockService.js";
 
 export class OrderInventoryError extends Error {
@@ -80,9 +82,23 @@ const buildRequirements = async (catalogLines, { strictRecipes, session }) => {
 
 const rollbackStandaloneMovements = async (movements) => {
   for (const movement of [...movements].reverse()) {
+    const batchRollbackDirection = movement.transaction.stockAfter < movement.transaction.stockBefore ? 1 : -1;
+    for (const allocation of movement.transaction.batchAllocations || []) {
+      if (allocation.batch) {
+        await InventoryBatch.updateOne(
+          { _id: allocation.batch },
+          { $inc: { remainingQuantity: batchRollbackDirection * allocation.quantity } }
+        );
+      }
+    }
     await InventoryItem.updateOne(
       { _id: movement.item._id, currentStock: movement.item.currentStock },
-      { $set: { currentStock: movement.transaction.stockBefore } }
+      {
+        $set: {
+          currentStock: movement.transaction.stockBefore,
+          expiryDate: await updateItemNextExpiry(movement.item._id),
+        },
+      }
     );
     await StockTransaction.deleteOne({ _id: movement.transaction._id });
   }
@@ -128,6 +144,7 @@ export const restoreOrderInventory = async ({ transactionIds, orderId, orderNumb
         reference: `${orderNumber}-RETURN`,
         order: orderId,
         userId: actorId,
+        restoreAllocations: deduction.batchAllocations || [],
       }, { session }));
     }
     return restorations.map((movement) => movement.transaction);

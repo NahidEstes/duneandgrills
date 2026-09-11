@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/src/context/AuthContext.jsx";
 import {
   Archive,
+  PackageOpen,
   BarChart3,
   BellRing,
   Boxes,
@@ -29,6 +30,7 @@ import {
 const navigation = [
   ["Overview", "/inventory", LayoutDashboard],
   ["Stock Items", "/inventory/stock-items", Boxes],
+  ["Batches / Lots", "/inventory/batches", PackageOpen],
   ["Categories", "/inventory/categories", Tags],
   ["Suppliers", "/inventory/suppliers", Building2],
   ["Purchase Orders", "/inventory/purchase-orders", ReceiptText],

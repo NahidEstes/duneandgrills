@@ -3,6 +3,7 @@ import InventorySectionPage from "@/src/components/inventory/InventorySectionPag
 
 const sections = new Set([
   "stock-items",
+  "batches",
   "categories",
   "suppliers",
   "purchase-orders",

@@ -1,7 +1,16 @@
 import mongoose from "mongoose";
+import InventoryBatch from "../models/InventoryBatch.js";
 import InventoryItem from "../models/InventoryItem.js";
 import StockTransaction from "../models/StockTransaction.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
+import {
+  consumeInventoryBatches,
+  createInventoryBatch,
+  ensureLegacyBatch,
+  restoreInventoryBatches,
+  rollbackBatchChanges,
+  updateItemNextExpiry,
+} from "./inventoryBatchService.js";
 import { nextInventoryReference } from "./inventoryReferenceService.js";
 
 const INBOUND_TYPES = new Set(["STOCK_IN", "PURCHASE_RECEIPT", "OPENING_BALANCE"]);
@@ -54,11 +63,20 @@ export const performStockMovement = async (
     reasonCode = null,
     reference = null,
     occurredAt = null,
+    lotNumber = null,
+    receivedAt = null,
+    supplier = null,
+    purchaseQuantity = null,
+    purchaseUnit = null,
+    conversionFactor = 1,
+    restoreAllocations = null,
   },
   { session = null } = {}
 ) => {
   const item = await InventoryItem.findById(itemId).session(session || null);
   if (!item || !item.isActive) throw new ValidationError("Inventory item was not found or is inactive");
+
+  await ensureLegacyBatch(item, session);
 
   const numericQuantity = Number(quantity);
   let update;
@@ -81,7 +99,6 @@ export const performStockMovement = async (
   }
 
   if (unitCost != null && direction === "in") update.$set = { ...(update.$set || {}), unitCost: Number(unitCost) };
-  if (expiryDate && item.tracksExpiry) update.$set = { ...(update.$set || {}), expiryDate: new Date(expiryDate) };
 
   const filter = { _id: item._id, currentStock: item.currentStock };
   const updated = await InventoryItem.findOneAndUpdate(filter, update, {
@@ -91,9 +108,45 @@ export const performStockMovement = async (
   });
   if (!updated) throw new ValidationError("Stock changed while this operation was being saved. Please try again");
 
+  let batchChanges = null;
   try {
+    const stockDelta = Number((Number(updated.currentStock) - Number(item.currentStock)).toFixed(6));
+    if (restoreAllocations?.length && stockDelta > 0) {
+      batchChanges = await restoreInventoryBatches({ item, allocations: restoreAllocations }, session);
+    } else if (stockDelta > 0) {
+      batchChanges = await createInventoryBatch({
+        item,
+        quantity: stockDelta,
+        lotNumber,
+        receivedAt: receivedAt || occurredAt,
+        expiryDate: item.tracksExpiry ? expiryDate : null,
+        unitCost: unitCost == null ? item.unitCost : unitCost,
+        supplier,
+        purchaseOrder,
+        source: direction === "adjustment" ? "ADJUSTMENT" : movementType,
+        purchaseQuantity,
+        purchaseUnit,
+        conversionFactor,
+      }, session);
+    } else if (stockDelta < 0) {
+      batchChanges = await consumeInventoryBatches({ item, quantity: Math.abs(stockDelta) }, session);
+    }
+
+    const nextExpiry = item.tracksExpiry ? await updateItemNextExpiry(item._id, session) : null;
+    if (String(updated.expiryDate || "") !== String(nextExpiry || "")) {
+      updated.expiryDate = nextExpiry;
+      await updated.save(sessionOptions(session));
+    }
+
     const transactionReference = reference || await nextInventoryReference(movementType, session);
-    const transactionUnitCost = unitCost == null ? Number(item.unitCost || 0) : Number(unitCost);
+    const allocatedQuantity = (batchChanges?.allocations || []).reduce((sum, allocation) => sum + Number(allocation.quantity || 0), 0);
+    const allocatedCost = (batchChanges?.allocations || []).reduce(
+      (sum, allocation) => sum + Number(allocation.quantity || 0) * Number(allocation.unitCost || 0),
+      0
+    );
+    const transactionUnitCost = stockDelta < 0 && allocatedQuantity > 0
+      ? Number((allocatedCost / allocatedQuantity).toFixed(6))
+      : unitCost == null ? Number(item.unitCost || 0) : Number(unitCost);
     const [transaction] = await StockTransaction.create(
       [
         {
@@ -115,14 +168,26 @@ export const performStockMovement = async (
           order,
           unitCost: transactionUnitCost,
           expiryDate: expiryDate || null,
+          purchaseQuantity,
+          purchaseUnit,
+          conversionFactor,
+          batchAllocations: batchChanges?.allocations || [],
           occurredAt: occurredAt || new Date(),
         },
       ],
       sessionOptions(session)
     );
+    if (batchChanges?.createdBatchIds?.length) {
+      await InventoryBatch.updateMany(
+        { _id: { $in: batchChanges.createdBatchIds } },
+        { $set: { sourceTransaction: transaction._id } },
+        sessionOptions(session)
+      );
+    }
     return { item: updated, transaction };
   } catch (error) {
     if (!session) {
+      await rollbackBatchChanges(batchChanges);
       await InventoryItem.updateOne(
         { _id: item._id, currentStock: updated.currentStock },
         { $set: { currentStock: item.currentStock, unitCost: item.unitCost, expiryDate: item.expiryDate } }
@@ -144,6 +209,10 @@ export const createOpeningBalance = async (item, openingStock, userId, session =
       userId,
       unitCost: item.unitCost,
       expiryDate: item.expiryDate,
+      lotNumber: `OPENING-${item.sku}`,
+      purchaseQuantity: Number(openingStock),
+      purchaseUnit: item.unit,
+      conversionFactor: 1,
     },
     { session }
   );

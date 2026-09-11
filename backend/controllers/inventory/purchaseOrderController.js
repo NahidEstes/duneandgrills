@@ -4,7 +4,7 @@ import { parsePagination, validatePurchaseOrderPayload, ValidationError } from "
 
 const populate = [
   { path: "supplier", select: "name code contactName email phone" },
-  { path: "items.item", select: "name sku unit currentStock" },
+  { path: "items.item", select: "name sku unit purchaseUnit purchaseConversionFactor currentStock tracksExpiry" },
   { path: "createdBy", select: "name email" },
   { path: "updatedBy", select: "name email" },
 ];

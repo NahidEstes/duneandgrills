@@ -3,6 +3,7 @@ import InventoryItem from "../models/InventoryItem.js";
 import InventorySettings from "../models/InventorySettings.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import StockTransaction from "../models/StockTransaction.js";
+import { getBatchSnapshots } from "./inventoryBatchService.js";
 
 export const getInventorySettings = async () =>
   InventorySettings.findOneAndUpdate(
@@ -40,11 +41,19 @@ export const buildInventoryDashboard = async () => {
         .sort({ currentStock: 1 })
         .limit(8)
         .lean(),
-      InventoryItem.find({ isActive: true, tracksExpiry: true, expiryDate: { $ne: null, $lte: expiryEnd } })
-        .select("name sku currentStock unit expiryDate")
-        .sort({ expiryDate: 1 })
-        .limit(8)
-        .lean(),
+      getBatchSnapshots({ includeDepleted: false }).then((rows) => rows
+        .filter((batch) => batch.item?.isActive !== false && batch.expiryDate && new Date(batch.expiryDate) <= expiryEnd && Number(batch.remainingQuantity) > 0)
+        .sort((left, right) => new Date(left.expiryDate) - new Date(right.expiryDate))
+        .slice(0, 8)
+        .map((batch) => ({
+          _id: batch._id,
+          name: batch.item?.name || "Archived item",
+          sku: batch.item?.sku || "—",
+          currentStock: batch.remainingQuantity,
+          unit: batch.item?.unit,
+          expiryDate: batch.expiryDate,
+          lotNumber: batch.lotNumber,
+        }))),
       StockTransaction.find().sort({ occurredAt: -1 }).limit(8).populate("item", "name sku unit").populate("user", "name").lean(),
       PurchaseOrder.aggregate([{ $group: { _id: "$status", count: { $sum: 1 }, total: { $sum: "$total" } } }]),
       InventoryItem.aggregate([

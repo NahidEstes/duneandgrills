@@ -2,25 +2,46 @@ import Counter from "../../models/Counter.js";
 import InventoryCount from "../../models/InventoryCount.js";
 import InventoryItem from "../../models/InventoryItem.js";
 import StockTransaction from "../../models/StockTransaction.js";
+import Supplier from "../../models/Supplier.js";
 import User from "../../models/User.js";
 import { performStockMovement, runInventoryTransaction } from "../../services/inventoryStockService.js";
+import { getPurchaseConfiguration, toBaseQuantity, toBaseUnitCost } from "../../services/inventoryUnitService.js";
 import { escapeRegex, parsePagination, validateMovementPayload, ValidationError } from "../../utils/inventoryValidation.js";
 
 export const createMovement = async (req, res, next) => {
   try {
     const payload = validateMovementPayload(req.body);
+    const selectedItem = await InventoryItem.findById(payload.item);
+    if (!selectedItem || !selectedItem.isActive) throw new ValidationError("Inventory item was not found or is inactive");
+    if (payload.supplier && !(await Supplier.exists({ _id: payload.supplier, isActive: true }))) {
+      throw new ValidationError("Supplier was not found or is inactive");
+    }
+    const inbound = payload.movementType === "STOCK_IN";
+    const purchaseConfig = getPurchaseConfiguration(selectedItem);
+    const movementQuantity = inbound
+      ? toBaseQuantity(payload.quantity, purchaseConfig.conversionFactor)
+      : payload.quantity;
+    const movementUnitCost = inbound && payload.unitCost != null
+      ? toBaseUnitCost(payload.unitCost, purchaseConfig.conversionFactor)
+      : payload.unitCost;
     const result = await runInventoryTransaction((session) =>
       performStockMovement(
         {
           itemId: payload.item,
           movementType: payload.movementType,
-          quantity: payload.quantity,
+          quantity: movementQuantity,
           reason: payload.reason,
           notes: payload.notes,
           userId: req.user._id,
           allowNegativeStock: payload.allowNegativeStock,
-          unitCost: req.body.unitCost,
-          expiryDate: req.body.expiryDate,
+          unitCost: movementUnitCost,
+          expiryDate: payload.expiryDate,
+          lotNumber: payload.lotNumber,
+          receivedAt: payload.receivedAt,
+          supplier: payload.supplier || selectedItem.supplier,
+          purchaseQuantity: inbound ? payload.quantity : null,
+          purchaseUnit: inbound ? purchaseConfig.purchaseUnit : null,
+          conversionFactor: inbound ? purchaseConfig.conversionFactor : 1,
         },
         { session }
       )

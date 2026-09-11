@@ -22,6 +22,17 @@ export const WASTE_REASON_CODES = [
   "OTHER",
 ];
 
+const batchAllocationSchema = new mongoose.Schema(
+  {
+    batch: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryBatch", default: null, immutable: true },
+    lotNumber: { type: String, required: true, trim: true, immutable: true },
+    quantity: { type: Number, required: true, min: 0.000001, immutable: true },
+    expiryDate: { type: Date, default: null, immutable: true },
+    unitCost: { type: Number, default: 0, min: 0, immutable: true },
+  },
+  { _id: false }
+);
+
 const stockTransactionSchema = new mongoose.Schema(
   {
     item: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryItem", required: true, immutable: true },
@@ -39,6 +50,10 @@ const stockTransactionSchema = new mongoose.Schema(
     inventoryCount: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryCount", default: null, immutable: true },
     order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null, immutable: true },
     unitCost: { type: Number, default: null, min: 0, immutable: true },
+    purchaseQuantity: { type: Number, default: null, min: 0, immutable: true },
+    purchaseUnit: { type: String, default: null, trim: true, immutable: true },
+    conversionFactor: { type: Number, default: 1, min: 0.000001, immutable: true },
+    batchAllocations: { type: [batchAllocationSchema], default: [], immutable: true },
     expiryDate: { type: Date, default: null, immutable: true },
     occurredAt: { type: Date, default: Date.now, immutable: true },
     externalId: { type: String, default: null, trim: true, immutable: true, sparse: true },

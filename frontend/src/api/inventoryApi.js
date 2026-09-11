@@ -6,6 +6,7 @@ export const fetchInventoryDashboard = () => unwrap(api.get("/inventory/dashboar
 export const fetchInventoryAlerts = () => unwrap(api.get("/inventory/alerts")).then((response) => response.data);
 
 export const fetchInventoryItems = (params = {}) => unwrap(api.get("/inventory/items", { params }));
+export const fetchInventoryBatches = (params = {}) => unwrap(api.get("/inventory/batches", { params }));
 export const fetchInventoryItem = (id) => unwrap(api.get(`/inventory/items/${id}`)).then((response) => response.data);
 export const createInventoryItem = (payload) => unwrap(api.post("/inventory/items", payload)).then((response) => response.data);
 export const updateInventoryItem = (id, payload) => unwrap(api.patch(`/inventory/items/${id}`, payload)).then((response) => response.data);

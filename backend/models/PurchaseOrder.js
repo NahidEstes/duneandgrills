@@ -10,6 +10,9 @@ const purchaseOrderLineSchema = new mongoose.Schema(
     quantity: { type: Number, required: true, min: 0.0001 },
     receivedQuantity: { type: Number, default: 0, min: 0 },
     unitCost: { type: Number, required: true, min: 0 },
+    purchaseUnit: { type: String, default: null, trim: true },
+    baseUnit: { type: String, default: null, trim: true },
+    conversionFactor: { type: Number, default: 1, min: 0.000001 },
     expiryDate: { type: Date, default: null },
   },
   { _id: true }

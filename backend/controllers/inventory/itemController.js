@@ -69,6 +69,8 @@ export const getItem = async (req, res, next) => {
 export const createItem = async (req, res, next) => {
   try {
     const payload = validateItemPayload(req.body);
+    payload.purchaseUnit ||= payload.unit;
+    if (payload.purchaseUnit === payload.unit) payload.purchaseConversionFactor = 1;
     const item = await runInventoryTransaction(async (session) => {
       await ensureReferences(payload, session);
       const openingStock = payload.openingStock || 0;
@@ -90,8 +92,16 @@ export const updateItem = async (req, res, next) => {
     const payload = validateItemPayload(req.body, { partial: true });
     delete payload.openingStock;
     await ensureReferences(payload);
-    const item = await InventoryItem.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true }).populate(itemPopulate);
+    const item = await InventoryItem.findById(req.params.id);
     if (!item) return res.status(404).json({ success: false, message: "Inventory item not found" });
+    if (payload.unit && payload.unit !== item.unit && Number(item.currentStock) !== 0) {
+      throw new ValidationError("Base unit cannot be changed while this item has stock. Reconcile it to zero first");
+    }
+    Object.assign(item, payload);
+    item.purchaseUnit ||= item.unit;
+    if (item.purchaseUnit === item.unit) item.purchaseConversionFactor = 1;
+    await item.save();
+    await item.populate(itemPopulate);
     res.json({ success: true, data: item });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "An inventory item with this SKU already exists" });

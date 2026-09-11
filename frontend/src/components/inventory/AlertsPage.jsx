@@ -24,6 +24,7 @@ export default function AlertsPage({ type }) {
   const expiryColumns = [
     { key: "name", label: "Item", render: (item) => <div><p className="font-medium text-white">{item.name}</p><p className="text-[0.65rem] text-neutral-600">{item.sku}</p></div> },
     { key: "category", label: "Category", render: (item) => item.category?.name || "—" },
+    { key: "lot", label: "Batch / Lot", render: (item) => item.lotNumber || "—" },
     { key: "stock", label: "Stock affected", render: (item) => formatQuantity(item.currentStock, item.unit) },
     { key: "date", label: "Expiry date", render: (item) => formatDate(item.expiryDate) },
     { key: "days", label: "Status", render: (item) => { const days = daysUntil(item.expiryDate); return <Badge tone={days < 0 ? "danger" : days <= 3 ? "warning" : "violet"}>{days < 0 ? `Expired ${Math.abs(days)}d ago` : days === 0 ? "Expires today" : `${days} days left`}</Badge>; } },

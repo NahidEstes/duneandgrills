@@ -40,7 +40,7 @@ export default function ReportsPage() {
     ];
     if (type === "expiry") return [
       { key: "item", label: "Item", render: (row) => <div><p className="font-medium text-white">{row.name}</p><p className="text-[0.65rem] text-neutral-600">{row.sku}</p></div> }, { key: "stock", label: "Stock", render: (row) => formatQuantity(row.currentStock, row.unit) },
-      { key: "expiry", label: "Expiry date", render: (row) => formatDate(row.expiryDate) }, { key: "days", label: "Status", render: (row) => { const days = daysUntil(row.expiryDate); return <Badge tone={days < 0 ? "danger" : "warning"}>{days < 0 ? "Expired" : `${days} days`}</Badge>; } }, { key: "location", label: "Location", render: (row) => row.storageLocation || "—" },
+      { key: "lot", label: "Batch / Lot", render: (row) => row.lotNumber || "—" }, { key: "expiry", label: "Expiry date", render: (row) => formatDate(row.expiryDate) }, { key: "days", label: "Status", render: (row) => { const days = daysUntil(row.expiryDate); return <Badge tone={days < 0 ? "danger" : "warning"}>{days < 0 ? "Expired" : `${days} days`}</Badge>; } }, { key: "location", label: "Location", render: (row) => row.storageLocation || "—" },
     ];
     return [
       { key: "item", label: "Item", render: (row) => <div><p className="font-medium text-white">{row.name}</p><p className="text-[0.65rem] text-neutral-600">{row.sku}</p></div> }, { key: "stock", label: "Current stock", render: (row) => formatQuantity(row.currentStock, row.unit) },

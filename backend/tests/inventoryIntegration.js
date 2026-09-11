@@ -2,6 +2,7 @@ import "dotenv/config";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import InventoryCategory from "../models/InventoryCategory.js";
+import InventoryBatch from "../models/InventoryBatch.js";
 import InventoryItem from "../models/InventoryItem.js";
 import InventoryRecipe from "../models/InventoryRecipe.js";
 import MenuItem from "../models/MenuItem.js";
@@ -44,7 +45,7 @@ const run = async () => {
 
   const waste = await performStockMovement({ itemId: item._id, movementType: "WASTE", quantity: 1, reason: "Spoiled", reasonCode: "SPOILED", userId: user._id });
   assert.equal((await InventoryItem.findById(item._id)).currentStock, 11);
-  assert.equal(waste.transaction.unitCost, 11);
+  assert.equal(waste.transaction.unitCost, 10);
   assert.match(waste.transaction.reference, /^WST-/);
   await InventoryItem.updateOne({ _id: item._id }, { allowNegativeStock: true });
   await assert.rejects(
@@ -84,6 +85,10 @@ const run = async () => {
   });
   assert.equal(restorations.length, 1);
   assert.equal((await InventoryItem.findById(item._id)).currentStock, 11);
+  assert.deepEqual(
+    restorations[0].batchAllocations.map((allocation) => allocation.lotNumber),
+    deductions[0].batchAllocations.map((allocation) => allocation.lotNumber)
+  );
   await assert.rejects(
     deductOrderInventory({
       catalogLines: [{ productType: "menuItem", product: duplicateMenuItem, quantity: 1 }],
@@ -95,6 +100,53 @@ const run = async () => {
     }),
     /Configure a recipe or mark Do Not Track/
   );
+
+  const bottledItem = await InventoryItem.create({
+    name: "Test Bottled Drink",
+    sku: "TEST-BOTTLE-001",
+    category: category._id,
+    supplier: supplier._id,
+    unit: "bottle",
+    purchaseUnit: "carton",
+    purchaseConversionFactor: 24,
+    reorderLevel: 12,
+    unitCost: 2,
+    tracksExpiry: true,
+  });
+  const batchOrder = await createPurchaseOrder({
+    supplier: supplier._id,
+    status: "ordered",
+    tax: 0,
+    items: [{ item: bottledItem._id, quantity: 2, unitCost: 48 }],
+  }, user._id);
+  await receivePurchaseOrder(batchOrder._id, [{
+    lineId: batchOrder.items[0]._id,
+    quantity: 1,
+    lotNumber: "LATE-LOT",
+    expiryDate: "2027-06-01",
+  }], user._id);
+  await receivePurchaseOrder(batchOrder._id, [{
+    lineId: batchOrder.items[0]._id,
+    quantity: 1,
+    lotNumber: "EARLY-LOT",
+    expiryDate: "2027-01-01",
+  }], user._id);
+  assert.equal((await InventoryItem.findById(bottledItem._id)).currentStock, 48);
+  assert.equal((await InventoryItem.findById(bottledItem._id)).unitCost, 2);
+
+  const fefoMovement = await performStockMovement({
+    itemId: bottledItem._id,
+    movementType: "STOCK_OUT",
+    quantity: 30,
+    reason: "FEFO integration check",
+    userId: user._id,
+  });
+  assert.deepEqual(
+    fefoMovement.transaction.batchAllocations.map((allocation) => [allocation.lotNumber, allocation.quantity]),
+    [["EARLY-LOT", 24], ["LATE-LOT", 6]]
+  );
+  assert.equal((await InventoryBatch.findOne({ lotNumber: "EARLY-LOT" })).remainingQuantity, 0);
+  assert.equal((await InventoryBatch.findOne({ lotNumber: "LATE-LOT" })).remainingQuantity, 18);
 
   console.log("Inventory integration checks passed");
 };

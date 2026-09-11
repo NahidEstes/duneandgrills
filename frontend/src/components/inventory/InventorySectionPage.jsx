@@ -12,9 +12,11 @@ import SuppliersPage from "./SuppliersPage.jsx";
 import StockMovementsPage from "./StockMovementsPage.jsx";
 import RecipesPage from "./RecipesPage.jsx";
 import WasteDamagedPage from "./WasteDamagedPage.jsx";
+import BatchesPage from "./BatchesPage.jsx";
 
 export default function InventorySectionPage({ section }) {
   if (section === "stock-items") return <StockItemsPage />;
+  if (section === "batches") return <BatchesPage />;
   if (section === "categories") return <CategoriesPage />;
   if (section === "suppliers") return <SuppliersPage />;
   if (section === "purchase-orders") return <PurchaseOrdersPage />;

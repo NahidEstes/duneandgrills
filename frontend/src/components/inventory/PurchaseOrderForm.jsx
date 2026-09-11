@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
 import { Button, Field, Money, inputClass, textareaClass } from "./InventoryUI.jsx";
 
-const emptyLine = (key = "new-0") => ({ key, item: "", quantity: 1, unitCost: 0, expiryDate: "" });
+const emptyLine = (key = "new-0") => ({ key, item: "", quantity: 1, unitCost: 0, expiryDate: "", purchaseUnit: "", baseUnit: "", conversionFactor: 1 });
 
 export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, submitting }) {
   const [form, setForm] = useState({
@@ -26,6 +26,9 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
         item: line.item?._id || line.item,
         quantity: line.quantity,
         unitCost: line.unitCost,
+        purchaseUnit: line.purchaseUnit || line.item?.purchaseUnit || line.item?.unit || "",
+        baseUnit: line.baseUnit || line.item?.unit || "",
+        conversionFactor: line.conversionFactor || line.item?.purchaseConversionFactor || 1,
         expiryDate: line.expiryDate ? new Date(line.expiryDate).toISOString().slice(0, 10) : "",
       })),
     } : { supplier: "", status: "draft", tax: 0, expectedAt: "", notes: "", items: [emptyLine()] });
@@ -40,7 +43,12 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
     setForm((current) => ({
       ...current,
       items: current.items.map((line) => line.key === key
-        ? { ...line, item: itemId, ...(item ? { unitCost: item.unitCost || 0 } : {}) }
+        ? { ...line, item: itemId, ...(item ? {
+          unitCost: Number(item.unitCost || 0) * Number(item.purchaseConversionFactor || 1),
+          purchaseUnit: item.purchaseUnit || item.unit,
+          baseUnit: item.unit,
+          conversionFactor: item.purchaseConversionFactor || 1,
+        } : {}) }
         : line),
     }));
   };
@@ -76,10 +84,10 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
         }))}><Plus className="h-3.5 w-3.5" />Add line</Button>
       </div>
       <div className="space-y-3">
-        {form.items.map((line, index) => <div key={line.key} className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-3 md:grid-cols-[minmax(180px,1.4fr)_0.6fr_0.7fr_0.8fr_auto]">
-          <Field label={`Item ${index + 1}`}><DarkSelect required className={inputClass} value={line.item} onChange={(event) => chooseItem(line.key, event.target.value)}><option value="">Choose item</option>{items.map((item) => <option key={item._id} value={item._id}>{item.name} · {item.sku}</option>)}</DarkSelect></Field>
-          <Field label="Quantity"><input required min="0.0001" step="any" type="number" className={inputClass} value={line.quantity} onChange={(event) => updateLine(line.key, "quantity", event.target.value)} /></Field>
-          <Field label="Unit cost (SAR)"><input required min="0" step="0.01" type="number" className={inputClass} value={line.unitCost} onChange={(event) => updateLine(line.key, "unitCost", event.target.value)} /></Field>
+        {form.items.map((line, index) => <div key={line.key} className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-3 md:grid-cols-[minmax(210px,1.4fr)_0.65fr_0.75fr_0.8fr_auto]">
+          <Field label={`Item ${index + 1}`} hint={line.item ? `1 ${line.purchaseUnit} = ${line.conversionFactor} ${line.baseUnit}` : "Choose an item to load its purchase conversion."}><DarkSelect required className={inputClass} value={line.item} onChange={(event) => chooseItem(line.key, event.target.value)}><option value="">Choose item</option>{items.map((item) => <option key={item._id} value={item._id}>{item.name} · {item.sku}</option>)}</DarkSelect></Field>
+          <Field label={`Quantity${line.purchaseUnit ? ` (${line.purchaseUnit})` : ""}`} hint={line.item ? `Adds ${(Number(line.quantity || 0) * Number(line.conversionFactor || 1)).toLocaleString()} ${line.baseUnit}` : undefined}><input required min="0.0001" step="any" type="number" className={inputClass} value={line.quantity} onChange={(event) => updateLine(line.key, "quantity", event.target.value)} /></Field>
+          <Field label={`Cost / ${line.purchaseUnit || "unit"} (SAR)`} hint={line.item ? `${(Number(line.unitCost || 0) / Number(line.conversionFactor || 1)).toFixed(4)} SAR / ${line.baseUnit}` : undefined}><input required min="0" step="0.01" type="number" className={inputClass} value={line.unitCost} onChange={(event) => updateLine(line.key, "unitCost", event.target.value)} /></Field>
           <Field label="Expiry"><DarkDatePicker className={inputClass} value={line.expiryDate} onChange={(event) => updateLine(line.key, "expiryDate", event.target.value)} /></Field>
           <button type="button" disabled={form.items.length === 1} onClick={() => setForm((current) => ({ ...current, items: current.items.filter((item) => item.key !== line.key) }))} className="mt-6 grid h-10 w-10 place-items-center rounded-xl text-neutral-600 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button>
         </div>)}

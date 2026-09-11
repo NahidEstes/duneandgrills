@@ -56,7 +56,8 @@ export default function StockItemsPage() {
   const columns = [
     { key: "name", label: "Item", render: (item) => <div><p className="font-medium text-white">{item.name}</p><p className="mt-0.5 text-[0.65rem] text-neutral-600">{item.sku}</p></div> },
     { key: "category", label: "Category", render: (item) => item.category?.name || "—" },
-    { key: "unit", label: "Unit" },
+    { key: "unit", label: "Usage unit" },
+    { key: "purchaseUnit", label: "Purchase conversion", render: (item) => <div><p>{item.purchaseUnit || item.unit}</p><p className="text-[0.65rem] text-neutral-600">1 {item.purchaseUnit || item.unit} = {item.purchaseConversionFactor || 1} {item.unit}</p></div> },
     { key: "stock", label: "Current stock", render: (item) => <span className="tabular-nums">{formatQuantity(item.currentStock, item.unit)}</span> },
     { key: "reorder", label: "Reorder level", render: (item) => formatQuantity(item.reorderLevel, item.unit) },
     { key: "cost", label: "Unit cost", render: (item) => <Money value={item.unitCost} /> },

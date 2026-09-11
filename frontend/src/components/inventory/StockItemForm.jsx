@@ -6,10 +6,10 @@ import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 import { useEffect, useState } from "react";
 import { LoaderCircle, Save } from "lucide-react";
 import { Button, Field, inputClass, textareaClass } from "./InventoryUI.jsx";
-import { INVENTORY_UNITS } from "./inventoryUtils.js";
+import { INVENTORY_UNITS, PURCHASE_UNITS } from "./inventoryUtils.js";
 
 const blank = {
-  name: "", sku: "", category: "", unit: "kg", openingStock: 0, reorderLevel: 0,
+  name: "", sku: "", category: "", unit: "kg", purchaseUnit: "kg", purchaseConversionFactor: 1, openingStock: 0, reorderLevel: 0,
   unitCost: 0, supplier: "", tracksExpiry: false, expiryDate: "", storageLocation: "",
   isActive: true, allowNegativeStock: false,
 };
@@ -19,7 +19,9 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
   useEffect(() => {
     setForm(item ? {
       name: item.name || "", sku: item.sku || "", category: item.category?._id || item.category || "",
-      unit: item.unit || "kg", reorderLevel: item.reorderLevel ?? 0, unitCost: item.unitCost ?? 0,
+      unit: item.unit || "kg", purchaseUnit: item.purchaseUnit || item.unit || "kg",
+      purchaseConversionFactor: item.purchaseConversionFactor ?? 1,
+      reorderLevel: item.reorderLevel ?? 0, unitCost: item.unitCost ?? 0,
       supplier: item.supplier?._id || item.supplier || "", tracksExpiry: Boolean(item.tracksExpiry),
       expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().slice(0, 10) : "",
       storageLocation: item.storageLocation || "", isActive: item.isActive !== false,
@@ -34,6 +36,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
       openingStock: item ? undefined : Number(form.openingStock),
       reorderLevel: Number(form.reorderLevel),
       unitCost: Number(form.unitCost),
+      purchaseConversionFactor: Number(form.purchaseConversionFactor),
       supplier: form.supplier || null,
       expiryDate: form.tracksExpiry && form.expiryDate ? form.expiryDate : null,
     });
@@ -43,10 +46,12 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
       <Field label="Item name"><input required className={inputClass} value={form.name} onChange={(event) => set("name", event.target.value)} placeholder="e.g. Chicken breast" /></Field>
       <Field label="SKU / stable inventory ID" hint="Used for future integrations and must remain unique."><input required className={inputClass} value={form.sku} onChange={(event) => set("sku", event.target.value.toUpperCase())} placeholder="INV-CHKN-001" /></Field>
       <Field label="Category"><DarkSelect required className={inputClass} value={form.category} onChange={(event) => set("category", event.target.value)}><option value="">Choose category</option>{categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
-      <Field label="Unit"><DarkSelect required className={inputClass} value={form.unit} onChange={(event) => set("unit", event.target.value)}>{INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</DarkSelect></Field>
-      {!item && <Field label="Opening stock" hint="Saved as an opening-balance transaction."><input required min="0" step="any" type="number" className={inputClass} value={form.openingStock} onChange={(event) => set("openingStock", event.target.value)} /></Field>}
+      <Field label="Usage / base unit" hint="Recipes, stock balances and deductions use this unit."><DarkSelect required className={inputClass} value={form.unit} onChange={(event) => { const next = event.target.value; setForm((current) => { const followsBaseUnit = current.purchaseUnit === current.unit; return { ...current, unit: next, purchaseUnit: followsBaseUnit ? next : current.purchaseUnit, purchaseConversionFactor: followsBaseUnit ? 1 : current.purchaseConversionFactor }; }); }}>{INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</DarkSelect></Field>
+      <Field label="Purchase unit" hint="The unit shown on purchase orders and receipts."><DarkSelect required className={inputClass} value={form.purchaseUnit} onChange={(event) => { const next = event.target.value; setForm((current) => ({ ...current, purchaseUnit: next, purchaseConversionFactor: next === current.unit ? 1 : current.purchaseConversionFactor })); }}>{PURCHASE_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</DarkSelect></Field>
+      <Field label={`Base units per ${form.purchaseUnit || "purchase unit"}`} hint={`1 ${form.purchaseUnit || "purchase unit"} = ${Number(form.purchaseConversionFactor) || 0} ${form.unit}`}><input required min="0.000001" step="any" type="number" className={inputClass} value={form.purchaseConversionFactor} onChange={(event) => set("purchaseConversionFactor", event.target.value)} /></Field>
+      {!item && <Field label={`Opening stock (${form.unit})`} hint="Opening stock is entered in the base unit and saved as a batch."><input required min="0" step="any" type="number" className={inputClass} value={form.openingStock} onChange={(event) => set("openingStock", event.target.value)} /></Field>}
       <Field label="Reorder level"><input required min="0" step="any" type="number" className={inputClass} value={form.reorderLevel} onChange={(event) => set("reorderLevel", event.target.value)} /></Field>
-      <Field label="Unit cost (SAR)"><input required min="0" step="0.01" type="number" className={inputClass} value={form.unitCost} onChange={(event) => set("unitCost", event.target.value)} /></Field>
+      <Field label={`Base unit cost (SAR / ${form.unit})`} hint="Recipe costing uses this base-unit value."><input required min="0" step="0.01" type="number" className={inputClass} value={form.unitCost} onChange={(event) => set("unitCost", event.target.value)} /></Field>
       <Field label="Primary supplier"><DarkSelect className={inputClass} value={form.supplier} onChange={(event) => set("supplier", event.target.value)}><option value="">No supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
       <Field label="Storage location"><input className={inputClass} value={form.storageLocation} onChange={(event) => set("storageLocation", event.target.value)} placeholder="Walk-in freezer · Shelf B2" /></Field>
       {form.tracksExpiry && <Field label="Next expiry date"><DarkDatePicker className={inputClass} value={form.expiryDate} onChange={(event) => set("expiryDate", event.target.value)} /></Field>}

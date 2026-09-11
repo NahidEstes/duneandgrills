@@ -4,6 +4,7 @@ import PurchaseOrder from "../models/PurchaseOrder.js";
 import Supplier from "../models/Supplier.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
 import { performStockMovement, runInventoryTransaction } from "./inventoryStockService.js";
+import { getPurchaseConfiguration, toBaseQuantity, toBaseUnitCost } from "./inventoryUnitService.js";
 
 const nextNumber = async () => {
   const year = new Date().getUTCFullYear();
@@ -22,6 +23,7 @@ export const hydratePurchaseLines = async (lines, session = null) => {
   if (map.size !== ids.length) throw new ValidationError("One or more purchase items are missing or inactive");
   return lines.map((line) => {
     const item = map.get(String(line.item));
+    const { baseUnit, purchaseUnit, conversionFactor } = getPurchaseConfiguration(item);
     return {
       item: item._id,
       itemName: item.name,
@@ -29,6 +31,9 @@ export const hydratePurchaseLines = async (lines, session = null) => {
       quantity: Number(line.quantity),
       receivedQuantity: Number(line.receivedQuantity) || 0,
       unitCost: Number(line.unitCost),
+      purchaseUnit,
+      baseUnit,
+      conversionFactor,
       expiryDate: line.expiryDate || null,
     };
   });
@@ -110,18 +115,27 @@ export const receivePurchaseOrder = async (purchaseOrderId, receiptLines, userId
     for (const receipt of receiptLines) {
       const line = lineMap.get(String(receipt.lineId));
       const quantity = Number(receipt.quantity);
+      const conversionFactor = Number(line.conversionFactor) > 0 ? Number(line.conversionFactor) : 1;
+      const baseQuantity = toBaseQuantity(quantity, conversionFactor);
+      const baseUnitCost = toBaseUnitCost(line.unitCost, conversionFactor);
       const result = await performStockMovement(
         {
           itemId: line.item,
           movementType: "PURCHASE_RECEIPT",
-          quantity,
+          quantity: baseQuantity,
           reason: `Purchase receipt ${order.orderNumber}`,
           notes: receipt.notes || notes,
           userId,
           purchaseOrder: order._id,
           reference: order.orderNumber,
-          unitCost: line.unitCost,
+          unitCost: baseUnitCost,
           expiryDate: receipt.expiryDate || line.expiryDate,
+          lotNumber: receipt.lotNumber,
+          receivedAt: receipt.receivedAt,
+          supplier: order.supplier,
+          purchaseQuantity: quantity,
+          purchaseUnit: line.purchaseUnit || line.baseUnit,
+          conversionFactor,
         },
         { session }
       );
