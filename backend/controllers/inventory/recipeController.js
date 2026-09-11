@@ -1,6 +1,7 @@
 import InventoryItem from "../../models/InventoryItem.js";
 import InventoryRecipe from "../../models/InventoryRecipe.js";
 import MenuItem from "../../models/MenuItem.js";
+import { calculateRecipeCosts } from "../../services/recipeCostService.js";
 import {
   assertObjectId,
   escapeRegex,
@@ -14,31 +15,39 @@ const recipePopulate = {
   populate: { path: "category", select: "name" },
 };
 
-const recipeMetrics = (menuItem, recipe) => {
+const serializeRecipe = (menuItem, recipe) => {
   const ingredients = recipe?.ingredients || [];
-  const ingredientCost = ingredients.reduce((total, line) => {
-    if (!line.isActive || !line.inventoryItem) return total;
-    return total + Number(line.quantityPerSale) * Number(line.inventoryItem.unitCost || 0);
-  }, 0);
-  const sellingPrice = Number(menuItem.price || 0);
-  const profit = sellingPrice - ingredientCost;
+  const costs = calculateRecipeCosts({ ingredients, sellingPrice: menuItem.price });
+  const costedRecipe = recipe
+    ? {
+        ...recipe,
+        ingredients: ingredients.map((line, index) => ({
+          ...line,
+          costPerUnit: costs.lines[index].costPerUnit,
+          ingredientCostPerDish: costs.lines[index].ingredientCostPerDish,
+        })),
+      }
+    : null;
+
   return {
-    ingredientCost: Number(ingredientCost.toFixed(2)),
-    estimatedProfit: Number(profit.toFixed(2)),
-    margin: sellingPrice > 0 ? Number(((profit / sellingPrice) * 100).toFixed(1)) : 0,
+    ...menuItem,
+    recipe: costedRecipe,
+    recipeStatus: recipe?.doNotTrack
+      ? "do_not_track"
+      : recipe?.ingredients?.length
+        ? "configured"
+        : "not_configured",
+    metrics: {
+      ingredientCost: costs.totalEstimatedIngredientCost,
+      totalEstimatedIngredientCost: costs.totalEstimatedIngredientCost,
+      sellingPrice: costs.sellingPrice,
+      estimatedProfit: costs.estimatedProfit,
+      margin: costs.profitMargin,
+      profitMargin: costs.profitMargin,
+      currency: costs.currency,
+    },
   };
 };
-
-const serializeRecipe = (menuItem, recipe) => ({
-  ...menuItem,
-  recipe: recipe || null,
-  recipeStatus: recipe?.doNotTrack
-    ? "do_not_track"
-    : recipe?.ingredients?.length
-      ? "configured"
-      : "not_configured",
-  metrics: recipeMetrics(menuItem, recipe),
-});
 
 export const listRecipes = async (req, res, next) => {
   try {
@@ -120,7 +129,7 @@ export const updateRecipe = async (req, res, next) => {
       }
       normalized.push({ inventoryItem: id, quantityPerSale: quantity, isActive: line.isActive !== false });
     }
-    const inventoryItems = await InventoryItem.find({ _id: { $in: [...seen] } }).select("unit isActive");
+    const inventoryItems = await InventoryItem.find({ _id: { $in: [...seen] } }).select("unit unitCost isActive");
     if (inventoryItems.length !== seen.size) throw new ValidationError("One or more inventory ingredients were not found");
     const inventoryMap = new Map(inventoryItems.map((item) => [String(item._id), item]));
     for (const line of normalized) {
