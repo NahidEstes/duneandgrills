@@ -5,6 +5,7 @@ import StockTransaction from "../../models/StockTransaction.js";
 import { buildInventoryDashboard, getInventorySettings } from "../../services/inventoryAnalyticsService.js";
 import { getBatchSnapshots } from "../../services/inventoryBatchService.js";
 import { parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
+import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
 
 export const getDashboard = async (req, res, next) => {
   try { res.json({ success: true, data: await buildInventoryDashboard() }); } catch (error) { next(error); }
@@ -106,6 +107,7 @@ export const getSettings = async (req, res, next) => {
 
 export const updateSettings = async (req, res, next) => {
   try {
+    const beforeRow = await InventorySettings.findOne({ key: "default" }).lean();
     const payload = { updatedBy: req.user._id };
     if ("outletName" in req.body) payload.outletName = String(req.body.outletName || "").trim();
     if ("expiryAlertDays" in req.body) {
@@ -115,6 +117,8 @@ export const updateSettings = async (req, res, next) => {
     }
     if ("defaultAllowNegativeStock" in req.body) payload.defaultAllowNegativeStock = Boolean(req.body.defaultAllowNegativeStock);
     const row = await InventorySettings.findOneAndUpdate({ key: "default" }, { $set: payload, $setOnInsert: { key: "default" } }, { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true });
+    const fields = ["outletName", "expiryAlertDays", "defaultAllowNegativeStock"];
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_SETTINGS_UPDATED", entityType: "InventorySettings", entityId: row._id, entityLabel: row.outletName || "Inventory settings", before: pickAuditFields(beforeRow, fields), after: pickAuditFields(row, fields) });
     res.json({ success: true, data: row });
   } catch (error) { next(error); }
 };

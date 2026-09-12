@@ -17,6 +17,8 @@ import {
   Search,
   Settings,
   ShoppingBasket,
+  PackageSearch,
+  ShieldCheck,
   Star,
   Store,
   Tag,
@@ -33,6 +35,7 @@ import SmartImage from "../SmartImage.jsx";
 const NAV_ITEMS = [
   { id: "overview", label: "Dashboard", icon: LayoutDashboard },
   { id: "pos", label: "POS / New Sale", icon: ShoppingBasket },
+  { id: "inventory", label: "Inventory", icon: PackageSearch, href: "/inventory" },
   { id: "orders", label: "Orders", icon: ClipboardList, badge: "orders" },
   { id: "menu", label: "Menu Items", icon: UtensilsCrossed },
   { id: "combos", label: "Combos", icon: Layers3 },
@@ -43,6 +46,7 @@ const NAV_ITEMS = [
   { id: "blog", label: "Blog", icon: BookOpenText },
   { id: "reviews", label: "Reviews", icon: Star },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "audit", label: "Audit Log", icon: ShieldCheck },
   { id: "staff", label: "Staff", icon: UserRoundCog },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -122,10 +126,11 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose }) => (
     </div>
 
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5" aria-label="Admin navigation">
-      {NAV_ITEMS.map(({ id, label, icon: Icon, badge }) => {
-        if (id === "pos") {
+      {NAV_ITEMS.map(({ id, label, icon: Icon, badge, href }) => {
+        const directHref = href || (id === "pos" ? "/pos" : null);
+        if (directHref) {
           return (
-            <Link key={id} href="/pos" onClick={() => onClose?.()} className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3.5 text-sm font-medium text-neutral-300 hover:bg-white/[0.04] hover:text-dune-amber">
+            <Link key={id} href={directHref} onClick={() => onClose?.()} className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3.5 text-sm font-medium text-neutral-300 hover:bg-white/[0.04] hover:text-dune-amber">
               <Icon className="h-[1.1rem] w-[1.1rem]" />{label}
             </Link>
           );

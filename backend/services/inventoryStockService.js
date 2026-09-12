@@ -12,6 +12,7 @@ import {
   updateItemNextExpiry,
 } from "./inventoryBatchService.js";
 import { nextInventoryReference } from "./inventoryReferenceService.js";
+import { recordAuditLog } from "./auditLogService.js";
 
 const INBOUND_TYPES = new Set(["STOCK_IN", "PURCHASE_RECEIPT", "OPENING_BALANCE"]);
 const OUTBOUND_TYPES = new Set(["STOCK_OUT", "WASTE", "DAMAGED"]);
@@ -109,6 +110,7 @@ export const performStockMovement = async (
   if (!updated) throw new ValidationError("Stock changed while this operation was being saved. Please try again");
 
   let batchChanges = null;
+  let createdTransaction = null;
   try {
     const stockDelta = Number((Number(updated.currentStock) - Number(item.currentStock)).toFixed(6));
     if (restoreAllocations?.length && stockDelta > 0) {
@@ -177,6 +179,7 @@ export const performStockMovement = async (
       ],
       sessionOptions(session)
     );
+    createdTransaction = transaction;
     if (batchChanges?.createdBatchIds?.length) {
       await InventoryBatch.updateMany(
         { _id: { $in: batchChanges.createdBatchIds } },
@@ -184,9 +187,26 @@ export const performStockMovement = async (
         sessionOptions(session)
       );
     }
+    await recordAuditLog({
+      actorId: userId,
+      action: "INVENTORY_STOCK_MOVEMENT",
+      entityType: "InventoryItem",
+      entityId: item._id,
+      entityLabel: `${item.name} · ${transaction.reference}`,
+      before: { currentStock: item.currentStock, unitCost: item.unitCost, expiryDate: item.expiryDate },
+      after: { currentStock: updated.currentStock, unitCost: updated.unitCost, expiryDate: updated.expiryDate },
+      metadata: {
+        movementType,
+        quantity: transaction.quantity,
+        reference: transaction.reference,
+        reason,
+        batchAllocations: transaction.batchAllocations,
+      },
+    }, { session });
     return { item: updated, transaction };
   } catch (error) {
     if (!session) {
+      if (createdTransaction) await StockTransaction.deleteOne({ _id: createdTransaction._id });
       await rollbackBatchChanges(batchChanges);
       await InventoryItem.updateOne(
         { _id: item._id, currentStock: updated.currentStock },

@@ -12,12 +12,13 @@ import CombosTab from "./admin/CombosTab.jsx";
 import CategoriesTab from "./admin/CategoriesTab.jsx";
 import RewardsTab from "./admin/RewardsTab.jsx";
 import {
-  AnalyticsView,
   CustomersView,
   ReviewsView,
   SettingsView,
   StaffView,
 } from "./admin/AdminViews.jsx";
+import AnalyticsView from "./admin/AnalyticsView.jsx";
+import AuditLogView from "./admin/AuditLogView.jsx";
 import BlogTab from "./BlogTab.jsx";
 import OffersTab from "./OffersTab.jsx";
 import OrdersTab from "./OrdersTab.jsx";
@@ -66,6 +67,10 @@ const TAB_CONTENT = {
   analytics: {
     title: "Restaurant Analytics",
     subtitle: "Revenue, order status and menu performance from live records.",
+  },
+  audit: {
+    title: "Admin Audit Log",
+    subtitle: "Permanent history of operational and administrative changes.",
   },
   staff: {
     title: "Staff Accounts",
@@ -218,7 +223,8 @@ const AdminDashboard = () => {
       {activeTab === "reviews" && (
         <ReviewsView onDataChanged={refreshAfterMutation} />
       )}
-      {activeTab === "analytics" && <AnalyticsView dashboard={dashboard} />}
+      {activeTab === "analytics" && <AnalyticsView />}
+      {activeTab === "audit" && <AuditLogView />}
       {activeTab === "staff" && <StaffView />}
       {activeTab === "settings" && <SettingsView dashboard={dashboard} />}
     </AdminShell>

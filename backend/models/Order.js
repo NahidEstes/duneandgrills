@@ -161,6 +161,19 @@ const orderSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    cancellationReason: { type: String, default: "", trim: true, maxlength: 500 },
+    refundReason: { type: String, default: "", trim: true, maxlength: 500 },
+    estimatedPreparationMinutes: { type: Number, default: null, min: 1, max: 240 },
+    preparationDueAt: { type: Date, default: null },
+    statusHistory: {
+      type: [{
+        status: { type: String, required: true },
+        reason: { type: String, default: "", trim: true, maxlength: 500 },
+        changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        changedAt: { type: Date, default: Date.now },
+      }],
+      default: [],
+    },
     eligiblePointsAmount: { type: Number, default: 0, min: 0 },
     pointsEarned: { type: Number, default: 0, min: 0 },
     pointsAwardedAt: { type: Date, default: null },
@@ -195,6 +208,8 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.index({ source: 1, createdAt: -1 });
 orderSchema.index({ orderType: 1, createdAt: -1 });
+orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ preparationDueAt: 1, status: 1 });
 orderSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 const Order = mongoose.model("Order", orderSchema);

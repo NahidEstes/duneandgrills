@@ -5,11 +5,15 @@ import {
   searchAdmin,
 } from "../controllers/adminController.js";
 import { authorize, protect } from "../middleware/auth.js";
+import { getAdminAnalytics } from "../controllers/adminAnalyticsController.js";
+import { listAuditLogs } from "../controllers/auditController.js";
 
 const router = express.Router();
 
 router.use(protect, authorize("admin", "manager"));
 router.get("/dashboard", getDashboard);
+router.get("/analytics", getAdminAnalytics);
+router.get("/audit-logs", listAuditLogs);
 router.get("/users", getAdminUsers);
 router.get("/search", searchAdmin);
 

@@ -32,9 +32,59 @@ import {
 import { deductOrderInventory, restoreOrderInventory } from "../services/orderInventoryService.js";
 import { runInventoryTransaction } from "../services/inventoryStockService.js";
 import { PAYMENT_METHODS, SALES_SOURCES } from "../config/sales.js";
+import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
+import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
+import { ValidationError } from "../utils/inventoryValidation.js";
 
 const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
 const reversalStatuses = new Set(nonRevenueStatuses);
+const ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery", "delivered", "cancelled", "refunded", "failed"]);
+const OPEN_ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery"]);
+
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const addDateFilter = (filter, query) => {
+  if (!query.from && !query.to) return;
+  filter.createdAt = {};
+  if (query.from) {
+    filter.createdAt.$gte = parseRiyadhDate(query.from, "From date");
+  }
+  if (query.to) {
+    filter.createdAt.$lt = new Date(parseRiyadhDate(query.to, "To date").getTime() + ADMIN_DAY_MS);
+  }
+  if (filter.createdAt.$gte && filter.createdAt.$lt && filter.createdAt.$gte >= filter.createdAt.$lt) {
+    throw new ValidationError("From date must be before or equal to To date");
+  }
+};
+
+const buildOrderFilter = (query, { includeStatus = true } = {}) => {
+  const filter = {};
+  if (includeStatus && query.status && query.status !== "all") filter.status = query.status;
+  if (query.source && SALES_SOURCES.includes(query.source)) {
+    if (query.source === "website") filter.$or = [{ source: "website" }, { source: { $exists: false } }];
+    else filter.source = query.source;
+  }
+  if (query.orderType && ["dine-in", "pickup", "takeaway", "delivery"].includes(query.orderType)) filter.orderType = query.orderType;
+  if (query.paymentMethod && PAYMENT_METHODS.includes(query.paymentMethod)) filter.paymentMethod = query.paymentMethod;
+  addDateFilter(filter, query);
+  if (query.search?.trim()) {
+    const value = new RegExp(escapeRegex(query.search.trim()), "i");
+    const searchFilter = [{ orderNumber: value }, { "customer.name": value }, { "customer.phone": value }, { "customer.email": value }];
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, { $or: searchFilter }];
+      delete filter.$or;
+    } else filter.$or = searchFilter;
+  }
+  return filter;
+};
+
+const serializeAdminOrder = (order) => {
+  const value = typeof order.toObject === "function" ? order.toObject() : order;
+  return {
+    ...value,
+    isOverdue: Boolean(value.preparationDueAt && OPEN_ORDER_STATUSES.has(value.status) && new Date(value.preparationDueAt) < new Date()),
+  };
+};
 
 // @desc    Get server-authoritative order types and delivery pricing
 // @route   GET /api/orders/config
@@ -332,24 +382,25 @@ export const createOrder = async (req, res) => {
 // @access  Admin/Manager
 export const getOrders = async (req, res) => {
   try {
-    const { status, source, orderType, paymentMethod } = req.query;
-    const filter = {};
-    if (status && status !== "all") filter.status = status;
-    if (source && SALES_SOURCES.includes(source)) {
-      if (source === "website") filter.$or = [{ source: "website" }, { source: { $exists: false } }];
-      else filter.source = source;
-    }
-    if (orderType && ["dine-in", "pickup", "takeaway", "delivery"].includes(orderType)) filter.orderType = orderType;
-    if (paymentMethod && PAYMENT_METHODS.includes(paymentMethod)) filter.paymentMethod = paymentMethod;
-
-    const orders = await Order.find(filter).populate("createdBy", "name role").sort({ createdAt: -1 });
-    res.status(200).json({ success: true, count: orders.length, data: orders });
+    const filter = buildOrderFilter(req.query);
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || (req.query.page ? 20 : 100)));
+    const [orders, total] = await Promise.all([
+      Order.find(filter).populate("createdBy", "name role").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Order.countDocuments(filter),
+    ]);
+    res.status(200).json({
+      success: true,
+      count: total,
+      data: orders.map(serializeAdminOrder),
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     res
-      .status(500)
+      .status(err.status || 500)
       .json({
         success: false,
-        message: "Failed to fetch orders",
+        message: err.status ? err.message : "Failed to fetch orders",
         error: err.message,
       });
   }
@@ -363,13 +414,7 @@ export const getOrderStats = async (req, res) => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const filter = {};
-    if (req.query.source && SALES_SOURCES.includes(req.query.source)) {
-      if (req.query.source === "website") filter.$or = [{ source: "website" }, { source: { $exists: false } }];
-      else filter.source = req.query.source;
-    }
-    if (req.query.orderType && ["dine-in", "pickup", "takeaway", "delivery"].includes(req.query.orderType)) filter.orderType = req.query.orderType;
-    if (req.query.paymentMethod && PAYMENT_METHODS.includes(req.query.paymentMethod)) filter.paymentMethod = req.query.paymentMethod;
+    const filter = buildOrderFilter(req.query, { includeStatus: false });
     const allOrders = await Order.find(filter);
 
     const totalRevenue = allOrders
@@ -398,10 +443,10 @@ export const getOrderStats = async (req, res) => {
     });
   } catch (err) {
     res
-      .status(500)
+      .status(err.status || 500)
       .json({
         success: false,
-        message: "Failed to fetch stats",
+        message: err.status ? err.message : "Failed to fetch stats",
         error: err.message,
       });
   }
@@ -428,88 +473,146 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-// @desc    Update order status
+const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPreparationMinutes, actor }) => {
+  if (!ORDER_STATUSES.has(status)) throw new Error("Invalid order status");
+  const normalizedReason = typeof reason === "string" ? reason.trim() : "";
+  if (status === "cancelled" && !normalizedReason) throw new Error("Cancellation reason is required");
+  if (status === "refunded" && !normalizedReason) throw new Error("Refund reason is required");
+  let prepMinutes = estimatedPreparationMinutes;
+  if (prepMinutes !== undefined && prepMinutes !== null && prepMinutes !== "") {
+    prepMinutes = Number(prepMinutes);
+    if (!Number.isInteger(prepMinutes) || prepMinutes < 1 || prepMinutes > 240) {
+      throw new Error("Estimated preparation time must be between 1 and 240 minutes");
+    }
+  } else prepMinutes = null;
+
+  const auditFields = ["status", "paymentStatus", "inventoryStatus", "cancellationReason", "refundReason", "estimatedPreparationMinutes", "preparationDueAt"];
+  const before = pickAuditFields(order, auditFields);
+  order.status = status;
+  if (status === "cancelled") order.cancellationReason = normalizedReason;
+  if (status === "refunded") order.refundReason = normalizedReason;
+  if (prepMinutes && (Number(order.estimatedPreparationMinutes) !== prepMinutes || !order.preparationDueAt)) {
+    order.estimatedPreparationMinutes = prepMinutes;
+    order.preparationDueAt = new Date(Date.now() + prepMinutes * 60 * 1000);
+  }
+  await order.validate();
+
+  if (reversalStatuses.has(status) && order.inventoryStatus === "deducted" && order.inventoryTransactions?.length) {
+    await runInventoryTransaction(async (session) => {
+      const restorations = await restoreOrderInventory({
+        transactionIds: order.inventoryTransactions,
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        actorId: actor._id,
+        status,
+        session,
+      });
+      order.inventoryRestorationTransactions = restorations.map((transaction) => transaction._id);
+      order.inventoryStatus = "restored";
+      order.inventoryRestoredAt = new Date();
+      await order.save(session ? { session } : {});
+    });
+  }
+  if (order.source === "pos") {
+    if (["cancelled", "refunded"].includes(status)) order.paymentStatus = "refunded";
+    else if (status === "failed") order.paymentStatus = "failed";
+    else if (status === "delivered") order.paymentStatus = "paid";
+  }
+
+  if (status === "delivered" && order.user) {
+    const points = calculateOrderPoints(order.eligiblePointsAmount ?? order.totalAmount);
+    const credited = await creditOrderPoints({ userId: order.user, orderId: order._id, orderNumber: order.orderNumber, points });
+    if (credited || !order.pointsAwardedAt) {
+      order.pointsEarned = points;
+      order.pointsAwardedAt = order.pointsAwardedAt || new Date();
+      order.pointsReversedAt = null;
+    }
+  }
+
+  if (reversalStatuses.has(status) && order.user) {
+    const reversed = await reverseOrderPoints({ userId: order.user, orderId: order._id, orderNumber: order.orderNumber });
+    if (reversed) order.pointsReversedAt = order.pointsReversedAt || new Date();
+    if (order.rewardRedemption?.redemptionId) {
+      await restoreRedemption({
+        userId: order.user,
+        redemptionId: order.rewardRedemption.redemptionId,
+        expectedStatuses: ["applied"],
+        status: "restored",
+        description: `${order.rewardRedemption.title} returned after Order #${order.orderNumber} was ${status}`,
+      });
+    }
+  }
+
+  order.statusHistory.push({ status, reason: normalizedReason, changedBy: actor._id, changedAt: new Date() });
+  await order.save();
+  await recordAuditLog({
+    actor,
+    action: "ORDER_STATUS_CHANGED",
+    entityType: "Order",
+    entityId: order._id,
+    entityLabel: `Order #${order.orderNumber}`,
+    before,
+    after: pickAuditFields(order, auditFields),
+    metadata: { reason: normalizedReason },
+  });
+  return order;
+};
+
+// @desc    Update order status, reason and preparation estimate
 // @route   PATCH /api/orders/:id/status
-// @access  Admin
+// @access  Admin/Manager
 export const updateOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body;
     const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Order not found" });
-    }
-
-    order.status = status;
-    await order.validate();
-
-    if (reversalStatuses.has(status) && order.inventoryStatus === "deducted" && order.inventoryTransactions?.length) {
-      await runInventoryTransaction(async (session) => {
-        const restorations = await restoreOrderInventory({
-          transactionIds: order.inventoryTransactions,
-          orderId: order._id,
-          orderNumber: order.orderNumber,
-          actorId: req.user._id,
-          status,
-          session,
-        });
-        order.inventoryRestorationTransactions = restorations.map((transaction) => transaction._id);
-        order.inventoryStatus = "restored";
-        order.inventoryRestoredAt = new Date();
-        await order.save(session ? { session } : {});
-      });
-    }
-    if (order.source === "pos") {
-      if (["cancelled", "refunded"].includes(status)) order.paymentStatus = "refunded";
-      else if (status === "failed") order.paymentStatus = "failed";
-      else if (status === "delivered") order.paymentStatus = "paid";
-    }
-
-    if (status === "delivered" && order.user) {
-      const points = calculateOrderPoints(
-        order.eligiblePointsAmount ?? order.totalAmount
-      );
-      const credited = await creditOrderPoints({
-        userId: order.user,
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        points,
-      });
-      if (credited || !order.pointsAwardedAt) {
-        order.pointsEarned = points;
-        order.pointsAwardedAt = order.pointsAwardedAt || new Date();
-        order.pointsReversedAt = null;
-      }
-    }
-
-    if (reversalStatuses.has(status) && order.user) {
-      const reversed = await reverseOrderPoints({
-        userId: order.user,
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-      });
-      if (reversed) order.pointsReversedAt = order.pointsReversedAt || new Date();
-
-      if (order.rewardRedemption?.redemptionId) {
-        await restoreRedemption({
-          userId: order.user,
-          redemptionId: order.rewardRedemption.redemptionId,
-          expectedStatuses: ["applied"],
-          status: "restored",
-          description: `${order.rewardRedemption.title} returned after Order #${order.orderNumber} was ${status}`,
-        });
-      }
-    }
-
-    await order.save();
-    res.status(200).json({ success: true, data: order });
-  } catch (err) {
-    res.status(400).json({
-      success: false,
-      message: "Failed to update order",
-      error: err.message,
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    const updated = await applyOrderStatusUpdate({
+      order,
+      status: req.body.status,
+      reason: req.body.reason,
+      estimatedPreparationMinutes: req.body.estimatedPreparationMinutes,
+      actor: req.user,
     });
+    res.status(200).json({ success: true, data: serializeAdminOrder(updated) });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message || "Failed to update order" });
+  }
+};
+
+export const bulkUpdateOrderStatus = async (req, res) => {
+  try {
+    const ids = [...new Set(Array.isArray(req.body.orderIds) ? req.body.orderIds.map(String) : [])];
+    if (!ids.length || ids.length > 100 || ids.some((id) => !mongoose.isValidObjectId(id))) {
+      return res.status(400).json({ success: false, message: "Choose between 1 and 100 valid orders" });
+    }
+    if (!ORDER_STATUSES.has(req.body.status)) {
+      return res.status(400).json({ success: false, message: "Invalid order status" });
+    }
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
+    if (["cancelled", "refunded"].includes(req.body.status)) {
+      // Kept inline here so no order is changed before a required bulk reason is validated.
+      if (!reason) return res.status(400).json({ success: false, message: `${req.body.status === "cancelled" ? "Cancellation" : "Refund"} reason is required` });
+    }
+    if (req.body.estimatedPreparationMinutes !== undefined && req.body.estimatedPreparationMinutes !== null && req.body.estimatedPreparationMinutes !== "") {
+      const minutes = Number(req.body.estimatedPreparationMinutes);
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) {
+        return res.status(400).json({ success: false, message: "Estimated preparation time must be between 1 and 240 minutes" });
+      }
+    }
+    const orders = await Order.find({ _id: { $in: ids } }).sort({ createdAt: 1 });
+    if (orders.length !== ids.length) return res.status(404).json({ success: false, message: "One or more orders were not found" });
+    const updated = [];
+    for (const order of orders) {
+      updated.push(await applyOrderStatusUpdate({
+        order,
+        status: req.body.status,
+        reason: req.body.reason,
+        estimatedPreparationMinutes: req.body.estimatedPreparationMinutes,
+        actor: req.user,
+      }));
+    }
+    res.json({ success: true, count: updated.length, data: updated.map(serializeAdminOrder) });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message || "Failed to update orders" });
   }
 };
 

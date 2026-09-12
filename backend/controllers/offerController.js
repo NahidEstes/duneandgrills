@@ -7,6 +7,7 @@ import {
   serializeCombo,
 } from "../services/catalogService.js";
 import { calculateCoupon } from "../services/couponService.js";
+import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
 
 const OFFER_FIELDS = [
   "title",
@@ -205,6 +206,7 @@ export const createOffer = async (req, res) => {
     ]);
     const offer = await Offer.create(payload);
     await offer.populate(offerPopulation);
+    await recordAuditLog({ actor: req.user, action: "OFFER_CREATED", entityType: "Offer", entityId: offer._id, entityLabel: offer.title, after: pickAuditFields(offer, OFFER_FIELDS) });
     res.status(201).json({ success: true, data: serializeOffer(offer) });
   } catch (err) {
     handleControllerError(res, err, "Failed to create offer");
@@ -221,6 +223,7 @@ export const updateOffer = async (req, res) => {
     }
 
     const payload = offerPayload(req.body);
+    const before = pickAuditFields(offer, OFFER_FIELDS);
     const referencePayload = {
       orderProductType: payload.orderProductType ?? offer.orderProductType,
       menuItem: payload.menuItem !== undefined ? payload.menuItem : offer.menuItem,
@@ -232,6 +235,7 @@ export const updateOffer = async (req, res) => {
     ]);
     Object.assign(offer, payload);
     await offer.save();
+    await recordAuditLog({ actor: req.user, action: "OFFER_UPDATED", entityType: "Offer", entityId: offer._id, entityLabel: offer.title, before, after: pickAuditFields(offer, OFFER_FIELDS) });
     await offer.populate(offerPopulation);
 
     return res.status(200).json({ success: true, data: serializeOffer(offer) });
@@ -270,6 +274,8 @@ export const deleteOffer = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Offer not found" });
     }
+
+    await recordAuditLog({ actor: req.user, action: "OFFER_DELETED", entityType: "Offer", entityId: offer._id, entityLabel: offer.title, before: pickAuditFields(offer, OFFER_FIELDS) });
 
     return res
       .status(200)

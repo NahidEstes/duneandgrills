@@ -182,14 +182,26 @@ export const fetchOrders = async (filters = {}) => {
   return data.data;
 };
 
+export const fetchOrdersPage = async (filters = {}) => {
+  const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== "" && value !== undefined && value !== null && value !== "all"));
+  const { data } = await api.get("/orders", { params });
+  return { data: data.data, pagination: data.pagination };
+};
+
 export const fetchOrderStats = async (filters = {}) => {
   const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
   const { data } = await api.get("/orders/stats", { params });
   return data.data;
 };
 
-export const updateOrderStatus = async (id, status) => {
-  const { data } = await api.patch(`/orders/${id}/status`, { status });
+export const updateOrderStatus = async (id, status, options = {}) => {
+  const { data } = await api.patch(`/orders/${id}/status`, { status, ...options });
+  await refreshAfterMutation("orders");
+  return data.data;
+};
+
+export const bulkUpdateOrderStatus = async (orderIds, status, options = {}) => {
+  const { data } = await api.patch("/orders/bulk-status", { orderIds, status, ...options });
   await refreshAfterMutation("orders");
   return data.data;
 };
@@ -287,6 +299,16 @@ export const deleteReward = async (id) => {
 export const fetchAdminDashboard = async () => {
   const { data } = await api.get("/admin/dashboard");
   return data.data;
+};
+
+export const fetchAdminAnalytics = async (params = {}) => {
+  const { data } = await api.get("/admin/analytics", { params });
+  return data.data;
+};
+
+export const fetchAuditLogs = async (params = {}) => {
+  const { data } = await api.get("/admin/audit-logs", { params });
+  return data;
 };
 
 export const fetchAdminUsers = async (scope = "customers", search = "") => {

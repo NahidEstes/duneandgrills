@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Boxes,
   CheckCircle2,
   Clock3,
   Database,
@@ -24,7 +23,6 @@ import SmartImage from "../SmartImage.jsx";
 import {
   formatAdminCurrency,
   formatAdminDate,
-  labelStatus,
 } from "./adminUi.js";
 import { confirmDelete } from "./deleteToast.js";
 
@@ -146,20 +144,6 @@ export const ReviewsView = ({ onDataChanged }) => {
         </article>
       ))}
       {!reviews.length && <div className={`${CARD} col-span-full py-16 text-center text-sm text-neutral-500`}>No customer reviews yet.</div>}
-    </div>
-  );
-};
-
-export const AnalyticsView = ({ dashboard }) => {
-  const analytics = dashboard?.analytics || {};
-  const maxRevenue = Math.max(...(analytics.dailyRevenue || []).map((entry) => entry.revenue), 1);
-  const totalStatuses = (analytics.statusBreakdown || []).reduce((sum, entry) => sum + entry.count, 0);
-  return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <section className={`${CARD} p-5 sm:p-6`}><div className="flex items-center justify-between"><div><h2 className="font-body text-base font-semibold text-white">Revenue · Last 7 Days</h2><p className="mt-1 text-xs text-neutral-500">Cancelled orders are excluded.</p></div><Database className="h-5 w-5 text-dune-amber" /></div><div className="mt-8 flex h-56 items-end gap-2 sm:gap-4">{(analytics.dailyRevenue || []).map((entry) => <div key={entry.date} className="flex min-w-0 flex-1 flex-col items-center gap-2"><span className="text-[0.58rem] text-neutral-500 sm:text-[0.65rem]">{entry.revenue ? formatAdminCurrency(entry.revenue).replace("SAR ", "") : "0"}</span><div className="flex h-40 w-full items-end rounded-t-md bg-white/[0.03]"><div className="w-full rounded-t-md bg-gradient-to-t from-dune-amberDeep to-dune-amber transition-all" style={{ height: `${Math.max((entry.revenue / maxRevenue) * 100, entry.revenue ? 6 : 1)}%` }} /></div><span className="text-[0.58rem] text-neutral-600 sm:text-[0.65rem]">{new Date(`${entry.date}T00:00:00Z`).toLocaleDateString("en-SA", { weekday: "short" })}</span></div>)}</div></section>
-      <section className={`${CARD} p-5 sm:p-6`}><h2 className="font-body text-base font-semibold text-white">Order Status Distribution</h2><div className="mt-6 space-y-4">{(analytics.statusBreakdown || []).map((entry) => { const percent = Math.round((entry.count / Math.max(totalStatuses, 1)) * 100); return <div key={entry.status}><div className="mb-1.5 flex items-center justify-between text-xs"><span className="text-neutral-300">{labelStatus(entry.status)}</span><span className="text-neutral-500">{entry.count} · {percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-white/[0.05]"><div className={`h-full rounded-full ${entry.status === "delivered" ? "bg-emerald-500" : entry.status === "cancelled" ? "bg-red-500" : "bg-dune-amber"}`} style={{ width: `${percent}%` }} /></div></div>; })}</div></section>
-      <section className={`${CARD} p-5 sm:p-6`}><h2 className="font-body text-base font-semibold text-white">Popular Menu Items</h2><div className="mt-4 divide-y divide-white/[0.06]">{(analytics.popularItems || []).map((item, index) => <div key={`${item.menuItem || item.name}-${index}`} className="flex items-center gap-3 py-3"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-dune-amber/10 text-sm font-semibold text-dune-amber">{index + 1}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm text-white">{item.name}</span><span className="text-xs text-neutral-500">{item.quantity} items sold</span></span><span className="text-sm font-medium text-white">{formatAdminCurrency(item.revenue)}</span></div>)}</div></section>
-      <section className={`${CARD} p-5 sm:p-6`}><h2 className="font-body text-base font-semibold text-white">Menu Availability</h2><div className="mt-4 divide-y divide-white/[0.06]">{(analytics.categories || []).map((entry) => <div key={entry.category} className="flex items-center gap-3 py-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.04] text-dune-amber"><Boxes className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block text-sm text-white">{entry.category}</span><span className="text-xs text-neutral-500">{entry.available} of {entry.count} visible</span></span><span className="text-xs text-neutral-400">{Math.round((entry.available / Math.max(entry.count, 1)) * 100)}%</span></div>)}</div></section>
     </div>
   );
 };

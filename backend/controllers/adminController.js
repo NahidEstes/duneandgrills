@@ -5,6 +5,10 @@ import Order from "../models/Order.js";
 import Review from "../models/Review.js";
 import User from "../models/User.js";
 import Combo from "../models/Combo.js";
+import InventoryItem from "../models/InventoryItem.js";
+import PurchaseOrder from "../models/PurchaseOrder.js";
+import { getBatchSnapshots } from "../services/inventoryBatchService.js";
+import { getInventorySettings } from "../services/inventoryAnalyticsService.js";
 
 const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
 
@@ -80,6 +84,7 @@ export const getDashboard = async (req, res) => {
       currentCompleted,
       previousCompleted,
       periodRevenueRows,
+      inventorySummary,
     ] = await Promise.all([
       Order.countDocuments(),
       Order.countDocuments({ status: "delivered" }),
@@ -193,6 +198,25 @@ export const getDashboard = async (req, res) => {
           },
         },
       ]),
+      (async () => {
+        const settings = await getInventorySettings();
+        const expiryEnd = new Date(now);
+        expiryEnd.setUTCDate(expiryEnd.getUTCDate() + settings.expiryAlertDays);
+        const [lowStock, outOfStock, pendingPurchaseOrders, batches] = await Promise.all([
+          InventoryItem.countDocuments({ isActive: true, currentStock: { $gt: 0 }, $expr: { $lte: ["$currentStock", "$reorderLevel"] } }),
+          InventoryItem.countDocuments({ isActive: true, currentStock: { $lte: 0 } }),
+          PurchaseOrder.countDocuments({ status: { $in: ["ordered", "partially_received"] } }),
+          getBatchSnapshots({ includeDepleted: false }),
+        ]);
+        const expiringItems = new Set(batches.filter((batch) =>
+          batch.item?.isActive !== false &&
+          Number(batch.remainingQuantity) > 0 &&
+          batch.expiryDate &&
+          new Date(batch.expiryDate) >= now &&
+          new Date(batch.expiryDate) <= expiryEnd
+        ).map((batch) => String(batch.item?._id || batch.item))).size;
+        return { lowStock, outOfStock, expiringItems, pendingPurchaseOrders, expiryAlertDays: settings.expiryAlertDays };
+      })(),
     ]);
 
     const totalRevenue = revenueRows[0]?.total || 0;
@@ -270,6 +294,7 @@ export const getDashboard = async (req, res) => {
         })),
         recentReviews,
         activities,
+        inventorySummary,
         analytics: {
           statusBreakdown: statusRows.map((row) => ({
             status: row._id,

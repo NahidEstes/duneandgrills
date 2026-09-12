@@ -7,6 +7,9 @@ import {
   resolveCategory,
   synchronizeLegacyCategories,
 } from "../services/categoryService.js";
+import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
+
+const MENU_AUDIT_FIELDS = ["name", "price", "category", "categoryRef", "isAvailable", "isFeatured", "description"];
 
 const refreshComboPrices = async (menuItemId) => {
   const combos = await Combo.find({ "items.menuItem": menuItemId }).populate(
@@ -92,6 +95,7 @@ export const createMenuItem = async (req, res) => {
     });
     const item = await MenuItem.create({ ...req.body, ...categoryValues });
     await item.populate("categoryRef", "name slug isActive type");
+    await recordAuditLog({ actor: req.user, action: "MENU_ITEM_CREATED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, after: pickAuditFields(item, MENU_AUDIT_FIELDS) });
     res.status(201).json({ success: true, data: item });
   } catch (err) {
     res.status(400).json({ success: false, message: "Failed to create menu item", error: err.message });
@@ -108,6 +112,7 @@ export const updateMenuItem = async (req, res) => {
       return res.status(404).json({ success: false, message: "Menu item not found" });
     }
 
+    const before = pickAuditFields(item, MENU_AUDIT_FIELDS);
     let categoryValues = {};
     if (req.body.categoryId !== undefined || req.body.category !== undefined) {
       const sameCategory = req.body.categoryId
@@ -125,6 +130,7 @@ export const updateMenuItem = async (req, res) => {
     item.set({ ...req.body, ...categoryValues });
     await item.save();
     await refreshComboPrices(item._id);
+    await recordAuditLog({ actor: req.user, action: "MENU_ITEM_UPDATED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, before, after: pickAuditFields(item, MENU_AUDIT_FIELDS) });
     await item.populate("categoryRef", "name slug isActive type");
     res.status(200).json({ success: true, data: item });
   } catch (err) {
@@ -150,6 +156,7 @@ export const deleteMenuItem = async (req, res) => {
     if (!item) {
       return res.status(404).json({ success: false, message: "Menu item not found" });
     }
+    await recordAuditLog({ actor: req.user, action: "MENU_ITEM_DELETED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, before: pickAuditFields(item, MENU_AUDIT_FIELDS) });
     res.status(200).json({ success: true, message: "Menu item deleted" });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to delete menu item", error: err.message });
