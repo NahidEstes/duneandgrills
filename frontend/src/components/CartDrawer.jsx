@@ -133,12 +133,17 @@ const CartDrawer = ({ open, onClose }) => {
 
   useEffect(() => {
     loadOrderConfig();
+    window.addEventListener("focus", loadOrderConfig);
+    return () => window.removeEventListener("focus", loadOrderConfig);
   }, [loadOrderConfig]);
 
   const selectedOrderType = orderConfig?.orderTypes.find(
     (option) => option.value === orderType
   );
   const deliveryFee = Number(selectedOrderType?.deliveryFee) || 0;
+  const websiteOrderingEnabled = orderConfig?.websiteOrderingEnabled !== false;
+  const minimumDeliveryOrder = Number(orderConfig?.minimumDeliveryOrder) || 0;
+  const belowDeliveryMinimum = orderType === "delivery" && subtotal < minimumDeliveryOrder;
   const discountAmount = Number(appliedCoupon?.discountAmount) || 0;
   const orderTotal = Number(
     (Math.max(0, subtotal - discountAmount) + deliveryFee).toFixed(2)
@@ -178,6 +183,14 @@ const CartDrawer = ({ open, onClose }) => {
 
   const handleProceed = () => {
     if (!orderConfig || !orderType) return;
+    if (!websiteOrderingEnabled) {
+      setError("Online ordering is currently unavailable. Please contact the restaurant.");
+      return;
+    }
+    if (belowDeliveryMinimum) {
+      setError(`Minimum delivery order is ${formatPrice(minimumDeliveryOrder)}.`);
+      return;
+    }
     if (!user) {
       setShowLoginModal(true);
       return;
@@ -249,6 +262,10 @@ const CartDrawer = ({ open, onClose }) => {
 
   const handleCheckout = async (e) => {
     e.preventDefault();
+    if (!websiteOrderingEnabled || belowDeliveryMinimum) {
+      setError(!websiteOrderingEnabled ? "Online ordering is currently unavailable. Please contact the restaurant." : `Minimum delivery order is ${formatPrice(minimumDeliveryOrder)}.`);
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -468,6 +485,8 @@ const CartDrawer = ({ open, onClose }) => {
                     disabled={submitting}
                   />
                 )}
+                {!websiteOrderingEnabled && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200">Online ordering is currently unavailable. Please contact the restaurant.</p>}
+                {belowDeliveryMinimum && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200">Add {formatPrice(minimumDeliveryOrder - subtotal)} more to reach the {formatPrice(minimumDeliveryOrder)} delivery minimum.</p>}
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between text-neutral-400">
                     <span>Subtotal</span>
@@ -493,7 +512,7 @@ const CartDrawer = ({ open, onClose }) => {
                 )}
                 <button
                   onClick={handleProceed}
-                  disabled={!orderConfig || configLoading}
+                  disabled={!orderConfig || configLoading || !websiteOrderingEnabled || belowDeliveryMinimum}
                   className="w-full rounded-full bg-dune-amber py-3.5 font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Proceed to Checkout
@@ -517,6 +536,8 @@ const CartDrawer = ({ open, onClose }) => {
                   disabled={submitting}
                 />
               )}
+              {!websiteOrderingEnabled && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">Online ordering is currently unavailable. Please contact the restaurant.</p>}
+              {belowDeliveryMinimum && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">Delivery requires a minimum subtotal of {formatPrice(minimumDeliveryOrder)}. Add {formatPrice(minimumDeliveryOrder - subtotal)} more.</p>}
 
               {/* Name — always read-only, tied to the account */}
               <div>
@@ -720,7 +741,7 @@ const CartDrawer = ({ open, onClose }) => {
               </div>
               <button
                 type="submit"
-                disabled={submitting || !orderConfig}
+                disabled={submitting || !orderConfig || !websiteOrderingEnabled || belowDeliveryMinimum}
                 className="w-full bg-dune-amber hover:bg-dune-amberLight disabled:opacity-60 text-black font-semibold py-3.5 rounded-full transition-colors"
               >
                 {submitting ? "Placing Order..." : "Place Order"}

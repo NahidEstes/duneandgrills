@@ -1,6 +1,6 @@
 import HomePageClient from "@/src/components/HomePageClient.jsx";
 import JsonLd from "@/src/components/JsonLd.jsx";
-import { getCombos, getMenuItems, getOffers } from "@/src/api/server.js";
+import { getCombos, getMenuItems, getOffers, getPublicRestaurantSettings } from "@/src/api/server.js";
 
 export const dynamic = "force-dynamic";
 
@@ -16,31 +16,35 @@ const offerUrl = (value) => {
 };
 
 export default async function HomePage() {
-  const [menuItems, combos, offers] = await Promise.all([
+  const [menuItems, combos, offers, restaurantSettings] = await Promise.all([
     getMenuItems().catch(() => []),
     getCombos().catch(() => []),
     getOffers().catch(() => []),
+    getPublicRestaurantSettings().catch(() => null),
   ]);
+
+  const location = restaurantSettings?.location || {};
+  const receipt = restaurantSettings?.receipt || {};
 
   const restaurantData = {
     "@context": "https://schema.org",
     "@type": "Restaurant",
-    name: "Dune & Grills",
-    url: "https://duneandgrills.com",
+    name: receipt.displayName || "Dune & Grills",
+    url: receipt.websiteUrl || "https://duneandgrills.com",
     image: "https://duneandgrills.com/logo2.jpeg",
     logo: "https://duneandgrills.com/logo.jpeg",
     description:
       "Fire-grilled burgers, shawarma and appetizers inspired by desert flavors.",
     servesCuisine: ["Grill", "Burgers", "Shawarma", "Middle Eastern"],
     priceRange: "SAR",
-    telephone: "+9665082140327",
-    email: "hello@duneandgrills.com",
+    telephone: location.phone || "+9665082140327",
+    email: location.email || "hello@duneandgrills.com",
     address: {
       "@type": "PostalAddress",
-      streetAddress: "Wadi As Sarh, Al Wadi",
-      addressLocality: "Riyadh",
+      streetAddress: location.address || "Wadi As Sarh, Al Wadi",
+      addressLocality: location.city || "Riyadh",
       postalCode: "18738",
-      addressCountry: "SA",
+      addressCountry: location.country || "Saudi Arabia",
     },
     hasMenu: "https://duneandgrills.com/menu",
     makesOffer: offers.map((offer) => ({
@@ -64,6 +68,7 @@ export default async function HomePage() {
         initialMenuItems={menuItems}
         initialCombos={combos}
         initialOffers={offers}
+        restaurantSettings={restaurantSettings}
       />
     </>
   );

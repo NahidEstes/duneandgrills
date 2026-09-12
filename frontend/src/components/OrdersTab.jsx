@@ -6,7 +6,7 @@ import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 import React, { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Clock, Eye, MapPin, Phone, Printer, RefreshCw, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import { bulkUpdateOrderStatus, fetchOrdersPage, fetchOrderStats, updateOrderStatus } from "../api/api.js";
+import { bulkUpdateOrderStatus, fetchOrdersPage, fetchOrderStats, fetchPublicRestaurantSettings, updateOrderStatus } from "../api/api.js";
 import { formatAdminCurrency } from "./admin/adminUi.js";
 import { printOrderInvoice } from "../utils/adminExports.js";
 import { formatOrderType, getOrderSubtotal } from "../utils/order.js";
@@ -65,7 +65,7 @@ const StatCard = ({ label, value, sub }) => (
 );
 
 // ---- Order details modal with inline status control ----
-const OrderRowModal = ({ order, onClose, onSaved }) => {
+const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
   const [status, setStatus] = useState(order.status);
   const [reason, setReason] = useState(order.cancellationReason || order.refundReason || "");
   const [estimatedPreparationMinutes, setEstimatedPreparationMinutes] = useState(order.estimatedPreparationMinutes || "");
@@ -243,7 +243,7 @@ const OrderRowModal = ({ order, onClose, onSaved }) => {
         )}
 
         <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-dune-border pt-4">
-          <button type="button" onClick={() => printOrderInvoice(order)} className="inline-flex items-center gap-2 rounded-lg border border-dune-border px-4 py-2 text-sm text-neutral-300 hover:border-dune-amber hover:text-dune-amber"><Printer className="h-4 w-4" />Print / PDF invoice</button>
+          <button type="button" onClick={() => printOrderInvoice(order, receiptSettings)} className="inline-flex items-center gap-2 rounded-lg border border-dune-border px-4 py-2 text-sm text-neutral-300 hover:border-dune-amber hover:text-dune-amber"><Printer className="h-4 w-4" />Print / PDF invoice</button>
           <button type="button" disabled={saving} onClick={handleSave} className="rounded-lg bg-dune-amber px-5 py-2 text-sm font-semibold text-black disabled:opacity-50">{saving ? "Saving…" : "Save changes"}</button>
         </div>
       </div>
@@ -257,6 +257,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
   const [activeFilter, setActiveFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [viewOrder, setViewOrder] = useState(null);
+  const [receiptSettings, setReceiptSettings] = useState(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -311,6 +312,10 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestFilters, refreshKey]);
+
+  useEffect(() => {
+    fetchPublicRestaurantSettings().then(setReceiptSettings).catch(() => undefined);
+  }, []);
 
   const handleStatusChange = (orderId, newStatus) => {
     setOrders((prev) =>
@@ -477,7 +482,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
-                      onClick={() => printOrderInvoice(order)}
+                      onClick={() => printOrderInvoice(order, receiptSettings)}
                       title="Print or save invoice as PDF"
                       className="mr-2 w-8 h-8 inline-flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white"
                     >
@@ -517,6 +522,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
       {viewOrder && (
         <OrderRowModal
           order={viewOrder}
+          receiptSettings={receiptSettings}
           onClose={() => {
             setViewOrder(null);
           }}

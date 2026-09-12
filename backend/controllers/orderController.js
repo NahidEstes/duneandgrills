@@ -35,6 +35,7 @@ import { PAYMENT_METHODS, SALES_SOURCES } from "../config/sales.js";
 import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
 import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
+import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
 
 const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
 const reversalStatuses = new Set(nonRevenueStatuses);
@@ -88,9 +89,15 @@ const serializeAdminOrder = (order) => {
 
 // @desc    Get server-authoritative order types and delivery pricing
 // @route   GET /api/orders/config
-// @access  Private
-export const getOrderConfig = (req, res) =>
-  res.status(200).json({ success: true, data: getPublicOrderConfig() });
+// @access  Public
+export const getOrderConfig = async (_req, res) => {
+  try {
+    const settings = await getEffectiveRestaurantSettings();
+    res.status(200).json({ success: true, data: getPublicOrderConfig(settings.orders) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Order configuration is temporarily unavailable", error: error.message });
+  }
+};
 
 // Generates a human-readable, date-based order number like 2026082301
 // (YYYYMMDD + sequence number for that day)
@@ -141,6 +148,10 @@ export const createOrder = async (req, res) => {
   let reservedCouponId = null;
   let orderId = null;
   try {
+    const restaurantSettings = await getEffectiveRestaurantSettings();
+    if (!restaurantSettings.orders.channels.website) {
+      return res.status(503).json({ success: false, message: "Online ordering is currently unavailable. Please contact the restaurant." });
+    }
     const {
       customer,
       items = [],
@@ -187,12 +198,21 @@ export const createOrder = async (req, res) => {
     const inventoryCatalogLines = [...catalogLines];
     const verifiedItems = catalogLines.map(cartLineToOrderItem);
     const subtotal = calculateCartSubtotal(catalogLines);
+    if (
+      orderType === "delivery" &&
+      subtotal < restaurantSettings.orders.minimumDeliveryOrder
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimum delivery order is SAR ${restaurantSettings.orders.minimumDeliveryOrder.toFixed(2)}`,
+      });
+    }
     const coupon = couponCode
       ? await calculateCoupon({ code: couponCode, lines: catalogLines })
       : null;
     const discountAmount = coupon?.discountAmount || 0;
     const discountedSubtotal = Number((subtotal - discountAmount).toFixed(2));
-    const deliveryFee = getDeliveryFee(orderType);
+    const deliveryFee = getDeliveryFee(orderType, restaurantSettings.orders);
     const totalAmount = Number((discountedSubtotal + deliveryFee).toFixed(2));
 
     // const order = await Order.create({
@@ -321,6 +341,7 @@ export const createOrder = async (req, res) => {
         eligiblePointsAmount: discountedSubtotal,
         rewardRedemption: rewardSnapshot,
         notes,
+        estimatedPreparationMinutes: restaurantSettings.preparation.defaultMinutes,
         inventoryStatus: "pending",
       }], session ? { session } : {});
       const transactions = await deductOrderInventory({

@@ -23,14 +23,18 @@ export const ORDER_TYPES = [
 
 export const isValidOrderType = (value) => ORDER_TYPES.includes(value);
 
-export const getDeliveryFee = (orderType) =>
-  orderType === "delivery" ? DELIVERY_FEE_SAR : 0;
+export const getDeliveryFee = (orderType, settings = {}) =>
+  orderType === "delivery"
+    ? Number(settings.deliveryFee ?? DELIVERY_FEE_SAR)
+    : 0;
 
-export const getPublicOrderConfig = () => ({
+export const getPublicOrderConfig = (settings = {}) => ({
   currency: "SAR",
   defaultOrderType: DEFAULT_ORDER_TYPE,
+  websiteOrderingEnabled: settings.channels?.website ?? true,
+  minimumDeliveryOrder: Number(settings.minimumDeliveryOrder || 0),
   orderTypes: ORDER_TYPE_OPTIONS.map((option) => ({
     ...option,
-    deliveryFee: getDeliveryFee(option.value),
+    deliveryFee: getDeliveryFee(option.value, settings),
   })),
 });

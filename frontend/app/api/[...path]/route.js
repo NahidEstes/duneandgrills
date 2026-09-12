@@ -49,6 +49,7 @@ const proxyRequest = async (request, { params }) => {
         if (resource === "orders") invalidateContent("orders");
         if (resource === "offers") invalidateContent("offers");
         if (resource === "rewards") invalidateContent("rewards");
+        if (resource === "settings") invalidateContent("settings");
         if (resource === "categories") {
           invalidateContent("menu");
           invalidateContent("blog");

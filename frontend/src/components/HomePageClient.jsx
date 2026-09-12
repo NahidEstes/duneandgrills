@@ -15,6 +15,7 @@ const HomePageClient = ({
   initialMenuItems = [],
   initialCombos = [],
   initialOffers = [],
+  restaurantSettings = null,
 }) => {
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -32,8 +33,8 @@ const HomePageClient = ({
           onCartOpen={() => setCartOpen(true)}
         />
         <About />
-        <Contact />
-        <VisitUs />
+        <Contact settings={restaurantSettings} />
+        <VisitUs settings={restaurantSettings} />
       </main>
       <LandingFooter />
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />

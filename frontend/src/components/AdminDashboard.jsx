@@ -14,9 +14,9 @@ import RewardsTab from "./admin/RewardsTab.jsx";
 import {
   CustomersView,
   ReviewsView,
-  SettingsView,
   StaffView,
 } from "./admin/AdminViews.jsx";
+import RestaurantSettingsPage from "./admin/settings/RestaurantSettingsPage.jsx";
 import AnalyticsView from "./admin/AnalyticsView.jsx";
 import AuditLogView from "./admin/AuditLogView.jsx";
 import BlogTab from "./BlogTab.jsx";
@@ -77,8 +77,8 @@ const TAB_CONTENT = {
     subtitle: "View the admin, manager and kitchen staff accounts used by restaurant operations.",
   },
   settings: {
-    title: "Dashboard Settings",
-    subtitle: "Review the operational configuration already used by the project.",
+    title: "Restaurant Settings",
+    subtitle: "Manage business hours, ordering, notifications, receipts and restaurant contact details.",
   },
 };
 
@@ -90,6 +90,7 @@ const AdminDashboard = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [orderRefreshKey, setOrderRefreshKey] = useState(0);
+  const [settingsDirty, setSettingsDirty] = useState(false);
   const { user, logout } = useAuth();
 
   const loadDashboard = useCallback(async (silent = false) => {
@@ -152,7 +153,15 @@ const AdminDashboard = () => {
     };
   }, [searchQuery]);
 
+  const confirmSettingsExit = () => activeTab !== "settings" || !settingsDirty || window.confirm("Discard unsaved Restaurant Settings changes?");
+  const handleTabChange = (nextTab) => {
+    if (!confirmSettingsExit()) return false;
+    setActiveTab(nextTab);
+    return true;
+  };
+
   const handleLogout = () => {
+    if (!confirmSettingsExit()) return;
     logout();
   };
 
@@ -171,7 +180,8 @@ const AdminDashboard = () => {
   return (
     <AdminShell
       activeTab={activeTab}
-      onTabChange={setActiveTab}
+      onTabChange={handleTabChange}
+      onNavigateAway={confirmSettingsExit}
       title={content.title}
       subtitle={content.subtitle}
       user={user}
@@ -191,7 +201,7 @@ const AdminDashboard = () => {
           data={dashboard}
           loading={loading}
           onRefresh={() => loadDashboard()}
-          onNavigate={setActiveTab}
+          onNavigate={handleTabChange}
         />
       )}
       {activeTab === "orders" && (
@@ -226,7 +236,7 @@ const AdminDashboard = () => {
       {activeTab === "analytics" && <AnalyticsView />}
       {activeTab === "audit" && <AuditLogView />}
       {activeTab === "staff" && <StaffView />}
-      {activeTab === "settings" && <SettingsView dashboard={dashboard} />}
+      {activeTab === "settings" && <RestaurantSettingsPage onDirtyChange={setSettingsDirty} />}
     </AdminShell>
   );
 };

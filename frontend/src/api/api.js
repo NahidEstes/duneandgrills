@@ -22,6 +22,23 @@ const refreshAfterMutation = async (contentType) => {
   }
 };
 
+// ---- Restaurant settings ----
+export const fetchPublicRestaurantSettings = async () => {
+  const { data } = await api.get("/settings/public");
+  return data.data;
+};
+
+export const fetchRestaurantSettings = async () => {
+  const { data } = await api.get("/settings");
+  return data.data;
+};
+
+export const updateRestaurantSettings = async (payload) => {
+  const { data } = await api.put("/settings", payload);
+  await refreshAfterMutation("settings");
+  return data.data;
+};
+
 // Attach the JWT (if present) to every request
 api.interceptors.request.use((config) => {
   const token =

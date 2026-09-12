@@ -3,6 +3,7 @@ import Counter from "../models/Counter.js";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
 import { calculateOrderPoints } from "../config/rewards.js";
+import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
 import { isPaymentMethod, isPosOrderType } from "../config/sales.js";
 import { calculateCartSubtotal, cartLineToOrderItem, resolveCartLines } from "../services/catalogService.js";
 import { deductOrderInventory } from "../services/orderInventoryService.js";
@@ -64,6 +65,11 @@ export const createPosSale = async (req, res, next) => {
       return res.status(200).json({ success: true, data: populated, duplicate: true });
     }
 
+    const restaurantSettings = await getEffectiveRestaurantSettings();
+    if (!restaurantSettings.orders.channels.pos) {
+      throw new PosValidationError("POS ordering is currently disabled in Restaurant Settings", 503);
+    }
+
     const orderType = req.body.orderType;
     const paymentMethod = req.body.paymentMethod;
     if (!isPosOrderType(orderType)) throw new PosValidationError("POS order type must be dine-in or takeaway");
@@ -111,6 +117,7 @@ export const createPosSale = async (req, res, next) => {
         changeDue,
         eligiblePointsAmount: totalAmount,
         notes: cleanText(req.body.notes, 500),
+        estimatedPreparationMinutes: restaurantSettings.preparation.defaultMinutes,
         inventoryStatus: "pending",
       }], session ? { session } : {});
       const transactions = await deductOrderInventory({ catalogLines, orderId, orderNumber, source: "pos", actorId: req.user._id, strictRecipes: true, session });

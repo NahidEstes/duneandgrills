@@ -80,11 +80,15 @@ export const resolveKitchenTransition = (currentStatus, nextStatus) => {
   return transition;
 };
 
-export const listKitchenOrders = async ({ source, orderType, search } = {}, now = new Date()) => {
+export const listKitchenOrders = async (
+  { source, orderType, search } = {},
+  now = new Date(),
+  { readyRetentionMinutes = KITCHEN_READY_RETENTION_MINUTES } = {}
+) => {
   if (source && source !== "all" && !SALES_SOURCES.includes(source)) throw new ValidationError("Invalid order source");
   if (orderType && orderType !== "all" && !ORDER_TYPES.includes(orderType)) throw new ValidationError("Invalid order type");
 
-  const readyCutoff = new Date(now.getTime() - KITCHEN_READY_RETENTION_MINUTES * 60 * 1000);
+  const readyCutoff = new Date(now.getTime() - readyRetentionMinutes * 60 * 1000);
   const filters = [{
     $or: [
       { status: { $in: ["pending", "confirmed", "preparing"] } },
@@ -114,7 +118,13 @@ export const listKitchenOrders = async ({ source, orderType, search } = {}, now 
   return orders.map((order) => serializeKitchenOrder(order, now));
 };
 
-export const transitionKitchenOrder = async ({ orderId, nextStatus, actor, estimatedPreparationMinutes }) => {
+export const transitionKitchenOrder = async ({
+  orderId,
+  nextStatus,
+  actor,
+  estimatedPreparationMinutes,
+  defaultPreparationMinutes = KITCHEN_DEFAULT_PREPARATION_MINUTES,
+}) => {
   if (!mongoose.isValidObjectId(orderId)) throw new ValidationError("Invalid order id");
   const current = await Order.findById(orderId)
     .select("orderNumber status acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt")
@@ -135,11 +145,11 @@ export const transitionKitchenOrder = async ({ orderId, nextStatus, actor, estim
     if (requested !== null && (!Number.isInteger(requested) || requested < 1 || requested > 240)) {
       throw new ValidationError("Estimated preparation time must be between 1 and 240 minutes");
     }
-    const minutes = requested || current.estimatedPreparationMinutes || KITCHEN_DEFAULT_PREPARATION_MINUTES;
+    const minutes = requested || current.estimatedPreparationMinutes || defaultPreparationMinutes;
     set.estimatedPreparationMinutes = minutes;
     set.preparationDueAt = current.preparationDueAt || new Date(now.getTime() + minutes * 60 * 1000);
   } else if (nextStatus === "preparing" && !current.preparationDueAt) {
-    const minutes = current.estimatedPreparationMinutes || KITCHEN_DEFAULT_PREPARATION_MINUTES;
+    const minutes = current.estimatedPreparationMinutes || defaultPreparationMinutes;
     set.estimatedPreparationMinutes = minutes;
     set.preparationDueAt = new Date(now.getTime() + minutes * 60 * 1000);
   }

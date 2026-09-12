@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { fetchOrders } from "../api/api.js";
+import { fetchOrders, fetchRestaurantSettings } from "../api/api.js";
 import { formatPrice } from "../utils/currency.js";
-
-export const ADMIN_ORDER_POLL_INTERVAL_MS = 5_000;
-export const ADMIN_ALERT_REPEAT_INTERVAL_MS = 10_000;
+import {
+  DEFAULT_NOTIFICATION_SETTINGS,
+  normalizeNotificationSettings,
+  RESTAURANT_SETTINGS_UPDATED_EVENT,
+} from "../utils/notificationSettings.js";
 
 const ALERTS_STORAGE_KEY = "dg_admin_order_alerts_enabled";
 
@@ -19,6 +21,7 @@ const pendingSignature = (orders) =>
 export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
   const [pendingOrders, setPendingOrders] = useState([]);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [notificationSettings, setNotificationSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
   const knownOrderIds = useRef(new Set());
   const signatureRef = useRef("");
   const initializedRef = useRef(false);
@@ -28,6 +31,23 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
   useEffect(() => {
     const stored = window.localStorage.getItem(ALERTS_STORAGE_KEY);
     if (stored === "false") setAlertsEnabled(false);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const applySettings = (settings) => {
+      if (active) setNotificationSettings(normalizeNotificationSettings(settings?.notifications));
+    };
+    const loadSettings = () => fetchRestaurantSettings().then(applySettings).catch(() => undefined);
+    const handleSettingsUpdate = (event) => applySettings(event.detail);
+    loadSettings();
+    window.addEventListener(RESTAURANT_SETTINGS_UPDATED_EVENT, handleSettingsUpdate);
+    window.addEventListener("focus", loadSettings);
+    return () => {
+      active = false;
+      window.removeEventListener(RESTAURANT_SETTINGS_UPDATED_EVENT, handleSettingsUpdate);
+      window.removeEventListener("focus", loadSettings);
+    };
   }, []);
 
   useEffect(() => {
@@ -46,7 +66,7 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
   }, []);
 
   const playAlert = useCallback(async () => {
-    if (!alertsEnabled) return;
+    if (!alertsEnabled || !notificationSettings.adminSoundEnabled) return;
     const context = await unlockAudio();
     if (!context || context.state !== "running") return;
 
@@ -64,7 +84,7 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
       oscillator.start(start + offset);
       oscillator.stop(start + offset + 0.18);
     });
-  }, [alertsEnabled, unlockAudio]);
+  }, [alertsEnabled, notificationSettings.adminSoundEnabled, unlockAudio]);
 
   const showBrowserNotification = useCallback((order) => {
     if (
@@ -136,27 +156,29 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
 
   useEffect(() => {
     pollPendingOrders();
-    const timer = window.setInterval(
-      pollPendingOrders,
-      ADMIN_ORDER_POLL_INTERVAL_MS
-    );
+    const timer = window.setInterval(pollPendingOrders, notificationSettings.pollingIntervalSeconds * 1000);
     const refreshOnFocus = () => pollPendingOrders();
     window.addEventListener("focus", refreshOnFocus);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", refreshOnFocus);
     };
-  }, [pollPendingOrders]);
+  }, [notificationSettings.pollingIntervalSeconds, pollPendingOrders]);
 
   useEffect(() => {
-    if (!alertsEnabled || pendingOrders.length === 0) return undefined;
+    if (!alertsEnabled || !notificationSettings.adminSoundEnabled || pendingOrders.length === 0) return undefined;
+    let repeats = 1;
     playAlert();
-    const timer = window.setInterval(
-      playAlert,
-      ADMIN_ALERT_REPEAT_INTERVAL_MS
-    );
+    const timer = window.setInterval(() => {
+      if (repeats >= notificationSettings.maximumAlertRepeats) {
+        window.clearInterval(timer);
+        return;
+      }
+      repeats += 1;
+      playAlert();
+    }, notificationSettings.alertRepeatIntervalSeconds * 1000);
     return () => window.clearInterval(timer);
-  }, [alertsEnabled, pendingOrders.length, playAlert]);
+  }, [alertsEnabled, notificationSettings, pendingOrders, playAlert]);
 
   useEffect(() => {
     if (!alertsEnabled) return undefined;
@@ -181,6 +203,10 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
   );
 
   const requestBrowserPermission = useCallback(async () => {
+    if (!notificationSettings.adminSoundEnabled) {
+      toast.info("Admin order sounds are disabled in Restaurant Settings.");
+      return;
+    }
     const permissionRequest =
       typeof window !== "undefined" &&
       "Notification" in window &&
@@ -189,9 +215,13 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
         : Promise.resolve();
     await unlockAudio();
     await permissionRequest;
-  }, [unlockAudio]);
+  }, [notificationSettings.adminSoundEnabled, unlockAudio]);
 
   const toggleAlerts = useCallback(async () => {
+    if (!notificationSettings.adminSoundEnabled) {
+      toast.info("Admin order sounds are disabled in Restaurant Settings.");
+      return;
+    }
     const nextValue = !alertsEnabled;
     setAlertsEnabled(nextValue);
     window.localStorage.setItem(ALERTS_STORAGE_KEY, String(nextValue));
@@ -201,7 +231,7 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
     } else {
       toast.info("New-order sound alerts muted.");
     }
-  }, [alertsEnabled, requestBrowserPermission]);
+  }, [alertsEnabled, notificationSettings.adminSoundEnabled, requestBrowserPermission]);
 
   const dismissPendingOrder = useCallback((orderId) => {
     setPendingOrders((current) =>
@@ -210,7 +240,7 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
   }, []);
 
   return {
-    alertsEnabled,
+    alertsEnabled: alertsEnabled && notificationSettings.adminSoundEnabled,
     dismissPendingOrder,
     pendingCount: pendingOrders.length,
     pollPendingOrders,

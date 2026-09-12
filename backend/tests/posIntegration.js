@@ -13,6 +13,8 @@ import User from "../models/User.js";
 import { createOpeningBalance } from "../services/inventoryStockService.js";
 import { listKitchenOrders, transitionKitchenOrder } from "../services/kitchenService.js";
 import AuditLog from "../models/AuditLog.js";
+import RestaurantSettings from "../models/RestaurantSettings.js";
+import { getRestaurantSettingsDefaults, updateRestaurantSettings } from "../services/restaurantSettingsService.js";
 
 const testUri =
   process.env.MONGO_TEST_URI ||
@@ -77,6 +79,13 @@ const run = async () => {
     password: "TestPassword123!",
     role: "customer",
   });
+  const settings = getRestaurantSettingsDefaults();
+  settings.orders.deliveryFee = 12;
+  settings.orders.minimumDeliveryOrder = 20;
+  settings.preparation.defaultMinutes = 17;
+  await updateRestaurantSettings(settings, admin);
+  const settingsAudit = await AuditLog.findOne({ action: "RESTAURANT_SETTINGS_UPDATED" }).lean();
+  assert.deepEqual(settingsAudit.metadata.changedFields.sort(), ["orders.deliveryFee", "orders.minimumDeliveryOrder", "preparation.defaultMinutes"]);
   const category = await InventoryCategory.create({ name: "POS Ingredients" });
   const ingredient = await InventoryItem.create({
     name: "POS Beef",
@@ -132,6 +141,7 @@ const run = async () => {
   assert.equal(created.payload.data.changeDue, 5);
   assert.equal(created.payload.data.paymentStatus, "paid");
   assert.equal(created.payload.data.status, "pending");
+  assert.equal(created.payload.data.estimatedPreparationMinutes, 17);
   assert.equal(created.payload.data.inventoryStatus, "deducted");
   assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.6);
   assert.equal(
@@ -168,6 +178,9 @@ const run = async () => {
   assert.equal(websiteCreated.statusCode, 201);
   const websiteOrder = websiteCreated.payload.data;
   assert.equal(websiteOrder.status, "pending");
+  assert.equal(websiteOrder.deliveryFee, 12);
+  assert.equal(websiteOrder.totalAmount, 37);
+  assert.equal(websiteOrder.estimatedPreparationMinutes, 17);
   assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.4);
   assert.equal(await StockTransaction.countDocuments({ order: websiteOrder._id, movementType: "STOCK_OUT" }), 1);
   await transitionKitchenOrder({ orderId: websiteOrder._id, nextStatus: "confirmed", actor: admin });
@@ -190,6 +203,30 @@ const run = async () => {
       cashReceived: 10,
     }),
     /Cash received must cover the final total/
+  );
+
+  await RestaurantSettings.updateOne({ key: "default" }, { $set: { "orders.minimumDeliveryOrder": 30 } });
+  const belowMinimum = await invokeCreateWebsiteOrder(customer, {
+    customer: { name: customer.name, phone: customer.phone, address: "Private test address" },
+    items: [{ productId: menuItem._id.toString(), productType: "menuItem", quantity: 1 }],
+    orderType: "delivery",
+  });
+  assert.equal(belowMinimum.statusCode, 400);
+  assert.match(belowMinimum.payload.message, /Minimum delivery order/);
+
+  await RestaurantSettings.updateOne({ key: "default" }, { $set: { "orders.channels.website": false } });
+  const websiteDisabled = await invokeCreateWebsiteOrder(customer, {
+    customer: { name: customer.name, phone: customer.phone, address: "Private test address" },
+    items: [{ productId: menuItem._id.toString(), productType: "menuItem", quantity: 2 }],
+    orderType: "delivery",
+  });
+  assert.equal(websiteDisabled.statusCode, 503);
+  assert.match(websiteDisabled.payload.message, /currently unavailable/);
+
+  await RestaurantSettings.updateOne({ key: "default" }, { $set: { "orders.channels.pos": false } });
+  await assert.rejects(
+    invokeCreateSale(admin, { ...request, idempotencyKey: "pos-integration-disabled" }),
+    /POS ordering is currently disabled/
   );
 
   console.log("POS integration checks passed");

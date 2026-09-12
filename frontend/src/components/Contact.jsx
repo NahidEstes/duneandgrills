@@ -3,9 +3,16 @@
 import React, { useState } from "react";
 import { Phone, Mail, MapPin, Send } from "lucide-react";
 
-const Contact = () => {
+const Contact = ({ settings }) => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [sent, setSent] = useState(false);
+  const location = settings?.location || {};
+  const phone = settings ? location.phone : "+966 050 821 40327";
+  const email = settings ? location.email : "hello@duneandgrills.com";
+  const directionsUrl = settings ? location.directionsUrl : "https://maps.app.goo.gl/fB8oDz42G7eb1JLs6";
+  const address = settings
+    ? [location.address, location.city, location.country].filter(Boolean).join(", ")
+    : "Wadi As Sarh, Al Wadi, Riyadh 18738";
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -32,28 +39,28 @@ const Contact = () => {
           </p>
 
           <div className="mt-9 space-y-5">
-            <a
-              href="tel:+96605082140327"
+            {phone && <a
+              href={`tel:${phone.replace(/[^+\d]/g, "")}`}
               className="flex items-center gap-4"
-              aria-label="Call Dune and Grills at +966 050 821 40327"
+              aria-label={`Call Dune and Grills at ${phone}`}
             >
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                 <Phone className="w-5 h-5 text-dune-amber" />
               </div>
-              <span className="text-neutral-300">+966 050 821 40327</span>
-            </a>
-            <a
-              href="mailto:hello@duneandgrills.com"
+              <span className="text-neutral-300">{phone}</span>
+            </a>}
+            {email && <a
+              href={`mailto:${email}`}
               className="flex items-center gap-4"
               aria-label="Email Dune and Grills"
             >
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                 <Mail className="w-5 h-5 text-dune-amber" />
               </div>
-              <span className="text-neutral-300">hello@duneandgrills.com</span>
-            </a>
-            <a
-              href="https://maps.app.goo.gl/fB8oDz42G7eb1JLs6"
+              <span className="text-neutral-300">{email}</span>
+            </a>}
+            {directionsUrl && address && <a
+              href={directionsUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-4"
@@ -62,10 +69,8 @@ const Contact = () => {
               <div className="w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-dune-amber" />
               </div>
-              <span className="text-neutral-300">
-                Wadi As Sarh, Al Wadi, Riyadh 18738
-              </span>
-            </a>
+              <span className="text-neutral-300">{address}</span>
+            </a>}
           </div>
         </div>
 

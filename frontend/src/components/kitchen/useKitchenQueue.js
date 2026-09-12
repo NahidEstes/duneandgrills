@@ -2,11 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchKitchenQueue, updateKitchenOrderStatus } from "../../api/api.js";
-import { KITCHEN_HIDDEN_POLL_INTERVAL_MS, KITCHEN_POLL_INTERVAL_MS } from "./kitchenConfig.js";
+import { DEFAULT_NOTIFICATION_SETTINGS, normalizeNotificationSettings } from "../../utils/notificationSettings.js";
 
 export default function useKitchenQueue(filters) {
   const [orders, setOrders] = useState([]);
-  const [config, setConfig] = useState({ defaultPreparationMinutes: 20, readyRetentionMinutes: 30 });
+  const [config, setConfig] = useState({
+    defaultPreparationMinutes: 20,
+    readyRetentionMinutes: 30,
+    notifications: {
+      soundEnabled: DEFAULT_NOTIFICATION_SETTINGS.kitchenSoundEnabled,
+      alertRepeatIntervalSeconds: DEFAULT_NOTIFICATION_SETTINGS.alertRepeatIntervalSeconds,
+      maximumAlertRepeats: DEFAULT_NOTIFICATION_SETTINGS.maximumAlertRepeats,
+      pollingIntervalSeconds: DEFAULT_NOTIFICATION_SETTINGS.pollingIntervalSeconds,
+    },
+  });
   const [connection, setConnection] = useState("connecting");
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
@@ -21,12 +30,13 @@ export default function useKitchenQueue(filters) {
     let timerId;
     let requestInFlight = false;
     let failures = 0;
+    let pollingIntervalMs = DEFAULT_NOTIFICATION_SETTINGS.pollingIntervalSeconds * 1000;
 
     const schedule = () => {
       if (disposed) return;
       const delay = document.visibilityState === "hidden"
-        ? KITCHEN_HIDDEN_POLL_INTERVAL_MS
-        : KITCHEN_POLL_INTERVAL_MS;
+        ? Math.max(10_000, pollingIntervalMs * 3)
+        : pollingIntervalMs;
       timerId = window.setTimeout(load, delay);
     };
 
@@ -38,7 +48,22 @@ export default function useKitchenQueue(filters) {
         if (disposed) return;
         const receivedAt = Date.now();
         setOrders(payload.data || []);
-        setConfig((current) => ({ ...current, ...(payload.config || {}) }));
+        const incomingConfig = payload.config || {};
+        const normalizedNotifications = normalizeNotificationSettings({
+          kitchenSoundEnabled: incomingConfig.notifications?.soundEnabled,
+          ...incomingConfig.notifications,
+        });
+        pollingIntervalMs = normalizedNotifications.pollingIntervalSeconds * 1000;
+        setConfig((current) => ({
+          ...current,
+          ...incomingConfig,
+          notifications: {
+            soundEnabled: normalizedNotifications.kitchenSoundEnabled,
+            alertRepeatIntervalSeconds: normalizedNotifications.alertRepeatIntervalSeconds,
+            maximumAlertRepeats: normalizedNotifications.maximumAlertRepeats,
+            pollingIntervalSeconds: normalizedNotifications.pollingIntervalSeconds,
+          },
+        }));
         setClockOffsetMs(new Date(payload.serverNow).getTime() - receivedAt);
         setLastUpdatedAt(receivedAt);
         setConnection("connected");

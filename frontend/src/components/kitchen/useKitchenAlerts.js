@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { KITCHEN_ALERT_REPEAT_MS } from "./kitchenConfig.js";
+import { normalizeNotificationSettings } from "../../utils/notificationSettings.js";
 import {
   mergeAcknowledgedKitchenOrderIds,
   pendingKitchenOrderIds,
@@ -10,10 +10,21 @@ import {
 
 const STORAGE_KEY = "dg_kitchen_acknowledged_orders";
 
-export default function useKitchenAlerts(orders) {
+export default function useKitchenAlerts(orders, configuredNotifications = {}) {
   const [acknowledgedIds, setAcknowledgedIds] = useState([]);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const audioContextRef = useRef(null);
+  const settings = useMemo(() => normalizeNotificationSettings({
+    kitchenSoundEnabled: configuredNotifications.soundEnabled,
+    alertRepeatIntervalSeconds: configuredNotifications.alertRepeatIntervalSeconds,
+    maximumAlertRepeats: configuredNotifications.maximumAlertRepeats,
+    pollingIntervalSeconds: configuredNotifications.pollingIntervalSeconds,
+  }), [
+    configuredNotifications.alertRepeatIntervalSeconds,
+    configuredNotifications.maximumAlertRepeats,
+    configuredNotifications.pollingIntervalSeconds,
+    configuredNotifications.soundEnabled,
+  ]);
 
   useEffect(() => {
     try {
@@ -29,6 +40,7 @@ export default function useKitchenAlerts(orders) {
     () => unacknowledgedKitchenOrderIds(orders, acknowledgedIds),
     [acknowledgedIds, orders]
   );
+  const unacknowledgedSignature = unacknowledgedIds.join("|");
 
   const playAlert = useCallback(() => {
     const context = audioContextRef.current;
@@ -48,11 +60,19 @@ export default function useKitchenAlerts(orders) {
   }, []);
 
   useEffect(() => {
-    if (!soundEnabled || !unacknowledgedIds.length) return undefined;
+    if (!settings.kitchenSoundEnabled || !soundEnabled || !unacknowledgedSignature) return undefined;
+    let repeats = 1;
     playAlert();
-    const intervalId = window.setInterval(playAlert, KITCHEN_ALERT_REPEAT_MS);
+    const intervalId = window.setInterval(() => {
+      if (repeats >= settings.maximumAlertRepeats) {
+        window.clearInterval(intervalId);
+        return;
+      }
+      repeats += 1;
+      playAlert();
+    }, settings.alertRepeatIntervalSeconds * 1000);
     return () => window.clearInterval(intervalId);
-  }, [playAlert, soundEnabled, unacknowledgedIds.length]);
+  }, [playAlert, settings, soundEnabled, unacknowledgedSignature]);
 
   useEffect(
     () => () => {
@@ -62,6 +82,7 @@ export default function useKitchenAlerts(orders) {
   );
 
   const enableSound = async () => {
+    if (!settings.kitchenSoundEnabled) return false;
     try {
       if (!audioContextRef.current) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -85,6 +106,7 @@ export default function useKitchenAlerts(orders) {
 
   return {
     soundEnabled,
+    soundAllowed: settings.kitchenSoundEnabled,
     enableSound,
     muteSound: () => setSoundEnabled(false),
     acknowledge,

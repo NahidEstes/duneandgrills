@@ -6,7 +6,7 @@ import { BellRing, ChefHat, Flame, LogOut, RefreshCw, Search, Volume2, VolumeX, 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import KitchenOrderCard from "./KitchenOrderCard.jsx";
-import { KITCHEN_COLUMNS, KITCHEN_POLL_INTERVAL_MS } from "./kitchenConfig.js";
+import { KITCHEN_COLUMNS } from "./kitchenConfig.js";
 import useKitchenAlerts from "./useKitchenAlerts.js";
 import useKitchenQueue from "./useKitchenQueue.js";
 
@@ -53,7 +53,7 @@ export default function KitchenDisplay() {
 
   const filters = useMemo(() => ({ search: debouncedSearch, source, orderType }), [debouncedSearch, orderType, source]);
   const queue = useKitchenQueue(filters);
-  const alerts = useKitchenAlerts(queue.orders);
+  const alerts = useKitchenAlerts(queue.orders, queue.config.notifications);
   const connection = connectionPresentation[queue.connection] || connectionPresentation.connecting;
   const ConnectionIcon = connection.icon;
   const nowMs = (tick || queue.lastUpdatedAt || 0) + queue.clockOffsetMs;
@@ -89,7 +89,7 @@ export default function KitchenDisplay() {
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <span className={`inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-xs ${connection.color}`} title={queue.error || undefined}><ConnectionIcon className={`h-4 w-4 ${queue.connection === "connecting" || queue.connection === "reconnecting" ? "animate-spin" : ""}`} />{connection.label}</span>
             <button type="button" onClick={queue.refresh} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-neutral-400 hover:border-dune-amber/40 hover:text-dune-amber" aria-label="Refresh kitchen orders"><RefreshCw className="h-4 w-4" /></button>
-            <button type="button" onClick={alerts.soundEnabled ? alerts.muteSound : async () => { if (!await alerts.enableSound()) toast.error("The browser blocked kitchen sound. Try again after interacting with the page."); }} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold ${alerts.soundEnabled ? "border-dune-amber/40 bg-dune-amber/10 text-dune-amber" : "border-white/10 text-neutral-400"}`}>{alerts.soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}{alerts.soundEnabled ? "Sound On" : "Enable Sound"}</button>
+            <button type="button" disabled={!alerts.soundAllowed} onClick={alerts.soundEnabled ? alerts.muteSound : async () => { if (!await alerts.enableSound()) toast.error(alerts.soundAllowed ? "The browser blocked kitchen sound. Try again after interacting with the page." : "Kitchen sounds are disabled in Restaurant Settings."); }} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${alerts.soundEnabled ? "border-dune-amber/40 bg-dune-amber/10 text-dune-amber" : "border-white/10 text-neutral-400"}`}>{alerts.soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}{alerts.soundEnabled ? "Sound On" : alerts.soundAllowed ? "Enable Sound" : "Sound Disabled"}</button>
             <div className="hidden border-l border-white/10 pl-3 text-right md:block"><p className="text-xs font-semibold text-white">{user?.name}</p><p className="text-[0.62rem] capitalize text-neutral-500">{user?.role}</p></div>
             <button type="button" onClick={handleLogout} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-neutral-500 hover:border-red-500/30 hover:text-red-300" aria-label="Log out"><LogOut className="h-4 w-4" /></button>
           </div>
@@ -108,7 +108,7 @@ export default function KitchenDisplay() {
         <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="flex items-center gap-2"><ChefHat className="h-6 w-6 text-dune-amber" /><h1 className="font-display text-3xl tracking-wide text-white">Kitchen Board</h1></div>
-            <p className="mt-1 text-xs text-neutral-500">Updates every {KITCHEN_POLL_INTERVAL_MS / 1000} seconds · Ready orders remain for {queue.config.readyRetentionMinutes} minutes</p>
+            <p className="mt-1 text-xs text-neutral-500">Updates every {queue.config.notifications.pollingIntervalSeconds} seconds · Ready orders remain for {queue.config.readyRetentionMinutes} minutes</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <label className="relative min-w-64"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-600" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order number…" className="h-11 w-full rounded-xl border border-white/10 bg-[#111517] pl-10 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60" /></label>

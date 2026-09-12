@@ -1,14 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import {
-  CheckCircle2,
-  Clock3,
-  Database,
-  ExternalLink,
   RefreshCw,
   Search,
-  ShieldCheck,
   Star,
   Trash2,
 } from "lucide-react";
@@ -94,7 +88,6 @@ const UserDirectory = ({ scope }) => {
     </div>
   );
 };
-
 export const CustomersView = () => <UserDirectory scope="customers" />;
 export const StaffView = () => <UserDirectory scope="staff" />;
 
@@ -147,11 +140,3 @@ export const ReviewsView = ({ onDataChanged }) => {
     </div>
   );
 };
-
-export const SettingsView = ({ dashboard }) => (
-  <div className="grid gap-4 lg:grid-cols-3">
-    <article className={`${CARD} p-5`}><ShieldCheck className="h-6 w-6 text-emerald-400" /><h2 className="mt-4 font-body text-base font-semibold text-white">Access Protection</h2><p className="mt-2 text-sm leading-6 text-neutral-500">The dashboard and admin APIs use the existing JWT middleware and allow only admin or manager roles.</p><span className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-1 text-xs text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" /> Active</span></article>
-    <article className={`${CARD} p-5`}><Database className="h-6 w-6 text-dune-amber" /><h2 className="mt-4 font-body text-base font-semibold text-white">Live Data Source</h2><p className="mt-2 text-sm leading-6 text-neutral-500">All dashboard values come from Express and MongoDB. Public content invalidation runs after menu, blog, offer and order mutations.</p><p className="mt-4 text-xs text-neutral-600">{dashboard?.stats?.menuItemCount || 0} menu items · {dashboard?.stats?.totalOrders || 0} orders</p></article>
-    <article className={`${CARD} p-5`}><Clock3 className="h-6 w-6 text-sky-400" /><h2 className="mt-4 font-body text-base font-semibold text-white">Environment Settings</h2><p className="mt-2 text-sm leading-6 text-neutral-500">API origin, database connection and JWT secret remain managed through the existing environment files.</p><Link href="/" className="mt-4 inline-flex items-center gap-1.5 text-xs text-dune-amber hover:text-dune-amberLight">Open public website <ExternalLink className="h-3.5 w-3.5" /></Link></article>
-  </div>
-);

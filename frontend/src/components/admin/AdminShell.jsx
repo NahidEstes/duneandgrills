@@ -103,10 +103,10 @@ const SearchResults = ({ results, searching, query, onSelect }) => {
   );
 };
 
-const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose }) => (
+const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway }) => (
   <div className="flex h-full flex-col bg-[#080b0d]">
     <div className="flex h-20 items-center justify-between border-b border-white/[0.07] px-5">
-      <Link href="/" className="flex items-center gap-2.5" aria-label="Dune & Grills home">
+      <Link href="/" onClick={(event) => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); }} className="flex items-center gap-2.5" aria-label="Dune & Grills home">
         <Flame className="h-7 w-7 fill-dune-amber text-dune-amber" />
         <span className="leading-none">
           <span className="font-display text-[1.35rem] tracking-[0.08em] text-white">
@@ -132,7 +132,7 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose }) => (
         const directHref = href || (id === "pos" ? "/pos" : null);
         if (directHref) {
           return (
-            <Link key={id} href={directHref} onClick={() => onClose?.()} className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3.5 text-sm font-medium text-neutral-300 hover:bg-white/[0.04] hover:text-dune-amber">
+            <Link key={id} href={directHref} onClick={(event) => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); else onClose?.(); }} className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3.5 text-sm font-medium text-neutral-300 hover:bg-white/[0.04] hover:text-dune-amber">
               <Icon className="h-[1.1rem] w-[1.1rem]" />{label}
             </Link>
           );
@@ -143,8 +143,7 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose }) => (
             key={id}
             type="button"
             onClick={() => {
-              onTabChange(id);
-              onClose?.();
+              if (onTabChange(id) !== false) onClose?.();
             }}
             className={`group flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 px-3.5 text-sm font-medium transition-all ${
               active
@@ -167,6 +166,7 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose }) => (
     <div className="border-t border-white/[0.07] p-4">
       <Link
         href="/"
+        onClick={(event) => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); }}
         className="flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm text-neutral-400 transition-colors hover:bg-white/[0.04] hover:text-white"
       >
         <Store className="h-4 w-4" /> View Restaurant
@@ -182,6 +182,7 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose }) => (
 const AdminShell = ({
   activeTab,
   onTabChange,
+  onNavigateAway,
   title,
   subtitle,
   user,
@@ -221,6 +222,7 @@ const AdminShell = ({
           activeTab={activeTab}
           onTabChange={onTabChange}
           orderBadge={dashboard?.stats?.openOrders || 0}
+          onNavigateAway={onNavigateAway}
         />
       </aside>
 
@@ -238,6 +240,7 @@ const AdminShell = ({
               onTabChange={onTabChange}
               orderBadge={dashboard?.stats?.openOrders || 0}
               onClose={() => setMobileOpen(false)}
+              onNavigateAway={onNavigateAway}
             />
           </aside>
         </div>

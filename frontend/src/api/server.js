@@ -47,6 +47,11 @@ export const getOffers = async () => {
   return response.data;
 };
 
+export const getPublicRestaurantSettings = async () => {
+  const response = await get("/settings/public");
+  return response.data;
+};
+
 export const getBlogPosts = async ({
   category,
   search,

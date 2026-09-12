@@ -16,6 +16,7 @@
     "migrate:offers": "node data/migrateOfferCoupons.js",
     "migrate:categories": "node data/migrateCategories.js",
     "test:kitchen": "node --test tests/kitchenService.test.js",
+    "test:settings": "node --test tests/restaurantSettingsService.test.js",
     "test:inventory": "node --test tests/inventoryUnitService.test.js && node tests/inventoryIntegration.js",
     "test:pos": "node tests/posIntegration.js",
     "seed:inventory": "node data/seedInventory.js"
