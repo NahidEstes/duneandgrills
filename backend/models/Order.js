@@ -149,6 +149,7 @@ const orderSchema = new mongoose.Schema(
         "pending",
         "confirmed",
         "preparing",
+        "ready",
         "out-for-delivery",
         "delivered",
         "cancelled",
@@ -165,6 +166,9 @@ const orderSchema = new mongoose.Schema(
     refundReason: { type: String, default: "", trim: true, maxlength: 500 },
     estimatedPreparationMinutes: { type: Number, default: null, min: 1, max: 240 },
     preparationDueAt: { type: Date, default: null },
+    acceptedAt: { type: Date, default: null },
+    preparationStartedAt: { type: Date, default: null },
+    readyAt: { type: Date, default: null },
     statusHistory: {
       type: [{
         status: { type: String, required: true },
@@ -210,6 +214,7 @@ orderSchema.index({ source: 1, createdAt: -1 });
 orderSchema.index({ orderType: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ preparationDueAt: 1, status: 1 });
+orderSchema.index({ status: 1, readyAt: 1, createdAt: 1 });
 orderSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 const Order = mongoose.model("Order", orderSchema);

@@ -44,7 +44,7 @@ export const register = async (req, res) => {
     }
 
     // Public registration always creates a customer account.
-    // Manager/admin accounts should be created manually in the database or by an existing admin.
+    // Kitchen/manager/admin accounts should be provisioned privately, never through public registration.
     const user = await User.create({
       name,
       email,

@@ -55,6 +55,7 @@ export const getDashboard = async (req, res) => {
       "pending",
       "confirmed",
       "preparing",
+      "ready",
       "out-for-delivery",
     ];
 
@@ -104,7 +105,7 @@ export const getDashboard = async (req, res) => {
         },
       ]),
       User.countDocuments({ role: "customer" }),
-      User.countDocuments({ role: { $in: ["admin", "manager"] } }),
+      User.countDocuments({ role: { $in: ["admin", "manager", "kitchen"] } }),
       MenuItem.countDocuments(),
       MenuItem.countDocuments({ isAvailable: true }),
       Offer.countDocuments({
@@ -329,7 +330,7 @@ export const getAdminUsers = async (req, res) => {
     const { scope = "customers", search = "" } = req.query;
     const filter = {
       role:
-        scope === "staff" ? { $in: ["admin", "manager"] } : "customer",
+        scope === "staff" ? { $in: ["admin", "manager", "kitchen"] } : "customer",
     };
 
     if (search.trim()) {

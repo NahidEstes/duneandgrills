@@ -206,6 +206,19 @@ export const bulkUpdateOrderStatus = async (orderIds, status, options = {}) => {
   return data.data;
 };
 
+// ---- Kitchen Display System ----
+export const fetchKitchenQueue = async (filters = {}) => {
+  const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
+  const { data } = await api.get("/kitchen/orders", { params });
+  return data;
+};
+
+export const updateKitchenOrderStatus = async (id, status, options = {}) => {
+  const { data } = await api.patch(`/kitchen/orders/${id}/status`, { status, ...options });
+  await refreshAfterMutation("orders");
+  return data;
+};
+
 // ---- Web POS ----
 export const fetchPosSales = async (params = {}) => {
   const { data } = await api.get("/pos/sales", { params });

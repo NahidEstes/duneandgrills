@@ -104,7 +104,7 @@ export const createPosSale = async (req, res, next) => {
         discountReason: roundedDiscount ? cleanText(req.body.discountReason, 160) || "POS discount" : "",
         deliveryFee: 0,
         totalAmount,
-        status: "delivered",
+        status: "pending",
         paymentMethod,
         paymentStatus: "paid",
         cashReceived: Number((cashReceived || 0).toFixed(2)),

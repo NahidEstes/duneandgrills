@@ -31,12 +31,13 @@ const AuthPage = () => {
     setError("");
     setLoading(true);
     try {
+      let authenticatedUser;
       if (mode === "login") {
-        await login(form.email, form.password);
+        authenticatedUser = await login(form.email, form.password);
       } else {
-        await register(form);
+        authenticatedUser = await register(form);
       }
-      router.push("/");
+      router.push(authenticatedUser?.role === "kitchen" ? "/kitchen" : "/");
     } catch (err) {
       setError(
         err.response?.data?.message || "Something went wrong. Please try again."

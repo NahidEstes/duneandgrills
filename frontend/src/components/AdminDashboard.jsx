@@ -74,7 +74,7 @@ const TAB_CONTENT = {
   },
   staff: {
     title: "Staff Accounts",
-    subtitle: "View the admin and manager accounts authorized for this dashboard.",
+    subtitle: "View the admin, manager and kitchen staff accounts used by restaurant operations.",
   },
   settings: {
     title: "Dashboard Settings",

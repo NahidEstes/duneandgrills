@@ -38,7 +38,7 @@ import { ValidationError } from "../utils/inventoryValidation.js";
 
 const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
 const reversalStatuses = new Set(nonRevenueStatuses);
-const ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery", "delivered", "cancelled", "refunded", "failed"]);
+const ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "ready", "out-for-delivery", "delivered", "cancelled", "refunded", "failed"]);
 const OPEN_ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery"]);
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -486,7 +486,7 @@ const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPre
     }
   } else prepMinutes = null;
 
-  const auditFields = ["status", "paymentStatus", "inventoryStatus", "cancellationReason", "refundReason", "estimatedPreparationMinutes", "preparationDueAt"];
+  const auditFields = ["status", "paymentStatus", "inventoryStatus", "cancellationReason", "refundReason", "estimatedPreparationMinutes", "preparationDueAt", "acceptedAt", "preparationStartedAt", "readyAt"];
   const before = pickAuditFields(order, auditFields);
   order.status = status;
   if (status === "cancelled") order.cancellationReason = normalizedReason;
@@ -495,6 +495,10 @@ const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPre
     order.estimatedPreparationMinutes = prepMinutes;
     order.preparationDueAt = new Date(Date.now() + prepMinutes * 60 * 1000);
   }
+  const statusChangedAt = new Date();
+  if (status === "confirmed" && !order.acceptedAt) order.acceptedAt = statusChangedAt;
+  if (status === "preparing" && !order.preparationStartedAt) order.preparationStartedAt = statusChangedAt;
+  if (status === "ready" && !order.readyAt) order.readyAt = statusChangedAt;
   await order.validate();
 
   if (reversalStatuses.has(status) && order.inventoryStatus === "deducted" && order.inventoryTransactions?.length) {
@@ -543,7 +547,7 @@ const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPre
     }
   }
 
-  order.statusHistory.push({ status, reason: normalizedReason, changedBy: actor._id, changedAt: new Date() });
+  order.statusHistory.push({ status, reason: normalizedReason, changedBy: actor._id, changedAt: statusChangedAt });
   await order.save();
   await recordAuditLog({
     actor,

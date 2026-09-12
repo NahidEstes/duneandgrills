@@ -2,6 +2,7 @@ import "dotenv/config";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import { createPosSale } from "../controllers/posController.js";
+import { createOrder } from "../controllers/orderController.js";
 import InventoryCategory from "../models/InventoryCategory.js";
 import InventoryItem from "../models/InventoryItem.js";
 import InventoryRecipe from "../models/InventoryRecipe.js";
@@ -10,6 +11,8 @@ import Order from "../models/Order.js";
 import StockTransaction from "../models/StockTransaction.js";
 import User from "../models/User.js";
 import { createOpeningBalance } from "../services/inventoryStockService.js";
+import { listKitchenOrders, transitionKitchenOrder } from "../services/kitchenService.js";
+import AuditLog from "../models/AuditLog.js";
 
 const testUri =
   process.env.MONGO_TEST_URI ||
@@ -33,6 +36,19 @@ const invokeCreateSale = async (user, body) => {
     response,
     (error) => {
       throw error;
+    }
+  );
+  return { statusCode, payload };
+};
+
+const invokeCreateWebsiteOrder = async (user, body) => {
+  let statusCode = 200;
+  let payload;
+  await createOrder(
+    { user, body },
+    {
+      status(code) { statusCode = code; return this; },
+      json(value) { payload = value; return value; },
     }
   );
   return { statusCode, payload };
@@ -115,7 +131,7 @@ const run = async () => {
   assert.equal(created.payload.data.totalAmount, 45);
   assert.equal(created.payload.data.changeDue, 5);
   assert.equal(created.payload.data.paymentStatus, "paid");
-  assert.equal(created.payload.data.status, "delivered");
+  assert.equal(created.payload.data.status, "pending");
   assert.equal(created.payload.data.inventoryStatus, "deducted");
   assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.6);
   assert.equal(
@@ -127,11 +143,45 @@ const run = async () => {
   );
   assert.equal((await User.findById(customer._id)).pointsBalance, 450);
 
+  await transitionKitchenOrder({ orderId: created.payload.data._id, nextStatus: "confirmed", actor: admin, estimatedPreparationMinutes: 18 });
+  await transitionKitchenOrder({ orderId: created.payload.data._id, nextStatus: "preparing", actor: admin });
+  await transitionKitchenOrder({ orderId: created.payload.data._id, nextStatus: "ready", actor: admin });
+  const kitchenOrder = (await listKitchenOrders()).find((order) => String(order._id) === String(created.payload.data._id));
+  assert.equal(kitchenOrder.status, "ready");
+  assert.equal(kitchenOrder.estimatedPreparationMinutes, 18);
+  assert.equal(kitchenOrder.customerName, "POS Test Customer");
+  assert.equal("phone" in kitchenOrder, false);
+  assert.equal("totalAmount" in kitchenOrder, false);
+  assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.6);
+  assert.equal(await StockTransaction.countDocuments({ order: created.payload.data._id, movementType: "STOCK_OUT" }), 1);
+  assert.equal(await AuditLog.countDocuments({ entityId: created.payload.data._id, action: "KITCHEN_ORDER_STATUS_CHANGED" }), 3);
+  await assert.rejects(
+    transitionKitchenOrder({ orderId: created.payload.data._id, nextStatus: "ready", actor: admin }),
+    /already ready/
+  );
+
+  const websiteCreated = await invokeCreateWebsiteOrder(customer, {
+    customer: { name: customer.name, phone: customer.phone, address: "Private test address" },
+    items: [{ productId: menuItem._id.toString(), productType: "menuItem", quantity: 1 }],
+    orderType: "delivery",
+  });
+  assert.equal(websiteCreated.statusCode, 201);
+  const websiteOrder = websiteCreated.payload.data;
+  assert.equal(websiteOrder.status, "pending");
+  assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.4);
+  assert.equal(await StockTransaction.countDocuments({ order: websiteOrder._id, movementType: "STOCK_OUT" }), 1);
+  await transitionKitchenOrder({ orderId: websiteOrder._id, nextStatus: "confirmed", actor: admin });
+  await transitionKitchenOrder({ orderId: websiteOrder._id, nextStatus: "preparing", actor: admin });
+  await transitionKitchenOrder({ orderId: websiteOrder._id, nextStatus: "ready", actor: admin });
+  assert.equal((await Order.findById(websiteOrder._id)).status, "ready");
+  assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.4);
+  assert.equal(await StockTransaction.countDocuments({ order: websiteOrder._id, movementType: "STOCK_OUT" }), 1);
+
   const duplicate = await invokeCreateSale(admin, request);
   assert.equal(duplicate.statusCode, 200);
   assert.equal(duplicate.payload.duplicate, true);
   assert.equal(await Order.countDocuments({ source: "pos" }), 1);
-  assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.6);
+  assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.4);
 
   await assert.rejects(
     invokeCreateSale(admin, {

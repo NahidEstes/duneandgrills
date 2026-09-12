@@ -45,6 +45,7 @@ export const statusStyles = {
   pending: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   confirmed: "border-sky-500/30 bg-sky-500/10 text-sky-300",
   preparing: "border-violet-500/30 bg-violet-500/10 text-violet-300",
+  ready: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
   "out-for-delivery": "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
   delivered: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   cancelled: "border-red-500/30 bg-red-500/10 text-red-300",

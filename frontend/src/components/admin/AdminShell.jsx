@@ -8,6 +8,7 @@ import {
   Boxes,
   ChevronDown,
   ClipboardList,
+  ChefHat,
   Flame,
   Gift,
   LayoutDashboard,
@@ -35,6 +36,7 @@ import SmartImage from "../SmartImage.jsx";
 const NAV_ITEMS = [
   { id: "overview", label: "Dashboard", icon: LayoutDashboard },
   { id: "pos", label: "POS / New Sale", icon: ShoppingBasket },
+  { id: "kitchen", label: "Kitchen Display", icon: ChefHat, href: "/kitchen" },
   { id: "inventory", label: "Inventory", icon: PackageSearch, href: "/inventory" },
   { id: "orders", label: "Orders", icon: ClipboardList, badge: "orders" },
   { id: "menu", label: "Menu Items", icon: UtensilsCrossed },

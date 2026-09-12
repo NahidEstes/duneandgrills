@@ -173,7 +173,7 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
           action={<SmallAction onClick={() => onNavigate("orders")}>View All Orders</SmallAction>}
         >
           <div className="flex gap-1 overflow-x-auto border-b border-white/[0.07] px-4 pt-2">
-            {["all", "pending", "preparing", "delivered"].map((status) => (
+            {["all", "pending", "preparing", "ready", "delivered"].map((status) => (
               <button
                 key={status}
                 type="button"
