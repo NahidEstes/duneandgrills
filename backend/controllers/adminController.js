@@ -9,8 +9,9 @@ import InventoryItem from "../models/InventoryItem.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import { getBatchSnapshots } from "../services/inventoryBatchService.js";
 import { getInventorySettings } from "../services/inventoryAnalyticsService.js";
+import { NON_REVENUE_ORDER_STATUSES } from "../config/orderStatuses.js";
 
-const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
+const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
 
 const escapeRegex = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

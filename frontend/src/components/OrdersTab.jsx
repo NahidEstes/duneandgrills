@@ -65,7 +65,7 @@ const StatCard = ({ label, value, sub }) => (
 );
 
 // ---- Order details modal with inline status control ----
-const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
+export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
   const [status, setStatus] = useState(order.status);
   const [reason, setReason] = useState(order.cancellationReason || order.refundReason || "");
   const [estimatedPreparationMinutes, setEstimatedPreparationMinutes] = useState(order.estimatedPreparationMinutes || "");

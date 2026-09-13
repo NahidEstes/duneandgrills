@@ -1,7 +1,7 @@
 import Order from "../models/Order.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
+import { NON_REVENUE_ORDER_STATUSES } from "../config/orderStatuses.js";
 
-const NON_REVENUE_STATUSES = ["cancelled", "refunded", "failed"];
 const RIYADH_OFFSET_MS = 3 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -60,7 +60,7 @@ export const buildAdminAnalytics = async (query = {}) => {
     match.source = query.source === "website" ? { $in: ["website", null] } : query.source;
   }
   if (query.orderType && query.orderType !== "all") match.orderType = query.orderType;
-  const revenueCondition = { $not: [{ $in: ["$status", NON_REVENUE_STATUSES] }] };
+  const revenueCondition = { $not: [{ $in: ["$status", NON_REVENUE_ORDER_STATUSES] }] };
 
   const [result] = await Order.aggregate([
     { $match: match },
@@ -77,7 +77,7 @@ export const buildAdminAnalytics = async (query = {}) => {
           },
         }],
         series: [
-          { $match: { status: { $nin: NON_REVENUE_STATUSES } } },
+          { $match: { status: { $nin: NON_REVENUE_ORDER_STATUSES } } },
           { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Asia/Riyadh" } }, orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
           { $sort: { _id: 1 } },
         ],
@@ -91,7 +91,7 @@ export const buildAdminAnalytics = async (query = {}) => {
         ],
         statuses: [{ $group: { _id: "$status", count: { $sum: 1 } } }, { $sort: { count: -1 } }],
         items: [
-          { $match: { status: { $nin: NON_REVENUE_STATUSES } } },
+          { $match: { status: { $nin: NON_REVENUE_ORDER_STATUSES } } },
           { $unwind: "$items" },
           { $group: { _id: { type: "$items.productType", product: { $ifNull: ["$items.menuItem", "$items.combo"] }, name: "$items.name" }, quantity: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.price", "$items.quantity"] } } } },
           { $sort: { quantity: -1, revenue: -1 } },

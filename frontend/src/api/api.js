@@ -348,6 +348,51 @@ export const fetchAdminUsers = async (scope = "customers", search = "") => {
   return data.data;
 };
 
+export const fetchAdminCustomers = async (params = {}) => {
+  const { data } = await api.get("/admin/customers", { params });
+  return data;
+};
+
+export const fetchAdminCustomer = async (customerId) => {
+  const { data } = await api.get(`/admin/customers/${customerId}`);
+  return data.data;
+};
+
+export const fetchAdminCustomerOrders = async (customerId, params = {}) => {
+  const { data } = await api.get(`/admin/customers/${customerId}/orders`, { params });
+  return data;
+};
+
+export const fetchAdminCustomerFavourites = async (customerId) => {
+  const { data } = await api.get(`/admin/customers/${customerId}/favourites`);
+  return data.data;
+};
+
+export const fetchAdminCustomerRewards = async (customerId, params = {}) => {
+  const { data } = await api.get(`/admin/customers/${customerId}/rewards`, { params });
+  return data;
+};
+
+export const fetchAdminCustomerNotes = async (customerId) => {
+  const { data } = await api.get(`/admin/customers/${customerId}/notes`);
+  return data.data;
+};
+
+export const createAdminCustomerNote = async (customerId, text) => {
+  const { data } = await api.post(`/admin/customers/${customerId}/notes`, { text });
+  return data.data;
+};
+
+export const updateAdminCustomerNote = async (customerId, noteId, text) => {
+  const { data } = await api.patch(`/admin/customers/${customerId}/notes/${noteId}`, { text });
+  return data.data;
+};
+
+export const deleteAdminCustomerNote = async (customerId, noteId) => {
+  const { data } = await api.delete(`/admin/customers/${customerId}/notes/${noteId}`);
+  return data.data;
+};
+
 export const searchAdmin = async (query) => {
   const { data } = await api.get("/admin/search", { params: { q: query } });
   return data.data;

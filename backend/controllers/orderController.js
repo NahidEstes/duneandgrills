@@ -36,10 +36,11 @@ import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js"
 import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
+import { NON_REVENUE_ORDER_STATUSES, ORDER_STATUSES as ORDER_STATUS_VALUES } from "../config/orderStatuses.js";
 
-const nonRevenueStatuses = ["cancelled", "refunded", "failed"];
+const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
 const reversalStatuses = new Set(nonRevenueStatuses);
-const ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "ready", "out-for-delivery", "delivered", "cancelled", "refunded", "failed"]);
+const ORDER_STATUSES = new Set(ORDER_STATUS_VALUES);
 const OPEN_ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery"]);
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -211,6 +211,7 @@ const orderSchema = new mongoose.Schema(
 );
 
 orderSchema.index({ source: 1, createdAt: -1 });
+orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ orderType: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ preparationDueAt: 1, status: 1 });

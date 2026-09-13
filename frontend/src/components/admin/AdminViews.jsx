@@ -19,6 +19,7 @@ import {
   formatAdminDate,
 } from "./adminUi.js";
 import { confirmDelete } from "./deleteToast.js";
+import CustomersPage from "./customers/CustomersPage.jsx";
 
 const CARD =
   "rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.045] to-white/[0.018]";
@@ -88,7 +89,7 @@ const UserDirectory = ({ scope }) => {
     </div>
   );
 };
-export const CustomersView = () => <UserDirectory scope="customers" />;
+export const CustomersView = () => <CustomersPage />;
 export const StaffView = () => <UserDirectory scope="staff" />;
 
 export const ReviewsView = ({ onDataChanged }) => {
