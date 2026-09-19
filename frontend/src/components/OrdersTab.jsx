@@ -10,6 +10,7 @@ import { bulkUpdateOrderStatus, fetchOrdersPage, fetchOrderStats, fetchPublicRes
 import { formatAdminCurrency } from "./admin/adminUi.js";
 import { printOrderInvoice } from "../utils/adminExports.js";
 import { formatOrderType, getOrderSubtotal } from "../utils/order.js";
+import OrderItemCustomization from "./OrderItemCustomization.jsx";
 
 const STATUS_STYLES = {
   pending: "bg-amber-500/10 text-amber-400 border-amber-500/40",
@@ -198,6 +199,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
               <div>
                 <p className="text-white">{item.name}</p>
                 <p className="text-neutral-500 text-xs">Qty: {item.quantity}</p>
+                <OrderItemCustomization item={item} />
               </div>
               <p className="text-dune-amber font-medium">
                 {formatAdminCurrency(item.price * item.quantity)}

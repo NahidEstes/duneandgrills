@@ -23,13 +23,24 @@ test("kitchen serialization excludes customer and financial secrets", () => {
     customer: { name: "Guest", phone: "0500000000", address: "Private" },
     totalAmount: 99,
     paymentMethod: "card",
-    items: [{ name: "Burger", quantity: 2, price: 25, comboItems: [] }],
+    items: [{
+      name: "Burger",
+      quantity: 2,
+      price: 25,
+      selectedAddOns: [{ name: "Extra Cheese", price: 3 }],
+      spiceLevel: "hot",
+      itemNote: "No onions",
+      comboItems: [],
+    }],
   });
   assert.equal(serialized.customerName, "Guest");
   assert.equal("customer" in serialized, false);
   assert.equal("totalAmount" in serialized, false);
   assert.equal("paymentMethod" in serialized, false);
   assert.equal("price" in serialized.items[0], false);
+  assert.deepEqual(serialized.items[0].selectedAddOns, [{ name: "Extra Cheese" }]);
+  assert.equal(serialized.items[0].spiceLevel, "hot");
+  assert.equal(serialized.items[0].itemNote, "No onions");
 });
 
 test("kitchen authorization permits kitchen staff, managers and admins but rejects customers", () => {

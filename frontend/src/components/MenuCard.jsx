@@ -3,14 +3,11 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Flame, Heart } from "lucide-react";
-import { toast } from "sonner";
-import { useCart } from "../context/CartContext.jsx";
 import { useFavorites } from "../context/FavoritesContext.jsx";
 import { formatPrice } from "../utils/currency.js";
 import SmartImage from "./SmartImage.jsx";
 
 const MenuCard = ({ item, onSelect }) => {
-  const { addToCart } = useCart();
   const { favoriteIds, toggleFavorite } = useFavorites();
   const router = useRouter();
   const isBestseller = item.tags?.includes("bestseller");
@@ -115,12 +112,12 @@ const MenuCard = ({ item, onSelect }) => {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (addToCart(item)) toast.success("Added to cart");
+            onSelect(item);
           }}
           className="mt-5 inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-full border border-dune-amber/60 text-dune-amber font-medium hover:bg-dune-amber hover:text-black transition-colors duration-300"
         >
           <Plus className="w-4 h-4" />
-          Add to Cart
+          Customize & Add
         </button>
       </div>
     </div>

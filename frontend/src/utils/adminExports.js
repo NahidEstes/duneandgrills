@@ -9,6 +9,14 @@ const escapeHtml = (value) => String(value ?? "")
 
 const csvCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 
+const itemCustomizationHtml = (item = {}) => {
+  const parts = [];
+  if (item.selectedAddOns?.length) parts.push(`Add-ons: ${item.selectedAddOns.map((addOn) => addOn.name).filter(Boolean).join(", ")}`);
+  if (item.spiceLevel) parts.push(`Spice: ${item.spiceLevel.replaceAll("-", " ")}`);
+  if (item.itemNote) parts.push(`Note: ${item.itemNote}`);
+  return parts.length ? `<div class="muted" style="font-size:11px;margin-top:3px">${parts.map(escapeHtml).join(" · ")}</div>` : "";
+};
+
 export const downloadCsv = (filename, headings, rows) => {
   const csv = [headings.map(csvCell).join(","), ...rows.map((row) => row.map(csvCell).join(","))].join("\n");
   const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
@@ -38,13 +46,13 @@ const receiptIdentity = (settings = {}, fallbackHeader = "ORDER INVOICE") => {
 };
 
 export const printOrderInvoice = (order, settings = {}) => {
-  const items = (order.items || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.quantity)}</td><td>${escapeHtml(formatAdminCurrency(item.price))}</td><td>${escapeHtml(formatAdminCurrency(item.price * item.quantity))}</td></tr>`).join("");
+  const items = (order.items || []).map((item) => `<tr><td>${escapeHtml(item.name)}${itemCustomizationHtml(item)}</td><td>${escapeHtml(item.quantity)}</td><td>${escapeHtml(formatAdminCurrency(item.price))}</td><td>${escapeHtml(formatAdminCurrency(item.price * item.quantity))}</td></tr>`).join("");
   const reason = order.refundReason || order.cancellationReason;
   return openPrintWindow(`Invoice ${order.orderNumber}`, `${receiptIdentity(settings)}<div class="meta"><span>Order <strong>#${escapeHtml(order.orderNumber)}</strong></span><span>Date ${escapeHtml(formatAdminDate(order.createdAt, { hour: "2-digit", minute: "2-digit" }))}</span><span>Customer ${escapeHtml(order.customer?.name || "Guest")}</span><span>Status ${escapeHtml(order.status)}</span><span>Source ${escapeHtml(order.source || "website")}</span><span>Type ${escapeHtml(order.orderType)}</span></div><table><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>${items}</tbody></table><div class="totals"><div><span>Subtotal</span><span>${escapeHtml(formatAdminCurrency(order.subtotal ?? order.originalSubtotal))}</span></div>${Number(order.discountAmount) ? `<div><span>Discount</span><span>-${escapeHtml(formatAdminCurrency(order.discountAmount))}</span></div>` : ""}${Number(order.deliveryFee) ? `<div><span>Delivery</span><span>${escapeHtml(formatAdminCurrency(order.deliveryFee))}</span></div>` : ""}<div class="total"><span>Total</span><span>${escapeHtml(formatAdminCurrency(order.totalAmount))}</span></div></div>${reason ? `<p class="reason"><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}${settings.receipt?.footer ? `<p class="muted">${escapeHtml(settings.receipt.footer)}</p>` : ""}`);
 };
 
 export const printPosReceipt = (sale, settings = {}) => {
-  const itemRows = (sale.items || []).map((item) => `<tr><td>${escapeHtml(item.name)} ×${escapeHtml(item.quantity)}</td><td>${escapeHtml(formatAdminCurrency(item.price * item.quantity))}</td></tr>`).join("");
+  const itemRows = (sale.items || []).map((item) => `<tr><td>${escapeHtml(item.name)} ×${escapeHtml(item.quantity)}${itemCustomizationHtml(item)}</td><td>${escapeHtml(formatAdminCurrency(item.price * item.quantity))}</td></tr>`).join("");
   const body = `${receiptIdentity(settings, "POS SALES RECEIPT")}<div class="meta"><span>Order</span><strong>#${escapeHtml(sale.orderNumber)}</strong><span>Date</span><span>${escapeHtml(formatAdminDate(sale.createdAt, { hour: "2-digit", minute: "2-digit" }))}</span><span>Cashier</span><span>${escapeHtml(sale.createdBy?.name || "—")}</span><span>Order type</span><span>${escapeHtml(sale.orderType)}</span></div><table>${itemRows}<tr><td>Subtotal</td><td>${escapeHtml(formatAdminCurrency(sale.subtotal))}</td></tr>${Number(sale.discountAmount) ? `<tr><td>Discount</td><td>-${escapeHtml(formatAdminCurrency(sale.discountAmount))}</td></tr>` : ""}<tr class="total"><td>Total</td><td>${escapeHtml(formatAdminCurrency(sale.totalAmount))}</td></tr></table><div class="meta"><span>Payment</span><span>${escapeHtml(sale.paymentMethod)}</span>${sale.paymentMethod === "cash" ? `<span>Cash received</span><span>${escapeHtml(formatAdminCurrency(sale.cashReceived))}</span><span>Change</span><span>${escapeHtml(formatAdminCurrency(sale.changeDue))}</span>` : ""}</div><p class="muted">${escapeHtml(settings.receipt?.footer || "Thank you for visiting Dune & Grills.")}</p>`;
   return openPrintWindow(`Receipt ${sale.orderNumber}`, body, 440);
 };

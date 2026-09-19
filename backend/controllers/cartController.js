@@ -1,27 +1,12 @@
 import mongoose from "mongoose";
 import UserCart, { MAX_CART_QUANTITY } from "../models/UserCart.js";
 import {
-  PRODUCT_TYPES,
-  comboHasAvailableItems,
-  findAvailableProduct,
   getProductIdentity,
   getProductReference,
   normalizeProductType,
   productKey,
-  serializeCombo,
+  resolveCartLines,
 } from "../services/catalogService.js";
-
-const cartPopulation = [
-  {
-    path: "items.menuItem",
-    select:
-      "name description price category image tags isAvailable isFeatured calories ingredients",
-  },
-  {
-    path: "items.combo",
-    populate: { path: "items.menuItem" },
-  },
-];
 
 const parseQuantity = (value) => {
   const quantity = Number(value);
@@ -48,49 +33,112 @@ const entryIdentity = (entry) => {
   return {
     productType,
     productId:
-      productType === PRODUCT_TYPES.COMBO
+      productType === "combo"
         ? entry.combo?._id || entry.combo
         : entry.menuItem?._id || entry.menuItem,
   };
 };
 
-const cartResponseItems = async (cart) => {
-  await cart.populate(cartPopulation);
-  const availableItems = cart.items.filter((entry) => {
-    const { productType } = entryIdentity(entry);
-    if (productType === PRODUCT_TYPES.COMBO) {
-      return (
-        entry.combo &&
-        entry.combo.status === "published" &&
-        entry.combo.isAvailable &&
-        comboHasAvailableItems(entry.combo)
-      );
-    }
-    return entry.menuItem && entry.menuItem.isAvailable;
-  });
+const requestFromEntry = (entry) => {
+  const identity = entryIdentity(entry);
+  return {
+    ...identity,
+    quantity: entry.quantity,
+    customization: {
+      selectedAddOns: entry.selectedAddOns || [],
+      spiceLevel: entry.spiceLevel || "",
+      note: entry.note || "",
+    },
+  };
+};
 
-  if (availableItems.length !== cart.items.length) {
-    cart.items = availableItems.map((entry) => {
-      const { productType, productId } = entryIdentity(entry);
-      return {
-        ...getProductReference(productType, productId),
-        quantity: entry.quantity,
-      };
+const storedLineFromResolved = (line, lineId) => ({
+  ...(lineId ? { lineId } : {}),
+  ...getProductReference(line.productType, line.productId),
+  quantity: line.quantity,
+  selectedAddOns: line.customization.selectedAddOns.map((addOn) => addOn.addOn),
+  spiceLevel: line.customization.spiceLevel,
+  note: line.customization.note,
+  customizationKey: line.customization.key,
+});
+
+const responseLine = (entry, line) => ({
+  ...line.product,
+  price: line.unitPrice,
+  basePrice: line.baseUnitPrice,
+  quantity: line.quantity,
+  cartLineId: String(entry.lineId),
+  selectedAddOns: line.customization.selectedAddOns.map((addOn) => ({
+    _id: addOn.addOn,
+    name: addOn.name,
+    image: addOn.image,
+    price: addOn.price,
+  })),
+  spiceLevel: line.customization.spiceLevel,
+  note: line.customization.note,
+  customizationKey: line.customization.key,
+});
+
+const persistedKey = (entry) => {
+  const identity = entryIdentity(entry);
+  return `${productKey(identity.productType, identity.productId)}:${entry.customizationKey || ""}`;
+};
+
+const cartResponseItems = async (cart) => {
+  const valid = [];
+  let changed = false;
+  try {
+    const lines = cart.items.length
+      ? await resolveCartLines(cart.items.map(requestFromEntry))
+      : [];
+    cart.items.forEach((entry, index) => {
+      const line = lines[index];
+      if (entry.customizationKey !== line.customization.key) changed = true;
+      entry.customizationKey = line.customization.key;
+      valid.push({ entry, line });
     });
+  } catch {
+    for (const entry of cart.items) {
+      try {
+        const [line] = await resolveCartLines([requestFromEntry(entry)]);
+        if (entry.customizationKey !== line.customization.key) changed = true;
+        entry.customizationKey = line.customization.key;
+        valid.push({ entry, line });
+      } catch {
+        try {
+          const identity = entryIdentity(entry);
+          const [line] = await resolveCartLines([{ ...identity, quantity: entry.quantity }]);
+          const replacement = storedLineFromResolved(line, entry.lineId);
+          valid.push({ entry: replacement, line });
+          changed = true;
+        } catch {
+          changed = true;
+        }
+      }
+    }
+  }
+  const consolidated = new Map();
+  for (const pair of valid) {
+    const key = `${productKey(pair.line.productType, pair.line.productId)}:${pair.line.customization.key}`;
+    const existing = consolidated.get(key);
+    if (!existing) {
+      consolidated.set(key, pair);
+      continue;
+    }
+    const quantity = Math.min(
+      MAX_CART_QUANTITY,
+      Number(existing.entry.quantity) + Number(pair.entry.quantity)
+    );
+    existing.entry.quantity = quantity;
+    existing.line.quantity = quantity;
+    changed = true;
+  }
+  valid.splice(0, valid.length, ...consolidated.values());
+  if (changed) {
+    cart.items = valid.map(({ entry }) => entry);
     await cart.save();
   }
-
-  return availableItems.map((entry) => {
-    const { productType } = entryIdentity(entry);
-    const product =
-      productType === PRODUCT_TYPES.COMBO
-        ? serializeCombo(entry.combo)
-        : {
-            ...entry.menuItem.toObject(),
-            productType: PRODUCT_TYPES.MENU_ITEM,
-          };
-    return { ...product, quantity: entry.quantity };
-  });
+  return valid.map(({ entry, line }) => responseLine(entry, line));
 };
 
 const sendCart = async (res, cart, status = 200) =>
@@ -126,22 +174,10 @@ export const addToCart = async (req, res) => {
       });
     }
 
-    if (!(await findAvailableProduct(productType, productId))) {
-      return res.status(404).json({
-        success: false,
-        message: "Product was not found or is unavailable",
-      });
-    }
-
+    const [resolved] = await resolveCartLines([{ ...req.body, productType, productId, quantity }]);
     const cart = await getOrCreateCart(req.user._id);
-    const requestedKey = productKey(productType, productId);
-    const existing = cart.items.find((entry) => {
-      const identity = entryIdentity(entry);
-      return (
-        identity.productId &&
-        productKey(identity.productType, identity.productId) === requestedKey
-      );
-    });
+    const requestedKey = `${productKey(productType, productId)}:${resolved.customization.key}`;
+    const existing = cart.items.find((entry) => persistedKey(entry) === requestedKey);
 
     if (existing) {
       if (existing.quantity + quantity > MAX_CART_QUANTITY) {
@@ -153,17 +189,16 @@ export const addToCart = async (req, res) => {
       existing.quantity += quantity;
     } else {
       cart.items.push({
-        ...getProductReference(productType, productId),
-        quantity,
+        ...storedLineFromResolved(resolved),
       });
     }
 
     await cart.save();
     return sendCart(res, cart, existing ? 200 : 201);
   } catch (error) {
-    return res.status(400).json({
+    return res.status(error.status || 400).json({
       success: false,
-      message: "Failed to add product to cart",
+      message: error.message || "Failed to add product to cart",
       error: error.message,
     });
   }
@@ -179,22 +214,14 @@ export const updateItem = async (req, res) => {
         message: `A valid product and quantity from 1 to ${MAX_CART_QUANTITY} are required`,
       });
     }
-    if (!(await findAvailableProduct(productType, productId))) {
-      return res.status(404).json({
-        success: false,
-        message: "Product was not found or is unavailable",
-      });
-    }
-
     const cart = await getOrCreateCart(req.user._id);
-    const requestedKey = productKey(productType, productId);
-    const item = cart.items.find((entry) => {
-      const identity = entryIdentity(entry);
-      return (
-        identity.productId &&
-        productKey(identity.productType, identity.productId) === requestedKey
-      );
-    });
+    const lineId = req.query.lineId || req.body.lineId;
+    const item = mongoose.isValidObjectId(lineId)
+      ? cart.items.find((entry) => String(entry.lineId) === String(lineId))
+      : cart.items.find((entry) => {
+          const identity = entryIdentity(entry);
+          return identity.productId && productKey(identity.productType, identity.productId) === productKey(productType, productId);
+        });
     if (!item) {
       return res.status(404).json({
         success: false,
@@ -222,9 +249,11 @@ export const removeItem = async (req, res) => {
     }
 
     const cart = await getOrCreateCart(req.user._id);
+    const lineId = req.query.lineId || req.body.lineId;
     const requestedKey = productKey(productType, productId);
     const originalLength = cart.items.length;
     cart.items = cart.items.filter((entry) => {
+      if (mongoose.isValidObjectId(lineId)) return String(entry.lineId) !== String(lineId);
       const identity = entryIdentity(entry);
       return (
         !identity.productId ||
@@ -274,59 +303,28 @@ export const migrateCart = async (req, res) => {
       });
     }
 
-    const guestItems = new Map();
-    for (const item of incoming) {
-      const { productType, productId } = getProductIdentity(item);
-      const quantity = parseQuantity(item.quantity);
-      if (!mongoose.isValidObjectId(productId) || !quantity) {
-        return res.status(400).json({
-          success: false,
-          message: "Guest cart contains an invalid product or quantity",
-        });
-      }
-      guestItems.set(productKey(productType, productId), {
-        productType,
-        productId,
-        quantity,
-      });
-    }
-
-    const availability = await Promise.all(
-      [...guestItems.values()].map(({ productType, productId }) =>
-        findAvailableProduct(productType, productId)
-      )
+    const resolvedGuestItems = incoming.length ? await resolveCartLines(incoming) : [];
+    const guestItems = new Map(
+      resolvedGuestItems.map((line) => [
+        `${productKey(line.productType, line.productId)}:${line.customization.key}`,
+        storedLineFromResolved(line),
+      ])
     );
-    if (availability.some((product) => !product)) {
-      return res.status(409).json({
-        success: false,
-        message: "One or more guest cart products are no longer available",
-      });
-    }
-
     const cart = await getOrCreateCart(req.user._id);
     const mergedItems = new Map(
       cart.items.map((entry) => {
-        const identity = entryIdentity(entry);
-        return [
-          productKey(identity.productType, identity.productId),
-          { ...identity, quantity: entry.quantity },
-        ];
+        return [persistedKey(entry), entry.toObject ? entry.toObject() : entry];
       })
     );
     for (const [key, value] of guestItems) mergedItems.set(key, value);
 
-    cart.items = [...mergedItems.values()].map(
-      ({ productType, productId, quantity }) => ({
-        ...getProductReference(productType, productId),
-        quantity,
-      })
-    );
+    cart.items = [...mergedItems.values()];
     await cart.save();
     return sendCart(res, cart);
   } catch (error) {
-    return res.status(400).json({
+    return res.status(error.status || 400).json({
       success: false,
-      message: "Failed to migrate guest cart",
+      message: error.message || "Failed to migrate guest cart",
       error: error.message,
     });
   }

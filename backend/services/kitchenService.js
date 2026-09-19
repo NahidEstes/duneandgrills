@@ -36,6 +36,9 @@ const cleanKitchenItem = (item) => ({
   name: item.name,
   quantity: item.quantity,
   productType: item.productType,
+  selectedAddOns: (item.selectedAddOns || []).map((addOn) => ({ name: addOn.name })),
+  spiceLevel: item.spiceLevel || "",
+  itemNote: item.itemNote || "",
   comboItems: (item.comboItems || []).map((entry) => ({
     name: entry.name,
     quantity: entry.quantity,

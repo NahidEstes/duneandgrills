@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Check, ChefHat, Clock3, PackageCheck, Play, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import OrderItemCustomization from "../OrderItemCustomization.jsx";
 
 const actionByStatus = {
   pending: { next: "confirmed", label: "Accept Order", icon: Check },
@@ -98,6 +99,7 @@ export default function KitchenOrderCard({ order, nowMs, defaultPreparationMinut
                   {item.comboItems.map((part, partIndex) => <li key={`${part.name}-${partIndex}`}>• {part.quantity}× {part.name}</li>)}
                 </ul>
               )}
+              <OrderItemCustomization item={item} className="ml-10 text-amber-100/65" />
             </div>
           ))}
         </div>

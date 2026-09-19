@@ -152,7 +152,7 @@ const CartDrawer = ({ open, onClose }) => {
     .filter((line) => !line.isReward)
     .map(
       (line) =>
-        `${line.productType || "menuItem"}:${line._id}:${line.quantity}`
+        `${line.productType || "menuItem"}:${line._id}:${line.customizationKey || ""}:${line.quantity}`
     )
     .sort()
     .join("|");
@@ -210,6 +210,15 @@ const CartDrawer = ({ open, onClose }) => {
         productId: line._id,
         productType: line.productType || "menuItem",
         quantity: line.quantity,
+        ...(line.customizationKey
+          ? {
+              customization: {
+                selectedAddOns: (line.selectedAddOns || []).map((addOn) => addOn._id),
+                spiceLevel: line.spiceLevel || "",
+                note: line.note || "",
+              },
+            }
+          : {}),
       }));
 
   const handleApplyCoupon = async () => {
@@ -300,7 +309,7 @@ const CartDrawer = ({ open, onClose }) => {
         toast.success("Reward removed and your points were returned.");
       } catch (requestError) {
         if ([404, 409].includes(requestError.response?.status)) {
-          removeFromCart(line._id);
+          removeFromCart(line);
           toast.info("This reward reservation is no longer active.");
           return;
         }
@@ -311,7 +320,7 @@ const CartDrawer = ({ open, onClose }) => {
         return;
       }
     }
-    removeFromCart(line._id);
+    removeFromCart(line);
   };
 
   const reset = () => {
@@ -393,7 +402,7 @@ const CartDrawer = ({ open, onClose }) => {
               ) : (
                 cart.map((line) => (
                   <div
-                    key={`${line.productType || "menuItem"}-${line._id}`}
+                    key={line.cartLineId || `${line.productType || "menuItem"}-${line._id}-${line.customizationKey || ""}`}
                     className="flex gap-4 border-b border-dune-border pb-5"
                   >
                     <SmartImage
@@ -434,9 +443,25 @@ const CartDrawer = ({ open, onClose }) => {
                         </p>
                       )}
 
+                      {line.selectedAddOns?.length > 0 && (
+                        <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-neutral-500">
+                          Add-ons: {line.selectedAddOns.map((addOn) => addOn.name).join(" · ")}
+                        </p>
+                      )}
+                      {line.spiceLevel && (
+                        <p className="mt-1 text-[11px] capitalize text-neutral-500">
+                          Spice: {line.spiceLevel.replaceAll("-", " ")}
+                        </p>
+                      )}
+                      {line.note && (
+                        <p className="mt-1 line-clamp-2 text-[11px] italic text-neutral-600">
+                          “{line.note}”
+                        </p>
+                      )}
+
                       {!line.isReward && <div className="mt-2 flex items-center gap-3">
                         <button
-                          onClick={() => decrementItem(line._id)}
+                          onClick={() => decrementItem(line)}
                           className="w-7 h-7 flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white"
                         >
                           <Minus className="w-3.5 h-3.5" />
@@ -445,7 +470,7 @@ const CartDrawer = ({ open, onClose }) => {
                           {line.quantity}
                         </span>
                         <button
-                          onClick={() => incrementItem(line._id)}
+                          onClick={() => incrementItem(line)}
                           className="w-7 h-7 flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white"
                         >
                           <Plus className="w-3.5 h-3.5" />

@@ -325,6 +325,9 @@ const AccountDashboard = () => {
               : product.price ?? item.price,
           quantity: item.quantity,
           includedItems: item.comboItems,
+          selectedAddOns: item.selectedAddOns || [],
+          spiceLevel: item.spiceLevel || "",
+          note: item.itemNote || "",
         };
       });
 

@@ -8,8 +8,13 @@ import {
   synchronizeLegacyCategories,
 } from "../services/categoryService.js";
 import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
+import MenuAddOn from "../models/MenuAddOn.js";
+import {
+  attachPublicCustomizations,
+  normalizeCustomizationSettings,
+} from "../services/menuCustomizationService.js";
 
-const MENU_AUDIT_FIELDS = ["name", "price", "category", "categoryRef", "isAvailable", "isFeatured", "description"];
+const MENU_AUDIT_FIELDS = ["name", "price", "category", "categoryRef", "isAvailable", "isFeatured", "description", "customization"];
 
 const refreshComboPrices = async (menuItemId) => {
   const combos = await Combo.find({ "items.menuItem": menuItemId }).populate(
@@ -38,7 +43,8 @@ export const getMenuItems = async (req, res) => {
     const items = await MenuItem.find(filter)
       .populate("categoryRef", "name slug isActive type")
       .sort({ createdAt: -1 });
-    res.status(200).json({ success: true, count: items.length, data: items });
+    const data = await attachPublicCustomizations(items);
+    res.status(200).json({ success: true, count: data.length, data });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch menu items", error: err.message });
   }
@@ -77,7 +83,8 @@ export const getMenuItemById = async (req, res) => {
     if (!item) {
       return res.status(404).json({ success: false, message: "Menu item not found" });
     }
-    res.status(200).json({ success: true, data: item });
+    const [data] = await attachPublicCustomizations([item]);
+    res.status(200).json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch menu item", error: err.message });
   }
@@ -93,7 +100,8 @@ export const createMenuItem = async (req, res) => {
       categoryId: req.body.categoryId,
       categoryName: req.body.category,
     });
-    const item = await MenuItem.create({ ...req.body, ...categoryValues });
+    const customization = normalizeCustomizationSettings(req.body.customization);
+    const item = await MenuItem.create({ ...req.body, customization, ...categoryValues });
     await item.populate("categoryRef", "name slug isActive type");
     await recordAuditLog({ actor: req.user, action: "MENU_ITEM_CREATED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, after: pickAuditFields(item, MENU_AUDIT_FIELDS) });
     res.status(201).json({ success: true, data: item });
@@ -127,7 +135,10 @@ export const updateMenuItem = async (req, res) => {
       });
     }
 
-    item.set({ ...req.body, ...categoryValues });
+    const customizationValues = req.body.customization === undefined
+      ? {}
+      : { customization: normalizeCustomizationSettings(req.body.customization) };
+    item.set({ ...req.body, ...customizationValues, ...categoryValues });
     await item.save();
     await refreshComboPrices(item._id);
     await recordAuditLog({ actor: req.user, action: "MENU_ITEM_UPDATED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, before, after: pickAuditFields(item, MENU_AUDIT_FIELDS) });
@@ -156,6 +167,10 @@ export const deleteMenuItem = async (req, res) => {
     if (!item) {
       return res.status(404).json({ success: false, message: "Menu item not found" });
     }
+    await MenuAddOn.updateMany(
+      { menuItems: item._id },
+      { $pull: { menuItems: item._id } }
+    );
     await recordAuditLog({ actor: req.user, action: "MENU_ITEM_DELETED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, before: pickAuditFields(item, MENU_AUDIT_FIELDS) });
     res.status(200).json({ success: true, message: "Menu item deleted" });
   } catch (err) {

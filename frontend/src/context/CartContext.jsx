@@ -31,7 +31,25 @@ const userCartKey = (userId) => `${USER_CART_KEY_PREFIX}${userId}`;
 const userCouponKey = (userId) => `${USER_COUPON_KEY_PREFIX}${userId}`;
 const productTypeOf = (line) =>
   line?.productType === "combo" ? "combo" : "menuItem";
-const lineKey = (line) => `${productTypeOf(line)}:${line._id}`;
+const addOnId = (addOn) => String(addOn?._id || addOn?.addOn || addOn || "");
+const customizationKeyOf = (line = {}) => {
+  if (typeof line.customizationKey === "string") return line.customizationKey;
+  const addOns = (line.selectedAddOns || []).map(addOnId).filter(Boolean).sort();
+  const spiceLevel = line.spiceLevel || "";
+  const note = line.note || "";
+  if (!addOns.length && !spiceLevel && !note) return "";
+  return JSON.stringify({
+    addOns,
+    spiceLevel,
+    note,
+  });
+};
+const lineKey = (line) =>
+  `${productTypeOf(line)}:${line._id}:${customizationKeyOf(line)}`;
+const matchesLine = (line, locator) =>
+  typeof locator === "object" && locator
+    ? lineKey(line) === lineKey(locator)
+    : String(line.cartLineId || "") === String(locator) || line._id === locator;
 
 const normalizeLine = (line) => {
   if (!line || typeof line !== "object" || !line._id) return null;
@@ -44,6 +62,11 @@ const normalizeLine = (line) => {
     description:
       typeof line.description === "string" ? line.description : "",
     price: Number.isFinite(Number(line.price)) ? Number(line.price) : 0,
+    basePrice: Number.isFinite(Number(line.basePrice))
+      ? Number(line.basePrice)
+      : Number.isFinite(Number(line.price))
+        ? Number(line.price)
+        : 0,
     image: typeof line.image === "string" ? line.image : "",
     category: typeof line.category === "string" ? line.category : "",
     tags: Array.isArray(line.tags) ? line.tags : [],
@@ -67,6 +90,21 @@ const normalizeLine = (line) => {
         ? line.rewardRedemptionId
         : undefined,
     menuItem: line.menuItem,
+    cartLineId:
+      typeof line.cartLineId === "string" ? line.cartLineId : undefined,
+    selectedAddOns: Array.isArray(line.selectedAddOns)
+      ? line.selectedAddOns
+          .map((addOn) => ({
+            _id: addOnId(addOn),
+            name: typeof addOn?.name === "string" ? addOn.name : "Add-on",
+            image: typeof addOn?.image === "string" ? addOn.image : "",
+            price: Number(addOn?.price) || 0,
+          }))
+          .filter((addOn) => addOn._id)
+      : [],
+    spiceLevel: typeof line.spiceLevel === "string" ? line.spiceLevel : "",
+    note: typeof line.note === "string" ? line.note.slice(0, 240) : "",
+    customizationKey: customizationKeyOf(line),
     quantity: Math.min(quantity, MAX_CART_QUANTITY),
   };
 };
@@ -106,7 +144,13 @@ const cartReducer = (state, action) => {
     case "REPLACE":
       return normalizeCart(action.payload);
     case "ADD_ITEM": {
-      const item = normalizeLine({ ...action.payload, quantity: 1 });
+      const item = normalizeLine({
+        ...action.payload,
+        quantity: Math.min(
+          MAX_CART_QUANTITY,
+          Math.max(1, Number(action.payload.quantity) || 1)
+        ),
+      });
       if (!item) return state;
       const existing = state.find((line) => lineKey(line) === lineKey(item));
       if (existing) {
@@ -115,7 +159,10 @@ const cartReducer = (state, action) => {
           lineKey(line) === lineKey(item)
             ? {
                 ...line,
-                quantity: Math.min(MAX_CART_QUANTITY, line.quantity + 1),
+                quantity: Math.min(
+                  MAX_CART_QUANTITY,
+                  line.quantity + item.quantity
+                ),
               }
             : line
         );
@@ -149,7 +196,7 @@ const cartReducer = (state, action) => {
       }, state);
     case "INCREMENT":
       return state.map((line) =>
-        line._id === action.payload && !line.isReward
+        matchesLine(line, action.payload) && !line.isReward
           ? {
               ...line,
               quantity: Math.min(MAX_CART_QUANTITY, line.quantity + 1),
@@ -159,13 +206,13 @@ const cartReducer = (state, action) => {
     case "DECREMENT":
       return state
         .map((line) =>
-          line._id === action.payload && !line.isReward
+          matchesLine(line, action.payload) && !line.isReward
             ? { ...line, quantity: line.quantity - 1 }
             : line
         )
         .filter((line) => line.quantity > 0);
     case "REMOVE_ITEM":
-      return state.filter((line) => line._id !== action.payload);
+      return state.filter((line) => !matchesLine(line, action.payload));
     case "CLEAR":
       return [];
     default:
@@ -361,6 +408,15 @@ export const CartProvider = ({ children }) => {
           productId: line._id,
           productType: productTypeOf(line),
           quantity: line.quantity,
+          ...(line.customizationKey
+            ? {
+                customization: {
+                  selectedAddOns: line.selectedAddOns.map((addOn) => addOn._id),
+                  spiceLevel: line.spiceLevel,
+                  note: line.note,
+                },
+              }
+            : {}),
         }));
       const sessionVersion = ++sessionVersionRef.current;
       mutationVersionRef.current = 0;
@@ -425,13 +481,31 @@ export const CartProvider = ({ children }) => {
       const current = cartRef.current.find(
         (line) => lineKey(line) === lineKey(item)
       );
-      if (current && (current.isReward || current.quantity >= MAX_CART_QUANTITY)) {
+      const requestedQuantity = Math.min(
+        MAX_CART_QUANTITY,
+        Math.max(1, Number(item.quantity) || 1)
+      );
+      if (
+        current &&
+        (current.isReward || current.quantity + requestedQuantity > MAX_CART_QUANTITY)
+      ) {
         return false;
       }
       applyLocalAction({ type: "ADD_ITEM", payload: item });
       if (!item.isReward && objectIdPattern.test(item._id)) {
         enqueueUserSync(() =>
-          addItemToCart(item._id, 1, productTypeOf(item))
+          addItemToCart(
+            item._id,
+            requestedQuantity,
+            productTypeOf(item),
+            customizationKeyOf(item)
+              ? {
+                  selectedAddOns: (item.selectedAddOns || []).map(addOnId),
+                  spiceLevel: item.spiceLevel || "",
+                  note: item.note || "",
+                }
+              : undefined
+          )
         );
       }
       return true;
@@ -452,6 +526,15 @@ export const CartProvider = ({ children }) => {
             MAX_CART_QUANTITY,
             Math.max(1, Number(item.quantity) || 1)
           ),
+          ...(customizationKeyOf(item)
+            ? {
+                customization: {
+                  selectedAddOns: (item.selectedAddOns || []).map(addOnId),
+                  spiceLevel: item.spiceLevel || "",
+                  note: item.note || "",
+                },
+              }
+            : {}),
         }));
 
       if (regularItems.length) {
@@ -460,7 +543,8 @@ export const CartProvider = ({ children }) => {
             await addItemToCart(
               item.productId,
               item.quantity,
-              item.productType
+              item.productType,
+              item.customization
             );
           }
         });
@@ -470,8 +554,8 @@ export const CartProvider = ({ children }) => {
   );
 
   const incrementItem = useCallback(
-    (id) => {
-      const current = cartRef.current.find((line) => line._id === id);
+    (locator) => {
+      const current = cartRef.current.find((line) => matchesLine(line, locator));
       if (
         !current ||
         current.isReward ||
@@ -479,10 +563,15 @@ export const CartProvider = ({ children }) => {
       ) {
         return;
       }
-      applyLocalAction({ type: "INCREMENT", payload: id });
-      if (objectIdPattern.test(id)) {
+      applyLocalAction({ type: "INCREMENT", payload: current });
+      if (objectIdPattern.test(current._id)) {
         enqueueUserSync(() =>
-          addItemToCart(id, 1, productTypeOf(current))
+          updateCartItem(
+            current._id,
+            current.quantity + 1,
+            productTypeOf(current),
+            current.cartLineId
+          )
         );
       }
     },
@@ -490,16 +579,16 @@ export const CartProvider = ({ children }) => {
   );
 
   const decrementItem = useCallback(
-    (id) => {
-      const current = cartRef.current.find((line) => line._id === id);
+    (locator) => {
+      const current = cartRef.current.find((line) => matchesLine(line, locator));
       if (!current || current.isReward) return;
       const quantity = current.quantity - 1;
-      applyLocalAction({ type: "DECREMENT", payload: id });
-      if (objectIdPattern.test(id)) {
+      applyLocalAction({ type: "DECREMENT", payload: current });
+      if (objectIdPattern.test(current._id)) {
         enqueueUserSync(() =>
           quantity > 0
-            ? updateCartItem(id, quantity, productTypeOf(current))
-            : removeCartItem(id, productTypeOf(current))
+            ? updateCartItem(current._id, quantity, productTypeOf(current), current.cartLineId)
+            : removeCartItem(current._id, productTypeOf(current), current.cartLineId)
         );
       }
     },
@@ -507,12 +596,14 @@ export const CartProvider = ({ children }) => {
   );
 
   const removeFromCart = useCallback(
-    (id) => {
-      const current = cartRef.current.find((line) => line._id === id);
+    (locator) => {
+      const current = cartRef.current.find((line) => matchesLine(line, locator));
       if (!current) return;
-      applyLocalAction({ type: "REMOVE_ITEM", payload: id });
-      if (!current.isReward && objectIdPattern.test(id)) {
-        enqueueUserSync(() => removeCartItem(id, productTypeOf(current)));
+      applyLocalAction({ type: "REMOVE_ITEM", payload: current });
+      if (!current.isReward && objectIdPattern.test(current._id)) {
+        enqueueUserSync(() =>
+          removeCartItem(current._id, productTypeOf(current), current.cartLineId)
+        );
       }
     },
     [applyLocalAction, enqueueUserSync]

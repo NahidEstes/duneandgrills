@@ -1,6 +1,12 @@
 import mongoose from "mongoose";
 import Combo from "../models/Combo.js";
 import MenuItem from "../models/MenuItem.js";
+import {
+  collectCustomizationAddOnIds,
+  customizationRequestFrom,
+  loadCustomizationAddOnMap,
+  resolveLineCustomization,
+} from "./menuCustomizationService.js";
 
 export const PRODUCT_TYPES = Object.freeze({
   MENU_ITEM: "menuItem",
@@ -131,6 +137,7 @@ export const resolveCartLines = async (items = []) => {
   const normalizedItems = items.map((item) => ({
     ...getProductIdentity(item),
     quantity: Number(item.quantity),
+    customizationRequest: customizationRequestFrom(item),
   }));
 
   if (
@@ -147,15 +154,6 @@ export const resolveCartLines = async (items = []) => {
     );
   }
 
-  const keys = normalizedItems.map((item) =>
-    productKey(item.productType, item.productId)
-  );
-  if (keys.length !== new Set(keys).size) {
-    throw new CatalogValidationError(
-      "Cart cannot contain duplicate product lines"
-    );
-  }
-
   const products = await Promise.all(
     normalizedItems.map((item) =>
       findAvailableProduct(item.productType, item.productId)
@@ -167,15 +165,37 @@ export const resolveCartLines = async (items = []) => {
       409
     );
   }
-
-  return normalizedItems.map((item, index) => ({
-    ...item,
-    product: products[index],
-    unitPrice:
-      item.productType === PRODUCT_TYPES.COMBO
-        ? Number(products[index].comboPrice)
-        : Number(products[index].price),
-  }));
+  const addOnMap = await loadCustomizationAddOnMap(
+    collectCustomizationAddOnIds(
+      normalizedItems.map((item) => item.customizationRequest)
+    )
+  );
+  const lines = normalizedItems.map((item, index) => {
+    const product = products[index];
+    const customization = resolveLineCustomization({
+      product,
+      productType: item.productType,
+      request: item.customizationRequest,
+      addOnMap,
+    });
+    const baseUnitPrice = item.productType === PRODUCT_TYPES.COMBO
+      ? Number(product.comboPrice)
+      : Number(product.price);
+    return {
+      ...item,
+      product,
+      customization,
+      baseUnitPrice,
+      unitPrice: Number((baseUnitPrice + customization.addOnTotal).toFixed(2)),
+    };
+  });
+  const keys = lines.map(
+    (line) => `${productKey(line.productType, line.productId)}:${line.customization.key}`
+  );
+  if (keys.length !== new Set(keys).size) {
+    throw new CatalogValidationError("Cart cannot contain duplicate configured product lines");
+  }
+  return lines;
 };
 
 export const calculateCartSubtotal = (lines = []) =>
@@ -189,14 +209,15 @@ export const calculateCartSubtotal = (lines = []) =>
   );
 
 export const cartLineToOrderItem = (line) => {
-  const { product, productType, quantity } = line;
+  const { product, productType, quantity, customization } = line;
   if (productType === PRODUCT_TYPES.COMBO) {
     return {
       productType: PRODUCT_TYPES.COMBO,
       combo: product._id,
       name: product.name,
       image: product.image,
-      price: product.comboPrice,
+      price: line.unitPrice,
+      basePrice: line.baseUnitPrice,
       quantity,
       comboItems: product.items.map((entry) => ({
         menuItem: entry.menuItem._id,
@@ -205,6 +226,9 @@ export const cartLineToOrderItem = (line) => {
         quantity: entry.quantity,
       })),
       isReward: false,
+      selectedAddOns: [],
+      spiceLevel: "",
+      itemNote: "",
     };
   }
 
@@ -213,8 +237,12 @@ export const cartLineToOrderItem = (line) => {
     menuItem: product._id,
     name: product.name,
     image: product.image,
-    price: product.price,
+    price: line.unitPrice,
+    basePrice: line.baseUnitPrice,
     quantity,
+    selectedAddOns: customization.selectedAddOns,
+    spiceLevel: customization.spiceLevel,
+    itemNote: customization.note,
     isReward: false,
   };
 };

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { DEFAULT_ORDER_TYPE, ORDER_TYPES } from "../config/orders.js";
 import { PAYMENT_METHODS, PAYMENT_STATUSES, SALES_SOURCES } from "../config/sales.js";
+import { MAX_ITEM_NOTE_LENGTH, SPICE_LEVELS } from "../config/menuCustomization.js";
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -29,7 +30,24 @@ const orderItemSchema = new mongoose.Schema(
     name: { type: String, required: true },
     image: { type: String, default: "" },
     price: { type: Number, required: true },
+    basePrice: { type: Number, min: 0, default: null },
     quantity: { type: Number, required: true, min: 1 },
+    selectedAddOns: {
+      type: [
+        new mongoose.Schema(
+          {
+            addOn: { type: mongoose.Schema.Types.ObjectId, ref: "MenuAddOn", default: null },
+            name: { type: String, required: true, trim: true, maxlength: 80 },
+            image: { type: String, default: "", trim: true, maxlength: 500 },
+            price: { type: Number, required: true, min: 0 },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
+    spiceLevel: { type: String, enum: ["", ...SPICE_LEVELS], default: "" },
+    itemNote: { type: String, trim: true, maxlength: MAX_ITEM_NOTE_LENGTH, default: "" },
     comboItems: {
       type: [
         new mongoose.Schema(

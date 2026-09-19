@@ -17,6 +17,7 @@ import {
 import { formatPrice } from "../../utils/currency.js";
 import { formatOrderType, getOrderSubtotal } from "../../utils/order.js";
 import OrderStatusBadge from "./OrderStatusBadge.jsx";
+import OrderItemCustomization from "../OrderItemCustomization.jsx";
 
 export const inputClass = "w-full rounded-lg border border-dune-border bg-black px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-neutral-600 focus:border-dune-amber";
 export const primaryButton = "inline-flex items-center justify-center gap-2 rounded-lg bg-dune-amber px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-60";
@@ -179,7 +180,7 @@ export const OrderDetails = ({
     <div className="my-5 space-y-3 border-y border-dune-border py-4">
       {order.items.map((item, index) => {
         const image = item.menuItem?.image || item.combo?.image || item.image;
-        return <div key={`${item.productType || "menuItem"}-${item.menuItem?._id || item.combo?._id || index}`} className="flex items-center gap-3">{image ? <SmartImage src={image} alt={item.name} width={80} height={80} sizes="48px" className="h-12 w-12 rounded-lg object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-black text-neutral-500"><Package className="h-5 w-5" /></div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{item.name}</p><p className="text-xs text-neutral-500">{item.productType === "combo" ? "Combo package · " : ""}Quantity {item.quantity}</p>{item.productType === "combo" && item.comboItems?.length > 0 && <p className="mt-1 line-clamp-1 text-[11px] text-neutral-600">{item.comboItems.map((entry) => `${entry.name} ×${entry.quantity}`).join(" · ")}</p>}</div><p className="text-sm font-semibold text-dune-amber">{formatPrice(item.price * item.quantity)}</p></div>;
+        return <div key={`${item.productType || "menuItem"}-${item.menuItem?._id || item.combo?._id || index}`} className="flex items-center gap-3">{image ? <SmartImage src={image} alt={item.name} width={80} height={80} sizes="48px" className="h-12 w-12 rounded-lg object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-black text-neutral-500"><Package className="h-5 w-5" /></div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{item.name}</p><p className="text-xs text-neutral-500">{item.productType === "combo" ? "Combo package · " : ""}Quantity {item.quantity}</p>{item.productType === "combo" && item.comboItems?.length > 0 && <p className="mt-1 line-clamp-1 text-[11px] text-neutral-600">{item.comboItems.map((entry) => `${entry.name} ×${entry.quantity}`).join(" · ")}</p>}<OrderItemCustomization item={item} /></div><p className="text-sm font-semibold text-dune-amber">{formatPrice(item.price * item.quantity)}</p></div>;
       })}
     </div>
     <div className="space-y-2 text-sm">

@@ -1,9 +1,15 @@
 import mongoose from "mongoose";
+import { MAX_ITEM_NOTE_LENGTH, SPICE_LEVELS } from "../config/menuCustomization.js";
 
 const MAX_CART_QUANTITY = 99;
 
 const cartItemSchema = new mongoose.Schema(
   {
+    lineId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: () => new mongoose.Types.ObjectId(),
+      required: true,
+    },
     productType: {
       type: String,
       enum: ["menuItem", "combo"],
@@ -32,6 +38,10 @@ const cartItemSchema = new mongoose.Schema(
       min: 1,
       max: MAX_CART_QUANTITY,
     },
+    selectedAddOns: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuAddOn" }],
+    spiceLevel: { type: String, enum: ["", ...SPICE_LEVELS], default: "" },
+    note: { type: String, trim: true, maxlength: MAX_ITEM_NOTE_LENGTH, default: "" },
+    customizationKey: { type: String, default: "", maxlength: 1000 },
   },
   { _id: false }
 );
@@ -50,14 +60,17 @@ const userCartSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator(items) {
-          const keys = items.map((item) => {
+          const identities = items.map((item) => {
             const type = item.productType === "combo" ? "combo" : "menuItem";
             const id = type === "combo" ? item.combo : item.menuItem;
-            return `${type}:${id?.toString()}`;
+            return {
+              id,
+              key: `${type}:${id?.toString()}:${item.customizationKey || ""}`,
+            };
           });
           return (
-            keys.every((key) => !key.endsWith(":undefined")) &&
-            keys.length === new Set(keys).size
+            identities.every(({ id }) => Boolean(id)) &&
+            identities.length === new Set(identities.map(({ key }) => key)).size
           );
         },
         message: "Cart cannot contain duplicate products",

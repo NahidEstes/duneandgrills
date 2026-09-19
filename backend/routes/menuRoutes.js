@@ -8,6 +8,12 @@ import {
   deleteMenuItem,
 } from "../controllers/menuController.js";
 import { protect, authorize } from "../middleware/auth.js";
+import {
+  createMenuAddOn,
+  deleteMenuAddOn,
+  listMenuAddOns,
+  updateMenuAddOn,
+} from "../controllers/menuAddOnController.js";
 
 const router = express.Router();
 
@@ -17,6 +23,15 @@ router.get(
   authorize("admin", "manager"),
   getAllMenuItemsForAdmin
 );
+
+router
+  .route("/manage/add-ons")
+  .get(protect, authorize("admin", "manager"), listMenuAddOns)
+  .post(protect, authorize("admin", "manager"), createMenuAddOn);
+router
+  .route("/manage/add-ons/:addOnId")
+  .put(protect, authorize("admin", "manager"), updateMenuAddOn)
+  .delete(protect, authorize("admin", "manager"), deleteMenuAddOn);
 
 router
   .route("/")

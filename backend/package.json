@@ -20,6 +20,7 @@
     "test:customers": "node tests/customerCrmIntegration.js",
     "test:inventory": "node --test tests/inventoryUnitService.test.js && node tests/inventoryIntegration.js",
     "test:pos": "node tests/posIntegration.js",
+    "test:customizations": "node tests/menuCustomizationIntegration.js",
     "seed:inventory": "node data/seedInventory.js"
   },
   "dependencies": {

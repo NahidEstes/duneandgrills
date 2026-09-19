@@ -82,6 +82,29 @@ export const deleteMenuItem = async (id) => {
   return data;
 };
 
+export const fetchMenuAddOns = async () => {
+  const { data } = await api.get("/menu/manage/add-ons");
+  return data.data;
+};
+
+export const createMenuAddOn = async (payload) => {
+  const { data } = await api.post("/menu/manage/add-ons", payload);
+  await refreshAfterMutation("menu");
+  return data.data;
+};
+
+export const updateMenuAddOn = async (id, payload) => {
+  const { data } = await api.put(`/menu/manage/add-ons/${id}`, payload);
+  await refreshAfterMutation("menu");
+  return data.data;
+};
+
+export const deleteMenuAddOn = async (id) => {
+  const { data } = await api.delete(`/menu/manage/add-ons/${id}`);
+  await refreshAfterMutation("menu");
+  return data;
+};
+
 // ---- Content categories ----
 export const fetchCategories = async (type) => {
   const { data } = await api.get("/categories", { params: { type } });
@@ -254,18 +277,18 @@ export const fetchUserCart = async () => {
   return data.data;
 };
 
-export const addItemToCart = async (productId, quantity = 1, productType = "menuItem") => {
-  const { data } = await api.post("/cart", { productId, productType, quantity });
+export const addItemToCart = async (productId, quantity = 1, productType = "menuItem", customization = undefined) => {
+  const { data } = await api.post("/cart", { productId, productType, quantity, customization });
   return data.data;
 };
 
-export const updateCartItem = async (productId, quantity, productType = "menuItem") => {
-  const { data } = await api.patch(`/cart/${productId}`, { quantity }, { params: { productType } });
+export const updateCartItem = async (productId, quantity, productType = "menuItem", lineId = undefined) => {
+  const { data } = await api.patch(`/cart/${productId}`, { quantity }, { params: { productType, lineId } });
   return data.data;
 };
 
-export const removeCartItem = async (productId, productType = "menuItem") => {
-  const { data } = await api.delete(`/cart/${productId}`, { params: { productType } });
+export const removeCartItem = async (productId, productType = "menuItem", lineId = undefined) => {
+  const { data } = await api.delete(`/cart/${productId}`, { params: { productType, lineId } });
   return data.data;
 };
 
