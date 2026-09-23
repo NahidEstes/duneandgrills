@@ -93,6 +93,11 @@ const AdminDashboard = () => {
   const [settingsDirty, setSettingsDirty] = useState(false);
   const { user, logout } = useAuth();
 
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (requestedTab && TAB_CONTENT[requestedTab]) setActiveTab(requestedTab);
+  }, []);
+
   const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {

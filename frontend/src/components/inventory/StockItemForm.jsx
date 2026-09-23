@@ -4,7 +4,8 @@ import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
 import { useEffect, useState } from "react";
-import { LoaderCircle, Save } from "lucide-react";
+import { LoaderCircle, RefreshCw, Save } from "lucide-react";
+import { fetchInventorySkuSuggestion } from "@/src/api/inventoryApi.js";
 import { Button, Field, inputClass, textareaClass } from "./InventoryUI.jsx";
 import { INVENTORY_UNITS, PURCHASE_UNITS } from "./inventoryUtils.js";
 
@@ -16,6 +17,8 @@ const blank = {
 
 export default function StockItemForm({ item, categories, suppliers, onSubmit, submitting }) {
   const [form, setForm] = useState(blank);
+  const [skuAutomatic, setSkuAutomatic] = useState(true);
+  const [skuState, setSkuState] = useState({ loading: false, error: "" });
   useEffect(() => {
     setForm(item ? {
       name: item.name || "", sku: item.sku || "", category: item.category?._id || item.category || "",
@@ -27,8 +30,27 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
       storageLocation: item.storageLocation || "", isActive: item.isActive !== false,
       allowNegativeStock: Boolean(item.allowNegativeStock),
     } : blank);
+    setSkuAutomatic(!item);
+    setSkuState({ loading: false, error: "" });
   }, [item]);
   const set = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const regenerateSku = async (categoryId = form.category) => {
+    if (!categoryId || item) return;
+    setSkuState({ loading: true, error: "" });
+    try {
+      const suggestion = await fetchInventorySkuSuggestion(categoryId);
+      setForm((current) => ({ ...current, sku: suggestion.sku }));
+      setSkuAutomatic(true);
+      setSkuState({ loading: false, error: "" });
+    } catch (error) {
+      setSkuState({ loading: false, error: error?.response?.data?.message || "SKU suggestion is temporarily unavailable." });
+    }
+  };
+  useEffect(() => {
+    if (!item && form.category) regenerateSku(form.category);
+    // Category is the only dependency: changing other fields must not consume/refetch suggestions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.category, item]);
   const submit = (event) => {
     event.preventDefault();
     onSubmit({
@@ -39,12 +61,15 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
       purchaseConversionFactor: Number(form.purchaseConversionFactor),
       supplier: form.supplier || null,
       expiryDate: form.tracksExpiry && form.expiryDate ? form.expiryDate : null,
+      autoGenerateSku: !item && skuAutomatic,
     });
   };
   return <form onSubmit={submit} className="space-y-5">
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="Item name"><input required className={inputClass} value={form.name} onChange={(event) => set("name", event.target.value)} placeholder="e.g. Chicken breast" /></Field>
-      <Field label="SKU / stable inventory ID" hint="Used for future integrations and must remain unique."><input required className={inputClass} value={form.sku} onChange={(event) => set("sku", event.target.value.toUpperCase())} placeholder="INV-CHKN-001" /></Field>
+      <Field label="SKU / stable inventory ID" hint={item ? "SKU is immutable after creation so historical references remain stable." : skuAutomatic ? "Reserved atomically by the server when the item is created." : "Manual SKU will be validated for format and uniqueness."} error={skuState.error}>
+        <div className="flex gap-2"><input required readOnly={Boolean(item)} className={`${inputClass} ${item ? "cursor-not-allowed text-neutral-500" : ""}`} value={form.sku} onChange={(event) => { set("sku", event.target.value.toUpperCase()); setSkuAutomatic(false); }} placeholder="Select a category" />{!item && <button type="button" onClick={() => regenerateSku()} disabled={!form.category || skuState.loading} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 px-3 text-xs text-neutral-300 hover:border-dune-amber/50 hover:text-dune-amber disabled:opacity-40" aria-label="Regenerate suggested SKU"><RefreshCw className={`h-3.5 w-3.5 ${skuState.loading ? "animate-spin" : ""}`} />Regenerate</button>}</div>
+      </Field>
       <Field label="Category"><DarkSelect required className={inputClass} value={form.category} onChange={(event) => set("category", event.target.value)}><option value="">Choose category</option>{categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
       <Field label="Usage / base unit" hint="Recipes, stock balances and deductions use this unit."><DarkSelect required className={inputClass} value={form.unit} onChange={(event) => { const next = event.target.value; setForm((current) => { const followsBaseUnit = current.purchaseUnit === current.unit; return { ...current, unit: next, purchaseUnit: followsBaseUnit ? next : current.purchaseUnit, purchaseConversionFactor: followsBaseUnit ? 1 : current.purchaseConversionFactor }; }); }}>{INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</DarkSelect></Field>
       <Field label="Purchase unit" hint="The unit shown on purchase orders and receipts."><DarkSelect required className={inputClass} value={form.purchaseUnit} onChange={(event) => { const next = event.target.value; setForm((current) => ({ ...current, purchaseUnit: next, purchaseConversionFactor: next === current.unit ? 1 : current.purchaseConversionFactor })); }}>{PURCHASE_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</DarkSelect></Field>

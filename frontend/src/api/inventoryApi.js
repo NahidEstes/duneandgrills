@@ -15,6 +15,8 @@ export const fetchItemHistory = (id, params = {}) => unwrap(api.get(`/inventory/
 
 export const fetchInventoryCategories = (includeInactive = false) =>
   unwrap(api.get("/inventory/categories", { params: { includeInactive } })).then((response) => response.data);
+export const fetchInventorySkuSuggestion = (categoryId) =>
+  unwrap(api.get(`/inventory/categories/${categoryId}/sku-suggestion`)).then((response) => response.data);
 export const createInventoryCategory = (payload) => unwrap(api.post("/inventory/categories", payload)).then((response) => response.data);
 export const updateInventoryCategory = (id, payload) => unwrap(api.patch(`/inventory/categories/${id}`, payload)).then((response) => response.data);
 export const archiveInventoryCategory = (id) => unwrap(api.delete(`/inventory/categories/${id}`));

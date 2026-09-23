@@ -21,6 +21,9 @@
     "test:inventory": "node --test tests/inventoryUnitService.test.js && node tests/inventoryIntegration.js",
     "test:pos": "node tests/posIntegration.js",
     "test:customizations": "node tests/menuCustomizationIntegration.js",
+    "test:sku": "node tests/inventorySkuIntegration.js",
+    "test:expenses": "node tests/expenseIntegration.js",
+    "seed:expense-categories": "node data/seedExpenseCategories.js",
     "seed:inventory": "node data/seedInventory.js"
   },
   "dependencies": {

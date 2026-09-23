@@ -6,7 +6,7 @@ export const PURCHASE_UNITS = [...new Set([...INVENTORY_UNITS, "carton", "case",
 const inventoryItemSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
-    sku: { type: String, required: true, unique: true, uppercase: true, trim: true, maxlength: 50 },
+    sku: { type: String, required: true, unique: true, uppercase: true, trim: true, maxlength: 50, immutable: true, match: /^[A-Z0-9][A-Z0-9-]+$/ },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryCategory", required: true },
     unit: { type: String, required: true, enum: INVENTORY_UNITS },
     purchaseUnit: { type: String, enum: PURCHASE_UNITS, default: null },

@@ -23,6 +23,7 @@ import categoryRoutes from "./routes/categoryRoutes.js";
 import posRoutes from "./routes/posRoutes.js";
 import kitchenRoutes from "./routes/kitchenRoutes.js";
 import restaurantSettingsRoutes from "./routes/restaurantSettingsRoutes.js";
+import expenseRoutes from "./routes/expenseRoutes.js";
 
 const app = express();
 
@@ -78,6 +79,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/pos", posRoutes);
 app.use("/api/kitchen", kitchenRoutes);
 app.use("/api/settings", restaurantSettingsRoutes);
+app.use("/api/expenses", expenseRoutes);
 
 app.get("/api/health", (req, res) => {
   res

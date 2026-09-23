@@ -3,11 +3,17 @@ import InventoryItem from "../../models/InventoryItem.js";
 import PurchaseOrder from "../../models/PurchaseOrder.js";
 import Supplier from "../../models/Supplier.js";
 import { escapeRegex, ValidationError } from "../../utils/inventoryValidation.js";
+import {
+  ensureAllCategorySkuPrefixes,
+  ensureCategorySkuPrefix,
+  normalizeSkuPrefix,
+} from "../../services/inventorySkuService.js";
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 
 export const listCategories = async (req, res, next) => {
   try {
+    await ensureAllCategorySkuPrefixes();
     const match = req.query.includeInactive === "true" ? {} : { isActive: true };
     const rows = await InventoryCategory.aggregate([
       { $match: match },
@@ -24,16 +30,23 @@ export const createCategory = async (req, res, next) => {
   try {
     const name = cleanText(req.body.name);
     if (!name) throw new ValidationError("Category name is required");
-    const row = await InventoryCategory.create({ name, description: cleanText(req.body.description), color: cleanText(req.body.color) || "#f59e0b", isActive: req.body.isActive !== false });
+    let row = await InventoryCategory.create({ name, skuPrefix: req.body.skuPrefix ? normalizeSkuPrefix(req.body.skuPrefix) : null, description: cleanText(req.body.description), color: cleanText(req.body.color) || "#f59e0b", isActive: req.body.isActive !== false });
+    row = await ensureCategorySkuPrefix(row);
     res.status(201).json({ success: true, data: row });
   } catch (error) {
-    if (error?.code === 11000) return res.status(409).json({ success: false, message: "This category already exists" });
+    if (error?.code === 11000) return res.status(409).json({ success: false, message: "This category name or SKU prefix already exists" });
     next(error);
   }
 };
 
 export const updateCategory = async (req, res, next) => {
   try {
+    const existing = await InventoryCategory.findById(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, message: "Category not found" });
+    const stable = await ensureCategorySkuPrefix(existing);
+    if ("skuPrefix" in req.body && normalizeSkuPrefix(req.body.skuPrefix) !== stable.skuPrefix) {
+      throw new ValidationError("SKU prefix is stable after category creation and cannot be changed");
+    }
     const payload = {};
     if ("name" in req.body) {
       payload.name = cleanText(req.body.name);
@@ -42,9 +55,11 @@ export const updateCategory = async (req, res, next) => {
     for (const field of ["description", "color"]) if (field in req.body) payload[field] = cleanText(req.body[field]);
     if ("isActive" in req.body) payload.isActive = Boolean(req.body.isActive);
     const row = await InventoryCategory.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
-    if (!row) return res.status(404).json({ success: false, message: "Category not found" });
     res.json({ success: true, data: row });
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error?.code === 11000) return res.status(409).json({ success: false, message: "This category name already exists" });
+    next(error);
+  }
 };
 
 export const archiveCategory = async (req, res, next) => {

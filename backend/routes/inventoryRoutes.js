@@ -6,6 +6,7 @@ import {
   itemHistory,
   listItems,
   updateItem,
+  suggestItemSku,
 } from "../controllers/inventory/itemController.js";
 import {
   archiveCategory,
@@ -56,6 +57,7 @@ router.get("/reports", getReport);
 router.route("/settings").get(getSettings).patch(updateSettings);
 
 router.route("/items").get(listItems).post(createItem);
+router.get("/categories/:categoryId/sku-suggestion", suggestItemSku);
 router.get("/batches", listBatches);
 router.get("/items/:id/history", itemHistory);
 router.route("/items/:id").get(getItem).patch(updateItem).delete(archiveItem);

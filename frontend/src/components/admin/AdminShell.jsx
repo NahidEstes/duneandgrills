@@ -28,6 +28,7 @@ import {
   UtensilsCrossed,
   Volume2,
   VolumeX,
+  WalletCards,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { id: "pos", label: "POS / New Sale", icon: ShoppingBasket },
   { id: "kitchen", label: "Kitchen Display", icon: ChefHat, href: "/kitchen" },
   { id: "inventory", label: "Inventory", icon: PackageSearch, href: "/inventory" },
+  { id: "expenses", label: "Finance & Expenses", icon: WalletCards, href: "/admin/expenses" },
   { id: "orders", label: "Orders", icon: ClipboardList, badge: "orders" },
   { id: "menu", label: "Menu Items", icon: UtensilsCrossed },
   { id: "combos", label: "Combos", icon: Layers3 },
@@ -131,8 +133,9 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway }
       {NAV_ITEMS.map(({ id, label, icon: Icon, badge, href }) => {
         const directHref = href || (id === "pos" ? "/pos" : null);
         if (directHref) {
+          const active = activeTab === id;
           return (
-            <Link key={id} href={directHref} onClick={(event) => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); else onClose?.(); }} className="flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3.5 text-sm font-medium text-neutral-300 hover:bg-white/[0.04] hover:text-dune-amber">
+            <Link key={id} href={directHref} onClick={(event) => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); else onClose?.(); }} className={`flex min-h-11 w-full items-center gap-3 rounded-lg border-l-2 px-3.5 text-sm font-medium transition-all ${active ? "border-dune-amber bg-gradient-to-r from-dune-amber/15 to-dune-amber/[0.04] text-dune-amber" : "border-transparent text-neutral-300 hover:bg-white/[0.04] hover:text-dune-amber"}`}>
               <Icon className="h-[1.1rem] w-[1.1rem]" />{label}
             </Link>
           );

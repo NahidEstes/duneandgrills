@@ -9,9 +9,14 @@ import {
   validateItemPayload,
   ValidationError,
 } from "../../utils/inventoryValidation.js";
+import {
+  advanceInventorySkuCounter,
+  peekNextInventorySku,
+  reserveNextInventorySku,
+} from "../../services/inventorySkuService.js";
 
 const itemPopulate = [
-  { path: "category", select: "name color isActive" },
+  { path: "category", select: "name color isActive skuPrefix" },
   { path: "supplier", select: "name code isActive" },
 ];
 
@@ -68,17 +73,36 @@ export const getItem = async (req, res, next) => {
 
 export const createItem = async (req, res, next) => {
   try {
-    const payload = validateItemPayload(req.body);
-    payload.purchaseUnit ||= payload.unit;
-    if (payload.purchaseUnit === payload.unit) payload.purchaseConversionFactor = 1;
-    const item = await runInventoryTransaction(async (session) => {
-      await ensureReferences(payload, session);
-      const openingStock = payload.openingStock || 0;
-      delete payload.openingStock;
-      const [created] = await InventoryItem.create([{ ...payload, currentStock: 0 }], session ? { session } : {});
-      await createOpeningBalance(created, openingStock, req.user._id, session);
-      return created;
-    });
+    const automatic = req.body.autoGenerateSku === true || !String(req.body.sku || "").trim();
+    let item;
+    let lastCollision;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const sku = automatic
+        ? (await reserveNextInventorySku(req.body.category)).sku
+        : String(req.body.sku || "").trim().toUpperCase();
+      const payload = validateItemPayload({ ...req.body, sku });
+      payload.purchaseUnit ||= payload.unit;
+      if (payload.purchaseUnit === payload.unit) payload.purchaseConversionFactor = 1;
+      try {
+        item = await runInventoryTransaction(async (session) => {
+          await ensureReferences(payload, session);
+          const openingStock = payload.openingStock || 0;
+          delete payload.openingStock;
+          const [created] = await InventoryItem.create([{ ...payload, currentStock: 0 }], session ? { session } : {});
+          await createOpeningBalance(created, openingStock, req.user._id, session);
+          return created;
+        });
+        if (!automatic) await advanceInventorySkuCounter(payload.category, payload.sku);
+        break;
+      } catch (error) {
+        if (automatic && error?.code === 11000) {
+          lastCollision = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (!item) throw lastCollision || new ValidationError("Unable to reserve a unique inventory SKU. Please try again");
     const populated = await InventoryItem.findById(item._id).populate(itemPopulate).lean();
     res.status(201).json({ success: true, data: populated });
   } catch (error) {
@@ -89,11 +113,15 @@ export const createItem = async (req, res, next) => {
 
 export const updateItem = async (req, res, next) => {
   try {
-    const payload = validateItemPayload(req.body, { partial: true });
-    delete payload.openingStock;
-    await ensureReferences(payload);
     const item = await InventoryItem.findById(req.params.id);
     if (!item) return res.status(404).json({ success: false, message: "Inventory item not found" });
+    if ("sku" in req.body && String(req.body.sku || "").trim().toUpperCase() !== item.sku) {
+      throw new ValidationError("SKU is stable after item creation and cannot be changed");
+    }
+    const payload = validateItemPayload(req.body, { partial: true });
+    delete payload.openingStock;
+    delete payload.sku;
+    await ensureReferences(payload);
     if (payload.unit && payload.unit !== item.unit && Number(item.currentStock) !== 0) {
       throw new ValidationError("Base unit cannot be changed while this item has stock. Reconcile it to zero first");
     }
@@ -107,6 +135,13 @@ export const updateItem = async (req, res, next) => {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "An inventory item with this SKU already exists" });
     next(error);
   }
+};
+
+export const suggestItemSku = async (req, res, next) => {
+  try {
+    const suggestion = await peekNextInventorySku(req.params.categoryId);
+    res.json({ success: true, data: suggestion });
+  } catch (error) { next(error); }
 };
 
 export const archiveItem = async (req, res, next) => {

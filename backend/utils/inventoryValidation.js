@@ -3,6 +3,8 @@ import { INVENTORY_UNITS, PURCHASE_UNITS } from "../models/InventoryItem.js";
 import { PURCHASE_ORDER_STATUSES } from "../models/PurchaseOrder.js";
 import { STOCK_MOVEMENT_TYPES, WASTE_REASON_CODES } from "../models/StockTransaction.js";
 
+const INVENTORY_SKU_PATTERN = /^[A-Z0-9][A-Z0-9-]{1,49}$/;
+
 export class ValidationError extends Error {
   constructor(message, fields = {}) {
     super(message);
@@ -32,6 +34,9 @@ export const validateItemPayload = (payload, { partial = false } = {}) => {
   }
   if (result.unit && !INVENTORY_UNITS.includes(result.unit)) {
     throw new ValidationError(`unit must be one of: ${INVENTORY_UNITS.join(", ")}`);
+  }
+  if (result.sku && !INVENTORY_SKU_PATTERN.test(result.sku)) {
+    throw new ValidationError("SKU may contain only uppercase letters, numbers and hyphens", { sku: "Invalid SKU format" });
   }
   if ("purchaseUnit" in payload) {
     const purchaseUnit = text(payload.purchaseUnit);
