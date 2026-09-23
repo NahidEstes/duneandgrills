@@ -5,6 +5,7 @@ const API_BASE_URL = "/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
     "Cache-Control": "no-cache",
@@ -44,6 +45,10 @@ api.interceptors.request.use((config) => {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("dg_token") : null;
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (typeof document !== "undefined" && !["get", "head", "options"].includes(String(config.method || "get").toLowerCase())) {
+    const csrf = document.cookie.split(";").map((value) => value.trim()).find((value) => value.startsWith("dg_csrf="))?.slice("dg_csrf=".length);
+    if (csrf) config.headers["X-CSRF-Token"] = decodeURIComponent(csrf);
+  }
   return config;
 });
 
@@ -206,7 +211,7 @@ export const fetchOrderConfig = async () => {
 export const placeOrder = async (orderPayload) => {
   const { data } = await api.post("/orders", orderPayload);
   await refreshAfterMutation("orders");
-  return data.data;
+  return { ...data.data, ...(data.trackingToken ? { trackingToken: data.trackingToken } : {}) };
 };
 
 export const fetchMyOrders = async () => {
@@ -219,6 +224,11 @@ export const fetchOrders = async (filters = {}) => {
     ? (filters && filters !== "all" ? { status: filters } : {})
     : Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
   const { data } = await api.get("/orders", { params });
+  return data.data;
+};
+
+export const trackGuestOrder = async (orderNumber, trackingToken) => {
+  const { data } = await api.get(`/orders/track/${encodeURIComponent(orderNumber)}`, { headers: { "X-Order-Tracking-Token": trackingToken } });
   return data.data;
 };
 
@@ -371,6 +381,31 @@ export const fetchAdminUsers = async (scope = "customers", search = "") => {
   return data.data;
 };
 
+export const fetchStaffAccounts = async () => {
+  const { data } = await api.get("/admin/staff");
+  return data.data;
+};
+
+export const createStaffAccount = async (payload) => {
+  const { data } = await api.post("/admin/staff", payload);
+  return data.data;
+};
+
+export const updateStaffAccount = async (id, payload) => {
+  const { data } = await api.patch(`/admin/staff/${id}`, payload);
+  return data.data;
+};
+
+export const setStaffAccountActive = async (id, active) => {
+  const { data } = await api.post(`/admin/staff/${id}/active`, { active });
+  return data.data;
+};
+
+export const resetStaffAccountPassword = async (id, password) => {
+  const { data } = await api.post(`/admin/staff/${id}/reset-password`, { password });
+  return data;
+};
+
 export const fetchAdminCustomers = async (params = {}) => {
   const { data } = await api.get("/admin/customers", { params });
   return data;
@@ -445,6 +480,15 @@ export const loginUser = async (payload) => {
 export const fetchMe = async () => {
   const { data } = await api.get("/auth/me");
   return data.user;
+};
+
+export const migrateLegacySession = async () => {
+  const { data } = await api.post("/auth/migrate-session");
+  return data.user;
+};
+
+export const logoutUser = async () => {
+  await api.post("/auth/logout");
 };
 
 export const updateMe = async (payload) => {

@@ -12,6 +12,7 @@ const inventoryItemSchema = new mongoose.Schema(
     purchaseUnit: { type: String, enum: PURCHASE_UNITS, default: null },
     purchaseConversionFactor: { type: Number, default: 1, min: 0.000001 },
     currentStock: { type: Number, default: 0 },
+    stockVersion: { type: Number, default: 0, min: 0 },
     reorderLevel: { type: Number, default: 0, min: 0 },
     unitCost: { type: Number, default: 0, min: 0 },
     supplier: { type: mongoose.Schema.Types.ObjectId, ref: "Supplier", default: null },

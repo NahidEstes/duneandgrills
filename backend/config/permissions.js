@@ -1,0 +1,54 @@
+export const ROLES = Object.freeze({
+  ADMIN: "admin",
+  MANAGER: "manager",
+  CASHIER: "cashier",
+  KITCHEN: "kitchen",
+  INVENTORY: "inventory",
+  STOREKEEPER: "storekeeper",
+  ACCOUNTANT: "accountant",
+  CUSTOMER: "customer",
+});
+
+export const CAPABILITIES = Object.freeze({
+  ADMIN_DASHBOARD: "admin.dashboard",
+  AUDIT_READ: "audit.read",
+  STAFF_READ: "staff.read",
+  STAFF_MANAGE: "staff.manage",
+  ORDERS_READ_ALL: "orders.read.all",
+  ORDERS_MANAGE: "orders.manage",
+  POS_OPERATE: "pos.operate",
+  KITCHEN_OPERATE: "kitchen.operate",
+  INVENTORY_READ: "inventory.read",
+  INVENTORY_WRITE: "inventory.write",
+  INVENTORY_COUNT_APPROVE: "inventory.count.approve",
+  FINANCE_READ: "finance.read",
+  FINANCE_WRITE: "finance.write",
+  CATALOG_MANAGE: "catalog.manage",
+  SETTINGS_MANAGE: "settings.manage",
+  REVIEWS_MANAGE: "reviews.manage",
+});
+
+const matrix = {
+  [ROLES.ADMIN]: ["*"],
+  [ROLES.MANAGER]: [
+    CAPABILITIES.ADMIN_DASHBOARD, CAPABILITIES.AUDIT_READ, CAPABILITIES.STAFF_READ,
+    CAPABILITIES.ORDERS_READ_ALL, CAPABILITIES.ORDERS_MANAGE, CAPABILITIES.POS_OPERATE,
+    CAPABILITIES.KITCHEN_OPERATE, CAPABILITIES.INVENTORY_READ, CAPABILITIES.INVENTORY_WRITE,
+    CAPABILITIES.INVENTORY_COUNT_APPROVE, CAPABILITIES.FINANCE_READ,
+    CAPABILITIES.CATALOG_MANAGE, CAPABILITIES.SETTINGS_MANAGE, CAPABILITIES.REVIEWS_MANAGE,
+  ],
+  [ROLES.CASHIER]: [CAPABILITIES.POS_OPERATE, CAPABILITIES.ORDERS_READ_ALL],
+  [ROLES.KITCHEN]: [CAPABILITIES.KITCHEN_OPERATE],
+  [ROLES.INVENTORY]: [CAPABILITIES.INVENTORY_READ, CAPABILITIES.INVENTORY_WRITE],
+  [ROLES.STOREKEEPER]: [CAPABILITIES.INVENTORY_READ, CAPABILITIES.INVENTORY_WRITE],
+  [ROLES.ACCOUNTANT]: [CAPABILITIES.FINANCE_READ, CAPABILITIES.FINANCE_WRITE],
+  [ROLES.CUSTOMER]: [],
+};
+
+export const hasCapability = (role, capability) => {
+  const granted = matrix[role] || [];
+  return granted.includes("*") || granted.includes(capability);
+};
+
+export const STAFF_ROLES = Object.freeze(Object.values(ROLES).filter((role) => role !== ROLES.CUSTOMER));
+export const ALL_ROLES = Object.freeze(Object.values(ROLES));

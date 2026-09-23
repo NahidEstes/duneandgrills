@@ -18,27 +18,28 @@ import {
   updateExpenseCategory,
   updateRecurringExpense,
 } from "../controllers/expenseController.js";
-import { authorize, protect } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 
 const router = express.Router();
-const adminOnly = authorize("admin");
+const writeAccess = requireCapability(CAPABILITIES.FINANCE_WRITE);
 
-router.use(protect, authorize("admin", "manager"));
+router.use(protect, requireCapability(CAPABILITIES.FINANCE_READ));
 router.get("/dashboard", getExpenseDashboard);
 router.get("/reports", getExpenseReports);
 router.get("/entries/export", exportExpenses);
-router.route("/entries").get(listExpenses).post(adminOnly, createExpense);
-router.post("/entries/:id/archive", adminOnly, archiveExpense);
-router.route("/entries/:id").get(getExpense).patch(adminOnly, updateExpense);
+router.route("/entries").get(listExpenses).post(writeAccess, createExpense);
+router.post("/entries/:id/archive", writeAccess, archiveExpense);
+router.route("/entries/:id").get(getExpense).patch(writeAccess, updateExpense);
 
-router.route("/categories").get(listExpenseCategories).post(adminOnly, createExpenseCategory);
-router.post("/categories/:id/archive", adminOnly, archiveExpenseCategory);
-router.patch("/categories/:id", adminOnly, updateExpenseCategory);
+router.route("/categories").get(listExpenseCategories).post(writeAccess, createExpenseCategory);
+router.post("/categories/:id/archive", writeAccess, archiveExpenseCategory);
+router.patch("/categories/:id", writeAccess, updateExpenseCategory);
 
 router.get("/recurring", listRecurringExpenses);
-router.post("/recurring/generate", adminOnly, generateRecurringExpenses);
-router.route("/recurring").post(adminOnly, createRecurringExpense);
-router.post("/recurring/:id/archive", adminOnly, archiveRecurringExpense);
-router.patch("/recurring/:id", adminOnly, updateRecurringExpense);
+router.post("/recurring/generate", writeAccess, generateRecurringExpenses);
+router.route("/recurring").post(writeAccess, createRecurringExpense);
+router.post("/recurring/:id/archive", writeAccess, archiveRecurringExpense);
+router.patch("/recurring/:id", writeAccess, updateRecurringExpense);
 
 export default router;

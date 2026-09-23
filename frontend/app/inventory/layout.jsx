@@ -3,7 +3,7 @@ import InventoryShell from "@/src/components/inventory/InventoryShell.jsx";
 
 export default function InventoryLayout({ children }) {
   return (
-    <ProtectedRoute roles={["admin", "manager"]}>
+    <ProtectedRoute roles={["admin", "manager", "inventory", "storekeeper"]}>
       <InventoryShell>{children}</InventoryShell>
     </ProtectedRoute>
   );

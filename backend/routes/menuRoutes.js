@@ -7,7 +7,8 @@ import {
   updateMenuItem,
   deleteMenuItem,
 } from "../controllers/menuController.js";
-import { protect, authorize } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 import {
   createMenuAddOn,
   deleteMenuAddOn,
@@ -20,28 +21,28 @@ const router = express.Router();
 router.get(
   "/manage",
   protect,
-  authorize("admin", "manager"),
+  requireCapability(CAPABILITIES.CATALOG_MANAGE),
   getAllMenuItemsForAdmin
 );
 
 router
   .route("/manage/add-ons")
-  .get(protect, authorize("admin", "manager"), listMenuAddOns)
-  .post(protect, authorize("admin", "manager"), createMenuAddOn);
+  .get(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), listMenuAddOns)
+  .post(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), createMenuAddOn);
 router
   .route("/manage/add-ons/:addOnId")
-  .put(protect, authorize("admin", "manager"), updateMenuAddOn)
-  .delete(protect, authorize("admin", "manager"), deleteMenuAddOn);
+  .put(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), updateMenuAddOn)
+  .delete(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), deleteMenuAddOn);
 
 router
   .route("/")
   .get(getMenuItems)
-  .post(protect, authorize("admin", "manager"), createMenuItem);
+  .post(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), createMenuItem);
 router
   .route("/:id")
   .get(getMenuItemById)
-  .put(protect, authorize("admin", "manager"), updateMenuItem)
-  .delete(protect, authorize("admin", "manager"), deleteMenuItem);
+  .put(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), updateMenuItem)
+  .delete(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), deleteMenuItem);
 
 export default router;
 

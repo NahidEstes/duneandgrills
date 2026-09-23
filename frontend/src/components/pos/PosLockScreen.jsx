@@ -20,10 +20,9 @@ export default function PosLockScreen({ user, onUnlock }) {
     setError("");
     try {
       const result = await loginUser({ email: user.email, password });
-      if (result.user?._id !== user._id || !["admin", "manager"].includes(result.user?.role)) {
+      if (result.user?._id !== user._id || !["admin", "manager", "cashier"].includes(result.user?.role)) {
         throw new Error("Cashier identity does not match.");
       }
-      localStorage.setItem("dg_token", result.token);
       onUnlock();
     } catch {
       setError("Unable to unlock. Check your password and connection.");

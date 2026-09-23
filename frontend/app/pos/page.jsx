@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function PosPage() {
   return (
-    <ProtectedRoute roles={["admin", "manager"]}>
+    <ProtectedRoute roles={["admin", "manager", "cashier"]}>
       <PosWorkspace />
     </ProtectedRoute>
   );

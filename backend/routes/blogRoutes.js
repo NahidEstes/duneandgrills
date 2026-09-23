@@ -10,21 +10,22 @@ import {
   deleteBlogPost,
   getBlogCategoryCounts,
 } from "../controllers/blogController.js";
-import { protect, authorize } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 
 const router = express.Router();
 
 router.get(
   "/manage",
   protect,
-  authorize("admin", "manager"),
+  requireCapability(CAPABILITIES.CATALOG_MANAGE),
   getAllBlogPostsForAdmin
 );
 
 router
   .route("/")
   .get(getBlogPosts)
-  .post(protect, authorize("admin", "manager"), createBlogPost);
+  .post(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), createBlogPost);
 
 router.get("/categories", getBlogCategoryCounts);
 router.get("/slug/:slug/related", getRelatedBlogPosts);
@@ -32,8 +33,8 @@ router.get("/slug/:slug", getBlogPostBySlug);
 
 router
   .route("/:id")
-  .get(protect, authorize("admin", "manager"), getBlogPostById)
-  .put(protect, authorize("admin", "manager"), updateBlogPost)
-  .delete(protect, authorize("admin", "manager"), deleteBlogPost);
+  .get(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), getBlogPostById)
+  .put(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), updateBlogPost)
+  .delete(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), deleteBlogPost);
 
 export default router;

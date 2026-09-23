@@ -1,5 +1,6 @@
 import express from "express";
-import { authorize, protect } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 import {
   createReview,
   deleteReview,
@@ -12,7 +13,7 @@ router.use(protect);
 
 router.route("/").post(createReview);
 router.get("/me", getMyReviews);
-router.get("/manage", authorize("admin", "manager"), getAllReviewsForAdmin);
-router.delete("/:id", authorize("admin", "manager"), deleteReview);
+router.get("/manage", requireCapability(CAPABILITIES.REVIEWS_MANAGE), getAllReviewsForAdmin);
+router.delete("/:id", requireCapability(CAPABILITIES.REVIEWS_MANAGE), deleteReview);
 
 export default router;

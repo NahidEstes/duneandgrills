@@ -4,12 +4,13 @@ import {
   getPublicRestaurantSettings,
   saveRestaurantSettings,
 } from "../controllers/restaurantSettingsController.js";
-import { authorize, protect } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 
 const router = express.Router();
 
 router.get("/public", getPublicRestaurantSettings);
-router.get("/", protect, authorize("admin", "manager"), getAdminRestaurantSettings);
-router.put("/", protect, authorize("admin", "manager"), saveRestaurantSettings);
+router.get("/", protect, requireCapability(CAPABILITIES.SETTINGS_MANAGE), getAdminRestaurantSettings);
+router.put("/", protect, requireCapability(CAPABILITIES.SETTINGS_MANAGE), saveRestaurantSettings);
 
 export default router;

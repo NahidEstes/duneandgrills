@@ -86,8 +86,12 @@ const orderSchema = new mongoose.Schema(
     },
     orderNumber: {
       type: String,
+      required: true,
+      immutable: true,
+      trim: true,
       unique: true,
     },
+    trackingTokenHash: { type: String, default: null, select: false, immutable: true },
     source: { type: String, enum: SALES_SOURCES, default: "website", index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     idempotencyKey: { type: String, trim: true, default: undefined },
@@ -235,6 +239,7 @@ orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ preparationDueAt: 1, status: 1 });
 orderSchema.index({ status: 1, readyAt: 1, createdAt: 1 });
 orderSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
+orderSchema.index({ trackingTokenHash: 1 }, { sparse: true });
 
 const Order = mongoose.model("Order", orderSchema);
 

@@ -5,6 +5,7 @@ import InventoryCategory from "../models/InventoryCategory.js";
 import InventoryBatch from "../models/InventoryBatch.js";
 import InventoryItem from "../models/InventoryItem.js";
 import InventoryRecipe from "../models/InventoryRecipe.js";
+import InventoryCount from "../models/InventoryCount.js";
 import MenuItem from "../models/MenuItem.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import StockTransaction from "../models/StockTransaction.js";
@@ -13,6 +14,17 @@ import User from "../models/User.js";
 import { createOpeningBalance, performStockMovement } from "../services/inventoryStockService.js";
 import { deductOrderInventory, restoreOrderInventory } from "../services/orderInventoryService.js";
 import { createPurchaseOrder, receivePurchaseOrder } from "../services/purchaseOrderService.js";
+import { completeCount, createCount, reviewCount, submitCount } from "../controllers/inventory/stockController.js";
+import AuditLog from "../models/AuditLog.js";
+
+process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "true";
+
+const invoke = async (handler, req) => {
+  let statusCode = 200;
+  let payload;
+  await handler(req, { status(code) { statusCode = code; return this; }, json(value) { payload = value; return value; } }, (error) => { throw error; });
+  return { statusCode, payload };
+};
 
 const testUri = process.env.MONGO_TEST_URI || "mongodb://127.0.0.1:27017/duneandgrills_inventory_test";
 
@@ -147,6 +159,38 @@ const run = async () => {
   );
   assert.equal((await InventoryBatch.findOne({ lotNumber: "EARLY-LOT" })).remainingQuantity, 0);
   assert.equal((await InventoryBatch.findOne({ lotNumber: "LATE-LOT" })).remainingQuantity, 18);
+
+  const started = await invoke(createCount, { user, body: { itemIds: [item._id], blindCount: true } });
+  assert.equal(started.statusCode, 201);
+  const count = started.payload.data;
+  await performStockMovement({ itemId: item._id, movementType: "STOCK_OUT", quantity: 1, reason: "Sale during count", userId: user._id });
+  const conflicted = await invoke(completeCount, {
+    user,
+    params: { id: count._id },
+    body: { items: [{ lineId: count.items[0]._id, countedQuantity: count.items[0].expectedQuantity }] },
+  });
+  assert.equal(conflicted.statusCode, 409);
+  assert.equal((await InventoryCount.findById(count._id)).status, "review_required");
+  const stockAfterSale = (await InventoryItem.findById(item._id)).currentStock;
+  assert.equal(stockAfterSale, count.items[0].expectedQuantity - 1);
+  await invoke(reviewCount, { user, params: { id: count._id }, body: {} });
+  const reviewed = await InventoryCount.findById(count._id);
+  const completed = await invoke(completeCount, {
+    user,
+    params: { id: count._id },
+    body: { items: [{ lineId: reviewed.items[0]._id, countedQuantity: stockAfterSale }] },
+  });
+  assert.equal(completed.statusCode, 200);
+  assert.equal((await InventoryCount.findById(count._id)).status, "completed");
+  assert.equal((await InventoryItem.findById(item._id)).currentStock, stockAfterSale);
+  assert.equal(await AuditLog.countDocuments({ entityId: count._id, action: "INVENTORY_COUNT_COMPLETED" }), 1);
+  const secondStarted = await invoke(createCount, { user, body: { itemIds: [item._id], blindCount: true } });
+  const secondCount = secondStarted.payload.data;
+  const submittedForApproval = await invoke(submitCount, { user, params: { id: secondCount._id }, body: { items: [{ lineId: secondCount.items[0]._id, countedQuantity: stockAfterSale }] } });
+  assert.equal(submittedForApproval.payload.data.status, "review_required");
+  const approved = await invoke(completeCount, { user, params: { id: secondCount._id }, body: { items: [] } });
+  assert.equal(approved.statusCode, 200);
+  assert.equal((await InventoryCount.findById(secondCount._id)).status, "completed");
 
   console.log("Inventory integration checks passed");
 };

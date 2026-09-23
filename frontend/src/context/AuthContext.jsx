@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { loginUser, registerUser, fetchMe } from "../api/api.js";
+import { loginUser, registerUser, fetchMe, logoutUser, migrateLegacySession } from "../api/api.js";
 import { useCart } from "./CartContext.jsx";
 
 const AuthContext = createContext(null);
@@ -21,18 +21,11 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let cancelled = false;
     const token = localStorage.getItem("dg_token");
-    if (!token) {
-      restoreGuestCart();
-      setLoading(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
     const restoreSession = async () => {
       try {
-        const currentUser = await fetchMe();
+        const currentUser = token ? await migrateLegacySession() : await fetchMe();
         if (cancelled) return;
+        if (token) localStorage.removeItem("dg_token");
         setUser(currentUser);
         await restoreUserCart(currentUser._id).catch(() => undefined);
       } catch {
@@ -53,7 +46,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const data = await loginUser({ email, password });
-    localStorage.setItem("dg_token", data.token);
+    localStorage.removeItem("dg_token");
     setUser(data.user);
     await migrateGuestCart(data.user._id).catch(() => undefined);
     return data.user;
@@ -61,14 +54,15 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (payload) => {
     const data = await registerUser(payload);
-    localStorage.setItem("dg_token", data.token);
+    localStorage.removeItem("dg_token");
     setUser(data.user);
     await migrateGuestCart(data.user._id).catch(() => undefined);
     return data.user;
   };
 
-  const logout = () => {
+  const logout = async () => {
     clearCartOnLogout(user?._id);
+    await logoutUser().catch(() => undefined);
     localStorage.removeItem("dg_token");
     setUser(null);
     router.replace("/");

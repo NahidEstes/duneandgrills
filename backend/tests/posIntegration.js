@@ -2,7 +2,7 @@ import "dotenv/config";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import { createPosSale } from "../controllers/posController.js";
-import { createOrder } from "../controllers/orderController.js";
+import { createOrder, getOrderById, trackGuestOrder } from "../controllers/orderController.js";
 import InventoryCategory from "../models/InventoryCategory.js";
 import InventoryItem from "../models/InventoryItem.js";
 import InventoryRecipe from "../models/InventoryRecipe.js";
@@ -15,6 +15,9 @@ import { listKitchenOrders, transitionKitchenOrder } from "../services/kitchenSe
 import AuditLog from "../models/AuditLog.js";
 import RestaurantSettings from "../models/RestaurantSettings.js";
 import { getRestaurantSettingsDefaults, updateRestaurantSettings } from "../services/restaurantSettingsService.js";
+import { nextOrderNumber } from "../services/orderNumberService.js";
+
+process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "true";
 
 const testUri =
   process.env.MONGO_TEST_URI ||
@@ -56,6 +59,13 @@ const invokeCreateWebsiteOrder = async (user, body) => {
   return { statusCode, payload };
 };
 
+const invokeJsonController = async (handler, req) => {
+  let statusCode = 200;
+  let payload;
+  await handler(req, { status(code) { statusCode = code; return this; }, json(value) { payload = value; return value; } });
+  return { statusCode, payload };
+};
+
 const run = async () => {
   await mongoose.connect(testUri);
   const databaseName = mongoose.connection.db.databaseName;
@@ -79,6 +89,7 @@ const run = async () => {
     password: "TestPassword123!",
     role: "customer",
   });
+  const otherCustomer = await User.create({ name: "Other Customer", email: "other-customer@example.com", phone: "0511111111", password: "TestPassword123!", role: "customer" });
   const settings = getRestaurantSettingsDefaults();
   settings.orders.deliveryFee = 12;
   settings.orders.minimumDeliveryOrder = 20;
@@ -143,6 +154,7 @@ const run = async () => {
   assert.equal(created.payload.data.status, "pending");
   assert.equal(created.payload.data.estimatedPreparationMinutes, 17);
   assert.equal(created.payload.data.inventoryStatus, "deducted");
+  assert.match(created.payload.data.orderNumber, /^DG-\d{8}-\d{4}$/);
   assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.6);
   assert.equal(
     await StockTransaction.countDocuments({
@@ -177,12 +189,33 @@ const run = async () => {
   });
   assert.equal(websiteCreated.statusCode, 201);
   const websiteOrder = websiteCreated.payload.data;
+  assert.match(websiteOrder.orderNumber, /^DG-\d{8}-\d{4}$/);
+  assert.equal(Number(websiteOrder.orderNumber.slice(-4)), Number(created.payload.data.orderNumber.slice(-4)) + 1);
+  assert.equal(typeof websiteCreated.payload.trackingToken, "string");
+  const ownPrivate = await invokeJsonController(getOrderById, { params: { id: websiteOrder._id }, user: customer });
+  assert.equal(ownPrivate.statusCode, 200);
+  assert.equal("customer" in ownPrivate.payload.data, false);
+  const otherPrivate = await invokeJsonController(getOrderById, { params: { id: websiteOrder._id }, user: otherCustomer });
+  assert.equal(otherPrivate.statusCode, 404);
+  const adminPrivate = await invokeJsonController(getOrderById, { params: { id: websiteOrder._id }, user: admin });
+  assert.equal(adminPrivate.statusCode, 200);
+  assert.equal(adminPrivate.payload.data.customer.name, customer.name);
+  const tracked = await invokeJsonController(trackGuestOrder, { params: { orderNumber: websiteOrder.orderNumber }, query: {}, headers: { "x-order-tracking-token": websiteCreated.payload.trackingToken } });
+  assert.equal(tracked.statusCode, 200);
+  for (const field of ["customer", "notes", "trackingTokenHash", "inventoryTransactions", "_id"]) assert.equal(field in tracked.payload.data, false);
+  const invalidTrack = await invokeJsonController(trackGuestOrder, { params: { orderNumber: websiteOrder.orderNumber }, query: {}, headers: { "x-order-tracking-token": "wrong-token" } });
+  assert.equal(invalidTrack.statusCode, 404);
   assert.equal(websiteOrder.status, "pending");
   assert.equal(websiteOrder.deliveryFee, 12);
   assert.equal(websiteOrder.totalAmount, 37);
   assert.equal(websiteOrder.estimatedPreparationMinutes, 17);
   assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.4);
   assert.equal(await StockTransaction.countDocuments({ order: websiteOrder._id, movementType: "STOCK_OUT" }), 1);
+  const concurrentNumbers = await Promise.all(Array.from({ length: 12 }, () => nextOrderNumber()));
+  assert.equal(new Set(concurrentNumbers).size, concurrentNumbers.length);
+  assert.equal(concurrentNumbers.every((value) => /^DG-\d{8}-\d{4}$/.test(value)), true);
+  const nextDayNumber = await nextOrderNumber({ date: new Date("2030-01-01T21:05:00.000Z") });
+  assert.equal(nextDayNumber, "DG-20300102-0001");
   await transitionKitchenOrder({ orderId: websiteOrder._id, nextStatus: "confirmed", actor: admin });
   await transitionKitchenOrder({ orderId: websiteOrder._id, nextStatus: "preparing", actor: admin });
   await transitionKitchenOrder({ orderId: websiteOrder._id, nextStatus: "ready", actor: admin });

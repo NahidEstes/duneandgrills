@@ -10,6 +10,7 @@ import PurchaseOrder from "../models/PurchaseOrder.js";
 import { getBatchSnapshots } from "../services/inventoryBatchService.js";
 import { getInventorySettings } from "../services/inventoryAnalyticsService.js";
 import { NON_REVENUE_ORDER_STATUSES } from "../config/orderStatuses.js";
+import { STAFF_ROLES } from "../config/permissions.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
 
@@ -106,7 +107,7 @@ export const getDashboard = async (req, res) => {
         },
       ]),
       User.countDocuments({ role: "customer" }),
-      User.countDocuments({ role: { $in: ["admin", "manager", "kitchen"] } }),
+      User.countDocuments({ role: { $in: STAFF_ROLES }, isActive: { $ne: false } }),
       MenuItem.countDocuments(),
       MenuItem.countDocuments({ isAvailable: true }),
       Offer.countDocuments({
@@ -331,7 +332,7 @@ export const getAdminUsers = async (req, res) => {
     const { scope = "customers", search = "" } = req.query;
     const filter = {
       role:
-        scope === "staff" ? { $in: ["admin", "manager", "kitchen"] } : "customer",
+        scope === "staff" ? { $in: STAFF_ROLES } : "customer",
     };
 
     if (search.trim()) {
@@ -344,7 +345,7 @@ export const getAdminUsers = async (req, res) => {
     }
 
     const users = await User.find(filter)
-      .select("name email role phone address avatar pointsBalance favorites favoriteCombos createdAt updatedAt")
+      .select("name email role phone address avatar pointsBalance favorites favoriteCombos isActive deactivatedAt createdAt updatedAt")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -370,6 +371,8 @@ export const getAdminUsers = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      isActive: user.isActive !== false,
+      deactivatedAt: user.deactivatedAt,
       phone: user.phone,
       address: user.address,
       avatar: user.avatar,

@@ -43,7 +43,7 @@ const navigation = [
   ["Expiry Tracking", "/inventory/expiry-tracking", TimerReset],
   ["Low Stock Alerts", "/inventory/low-stock-alerts", BellRing],
   ["Reports", "/inventory/reports", BarChart3],
-  ["Settings", "/inventory/settings", Settings],
+  ["Settings", "/inventory/settings", Settings, ["admin", "manager"]],
 ];
 
 export default function InventoryShell({ children }) {
@@ -69,7 +69,7 @@ export default function InventoryShell({ children }) {
         </Link>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navigation.map(([label, href, Icon]) => {
+          {navigation.filter(([, , , roles]) => !roles || roles.includes(user?.role)).map(([label, href, Icon]) => {
             const active = pathname === href;
             return (
               <Link
@@ -104,9 +104,7 @@ export default function InventoryShell({ children }) {
             <p className="text-sm text-neutral-400">Inventory control center</p>
             </div>
           </div>
-          <Link href="/admin" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-neutral-300 hover:border-dune-amber/40 hover:text-white">
-            Admin Dashboard
-          </Link>
+          {["admin", "manager"].includes(user?.role) && <Link href="/admin" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-neutral-300 hover:border-dune-amber/40 hover:text-white">Admin Dashboard</Link>}
         </header>
         <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>

@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
-import Counter from "../models/Counter.js";
+import crypto from "crypto";
 import MenuItem from "../models/MenuItem.js";
 import User from "../models/User.js";
 import {
@@ -37,6 +37,9 @@ import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
 import { NON_REVENUE_ORDER_STATUSES, ORDER_STATUSES as ORDER_STATUS_VALUES } from "../config/orderStatuses.js";
+import { nextOrderNumber } from "../services/orderNumberService.js";
+import { serializeCustomerOrder, serializeGuestTrackingOrder } from "../services/orderSerializer.js";
+import { hasCapability, CAPABILITIES } from "../config/permissions.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
 const reversalStatuses = new Set(nonRevenueStatuses);
@@ -124,23 +127,6 @@ export const getOrderConfig = async (_req, res) => {
 // order number like "20260823001". Using findOneAndUpdate with $inc means
 // MongoDB guarantees each caller gets a different number, even if many
 // orders are placed at the exact same moment.
-const generateOrderNumber = async () => {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}${String(now.getDate()).padStart(2, "0")}`;
-
-  const counter = await Counter.findOneAndUpdate(
-    { _id: datePart },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true } // upsert: create the counter if today's doesn't exist yet
-  );
-
-  const sequence = String(counter.seq).padStart(3, "0"); // 001–999 per day
-  return `${datePart}${sequence}`;
-};
-
 // @desc    Create a new order
 // @route   POST /api/orders
 // @access  Public
@@ -239,6 +225,7 @@ export const createOrder = async (req, res) => {
           message: "Invalid reward redemption",
         });
       }
+      if (!req.user) return res.status(401).json({ success: false, message: "Sign in to use a reward" });
       await releaseExpiredRedemptions(req.user._id);
       const rewardUser = await User.findById(req.user._id)
         .select("rewardRedemptions")
@@ -306,7 +293,9 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    const orderNumber = await generateOrderNumber();
+    const orderNumber = await nextOrderNumber();
+    const trackingToken = crypto.randomBytes(32).toString("base64url");
+    const trackingTokenHash = crypto.createHash("sha256").update(trackingToken).digest("hex");
     if (coupon) {
       await reserveCouponUsage(coupon.offer._id);
       reservedCouponId = coupon.offer._id;
@@ -315,6 +304,7 @@ export const createOrder = async (req, res) => {
       const [created] = await Order.create([{
         _id: orderId,
         orderNumber,
+        trackingTokenHash,
         source: "website",
         user: req.user ? req.user._id : null,
         customer: {
@@ -350,7 +340,7 @@ export const createOrder = async (req, res) => {
         orderId,
         orderNumber,
         source: "website",
-        actorId: req.user._id,
+        actorId: req.user?._id || null,
         strictRecipes: false,
         session,
       });
@@ -362,7 +352,7 @@ export const createOrder = async (req, res) => {
     });
     reservedCouponId = null;
 
-    res.status(201).json({ success: true, data: order });
+    res.status(201).json({ success: true, data: serializeCustomerOrder(order), trackingToken });
   } catch (err) {
     if (orderId) await Order.deleteOne({ _id: orderId }).catch(() => undefined);
     if (appliedRedemption && orderId) {
@@ -378,7 +368,6 @@ export const createOrder = async (req, res) => {
     res.status(err.status || 400).json({
       success: false,
       message: err.status ? err.message : "Failed to create order",
-      error: err.message,
     });
   }
 };
@@ -476,22 +465,28 @@ export const getOrderStats = async (req, res) => {
 
 // @desc    Get a single order
 // @route   GET /api/orders/:id
-// @access  Public (customer order tracking)
+// @access  Private (owner or authorized staff)
 export const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Order not found" });
-    }
-    res.status(200).json({ success: true, data: order });
+    const canReadAll = hasCapability(req.user.role, CAPABILITIES.ORDERS_READ_ALL);
+    const ownsOrder = order?.user && String(order.user) === String(req.user._id);
+    if (!order || (!canReadAll && !ownsOrder)) return res.status(404).json({ success: false, message: "Order not found" });
+    res.status(200).json({ success: true, data: canReadAll ? serializeAdminOrder(order) : serializeCustomerOrder(order) });
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch order",
-      error: err.message,
-    });
+    res.status(404).json({ success: false, message: "Order not found" });
+  }
+};
+
+export const trackGuestOrder = async (req, res) => {
+  try {
+    const token = String(req.headers["x-order-tracking-token"] || "");
+    const tokenHash = token ? crypto.createHash("sha256").update(token).digest("hex") : "";
+    const order = tokenHash ? await Order.findOne({ orderNumber: req.params.orderNumber, trackingTokenHash: tokenHash }).select("+trackingTokenHash") : null;
+    if (!order) return res.status(404).json({ success: false, message: "Order could not be found" });
+    res.json({ success: true, data: serializeGuestTrackingOrder(order) });
+  } catch (_error) {
+    res.status(404).json({ success: false, message: "Order could not be found" });
   }
 };
 
@@ -651,7 +646,7 @@ export const getMyOrders = async (req, res) => {
       .sort({ createdAt: -1 })
       .populate("items.menuItem", "name image price isAvailable")
       .populate("items.combo", "name image comboPrice isAvailable status");
-    res.status(200).json({ success: true, count: orders.length, data: orders });
+    res.status(200).json({ success: true, count: orders.length, data: orders.map(serializeCustomerOrder) });
   } catch (err) {
     res.status(500).json({
       success: false,

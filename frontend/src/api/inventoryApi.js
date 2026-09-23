@@ -47,6 +47,8 @@ export const receivePurchaseOrder = (id, payload) => unwrap(api.post(`/inventory
 export const fetchInventoryCounts = () => unwrap(api.get("/inventory/counts")).then((response) => response.data);
 export const createInventoryCount = (payload) => unwrap(api.post("/inventory/counts", payload)).then((response) => response.data);
 export const completeInventoryCount = (id, items) => unwrap(api.post(`/inventory/counts/${id}/complete`, { items })).then((response) => response.data);
+export const submitInventoryCount = (id, items) => unwrap(api.post(`/inventory/counts/${id}/submit`, { items })).then((response) => response.data);
+export const reviewInventoryCount = (id) => unwrap(api.post(`/inventory/counts/${id}/review`)).then((response) => response.data);
 export const cancelInventoryCount = (id) => unwrap(api.post(`/inventory/counts/${id}/cancel`)).then((response) => response.data);
 
 export const fetchInventoryReport = (params = {}) => unwrap(api.get("/inventory/reports", { params }));

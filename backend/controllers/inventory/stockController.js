@@ -7,6 +7,8 @@ import User from "../../models/User.js";
 import { performStockMovement, runInventoryTransaction } from "../../services/inventoryStockService.js";
 import { getPurchaseConfiguration, toBaseQuantity, toBaseUnitCost } from "../../services/inventoryUnitService.js";
 import { escapeRegex, parsePagination, validateMovementPayload, ValidationError } from "../../utils/inventoryValidation.js";
+import { recordAuditLog } from "../../services/auditLogService.js";
+import { hasCapability, CAPABILITIES } from "../../config/permissions.js";
 
 export const createMovement = async (req, res, next) => {
   try {
@@ -118,7 +120,12 @@ const nextCountNumber = async () => {
 
 export const listCounts = async (req, res, next) => {
   try {
-    const rows = await InventoryCount.find().populate("createdBy completedBy", "name").sort({ createdAt: -1 }).lean();
+    const rows = await InventoryCount.find().populate("createdBy completedBy reviewedBy", "name").sort({ createdAt: -1 }).lean();
+    if (!hasCapability(req.user.role, CAPABILITIES.INVENTORY_COUNT_APPROVE)) {
+      for (const count of rows) if (count.blindCount && count.status === "in_progress") {
+        count.items = count.items.map(({ expectedQuantity: _expectedQuantity, expectedStockVersion: _expectedStockVersion, ...line }) => line);
+      }
+    }
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }
 };
@@ -133,11 +140,38 @@ export const createCount = async (req, res, next) => {
     const row = await InventoryCount.create({
       countNumber: await nextCountNumber(),
       status: "in_progress",
-      items: items.map((item) => ({ item: item._id, itemName: item.name, sku: item.sku, expectedQuantity: item.currentStock })),
+      items: items.map((item) => ({ item: item._id, itemName: item.name, sku: item.sku, expectedQuantity: item.currentStock, expectedStockVersion: Number(item.stockVersion || 0) })),
+      blindCount: req.body.blindCount === true,
       notes: typeof req.body.notes === "string" ? req.body.notes.trim() : "",
       createdBy: req.user._id,
     });
     res.status(201).json({ success: true, data: row });
+  } catch (error) { next(error); }
+};
+
+export const submitCount = async (req, res, next) => {
+  try {
+    const count = await InventoryCount.findOne({ _id: req.params.id, status: "in_progress" });
+    if (!count) return res.status(404).json({ success: false, message: "Open inventory count was not found" });
+    const submitted = new Map((req.body.items || []).map((line) => [String(line.lineId), line]));
+    if (submitted.size !== count.items.length) throw new ValidationError("A counted quantity is required for every item");
+    const currentItems = await InventoryItem.find({ _id: { $in: count.items.map((line) => line.item) } }).lean();
+    const currentById = new Map(currentItems.map((item) => [String(item._id), item]));
+    for (const line of count.items) {
+      const input = submitted.get(String(line._id));
+      const counted = Number(input?.countedQuantity);
+      if (!Number.isFinite(counted) || counted < 0) throw new ValidationError(`Counted quantity for ${line.itemName} must be zero or greater`);
+      line.countedQuantity = counted;
+      line.variance = counted - line.expectedQuantity;
+      line.notes = typeof input.notes === "string" ? input.notes.trim() : "";
+      const current = currentById.get(String(line.item));
+      line.conflict = !current || Number(current.stockVersion || 0) !== Number(line.expectedStockVersion || 0) || Number(current.currentStock) !== Number(line.expectedQuantity);
+      line.conflictReason = line.conflict ? (!current ? "Inventory item is no longer available" : `Stock changed after counting started (${line.expectedQuantity} to ${current.currentStock})`) : "";
+    }
+    count.status = "review_required";
+    await count.save();
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_COUNT_SUBMITTED", entityType: "InventoryCount", entityId: count._id, entityLabel: count.countNumber, metadata: { conflicts: count.items.filter((line) => line.conflict).length } });
+    res.json({ success: true, data: count });
   } catch (error) { next(error); }
 };
 
@@ -146,17 +180,37 @@ export const completeCount = async (req, res, next) => {
     const result = await runInventoryTransaction(async (session) => {
       const count = await InventoryCount.findById(req.params.id).session(session || null);
       if (!count) throw new ValidationError("Inventory count was not found");
-      if (count.status !== "in_progress") throw new ValidationError("Only in-progress counts can be completed");
+      if (!["in_progress", "review_required"].includes(count.status)) throw new ValidationError("Only open counts can be completed");
       const submitted = new Map((req.body.items || []).map((line) => [String(line.lineId), line]));
-      if (submitted.size !== count.items.length) throw new ValidationError("A counted quantity is required for every item");
+      if (submitted.size && submitted.size !== count.items.length) throw new ValidationError("A counted quantity is required for every item");
+      const currentItems = await InventoryItem.find({ _id: { $in: count.items.map((line) => line.item) } }).session(session || null);
+      const currentById = new Map(currentItems.map((item) => [String(item._id), item]));
+      const conflicts = [];
+      for (const line of count.items) {
+        line.conflict = false;
+        line.conflictReason = "";
+        const current = currentById.get(String(line.item));
+        if (!current || Number(current.stockVersion || 0) !== Number(line.expectedStockVersion || 0) || Number(current.currentStock) !== Number(line.expectedQuantity)) {
+          line.conflict = true;
+          line.conflictReason = !current ? "Inventory item is no longer available" : `Stock changed after counting started (${line.expectedQuantity} to ${current.currentStock})`;
+          conflicts.push({ lineId: line._id, item: line.item, itemName: line.itemName, reason: line.conflictReason });
+        }
+      }
+      if (conflicts.length) {
+        count.status = "review_required";
+        await count.save({ session: session || undefined });
+        await recordAuditLog({ actor: req.user, action: "INVENTORY_COUNT_CONFLICT", entityType: "InventoryCount", entityId: count._id, entityLabel: count.countNumber, metadata: { conflicts } }, { session });
+        return { count, movements: [], conflicts };
+      }
       const movements = [];
       for (const line of count.items) {
         const input = submitted.get(String(line._id));
-        const counted = Number(input?.countedQuantity);
+        const counted = Number(input?.countedQuantity ?? line.countedQuantity);
         if (!Number.isFinite(counted) || counted < 0) throw new ValidationError(`Counted quantity for ${line.itemName} must be zero or greater`);
         line.countedQuantity = counted;
         line.variance = counted - line.expectedQuantity;
-        line.notes = typeof input.notes === "string" ? input.notes.trim() : "";
+        line.appliedAdjustment = line.variance;
+        line.notes = typeof input?.notes === "string" ? input.notes.trim() : line.notes;
         if (line.variance !== 0) {
           const movement = await performStockMovement(
             {
@@ -178,15 +232,42 @@ export const completeCount = async (req, res, next) => {
       count.completedBy = req.user._id;
       count.completedAt = new Date();
       await count.save({ session: session || undefined });
+      await recordAuditLog({ actor: req.user, action: "INVENTORY_COUNT_COMPLETED", entityType: "InventoryCount", entityId: count._id, entityLabel: count.countNumber, metadata: { items: count.items.map((line) => ({ item: line.item, previousQuantity: line.expectedQuantity, countedQuantity: line.countedQuantity, appliedAdjustment: line.appliedAdjustment })), approvedBy: req.user._id } }, { session });
       return { count, movements };
     });
-    res.json({ success: true, data: result });
+    res.status(result.conflicts?.length ? 409 : 200).json({ success: !result.conflicts?.length, ...(result.conflicts?.length ? { message: "Stock changed after this count started. Review and recount the affected items." } : {}), data: result });
+  } catch (error) { next(error); }
+};
+
+export const reviewCount = async (req, res, next) => {
+  try {
+    const count = await InventoryCount.findOne({ _id: req.params.id, status: "review_required" });
+    if (!count) return res.status(404).json({ success: false, message: "Inventory count awaiting review was not found" });
+    const currentItems = await InventoryItem.find({ _id: { $in: count.items.map((line) => line.item) } }).lean();
+    const currentById = new Map(currentItems.map((item) => [String(item._id), item]));
+    for (const line of count.items) {
+      const current = currentById.get(String(line.item));
+      if (!current) continue;
+      line.expectedQuantity = current.currentStock;
+      line.expectedStockVersion = Number(current.stockVersion || 0);
+      line.countedQuantity = null;
+      line.variance = null;
+      line.appliedAdjustment = null;
+      line.conflict = false;
+      line.conflictReason = "";
+    }
+    count.status = "in_progress";
+    count.reviewedBy = req.user._id;
+    count.reviewedAt = new Date();
+    await count.save();
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_COUNT_RECOUNT_REQUESTED", entityType: "InventoryCount", entityId: count._id, entityLabel: count.countNumber });
+    res.json({ success: true, data: count });
   } catch (error) { next(error); }
 };
 
 export const cancelCount = async (req, res, next) => {
   try {
-    const row = await InventoryCount.findOneAndUpdate({ _id: req.params.id, status: { $in: ["draft", "in_progress"] } }, { status: "cancelled" }, { new: true });
+    const row = await InventoryCount.findOneAndUpdate({ _id: req.params.id, status: { $in: ["draft", "in_progress", "review_required"] } }, { status: "cancelled" }, { new: true });
     if (!row) return res.status(404).json({ success: false, message: "Open inventory count not found" });
     res.json({ success: true, data: row });
   } catch (error) { next(error); }

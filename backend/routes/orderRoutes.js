@@ -8,24 +8,28 @@ import {
   getOrderStats,
   getOrderConfig,
   bulkUpdateOrderStatus,
+  trackGuestOrder,
 } from "../controllers/orderController.js";
-import { protect, authorize } from "../middleware/auth.js";
+import { optionalAuth, protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
+import { rateLimit } from "../middleware/security.js";
 
 const router = express.Router();
 
 router
   .route("/")
-  .get(protect, authorize("admin", "manager"), getOrders)
-  .post(protect, createOrder);
+  .get(protect, requireCapability(CAPABILITIES.ORDERS_READ_ALL), getOrders)
+  .post(optionalAuth, createOrder);
 router.get("/config", getOrderConfig);
 router.get("/my", protect, getMyOrders);
-router.get("/stats", protect, authorize("admin", "manager"), getOrderStats);
-router.patch("/bulk-status", protect, authorize("admin", "manager"), bulkUpdateOrderStatus);
-router.route("/:id").get(getOrderById);
+router.get("/stats", protect, requireCapability(CAPABILITIES.ORDERS_READ_ALL), getOrderStats);
+router.patch("/bulk-status", protect, requireCapability(CAPABILITIES.ORDERS_MANAGE), bulkUpdateOrderStatus);
+router.get("/track/:orderNumber", rateLimit({ windowMs: 15 * 60_000, max: 30, keyPrefix: "order-track" }), trackGuestOrder);
+router.route("/:id").get(protect, getOrderById);
 router.patch(
   "/:id/status",
   protect,
-  authorize("admin", "manager"),
+  requireCapability(CAPABILITIES.ORDERS_MANAGE),
   updateOrderStatus
 );
 

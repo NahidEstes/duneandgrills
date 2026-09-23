@@ -38,7 +38,28 @@ export const runInventoryTransaction = async (work) => {
     return result;
   } catch (error) {
     if (!unsupportedTransaction(error)) throw error;
-    return work(null);
+    const fallbackAllowed = process.env.NODE_ENV !== "production" && process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY === "true";
+    if (fallbackAllowed) return work(null);
+    const operationalError = new Error("Inventory transaction support is unavailable. Configure a MongoDB replica set before retrying.");
+    operationalError.status = 503;
+    operationalError.code = "INVENTORY_TRANSACTION_UNAVAILABLE";
+    throw operationalError;
+  } finally {
+    await session.endSession();
+  }
+};
+
+export const verifyTransactionCapability = async () => {
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      await InventoryItem.findOne().select("_id").session(session);
+    });
+    return { ready: true, mode: "transactional" };
+  } catch (error) {
+    if (!unsupportedTransaction(error)) throw error;
+    const fallback = process.env.NODE_ENV !== "production" && process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY === "true";
+    return { ready: fallback, mode: fallback ? "explicit-non-transactional-development" : "unsupported" };
   } finally {
     await session.endSession();
   }
@@ -89,19 +110,26 @@ export const performStockMovement = async (
     if (stockAfter < 0 && !(allowNegativeStock || (respectItemNegativeStock && item.allowNegativeStock))) {
       throw new ValidationError("Negative stock is not allowed for this item");
     }
-    update = { $set: { currentStock: stockAfter } };
+    update = { $set: { currentStock: stockAfter }, $inc: { stockVersion: 1 } };
   } else {
     const delta = direction === "in" ? numericQuantity : -numericQuantity;
     stockAfter = item.currentStock + delta;
     if (stockAfter < 0 && !(allowNegativeStock || (respectItemNegativeStock && item.allowNegativeStock))) {
       throw new ValidationError(`Insufficient stock. ${item.name} has ${item.currentStock} ${item.unit} available`);
     }
-    update = { $inc: { currentStock: delta } };
+    update = { $inc: { currentStock: delta, stockVersion: 1 } };
   }
 
   if (unitCost != null && direction === "in") update.$set = { ...(update.$set || {}), unitCost: Number(unitCost) };
 
-  const filter = { _id: item._id, currentStock: item.currentStock };
+  const currentVersion = Number(item.stockVersion || 0);
+  const filter = {
+    _id: item._id,
+    currentStock: item.currentStock,
+    ...(currentVersion === 0
+      ? { $or: [{ stockVersion: 0 }, { stockVersion: { $exists: false } }] }
+      : { stockVersion: currentVersion }),
+  };
   const updated = await InventoryItem.findOneAndUpdate(filter, update, {
     new: true,
     runValidators: false,
@@ -210,7 +238,7 @@ export const performStockMovement = async (
       await rollbackBatchChanges(batchChanges);
       await InventoryItem.updateOne(
         { _id: item._id, currentStock: updated.currentStock },
-        { $set: { currentStock: item.currentStock, unitCost: item.unitCost, expiryDate: item.expiryDate } }
+        { $set: { currentStock: item.currentStock, stockVersion: item.stockVersion, unitCost: item.unitCost, expiryDate: item.expiryDate } }
       );
     }
     throw error;

@@ -45,7 +45,7 @@ const stockTransactionSchema = new mongoose.Schema(
     notes: { type: String, default: "", trim: true, maxlength: 500, immutable: true },
     reference: { type: String, default: null, trim: true, maxlength: 60, immutable: true },
     status: { type: String, enum: STOCK_TRANSACTION_STATUSES, default: "COMPLETED", immutable: true },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, immutable: true },
     purchaseOrder: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseOrder", default: null, immutable: true },
     inventoryCount: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryCount", default: null, immutable: true },
     order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null, immutable: true },

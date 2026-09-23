@@ -1,9 +1,10 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { ensurePointsBalance } from "../services/rewardService.js";
+import { clearSessionCookies, issueSessionCookies } from "../utils/httpCookies.js";
 
 const signToken = (user) =>
-  jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
+  jwt.sign({ id: user._id, role: user.role, sv: Number(user.sessionVersion || 0) }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 
@@ -18,7 +19,15 @@ const sanitize = (user) => ({
   avatar: user.avatar,
   pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
   createdAt: user.createdAt,
+  isActive: user.isActive !== false,
 });
+
+export const validateNewPassword = (password) => {
+  if (typeof password !== "string" || password.length < 10 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    return "Password must be at least 10 characters and include uppercase, lowercase, number and symbol";
+  }
+  return "";
+};
 
 // @route POST /api/auth/register
 export const register = async (req, res) => {
@@ -32,6 +41,8 @@ export const register = async (req, res) => {
           message: "Name, email and password are required",
         });
     }
+    const passwordError = validateNewPassword(password);
+    if (passwordError) return res.status(400).json({ success: false, message: passwordError });
 
     const existing = await User.findOne({ email });
     if (existing) {
@@ -64,16 +75,14 @@ export const register = async (req, res) => {
       role: "customer",
       pointsBalance: 0,
     });
-    const token = signToken(user);
-
-    res.status(201).json({ success: true, token, user: sanitize(user) });
+    issueSessionCookies(res, signToken(user));
+    res.status(201).json({ success: true, user: sanitize(user) });
   } catch (err) {
     res
       .status(500)
       .json({
         success: false,
         message: "Registration failed",
-        error: err.message,
       });
   }
 };
@@ -88,8 +97,8 @@ export const login = async (req, res) => {
         .json({ success: false, message: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email }).select("+password");
-    if (!user || !(await user.comparePassword(password))) {
+    const user = await User.findOne({ email }).select("+password +sessionVersion");
+    if (!user || user.isActive === false || !(await user.comparePassword(password))) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid email or password" });
@@ -97,13 +106,23 @@ export const login = async (req, res) => {
 
     await ensurePointsBalance(user._id);
     const currentUser = await User.findById(user._id);
-    const token = signToken(user);
-    res.status(200).json({ success: true, token, user: sanitize(currentUser) });
+    issueSessionCookies(res, signToken(user));
+    res.status(200).json({ success: true, user: sanitize(currentUser) });
   } catch (err) {
     res
       .status(500)
-      .json({ success: false, message: "Login failed", error: err.message });
+      .json({ success: false, message: "Login failed" });
   }
+};
+
+export const migrateSession = async (req, res) => {
+  issueSessionCookies(res, signToken(req.user));
+  res.json({ success: true, user: sanitize(req.user) });
+};
+
+export const logout = async (_req, res) => {
+  clearSessionCookies(res);
+  res.status(200).json({ success: true });
 };
 
 // @route GET /api/auth/me

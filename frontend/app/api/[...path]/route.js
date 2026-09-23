@@ -10,7 +10,7 @@ const proxyRequest = async (request, { params }) => {
   target.search = request.nextUrl.search;
 
   const headers = new Headers();
-  ["accept", "authorization", "content-type"].forEach((name) => {
+  ["accept", "authorization", "content-type", "cookie", "origin", "x-csrf-token", "x-order-tracking-token", "x-forwarded-for"].forEach((name) => {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   });
@@ -25,11 +25,15 @@ const proxyRequest = async (request, { params }) => {
           : await request.arrayBuffer(),
       cache: "no-store",
       redirect: "manual",
+      credentials: "include",
     });
 
     const responseHeaders = new Headers();
     const contentType = response.headers.get("content-type");
     if (contentType) responseHeaders.set("content-type", contentType);
+    const setCookies = response.headers.getSetCookie?.() || [];
+    if (setCookies.length) setCookies.forEach((cookie) => responseHeaders.append("set-cookie", cookie));
+    else if (response.headers.get("set-cookie")) responseHeaders.set("set-cookie", response.headers.get("set-cookie"));
     responseHeaders.set(
       "cache-control",
       "no-store, no-cache, must-revalidate, max-age=0"

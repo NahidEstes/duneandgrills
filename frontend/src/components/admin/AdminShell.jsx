@@ -35,11 +35,11 @@ import { useEffect, useRef, useState } from "react";
 import SmartImage from "../SmartImage.jsx";
 
 const NAV_ITEMS = [
-  { id: "overview", label: "Dashboard", icon: LayoutDashboard },
-  { id: "pos", label: "POS / New Sale", icon: ShoppingBasket },
-  { id: "kitchen", label: "Kitchen Display", icon: ChefHat, href: "/kitchen" },
-  { id: "inventory", label: "Inventory", icon: PackageSearch, href: "/inventory" },
-  { id: "expenses", label: "Finance & Expenses", icon: WalletCards, href: "/admin/expenses" },
+  { id: "overview", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager"] },
+  { id: "pos", label: "POS / New Sale", icon: ShoppingBasket, roles: ["admin", "manager", "cashier"] },
+  { id: "kitchen", label: "Kitchen Display", icon: ChefHat, href: "/kitchen", roles: ["admin", "manager", "kitchen"] },
+  { id: "inventory", label: "Inventory", icon: PackageSearch, href: "/inventory", roles: ["admin", "manager", "inventory", "storekeeper"] },
+  { id: "expenses", label: "Finance & Expenses", icon: WalletCards, href: "/admin/expenses", roles: ["admin", "manager", "accountant"] },
   { id: "orders", label: "Orders", icon: ClipboardList, badge: "orders" },
   { id: "menu", label: "Menu Items", icon: UtensilsCrossed },
   { id: "combos", label: "Combos", icon: Layers3 },
@@ -50,8 +50,8 @@ const NAV_ITEMS = [
   { id: "blog", label: "Blog", icon: BookOpenText },
   { id: "reviews", label: "Reviews", icon: Star },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "audit", label: "Audit Log", icon: ShieldCheck },
-  { id: "staff", label: "Staff", icon: UserRoundCog },
+  { id: "audit", label: "Audit Log", icon: ShieldCheck, roles: ["admin", "manager"] },
+  { id: "staff", label: "Staff", icon: UserRoundCog, roles: ["admin", "manager"] },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -105,7 +105,7 @@ const SearchResults = ({ results, searching, query, onSelect }) => {
   );
 };
 
-const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway }) => (
+const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway, userRole }) => (
   <div className="flex h-full flex-col bg-[#080b0d]">
     <div className="flex h-20 items-center justify-between border-b border-white/[0.07] px-5">
       <Link href="/" onClick={(event) => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); }} className="flex items-center gap-2.5" aria-label="Dune & Grills home">
@@ -130,7 +130,7 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway }
     </div>
 
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5" aria-label="Admin navigation">
-      {NAV_ITEMS.map(({ id, label, icon: Icon, badge, href }) => {
+      {NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(userRole)).map(({ id, label, icon: Icon, badge, href }) => {
         const directHref = href || (id === "pos" ? "/pos" : null);
         if (directHref) {
           const active = activeTab === id;
@@ -226,6 +226,7 @@ const AdminShell = ({
           onTabChange={onTabChange}
           orderBadge={dashboard?.stats?.openOrders || 0}
           onNavigateAway={onNavigateAway}
+          userRole={user?.role}
         />
       </aside>
 
@@ -244,6 +245,7 @@ const AdminShell = ({
               orderBadge={dashboard?.stats?.openOrders || 0}
               onClose={() => setMobileOpen(false)}
               onNavigateAway={onNavigateAway}
+              userRole={user?.role}
             />
           </aside>
         </div>

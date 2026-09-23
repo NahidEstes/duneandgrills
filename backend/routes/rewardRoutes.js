@@ -10,24 +10,25 @@ import {
   redeemReward,
   updateReward,
 } from "../controllers/rewardController.js";
-import { authorize, protect } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 
 const router = express.Router();
 
-router.get("/manage", protect, authorize("admin", "manager"), getManagedRewards);
+router.get("/manage", protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), getManagedRewards);
 router.get("/me", protect, getMyRewardAccount);
 router.delete("/redemptions/:redemptionId", protect, cancelRewardRedemption);
 
 router
   .route("/")
   .get(getRewards)
-  .post(protect, authorize("admin", "manager"), createReward);
+  .post(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), createReward);
 
 router.post("/:id/redeem", protect, redeemReward);
 router
   .route("/:id")
   .get(getRewardById)
-  .patch(protect, authorize("admin", "manager"), updateReward)
-  .delete(protect, authorize("admin", "manager"), deleteReward);
+  .patch(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), updateReward)
+  .delete(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), deleteReward);
 
 export default router;

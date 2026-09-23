@@ -6,10 +6,11 @@ import {
   getPublicCategories,
   updateCategory,
 } from "../controllers/categoryController.js";
-import { authorize, protect } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 
 const router = express.Router();
-const manage = [protect, authorize("admin", "manager")];
+const manage = [protect, requireCapability(CAPABILITIES.CATALOG_MANAGE)];
 
 router.get("/", getPublicCategories);
 router.get("/manage", ...manage, getManagedCategories);

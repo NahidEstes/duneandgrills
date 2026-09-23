@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import Counter from "../models/Counter.js";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
 import { calculateOrderPoints } from "../config/rewards.js";
@@ -9,6 +8,7 @@ import { calculateCartSubtotal, cartLineToOrderItem, resolveCartLines } from "..
 import { deductOrderInventory } from "../services/orderInventoryService.js";
 import { runInventoryTransaction } from "../services/inventoryStockService.js";
 import { creditOrderPoints } from "../services/rewardService.js";
+import { nextOrderNumber } from "../services/orderNumberService.js";
 
 class PosValidationError extends Error {
   constructor(message, status = 400) {
@@ -16,13 +16,6 @@ class PosValidationError extends Error {
     this.status = status;
   }
 }
-
-const nextPosOrderNumber = async () => {
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10).replaceAll("-", "");
-  const counter = await Counter.findOneAndUpdate({ _id: `pos-order-${date}` }, { $inc: { seq: 1 } }, { upsert: true, new: true });
-  return `POS-${date}-${String(counter.seq).padStart(4, "0")}`;
-};
 
 const cleanText = (value, maxLength) => typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 
@@ -90,7 +83,7 @@ export const createPosSale = async (req, res, next) => {
     const customer = await buildCustomer(req.body.customerId, req.body.customer);
     const orderId = new mongoose.Types.ObjectId();
     createdOrderId = orderId;
-    const orderNumber = await nextPosOrderNumber();
+    const orderNumber = await nextOrderNumber();
     const now = new Date();
 
     let order = await runInventoryTransaction(async (session) => {

@@ -7,18 +7,19 @@ import {
   getManagedCombos,
   updateCombo,
 } from "../controllers/comboController.js";
-import { authorize, protect } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 
 const router = express.Router();
 
 router.get("/", getCombos);
-router.get("/manage", protect, authorize("admin", "manager"), getManagedCombos);
-router.post("/", protect, authorize("admin", "manager"), createCombo);
+router.get("/manage", protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), getManagedCombos);
+router.post("/", protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), createCombo);
 router.get("/:idOrSlug", getCombo);
 router
   .route("/:id")
-  .put(protect, authorize("admin", "manager"), updateCombo)
-  .patch(protect, authorize("admin", "manager"), updateCombo)
-  .delete(protect, authorize("admin", "manager"), deleteCombo);
+  .put(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), updateCombo)
+  .patch(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), updateCombo)
+  .delete(protect, requireCapability(CAPABILITIES.CATALOG_MANAGE), deleteCombo);
 
 export default router;

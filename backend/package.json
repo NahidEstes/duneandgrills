@@ -23,6 +23,8 @@
     "test:customizations": "node tests/menuCustomizationIntegration.js",
     "test:sku": "node tests/inventorySkuIntegration.js",
     "test:expenses": "node tests/expenseIntegration.js",
+    "test:safety": "node --test tests/productionSafety.test.js",
+    "test:auth-security": "node tests/authSecurityIntegration.js",
     "seed:expense-categories": "node data/seedExpenseCategories.js",
     "seed:inventory": "node data/seedInventory.js"
   },

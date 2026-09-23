@@ -24,13 +24,18 @@ import posRoutes from "./routes/posRoutes.js";
 import kitchenRoutes from "./routes/kitchenRoutes.js";
 import restaurantSettingsRoutes from "./routes/restaurantSettingsRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
+import { csrfProtection, securityHeaders } from "./middleware/security.js";
+import { verifyTransactionCapability } from "./services/inventoryStockService.js";
 
 const app = express();
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI =
   process.env.MONGO_URI || "mongodb://127.0.0.1:27017/duneandgrills";
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:3000";
+const ALLOWED_ORIGINS = new Set(
+  (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || "http://localhost:3000")
+    .split(",").map((value) => value.trim()).filter(Boolean)
+);
 
 let mongoConnectionPromise;
 
@@ -50,7 +55,15 @@ const connectToMongo = () => {
 };
 
 // Middleware
-app.use(cors({ origin: CLIENT_ORIGIN }));
+app.set("trust proxy", 1);
+app.use(securityHeaders);
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    if (!origin || ALLOWED_ORIGINS.has(origin)) return callback(null, true);
+    return callback(new Error("Origin is not allowed"));
+  },
+}));
 app.use(express.json());
 app.use(morgan("dev"));
 app.use(async (req, res, next) => {
@@ -61,6 +74,7 @@ app.use(async (req, res, next) => {
     next(error);
   }
 });
+app.use(csrfProtection);
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -87,6 +101,16 @@ app.get("/api/health", (req, res) => {
     .json({ success: true, message: "Dune & Grills API is running" });
 });
 
+app.get("/api/readiness", async (_req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) throw new Error("Database is not connected");
+    const transaction = await verifyTransactionCapability();
+    res.status(transaction.ready ? 200 : 503).json({ success: transaction.ready, database: "connected", transaction });
+  } catch (error) {
+    res.status(503).json({ success: false, message: "Service is not ready", database: "unavailable", transaction: { ready: false } });
+  }
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
@@ -104,8 +128,13 @@ app.use((err, req, res, next) => {
 
 if (!process.env.VERCEL) {
   connectToMongo()
-    .then(() => {
+    .then(async () => {
       console.log("MongoDB connected.");
+      const transaction = await verifyTransactionCapability();
+      if (process.env.NODE_ENV === "production" && !transaction.ready) {
+        throw new Error("Production startup refused: MongoDB transactions are unavailable");
+      }
+      if (!transaction.ready) console.warn("Inventory transactions are unavailable; critical inventory operations will fail closed.");
       app.listen(PORT, () => {
         console.log(`Dune & Grills API listening on http://localhost:${PORT}`);
       });

@@ -8,10 +8,11 @@ import {
   updateOffer,
   validateCoupon,
 } from "../controllers/offerController.js";
-import { authorize, protect } from "../middleware/auth.js";
+import { protect, requireCapability } from "../middleware/auth.js";
+import { CAPABILITIES } from "../config/permissions.js";
 
 const router = express.Router();
-const manageOffers = [protect, authorize("admin", "manager")];
+const manageOffers = [protect, requireCapability(CAPABILITIES.CATALOG_MANAGE)];
 
 router
   .route("/")
