@@ -6,6 +6,7 @@ import { buildInventoryDashboard, getInventorySettings } from "../../services/in
 import { getBatchSnapshots } from "../../services/inventoryBatchService.js";
 import { parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
 import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
+import { buildInventoryValuation } from "../../services/inventoryValuationService.js";
 
 export const getDashboard = async (req, res, next) => {
   try { res.json({ success: true, data: await buildInventoryDashboard() }); } catch (error) { next(error); }
@@ -55,12 +56,10 @@ export const getReport = async (req, res, next) => {
     let data;
     let total;
     if (type === "valuation") {
-      const filter = { isActive: true };
-      [data, total] = await Promise.all([
-        InventoryItem.find(filter).populate("category supplier", "name code").sort({ name: 1 }).skip(skip).limit(limit).lean(),
-        InventoryItem.countDocuments(filter),
-      ]);
-      data = data.map((item) => ({ ...item, inventoryValue: item.currentStock * item.unitCost }));
+      const valuation = await buildInventoryValuation();
+      total = valuation.rows.length;
+      data = valuation.rows.slice(skip, skip + limit);
+      return res.json({ success: true, data, summary: valuation.summary, categoryDistribution: valuation.categoryDistribution, pagination: { page, limit, total, pages: Math.ceil(total / limit) }, currency: "SAR" });
     } else if (["movement", "waste"].includes(type)) {
       const filter = { ...dateFilter(req.query) };
       if (type === "waste") filter.movementType = { $in: ["WASTE", "DAMAGED"] };

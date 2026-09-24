@@ -25,7 +25,9 @@ export default function ReportsPage() {
     if (type === "valuation") return [
       { key: "item", label: "Item", render: (row) => <div><p className="font-medium text-white">{row.name}</p><p className="text-[0.65rem] text-neutral-600">{row.sku}</p></div> },
       { key: "category", label: "Category", render: (row) => row.category?.name || "—" }, { key: "stock", label: "Stock", render: (row) => formatQuantity(row.currentStock, row.unit) },
-      { key: "unitCost", label: "Unit cost", render: (row) => <Money value={row.unitCost} /> }, { key: "value", label: "Inventory value", render: (row) => <span className="font-semibold text-white"><Money value={row.inventoryValue} /></span> },
+      { key: "method", label: "Method", render: (row) => <Badge tone={row.valuationMethod === "batch" ? "success" : "neutral"}>{row.valuationMethod === "batch" ? "Batch" : "Fallback"}</Badge> },
+      { key: "coverage", label: "Coverage", render: (row) => row.missingCost ? <Badge tone="danger">Missing cost</Badge> : row.stockMismatch ? <Badge tone="warning">Qty mismatch</Badge> : <Badge tone="success">Complete</Badge> },
+      { key: "unitCost", label: "Item unit cost", render: (row) => <Money value={row.unitCost} /> }, { key: "value", label: "Inventory value", render: (row) => <span className="font-semibold text-white"><Money value={row.inventoryValue} /></span> },
     ];
     if (["movement", "waste"].includes(type)) return [
       { key: "date", label: "Date", render: (row) => formatDate(row.occurredAt, true) }, { key: "item", label: "Item", render: (row) => row.item?.name || "Archived item" },

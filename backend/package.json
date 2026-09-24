@@ -24,6 +24,7 @@
     "test:sku": "node tests/inventorySkuIntegration.js",
     "test:expenses": "node tests/expenseIntegration.js",
     "test:safety": "node --test tests/productionSafety.test.js",
+    "test:phase2": "node --test tests/phase2Operational.test.js && node tests/phase2Integration.js",
     "test:auth-security": "node tests/authSecurityIntegration.js",
     "seed:expense-categories": "node data/seedExpenseCategories.js",
     "seed:inventory": "node data/seedInventory.js"

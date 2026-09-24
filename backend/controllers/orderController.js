@@ -40,9 +40,10 @@ import { NON_REVENUE_ORDER_STATUSES, ORDER_STATUSES as ORDER_STATUS_VALUES } fro
 import { nextOrderNumber } from "../services/orderNumberService.js";
 import { serializeCustomerOrder, serializeGuestTrackingOrder } from "../services/orderSerializer.js";
 import { hasCapability, CAPABILITIES } from "../config/permissions.js";
+import Refund from "../models/Refund.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
-const reversalStatuses = new Set(nonRevenueStatuses);
+const loyaltyReversalStatuses = new Set(nonRevenueStatuses);
 const ORDER_STATUSES = new Set(ORDER_STATUS_VALUES);
 const OPEN_ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery"]);
 
@@ -428,14 +429,24 @@ export const getOrderStats = async (req, res) => {
     const filter = buildOrderFilter(req.query, { includeStatus: false });
     const allOrders = await Order.find(filter);
 
-    const totalRevenue = allOrders
-      .filter((o) => !nonRevenueStatuses.includes(o.status))
+    const countsAsGrossRevenue = (order) =>
+      !nonRevenueStatuses.includes(order.status) ||
+      (order.status === "cancelled" && ["paid", "partially_refunded", "refunded"].includes(order.paymentStatus));
+
+    const grossRevenue = allOrders
+      .filter(countsAsGrossRevenue)
       .reduce((sum, o) => sum + o.totalAmount, 0);
 
     const todayOrders = allOrders.filter((o) => o.createdAt >= startOfToday);
-    const todayRevenue = todayOrders
-      .filter((o) => !nonRevenueStatuses.includes(o.status))
+    const todayGrossRevenue = todayOrders
+      .filter(countsAsGrossRevenue)
       .reduce((sum, o) => sum + o.totalAmount, 0);
+    const orderIds = allOrders.map((order) => order._id);
+    const completedRefunds = orderIds.length ? await Refund.find({ order: { $in: orderIds }, status: "completed" }).select("order amountHalala completedAt").lean() : [];
+    const totalRefunds = completedRefunds.reduce((sum, refund) => sum + Number(refund.amountHalala || 0) / 100, 0);
+    const todayRefunds = completedRefunds.filter((refund) => refund.completedAt >= startOfToday).reduce((sum, refund) => sum + Number(refund.amountHalala || 0) / 100, 0);
+    const totalRevenue = Number((grossRevenue - totalRefunds).toFixed(2));
+    const todayRevenue = Number((todayGrossRevenue - todayRefunds).toFixed(2));
 
     const statusCounts = allOrders.reduce((acc, o) => {
       acc[o.status] = (acc[o.status] || 0) + 1;
@@ -447,8 +458,12 @@ export const getOrderStats = async (req, res) => {
       data: {
         totalOrders: allOrders.length,
         totalRevenue,
+        grossRevenue,
+        totalRefunds: Number(totalRefunds.toFixed(2)),
         todayOrders: todayOrders.length,
         todayRevenue,
+        todayGrossRevenue,
+        todayRefunds: Number(todayRefunds.toFixed(2)),
         statusCounts,
       },
     });
@@ -492,6 +507,7 @@ export const trackGuestOrder = async (req, res) => {
 
 const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPreparationMinutes, actor }) => {
   if (!ORDER_STATUSES.has(status)) throw new Error("Invalid order status");
+  if (status === "refunded") throw new Error("Use the refund workflow to refund a payment; order status and payment refund are separate");
   const normalizedReason = typeof reason === "string" ? reason.trim() : "";
   if (status === "cancelled" && !normalizedReason) throw new Error("Cancellation reason is required");
   if (status === "refunded" && !normalizedReason) throw new Error("Refund reason is required");
@@ -505,6 +521,7 @@ const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPre
 
   const auditFields = ["status", "paymentStatus", "inventoryStatus", "cancellationReason", "refundReason", "estimatedPreparationMinutes", "preparationDueAt", "acceptedAt", "preparationStartedAt", "readyAt"];
   const before = pickAuditFields(order, auditFields);
+  const previousStatus = order.status;
   order.status = status;
   if (status === "cancelled") order.cancellationReason = normalizedReason;
   if (status === "refunded") order.refundReason = normalizedReason;
@@ -518,7 +535,8 @@ const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPre
   if (status === "ready" && !order.readyAt) order.readyAt = statusChangedAt;
   await order.validate();
 
-  if (reversalStatuses.has(status) && order.inventoryStatus === "deducted" && order.inventoryTransactions?.length) {
+  const canRestoreBeforePreparation = ["cancelled", "failed"].includes(status) && !order.preparationStartedAt && !["preparing", "ready", "delivered"].includes(previousStatus);
+  if (canRestoreBeforePreparation && order.inventoryStatus === "deducted" && order.inventoryTransactions?.length) {
     await runInventoryTransaction(async (session) => {
       const restorations = await restoreOrderInventory({
         transactionIds: order.inventoryTransactions,
@@ -535,8 +553,8 @@ const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPre
     });
   }
   if (order.source === "pos") {
-    if (["cancelled", "refunded"].includes(status)) order.paymentStatus = "refunded";
-    else if (status === "failed") order.paymentStatus = "failed";
+    if (status === "cancelled" && ["unpaid", "pending"].includes(order.paymentStatus)) order.paymentStatus = "voided";
+    else if (status === "failed" && !["paid", "partially_refunded", "refunded"].includes(order.paymentStatus)) order.paymentStatus = "failed";
     else if (status === "delivered") order.paymentStatus = "paid";
   }
 
@@ -550,7 +568,7 @@ const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPre
     }
   }
 
-  if (reversalStatuses.has(status) && order.user) {
+  if (loyaltyReversalStatuses.has(status) && order.user) {
     const reversed = await reverseOrderPoints({ userId: order.user, orderId: order._id, orderNumber: order.orderNumber });
     if (reversed) order.pointsReversedAt = order.pointsReversedAt || new Date();
     if (order.rewardRedemption?.redemptionId) {
@@ -609,7 +627,8 @@ export const bulkUpdateOrderStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid order status" });
     }
     const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
-    if (["cancelled", "refunded"].includes(req.body.status)) {
+    if (req.body.status === "refunded") return res.status(400).json({ success: false, message: "Use the refund workflow to refund payments" });
+    if (req.body.status === "cancelled") {
       // Kept inline here so no order is changed before a required bulk reason is validated.
       if (!reason) return res.status(400).json({ success: false, message: `${req.body.status === "cancelled" ? "Cancellation" : "Refund"} reason is required` });
     }

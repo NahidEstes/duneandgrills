@@ -213,7 +213,10 @@ const CartDrawer = ({ open, onClose }) => {
         ...(line.customizationKey
           ? {
               customization: {
-                selectedAddOns: (line.selectedAddOns || []).map((addOn) => addOn._id),
+                selectedAddOns: (line.selectedAddOns || []).map((addOn) => ({
+                  id: addOn._id,
+                  quantity: addOn.quantity || 1,
+                })),
                 spiceLevel: line.spiceLevel || "",
                 note: line.note || "",
               },
@@ -445,7 +448,7 @@ const CartDrawer = ({ open, onClose }) => {
 
                       {line.selectedAddOns?.length > 0 && (
                         <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-neutral-500">
-                          Add-ons: {line.selectedAddOns.map((addOn) => addOn.name).join(" · ")}
+                          Add-ons: {line.selectedAddOns.map((addOn) => `${addOn.name}${(addOn.quantity || 1) > 1 ? ` ×${addOn.quantity}` : ""}`).join(" · ")}
                         </p>
                       )}
                       {line.spiceLevel && (

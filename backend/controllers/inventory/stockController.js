@@ -145,6 +145,7 @@ export const createCount = async (req, res, next) => {
       notes: typeof req.body.notes === "string" ? req.body.notes.trim() : "",
       createdBy: req.user._id,
     });
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_COUNT_STARTED", entityType: "InventoryCount", entityId: row._id, entityLabel: row.countNumber, correlationId: req.correlationId, after: { status: row.status, blindCount: row.blindCount, itemCount: row.items.length }, reason: row.notes });
     res.status(201).json({ success: true, data: row });
   } catch (error) { next(error); }
 };
@@ -269,6 +270,7 @@ export const cancelCount = async (req, res, next) => {
   try {
     const row = await InventoryCount.findOneAndUpdate({ _id: req.params.id, status: { $in: ["draft", "in_progress", "review_required"] } }, { status: "cancelled" }, { new: true });
     if (!row) return res.status(404).json({ success: false, message: "Open inventory count not found" });
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_COUNT_CANCELLED", entityType: "InventoryCount", entityId: row._id, entityLabel: row.countNumber, correlationId: req.correlationId, before: { status: "open" }, after: { status: row.status }, reason: String(req.body?.reason || "").trim() });
     res.json({ success: true, data: row });
   } catch (error) { next(error); }
 };

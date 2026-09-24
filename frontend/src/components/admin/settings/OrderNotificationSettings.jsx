@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, ChefHat, ShoppingBag } from "lucide-react";
+import { Banknote, BellRing, ChefHat, ShoppingBag } from "lucide-react";
 import { Field, SettingsCard, Toggle, settingsInputClass } from "./settingsUi.jsx";
 
 const CHANNELS = [
@@ -34,5 +34,13 @@ export function NotificationSettings({ value, onChange }) {
 export function PreparationSettings({ value, onChange }) {
   return <SettingsCard icon={ChefHat} title="Preparation" description="Default estimate for new orders; individual orders can still override it.">
     <Field label="Default preparation time (minutes)" hint="Existing order-specific estimates are never overwritten."><input type="number" min="1" max="240" value={value.defaultMinutes} onChange={(event) => onChange({ ...value, defaultMinutes: event.target.value })} className={`${settingsInputClass} mt-2 max-w-xs`} /></Field>
+  </SettingsCard>;
+}
+
+export function PosShiftSettings({ value, onChange }) {
+  const update = (patch) => onChange({ ...value, ...patch });
+  return <SettingsCard icon={Banknote} title="POS Shifts & Cash Closing" description="Safe rollout controls for cashier shifts. Existing POS sales continue when this module is disabled.">
+    <div className="grid gap-2 sm:grid-cols-2"><Toggle checked={value.enabled} onChange={(enabled) => update({ enabled, requireOpenShift: enabled ? value.requireOpenShift : false })} label="Enable shift module" description="Shows shift controls in the standalone POS." /><Toggle checked={value.requireOpenShift} disabled={!value.enabled} onChange={(requireOpenShift) => update({ requireOpenShift })} label="Require open shift" description="Blocks new POS sales when the cashier has no open shift." /><Toggle checked={value.blindClose} disabled={!value.enabled} onChange={(blindClose) => update({ blindClose })} label="Blind close" description="Hides expected cash from cashiers until the count is submitted." /></div>
+    <Field label="Variance explanation threshold (SAR)" hint="A closing note is required when the over/short difference exceeds this amount."><input type="number" min="0" max="100000" step="0.01" value={value.varianceThreshold} onChange={(event) => update({ varianceThreshold: event.target.value })} className={`${settingsInputClass} mt-2 max-w-xs`} /></Field>
   </SettingsCard>;
 }

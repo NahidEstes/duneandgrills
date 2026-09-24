@@ -40,6 +40,7 @@ const orderItemSchema = new mongoose.Schema(
             name: { type: String, required: true, trim: true, maxlength: 80 },
             image: { type: String, default: "", trim: true, maxlength: 500 },
             price: { type: Number, required: true, min: 0 },
+            quantity: { type: Number, required: true, min: 1, max: 99, default: 1 },
           },
           { _id: false }
         ),
@@ -165,6 +166,10 @@ const orderSchema = new mongoose.Schema(
     paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: "pending" },
     cashReceived: { type: Number, min: 0, default: 0 },
     changeDue: { type: Number, min: 0, default: 0 },
+  refundedAmount: { type: Number, min: 0, default: 0 },
+  refundedAmountHalala: { type: Number, min: 0, default: 0 },
+  refundReservedHalala: { type: Number, min: 0, default: 0 },
+    posShift: { type: mongoose.Schema.Types.ObjectId, ref: "PosShift", default: null },
     status: {
       type: String,
       enum: [

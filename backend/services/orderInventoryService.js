@@ -1,6 +1,7 @@
 import InventoryItem from "../models/InventoryItem.js";
 import InventoryBatch from "../models/InventoryBatch.js";
 import InventoryRecipe from "../models/InventoryRecipe.js";
+import AddOnInventoryRecipe from "../models/AddOnInventoryRecipe.js";
 import StockTransaction from "../models/StockTransaction.js";
 import { PRODUCT_TYPES } from "./catalogService.js";
 import { updateItemNextExpiry } from "./inventoryBatchService.js";
@@ -37,6 +38,14 @@ const expandMenuQuantities = (catalogLines) => {
   return [...menu.values()];
 };
 
+const addRequirement = (requirements, inventoryItem, quantity, component) => {
+  const id = String(inventoryItem);
+  const current = requirements.get(id) || { inventoryItem: id, quantity: 0, components: [] };
+  current.quantity = roundQuantity(current.quantity + Number(quantity));
+  current.components.push(component);
+  requirements.set(id, current);
+};
+
 const buildRequirements = async (catalogLines, { strictRecipes, session }) => {
   const menuQuantities = expandMenuQuantities(catalogLines);
   const menuIds = menuQuantities.map((row) => row.menuItem);
@@ -54,10 +63,37 @@ const buildRequirements = async (catalogLines, { strictRecipes, session }) => {
       continue;
     }
     for (const line of activeIngredients) {
-      const id = String(line.inventoryItem);
-      const current = requirements.get(id) || { inventoryItem: id, quantity: 0 };
-      current.quantity = roundQuantity(current.quantity + Number(line.quantityPerSale) * soldItem.quantity);
-      requirements.set(id, current);
+      const quantity = Number(line.quantityPerSale) * soldItem.quantity;
+      addRequirement(requirements, line.inventoryItem, quantity, {
+        type: "menu_recipe", menuItem: soldItem.menuItem, name: soldItem.name, soldQuantity: soldItem.quantity, ingredientQuantity: roundQuantity(quantity),
+      });
+    }
+  }
+
+  const selectedAddOns = catalogLines.flatMap((line) => (line.customization?.selectedAddOns || []).map((addOn) => ({
+    addOnId: String(addOn.addOn),
+    addOnName: addOn.name,
+    addOnQuantity: Number(addOn.quantity || 1),
+    orderItemQuantity: Number(line.quantity || 1),
+  })));
+  if (selectedAddOns.length) {
+    const addOnIds = [...new Set(selectedAddOns.map((entry) => entry.addOnId))];
+    const addOnRecipes = await AddOnInventoryRecipe.find({ addOn: { $in: addOnIds }, isActive: true }).session(session || null).lean();
+    const addOnRecipeMap = new Map(addOnRecipes.map((recipe) => [String(recipe.addOn), recipe]));
+    for (const selected of selectedAddOns) {
+      const recipe = addOnRecipeMap.get(selected.addOnId);
+      if (!recipe || recipe.doNotTrack) continue;
+      for (const line of (recipe.ingredients || []).filter((entry) => entry.isActive !== false)) {
+        const quantity = Number(line.quantityPerAddOn) * selected.addOnQuantity * selected.orderItemQuantity;
+        addRequirement(requirements, line.inventoryItem, quantity, {
+          type: "add_on_recipe",
+          addOn: selected.addOnId,
+          name: selected.addOnName,
+          addOnQuantity: selected.addOnQuantity,
+          orderItemQuantity: selected.orderItemQuantity,
+          ingredientQuantity: roundQuantity(quantity),
+        });
+      }
     }
   }
 
@@ -105,6 +141,8 @@ const rollbackStandaloneMovements = async (movements) => {
 };
 
 export const deductOrderInventory = async ({ catalogLines, orderId, orderNumber, source, actorId, strictRecipes = false, session = null }) => {
+  const existing = await StockTransaction.find({ order: orderId, movementType: "STOCK_OUT" }).session(session || null);
+  if (existing.length) return existing;
   const requirements = await buildRequirements(catalogLines, { strictRecipes, session });
   const movements = [];
   try {
@@ -120,6 +158,7 @@ export const deductOrderInventory = async ({ catalogLines, orderId, orderNumber,
         userId: actorId,
         allowNegativeStock: false,
         respectItemNegativeStock: false,
+        sourceDetails: { components: requirement.components },
       }, { session }));
     }
     return movements.map((movement) => movement.transaction);

@@ -33,6 +33,9 @@ export const createStockMovement = (payload) => unwrap(api.post("/inventory/move
 export const fetchInventoryRecipes = (params = {}) => unwrap(api.get("/inventory/recipes", { params }));
 export const fetchInventoryRecipe = (menuItemId) => unwrap(api.get(`/inventory/recipes/${menuItemId}`)).then((response) => response.data);
 export const updateInventoryRecipe = (menuItemId, payload) => unwrap(api.put(`/inventory/recipes/${menuItemId}`, payload)).then((response) => response.data);
+export const fetchAddOnInventoryRecipes = () => unwrap(api.get("/inventory/add-on-recipes")).then((response) => response);
+export const fetchAddOnInventoryRecipe = (addOnId) => unwrap(api.get(`/inventory/add-on-recipes/${addOnId}`)).then((response) => response.data);
+export const updateAddOnInventoryRecipe = (addOnId, payload) => unwrap(api.put(`/inventory/add-on-recipes/${addOnId}`, payload)).then((response) => response.data);
 
 export const fetchWasteRecords = (params = {}) => unwrap(api.get("/inventory/waste", { params }));
 export const createWasteRecord = (payload) => unwrap(api.post("/inventory/waste", payload)).then((response) => response.data);

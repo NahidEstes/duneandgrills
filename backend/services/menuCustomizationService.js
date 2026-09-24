@@ -18,7 +18,7 @@ export class MenuCustomizationError extends Error {
 const cleanText = (value, maximum) =>
   typeof value === "string" ? value.trim().slice(0, maximum) : "";
 
-const objectIdString = (value) => String(value?._id || value?.addOn || value || "");
+const objectIdString = (value) => String(value?._id || value?.addOn || value?.id || value || "");
 
 export const normalizeCustomizationSettings = (value = {}) => {
   const spice = value?.spice || {};
@@ -104,7 +104,7 @@ export const customizationRequestFrom = (item = {}) => {
     ? item.customization
     : item;
   const selectedAddOns = Array.isArray(source.selectedAddOns)
-    ? source.selectedAddOns.map(objectIdString).filter(Boolean)
+    ? source.selectedAddOns.map((entry) => ({ id: objectIdString(entry), quantity: Number(entry?.quantity || 1) })).filter((entry) => entry.id)
     : [];
   return {
     requested:
@@ -118,7 +118,7 @@ export const customizationRequestFrom = (item = {}) => {
 };
 
 export const collectCustomizationAddOnIds = (requests) => [
-  ...new Set(requests.flatMap((request) => request.selectedAddOns)),
+  ...new Set(requests.flatMap((request) => request.selectedAddOns.map((entry) => entry.id))),
 ];
 
 export const loadCustomizationAddOnMap = async (ids) => {
@@ -151,7 +151,10 @@ export const resolveLineCustomization = ({
   if (request.selectedAddOns.length > MAX_ADD_ONS_PER_ITEM) {
     throw new MenuCustomizationError(`Choose no more than ${MAX_ADD_ONS_PER_ITEM} add-ons`);
   }
-  const uniqueIds = [...new Set(request.selectedAddOns)];
+  if (request.selectedAddOns.some((entry) => !Number.isInteger(entry.quantity) || entry.quantity < 1 || entry.quantity > 99)) {
+    throw new MenuCustomizationError("Add-on quantity must be between 1 and 99");
+  }
+  const uniqueIds = [...new Set(request.selectedAddOns.map((entry) => entry.id))];
   if (uniqueIds.length !== request.selectedAddOns.length) {
     throw new MenuCustomizationError("The same add-on cannot be selected more than once");
   }
@@ -171,6 +174,7 @@ export const resolveLineCustomization = ({
       name: addOn.name,
       image: addOn.image || "",
       price: Number(addOn.price),
+      quantity: request.selectedAddOns.find((entry) => entry.id === id)?.quantity || 1,
     };
   });
 
@@ -187,7 +191,7 @@ export const resolveLineCustomization = ({
 
   const key = selectedAddOns.length || spiceLevel || request.note
     ? JSON.stringify({
-        addOns: uniqueIds.sort(),
+        addOns: selectedAddOns.map((entry) => ({ id: String(entry.addOn), quantity: entry.quantity })).sort((a, b) => a.id.localeCompare(b.id)),
         spiceLevel,
         note: request.note,
       })
@@ -197,7 +201,7 @@ export const resolveLineCustomization = ({
     spiceLevel,
     note: request.note,
     addOnTotal: Number(
-      selectedAddOns.reduce((sum, addOn) => sum + addOn.price, 0).toFixed(2)
+      selectedAddOns.reduce((sum, addOn) => sum + addOn.price * addOn.quantity, 0).toFixed(2)
     ),
     key,
   };

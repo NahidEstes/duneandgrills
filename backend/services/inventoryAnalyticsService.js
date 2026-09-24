@@ -1,9 +1,9 @@
-import InventoryCategory from "../models/InventoryCategory.js";
 import InventoryItem from "../models/InventoryItem.js";
 import InventorySettings from "../models/InventorySettings.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import StockTransaction from "../models/StockTransaction.js";
 import { getBatchSnapshots } from "./inventoryBatchService.js";
+import { buildInventoryValuation } from "./inventoryValuationService.js";
 
 export const getInventorySettings = async () =>
   InventorySettings.findOneAndUpdate(
@@ -11,8 +11,6 @@ export const getInventorySettings = async () =>
     { $setOnInsert: { key: "default" } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).lean();
-
-const percentage = (value, total) => (total ? Number(((value / total) * 100).toFixed(1)) : 0);
 
 export const buildInventoryDashboard = async () => {
   const settings = await getInventorySettings();
@@ -22,7 +20,7 @@ export const buildInventoryDashboard = async () => {
   const valueStart = new Date(now);
   valueStart.setUTCDate(valueStart.getUTCDate() - 29);
 
-  const [summaryRows, lowStock, expiring, recentActivity, poRows, categoryRows, supplierRows, valueMovementRows] =
+  const [summaryRows, lowStock, expiring, recentActivity, poRows, supplierRows, valueMovementRows, valuation] =
     await Promise.all([
       InventoryItem.aggregate([
         { $match: { isActive: true } },
@@ -56,13 +54,6 @@ export const buildInventoryDashboard = async () => {
         }))),
       StockTransaction.find().sort({ occurredAt: -1 }).limit(8).populate("item", "name sku unit").populate("user", "name").lean(),
       PurchaseOrder.aggregate([{ $group: { _id: "$status", count: { $sum: 1 }, total: { $sum: "$total" } } }]),
-      InventoryItem.aggregate([
-        { $match: { isActive: true } },
-        { $group: { _id: "$category", value: { $sum: { $multiply: ["$currentStock", "$unitCost"] } }, count: { $sum: 1 } } },
-        { $lookup: { from: InventoryCategory.collection.name, localField: "_id", foreignField: "_id", as: "category" } },
-        { $unwind: "$category" },
-        { $sort: { value: -1 } },
-      ]),
       PurchaseOrder.aggregate([
         { $match: { status: { $in: ["ordered", "partially_received", "received"] } } },
         { $group: { _id: "$supplier", total: { $sum: "$total" }, orders: { $sum: 1 } } },
@@ -73,20 +64,19 @@ export const buildInventoryDashboard = async () => {
       ]),
       StockTransaction.aggregate([
         { $match: { occurredAt: { $gte: valueStart } } },
-        { $lookup: { from: InventoryItem.collection.name, localField: "item", foreignField: "_id", as: "itemData" } },
-        { $unwind: "$itemData" },
         {
           $group: {
             _id: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
-            netValue: { $sum: { $multiply: [{ $subtract: ["$stockAfter", "$stockBefore"] }, "$itemData.unitCost"] } },
+            netValue: { $sum: { $multiply: [{ $subtract: ["$stockAfter", "$stockBefore"] }, { $ifNull: ["$unitCost", 0] }] } },
           },
         },
         { $sort: { _id: 1 } },
       ]),
+      buildInventoryValuation(),
     ]);
 
   const summary = summaryRows[0] || { totalItems: 0, inventoryValue: 0, lowStock: 0, outOfStock: 0 };
-  const categoryTotal = categoryRows.reduce((sum, row) => sum + row.value, 0);
+  summary.inventoryValue = valuation.summary.inventoryValue;
   const dailyChanges = new Map(valueMovementRows.map((row) => [row._id, row.netValue]));
   let rollingValue = summary.inventoryValue - valueMovementRows.reduce((sum, row) => sum + row.netValue, 0);
   const inventoryValueOverTime = Array.from({ length: 30 }, (_, index) => {
@@ -109,13 +99,8 @@ export const buildInventoryDashboard = async () => {
     expiring,
     recentActivity,
     purchaseOrders: Object.fromEntries(poRows.map((row) => [row._id, { count: row.count, total: row.total }])),
-    categoryDistribution: categoryRows.map((row) => ({
-      category: row.category.name,
-      color: row.category.color,
-      value: row.value,
-      count: row.count,
-      percentage: percentage(row.value, categoryTotal),
-    })),
+    valuation: valuation.summary,
+    categoryDistribution: valuation.categoryDistribution,
     topSuppliers: supplierRows.map((row) => ({ supplier: row.supplier, total: row.total, orders: row.orders })),
     inventoryValueOverTime,
   };

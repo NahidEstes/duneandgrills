@@ -35,6 +35,12 @@ export const getRestaurantSettingsDefaults = () => ({
   preparation: {
     defaultMinutes: envNumber("KITCHEN_DEFAULT_PREP_MINUTES", 20, 1, 240),
   },
+  posShifts: {
+    enabled: false,
+    requireOpenShift: false,
+    blindClose: false,
+    varianceThreshold: 50,
+  },
   receipt: {
     displayName: "Dune & Grills",
     header: "ORDER RECEIPT",
@@ -66,6 +72,7 @@ const mergeSettings = (defaults, stored) => ({
   },
   notifications: { ...defaults.notifications, ...(stored?.notifications || {}) },
   preparation: { ...defaults.preparation, ...(stored?.preparation || {}) },
+  posShifts: { ...defaults.posShifts, ...(stored?.posShifts || {}) },
   receipt: { ...defaults.receipt, ...(stored?.receipt || {}) },
   location: { ...defaults.location, ...(stored?.location || {}) },
 });
@@ -166,6 +173,12 @@ export const normalizeRestaurantSettings = (payload = {}, current = getRestauran
     preparation: {
       defaultMinutes: number(payload.preparation?.defaultMinutes, "Default preparation time", 1, 240, current.preparation.defaultMinutes, true),
     },
+    posShifts: {
+      enabled: bool(payload.posShifts?.enabled, current.posShifts.enabled),
+      requireOpenShift: bool(payload.posShifts?.requireOpenShift, current.posShifts.requireOpenShift),
+      blindClose: bool(payload.posShifts?.blindClose, current.posShifts.blindClose),
+      varianceThreshold: number(payload.posShifts?.varianceThreshold, "POS shift variance threshold", 0, 100000, current.posShifts.varianceThreshold),
+    },
     receipt: {
       displayName: text(payload.receipt?.displayName, "Restaurant display name", 120, current.receipt.displayName),
       header: text(payload.receipt?.header, "Receipt header", 160, current.receipt.header),
@@ -217,7 +230,7 @@ export const getRestaurantSettingsDiff = (before, after) => {
     newValues.push({ field: path, value: newValue ?? null });
     changedFields.push(path);
   };
-  for (const group of ["openingHours", "orders", "notifications", "preparation", "receipt", "location"]) walk(before[group], after[group], group);
+  for (const group of ["openingHours", "orders", "notifications", "preparation", "posShifts", "receipt", "location"]) walk(before[group], after[group], group);
   return { oldValues, newValues, changedFields };
 };
 
@@ -228,6 +241,7 @@ export const toAdminRestaurantSettings = (settings, configured = true) => ({
   orders: settings.orders,
   notifications: settings.notifications,
   preparation: settings.preparation,
+  posShifts: settings.posShifts,
   receipt: settings.receipt,
   location: settings.location,
   updatedAt: settings.updatedAt || null,

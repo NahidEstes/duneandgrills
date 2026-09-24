@@ -8,6 +8,11 @@ import {
   ensureCategorySkuPrefix,
   normalizeSkuPrefix,
 } from "../../services/inventorySkuService.js";
+import { buildInventoryValuation } from "../../services/inventoryValuationService.js";
+import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
+
+const CATEGORY_FIELDS = ["name", "skuPrefix", "description", "color", "isActive"];
+const SUPPLIER_FIELDS = ["code", "name", "contactName", "email", "phone", "address", "taxNumber", "paymentTerms", "notes", "isActive"];
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 
@@ -15,14 +20,15 @@ export const listCategories = async (req, res, next) => {
   try {
     await ensureAllCategorySkuPrefixes();
     const match = req.query.includeInactive === "true" ? {} : { isActive: true };
-    const rows = await InventoryCategory.aggregate([
+    const [rows, valuation] = await Promise.all([InventoryCategory.aggregate([
       { $match: match },
       { $lookup: { from: InventoryItem.collection.name, localField: "_id", foreignField: "category", as: "items" } },
       { $addFields: { itemCount: { $size: "$items" }, inventoryValue: { $sum: { $map: { input: "$items", as: "item", in: { $multiply: ["$$item.currentStock", "$$item.unitCost"] } } } } } },
       { $project: { items: 0 } },
       { $sort: { name: 1 } },
-    ]);
-    res.json({ success: true, data: rows });
+    ]), buildInventoryValuation()]);
+    const values = new Map(valuation.categoryDistribution.map((row) => [String(row.categoryId), row]));
+    res.json({ success: true, data: rows.map((row) => ({ ...row, inventoryValue: values.get(String(row._id))?.value || 0, valuationCoverage: values.get(String(row._id)) || null })) });
   } catch (error) { next(error); }
 };
 
@@ -32,6 +38,7 @@ export const createCategory = async (req, res, next) => {
     if (!name) throw new ValidationError("Category name is required");
     let row = await InventoryCategory.create({ name, skuPrefix: req.body.skuPrefix ? normalizeSkuPrefix(req.body.skuPrefix) : null, description: cleanText(req.body.description), color: cleanText(req.body.color) || "#f59e0b", isActive: req.body.isActive !== false });
     row = await ensureCategorySkuPrefix(row);
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_CATEGORY_CREATED", entityType: "InventoryCategory", entityId: row._id, entityLabel: row.name, correlationId: req.correlationId, after: pickAuditFields(row, CATEGORY_FIELDS) });
     res.status(201).json({ success: true, data: row });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "This category name or SKU prefix already exists" });
@@ -55,6 +62,7 @@ export const updateCategory = async (req, res, next) => {
     for (const field of ["description", "color"]) if (field in req.body) payload[field] = cleanText(req.body[field]);
     if ("isActive" in req.body) payload.isActive = Boolean(req.body.isActive);
     const row = await InventoryCategory.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_CATEGORY_UPDATED", entityType: "InventoryCategory", entityId: row._id, entityLabel: row.name, correlationId: req.correlationId, before: pickAuditFields(stable, CATEGORY_FIELDS), after: pickAuditFields(row, CATEGORY_FIELDS), reason: cleanText(req.body.reason) });
     res.json({ success: true, data: row });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "This category name already exists" });
@@ -68,6 +76,7 @@ export const archiveCategory = async (req, res, next) => {
     if (activeItems) throw new ValidationError("Move or archive active items in this category first");
     const row = await InventoryCategory.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
     if (!row) return res.status(404).json({ success: false, message: "Category not found" });
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_CATEGORY_ARCHIVED", entityType: "InventoryCategory", entityId: row._id, entityLabel: row.name, correlationId: req.correlationId, before: { isActive: true }, after: { isActive: false }, reason: cleanText(req.body?.reason) });
     res.json({ success: true, message: "Category archived" });
   } catch (error) { next(error); }
 };
@@ -109,6 +118,7 @@ const supplierPayload = (body, partial = false) => {
 export const createSupplier = async (req, res, next) => {
   try {
     const row = await Supplier.create(supplierPayload(req.body));
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_SUPPLIER_CREATED", entityType: "Supplier", entityId: row._id, entityLabel: row.code, correlationId: req.correlationId, after: pickAuditFields(row, SUPPLIER_FIELDS) });
     res.status(201).json({ success: true, data: row });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "This supplier code already exists" });
@@ -118,16 +128,21 @@ export const createSupplier = async (req, res, next) => {
 
 export const updateSupplier = async (req, res, next) => {
   try {
+    const beforeRow = await Supplier.findById(req.params.id);
+    if (!beforeRow) return res.status(404).json({ success: false, message: "Supplier not found" });
     const row = await Supplier.findByIdAndUpdate(req.params.id, supplierPayload(req.body, true), { new: true, runValidators: true });
     if (!row) return res.status(404).json({ success: false, message: "Supplier not found" });
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_SUPPLIER_UPDATED", entityType: "Supplier", entityId: row._id, entityLabel: row.code, correlationId: req.correlationId, before: pickAuditFields(beforeRow, SUPPLIER_FIELDS), after: pickAuditFields(row, SUPPLIER_FIELDS), reason: cleanText(req.body.reason) });
     res.json({ success: true, data: row });
   } catch (error) { next(error); }
 };
 
 export const archiveSupplier = async (req, res, next) => {
   try {
+    const beforeRow = await Supplier.findById(req.params.id);
     const row = await Supplier.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
     if (!row) return res.status(404).json({ success: false, message: "Supplier not found" });
+    await recordAuditLog({ actor: req.user, action: "INVENTORY_SUPPLIER_ARCHIVED", entityType: "Supplier", entityId: row._id, entityLabel: row.code, correlationId: req.correlationId, before: pickAuditFields(beforeRow, SUPPLIER_FIELDS), after: pickAuditFields(row, SUPPLIER_FIELDS), reason: cleanText(req.body?.reason) });
     res.json({ success: true, message: "Supplier archived. Purchase history was preserved." });
   } catch (error) { next(error); }
 };

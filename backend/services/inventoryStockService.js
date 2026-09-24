@@ -92,6 +92,7 @@ export const performStockMovement = async (
     purchaseUnit = null,
     conversionFactor = 1,
     restoreAllocations = null,
+    sourceDetails = {},
   },
   { session = null } = {}
 ) => {
@@ -196,6 +197,7 @@ export const performStockMovement = async (
           purchaseOrder,
           inventoryCount,
           order,
+          sourceDetails,
           unitCost: transactionUnitCost,
           expiryDate: expiryDate || null,
           purchaseQuantity,
@@ -229,8 +231,18 @@ export const performStockMovement = async (
         reference: transaction.reference,
         reason,
         batchAllocations: transaction.batchAllocations,
+        sourceDetails,
       },
     }, { session });
+    for (const batchId of batchChanges?.createdBatchIds || []) {
+      const allocation = (batchChanges.allocations || []).find((entry) => String(entry.batch) === String(batchId));
+      await recordAuditLog({ actorId: userId, action: "INVENTORY_BATCH_CREATED", entityType: "InventoryBatch", entityId: batchId, entityLabel: allocation?.lotNumber || transaction.reference, after: allocation || {}, related: { item: item._id, movement: transaction._id, purchaseOrder, order } }, { session });
+    }
+    if (stockDelta < 0 && batchChanges?.allocations?.length) {
+      for (const allocation of batchChanges.allocations) {
+        await recordAuditLog({ actorId: userId, action: ["WASTE", "DAMAGED"].includes(movementType) ? "INVENTORY_BATCH_WRITTEN_OFF" : "INVENTORY_BATCH_CONSUMED", entityType: "InventoryBatch", entityId: allocation.batch, entityLabel: allocation.lotNumber, after: { quantityConsumed: allocation.quantity, unitCost: allocation.unitCost }, reason, related: { item: item._id, movement: transaction._id, order } }, { session });
+      }
+    }
     return { item: updated, transaction };
   } catch (error) {
     if (!session) {

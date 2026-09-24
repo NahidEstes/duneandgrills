@@ -3,7 +3,7 @@ const serializeItem = (item) => ({
   image: item.image || "",
   quantity: item.quantity,
   price: item.price,
-  selectedAddOns: (item.selectedAddOns || []).map(({ name, image, price }) => ({ name, image, price })),
+  selectedAddOns: (item.selectedAddOns || []).map(({ name, image, price, quantity }) => ({ name, image, price, quantity: quantity || 1 })),
   spiceLevel: item.spiceLevel || "",
 });
 
@@ -34,4 +34,3 @@ export const serializeGuestTrackingOrder = (order) => {
   delete value.source;
   return value;
 };
-

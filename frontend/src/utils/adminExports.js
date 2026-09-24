@@ -11,7 +11,7 @@ const csvCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 
 const itemCustomizationHtml = (item = {}) => {
   const parts = [];
-  if (item.selectedAddOns?.length) parts.push(`Add-ons: ${item.selectedAddOns.map((addOn) => addOn.name).filter(Boolean).join(", ")}`);
+  if (item.selectedAddOns?.length) parts.push(`Add-ons: ${item.selectedAddOns.map((addOn) => addOn.name ? `${addOn.name}${(addOn.quantity || 1) > 1 ? ` x${addOn.quantity}` : ""}` : "").filter(Boolean).join(", ")}`);
   if (item.spiceLevel) parts.push(`Spice: ${item.spiceLevel.replaceAll("-", " ")}`);
   if (item.itemNote) parts.push(`Note: ${item.itemNote}`);
   return parts.length ? `<div class="muted" style="font-size:11px;margin-top:3px">${parts.map(escapeHtml).join(" · ")}</div>` : "";

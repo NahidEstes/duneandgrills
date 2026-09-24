@@ -32,9 +32,13 @@ const userCouponKey = (userId) => `${USER_COUPON_KEY_PREFIX}${userId}`;
 const productTypeOf = (line) =>
   line?.productType === "combo" ? "combo" : "menuItem";
 const addOnId = (addOn) => String(addOn?._id || addOn?.addOn || addOn || "");
+const addOnRequest = (addOn) => ({
+  id: addOnId(addOn),
+  quantity: Math.max(1, Math.min(99, Number(addOn?.quantity) || 1)),
+});
 const customizationKeyOf = (line = {}) => {
   if (typeof line.customizationKey === "string") return line.customizationKey;
-  const addOns = (line.selectedAddOns || []).map(addOnId).filter(Boolean).sort();
+  const addOns = (line.selectedAddOns || []).map(addOnRequest).filter((addOn) => addOn.id).sort((a, b) => a.id.localeCompare(b.id));
   const spiceLevel = line.spiceLevel || "";
   const note = line.note || "";
   if (!addOns.length && !spiceLevel && !note) return "";
@@ -99,6 +103,7 @@ const normalizeLine = (line) => {
             name: typeof addOn?.name === "string" ? addOn.name : "Add-on",
             image: typeof addOn?.image === "string" ? addOn.image : "",
             price: Number(addOn?.price) || 0,
+            quantity: Math.max(1, Math.min(99, Number(addOn?.quantity) || 1)),
           }))
           .filter((addOn) => addOn._id)
       : [],
@@ -411,7 +416,7 @@ export const CartProvider = ({ children }) => {
           ...(line.customizationKey
             ? {
                 customization: {
-                  selectedAddOns: line.selectedAddOns.map((addOn) => addOn._id),
+                  selectedAddOns: line.selectedAddOns.map(addOnRequest),
                   spiceLevel: line.spiceLevel,
                   note: line.note,
                 },
@@ -500,7 +505,7 @@ export const CartProvider = ({ children }) => {
             productTypeOf(item),
             customizationKeyOf(item)
               ? {
-                  selectedAddOns: (item.selectedAddOns || []).map(addOnId),
+                  selectedAddOns: (item.selectedAddOns || []).map(addOnRequest),
                   spiceLevel: item.spiceLevel || "",
                   note: item.note || "",
                 }
@@ -529,7 +534,7 @@ export const CartProvider = ({ children }) => {
           ...(customizationKeyOf(item)
             ? {
                 customization: {
-                  selectedAddOns: (item.selectedAddOns || []).map(addOnId),
+                  selectedAddOns: (item.selectedAddOns || []).map(addOnRequest),
                   spiceLevel: item.spiceLevel || "",
                   note: item.note || "",
                 },

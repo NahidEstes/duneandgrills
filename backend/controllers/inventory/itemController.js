@@ -14,6 +14,10 @@ import {
   peekNextInventorySku,
   reserveNextInventorySku,
 } from "../../services/inventorySkuService.js";
+import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
+import { buildInventoryValuation } from "../../services/inventoryValuationService.js";
+
+const AUDIT_FIELDS = ["name", "sku", "category", "unit", "purchaseUnit", "purchaseConversionFactor", "reorderLevel", "unitCost", "supplier", "tracksExpiry", "storageLocation", "isActive", "allowNegativeStock"];
 
 const itemPopulate = [
   { path: "category", select: "name color isActive skuPrefix" },
@@ -55,7 +59,9 @@ export const listItems = async (req, res, next) => {
       InventoryItem.find(filter).populate(itemPopulate).sort({ [sortBy]: sortOrder }).skip(skip).limit(limit).lean(),
       InventoryItem.countDocuments(filter),
     ]);
-    res.json({ success: true, data: items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+    const valuation = await buildInventoryValuation({ itemIds: items.map((item) => item._id) });
+    const valueById = new Map(valuation.rows.map((item) => [String(item._id), item]));
+    res.json({ success: true, data: items.map((item) => ({ ...item, ...valueById.get(String(item._id)) })), pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) {
     next(error);
   }
@@ -90,6 +96,7 @@ export const createItem = async (req, res, next) => {
           delete payload.openingStock;
           const [created] = await InventoryItem.create([{ ...payload, currentStock: 0 }], session ? { session } : {});
           await createOpeningBalance(created, openingStock, req.user._id, session);
+          await recordAuditLog({ actor: req.user, action: "INVENTORY_ITEM_CREATED", entityType: "InventoryItem", entityId: created._id, entityLabel: created.sku, correlationId: req.correlationId, after: pickAuditFields(created, AUDIT_FIELDS), related: { category: created.category, supplier: created.supplier } }, { session });
           return created;
         });
         if (!automatic) await advanceInventorySkuCounter(payload.category, payload.sku);
@@ -116,21 +123,28 @@ export const updateItem = async (req, res, next) => {
     const item = await InventoryItem.findById(req.params.id);
     if (!item) return res.status(404).json({ success: false, message: "Inventory item not found" });
     if ("sku" in req.body && String(req.body.sku || "").trim().toUpperCase() !== item.sku) {
+      await recordAuditLog({ actor: req.user, action: "INVENTORY_SKU_CHANGE_REJECTED", entityType: "InventoryItem", entityId: item._id, entityLabel: item.sku, correlationId: req.correlationId, before: { sku: item.sku }, after: { attemptedSku: String(req.body.sku || "").trim().toUpperCase() }, reason: "SKU is immutable" });
       throw new ValidationError("SKU is stable after item creation and cannot be changed");
     }
     const payload = validateItemPayload(req.body, { partial: true });
     delete payload.openingStock;
     delete payload.sku;
+    const before = pickAuditFields(item, AUDIT_FIELDS);
     await ensureReferences(payload);
     if (payload.unit && payload.unit !== item.unit && Number(item.currentStock) !== 0) {
       throw new ValidationError("Base unit cannot be changed while this item has stock. Reconcile it to zero first");
     }
-    Object.assign(item, payload);
-    item.purchaseUnit ||= item.unit;
-    if (item.purchaseUnit === item.unit) item.purchaseConversionFactor = 1;
-    await item.save();
+    await runInventoryTransaction(async (session) => {
+      await ensureReferences(payload, session);
+      Object.assign(item, payload);
+      item.purchaseUnit ||= item.unit;
+      if (item.purchaseUnit === item.unit) item.purchaseConversionFactor = 1;
+      await item.save(session ? { session } : {});
+      await recordAuditLog({ actor: req.user, action: "INVENTORY_ITEM_UPDATED", entityType: "InventoryItem", entityId: item._id, entityLabel: item.sku, correlationId: req.correlationId, before, after: pickAuditFields(item, AUDIT_FIELDS), reason: String(req.body.reason || "").trim() }, { session });
+    });
     await item.populate(itemPopulate);
-    res.json({ success: true, data: item });
+    const valuation = await buildInventoryValuation({ itemIds: [item._id] });
+    res.json({ success: true, data: { ...item, ...(valuation.rows[0] || {}) } });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "An inventory item with this SKU already exists" });
     next(error);
@@ -148,8 +162,12 @@ export const archiveItem = async (req, res, next) => {
   try {
     const item = await InventoryItem.findById(req.params.id);
     if (!item) return res.status(404).json({ success: false, message: "Inventory item not found" });
-    item.isActive = false;
-    await item.save();
+    await runInventoryTransaction(async (session) => {
+      const before = pickAuditFields(item, AUDIT_FIELDS);
+      item.isActive = false;
+      await item.save(session ? { session } : {});
+      await recordAuditLog({ actor: req.user, action: "INVENTORY_ITEM_ARCHIVED", entityType: "InventoryItem", entityId: item._id, entityLabel: item.sku, correlationId: req.correlationId, before, after: pickAuditFields(item, AUDIT_FIELDS), reason: String(req.body?.reason || "").trim() }, { session });
+    });
     res.json({ success: true, message: "Inventory item archived. Its transaction history was preserved." });
   } catch (error) {
     next(error);

@@ -8,7 +8,7 @@ const SPICE_LABELS = {
 export const getOrderItemCustomizationParts = (item = {}) => {
   const parts = [];
   if (Array.isArray(item.selectedAddOns) && item.selectedAddOns.length) {
-    parts.push(`Add-ons: ${item.selectedAddOns.map((addOn) => addOn.name).filter(Boolean).join(", ")}`);
+    parts.push(`Add-ons: ${item.selectedAddOns.map((addOn) => addOn.name ? `${addOn.name}${(addOn.quantity || 1) > 1 ? ` ×${addOn.quantity}` : ""}` : "").filter(Boolean).join(", ")}`);
   }
   if (item.spiceLevel) parts.push(`Spice: ${SPICE_LABELS[item.spiceLevel] || item.spiceLevel}`);
   if (item.itemNote) parts.push(`Note: ${item.itemNote}`);

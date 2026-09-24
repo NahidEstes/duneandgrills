@@ -8,6 +8,7 @@ import {
   parsePagination,
   ValidationError,
 } from "../../utils/inventoryValidation.js";
+import { recordAuditLog } from "../../services/auditLogService.js";
 
 const recipePopulate = {
   path: "ingredients.inventoryItem",
@@ -153,6 +154,7 @@ export const updateRecipe = async (req, res, next) => {
     }
     await recipe.populate(recipePopulate);
     await recipe.populate("updatedBy", "name");
+    await recordAuditLog({ actor: req.user, action: existing ? "INVENTORY_RECIPE_UPDATED" : "INVENTORY_RECIPE_CREATED", entityType: "InventoryRecipe", entityId: recipe._id, entityLabel: menuItem.name, correlationId: req.correlationId, before: existing ? { ingredients: existing.ingredients, doNotTrack: existing.doNotTrack, isActive: existing.isActive } : null, after: { ingredients: recipe.ingredients, doNotTrack: recipe.doNotTrack, isActive: recipe.isActive }, reason: String(req.body.reason || "").trim(), related: { menuItem: menuItem._id } });
     res.json({ success: true, data: serializeRecipe(menuItem.toObject(), recipe.toObject()) });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "This menu item already has a recipe" });

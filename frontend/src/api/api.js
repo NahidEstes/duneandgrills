@@ -256,6 +256,21 @@ export const bulkUpdateOrderStatus = async (orderIds, status, options = {}) => {
   return data.data;
 };
 
+export const fetchOrderRefunds = async (orderId) => {
+  const { data } = await api.get(`/orders/${orderId}/refunds`);
+  return data.data;
+};
+
+export const createOrderRefund = async (orderId, payload) => {
+  const { data } = await api.post(`/orders/${orderId}/refunds`, payload);
+  return data.data;
+};
+
+export const transitionOrderRefund = async (refundId, action, payload = {}) => {
+  const { data } = await api.post(`/orders/refunds/${refundId}/${action}`, payload);
+  return data.data;
+};
+
 // ---- Kitchen Display System ----
 export const fetchKitchenQueue = async (filters = {}) => {
   const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
@@ -280,6 +295,15 @@ export const completePosSale = async (payload) => {
   await refreshAfterMutation("orders");
   return data;
 };
+
+export const fetchPosShiftConfig = async () => (await api.get("/pos/shift-config")).data.data;
+export const fetchCurrentPosShift = async (terminal = "MAIN") => (await api.get("/pos/shifts/current", { params: { terminal } })).data;
+export const openPosShift = async (payload) => (await api.post("/pos/shifts/open", payload)).data.data;
+export const addPosCashMovement = async (shiftId, payload) => (await api.post(`/pos/shifts/${shiftId}/cash-movements`, payload)).data.data;
+export const closePosShift = async (shiftId, payload) => (await api.post(`/pos/shifts/${shiftId}/close`, payload)).data.data;
+export const fetchPosShifts = async (params = {}) => (await api.get("/pos/shifts", { params })).data;
+export const fetchPosShift = async (shiftId) => (await api.get(`/pos/shifts/${shiftId}`)).data.data;
+export const reopenPosShift = async (shiftId, reason) => (await api.post(`/pos/shifts/${shiftId}/reopen`, { reason })).data.data;
 
 // ---- Persistent cart ----
 export const fetchUserCart = async () => {

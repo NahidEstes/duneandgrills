@@ -52,7 +52,7 @@ export default function InventoryDashboard() {
     { key: "category", label: "Category", render: (item) => item.category?.name || "—" },
     { key: "stock", label: "Current stock", render: (item) => formatQuantity(item.currentStock, item.unit) },
     { key: "reorder", label: "Reorder", render: (item) => formatQuantity(item.reorderLevel, item.unit) },
-    { key: "value", label: "Value", render: (item) => <Money value={item.currentStock * item.unitCost} /> },
+    { key: "value", label: "Value", render: (item) => <div><Money value={item.inventoryValue} /><p className="text-[0.6rem] text-neutral-600">{item.valuationMethod === "batch" ? "Batch cost" : "Item cost fallback"}</p></div> },
     { key: "status", label: "Status", render: (item) => { const status = getStockStatus(item); return <Badge tone={status.tone}>{status.label}</Badge>; } },
   ];
 
@@ -67,6 +67,7 @@ export default function InventoryDashboard() {
       <StatCard label="Expiring Soon" value={summary.expiringSoon ?? "—"} caption="Within the alert window" icon={CalendarClock} tone="violet" />
     </section>
     <div className={`${cardClass} mt-4 flex flex-wrap gap-2 p-3`}>{actionLinks.map(([label, href, Icon]) => <Link key={href} href={href} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-medium text-neutral-300 transition hover:border-dune-amber/40 hover:text-white"><Icon className="h-4 w-4 text-dune-amber" />{label}</Link>)}</div>
+    {dashboard?.valuation && (dashboard.valuation.missingCostItems > 0 || dashboard.valuation.mismatchWarnings > 0) && <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] p-4 text-xs text-amber-200"><AlertTriangle className="h-4 w-4" /><span>Valuation coverage {dashboard.valuation.coveragePercent}% · {dashboard.valuation.missingCostItems} missing-cost item(s) · {dashboard.valuation.mismatchWarnings} batch/stock mismatch(es).</span><Link href="/inventory/reports?type=valuation" className="ml-auto font-semibold text-dune-amber">Review valuation</Link></div>}
 
     <section className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
       <article className={cardClass}><div className="flex items-center justify-between border-b border-white/10 p-4"><div><h2 className="font-body text-base font-semibold text-white">Stock Items</h2><p className="mt-0.5 text-xs text-neutral-500">Recently updated inventory records.</p></div><Link href="/inventory/stock-items" className="text-xs font-semibold text-dune-amber">View all</Link></div>{loading ? <LoadingState /> : <DataTable columns={columns} rows={data?.items} empty={<EmptyState title="No stock items yet" description="Add the first item to begin inventory tracking." />} />}</article>

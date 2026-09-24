@@ -9,6 +9,10 @@ const auditLogSchema = new mongoose.Schema(
     entityType: { type: String, required: true, trim: true, immutable: true, index: true },
     entityId: { type: mongoose.Schema.Types.ObjectId, default: null, immutable: true },
     entityLabel: { type: String, default: "", trim: true, immutable: true },
+    correlationId: { type: String, default: "", trim: true, maxlength: 100, immutable: true },
+    reason: { type: String, default: "", trim: true, maxlength: 500, immutable: true },
+    related: { type: mongoose.Schema.Types.Mixed, default: {}, immutable: true },
+    changedFields: { type: [String], default: [], immutable: true },
     before: { type: mongoose.Schema.Types.Mixed, default: null, immutable: true },
     after: { type: mongoose.Schema.Types.Mixed, default: null, immutable: true },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {}, immutable: true },
@@ -20,6 +24,7 @@ auditLogSchema.index({ createdAt: -1 });
 auditLogSchema.index({ actor: 1, createdAt: -1 });
 auditLogSchema.index({ entityType: 1, entityId: 1, createdAt: -1 });
 auditLogSchema.index({ action: 1, createdAt: -1 });
+auditLogSchema.index({ correlationId: 1 }, { sparse: true });
 auditLogSchema.index({ entityLabel: "text", action: "text", entityType: "text" });
 
 export default mongoose.model("AuditLog", auditLogSchema);

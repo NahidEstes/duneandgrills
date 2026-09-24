@@ -10,6 +10,7 @@ import { Badge, Button, EmptyState, LoadingState, PageHeader, Pagination, StatCa
 import { apiErrorMessage, downloadCsv, formatSar } from "./inventoryUtils.js";
 import RecipeEditor from "./RecipeEditor.jsx";
 import useInventoryResource from "./useInventoryResource.js";
+import AddOnRecipesPanel from "./AddOnRecipesPanel.jsx";
 
 const statusLabel = { configured: "Configured", not_configured: "Not Configured", do_not_track: "Do Not Track" };
 
@@ -20,6 +21,7 @@ export default function RecipesPage() {
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState("");
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [recipeType, setRecipeType] = useState("menu");
   useEffect(() => { const timeout = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 250); return () => clearTimeout(timeout); }, [search]);
   useEffect(() => { fetchInventoryItems({ limit: 100, status: "active", sortBy: "name", sortOrder: "asc" }).then((response) => setInventoryItems(response.data)).catch(() => toast.error("Unable to load inventory ingredients.")); }, []);
   const { data, loading, error, reload } = useInventoryResource(() => fetchInventoryRecipes({ page, limit: 20, search: debouncedSearch || undefined, status: status || undefined }), [page, debouncedSearch, status]);
@@ -35,7 +37,9 @@ export default function RecipesPage() {
     ], rows);
   };
   return <div className="mx-auto max-w-[1800px]">
-    <PageHeader title="Recipes" description="Map menu items to inventory ingredients and estimate food cost, profit and margin in SAR." actions={<Button onClick={exportRecipes}><Download className="h-4 w-4" />Export Recipes</Button>} />
+    <PageHeader title="Recipes" description="Map menu items and physical add-ons to inventory ingredients." actions={recipeType === "menu" ? <Button onClick={exportRecipes}><Download className="h-4 w-4" />Export Recipes</Button> : null} />
+    <div className="mb-4 flex gap-2 rounded-xl border border-white/10 bg-white/[0.025] p-1"><button type="button" onClick={() => setRecipeType("menu")} className={`rounded-lg px-4 py-2 text-sm ${recipeType === "menu" ? "bg-dune-amber text-black" : "text-neutral-400"}`}>Menu Item Recipes</button><button type="button" onClick={() => setRecipeType("addons")} className={`rounded-lg px-4 py-2 text-sm ${recipeType === "addons" ? "bg-dune-amber text-black" : "text-neutral-400"}`}>Add-on Recipes</button></div>
+    {recipeType === "addons" ? <AddOnRecipesPanel inventoryItems={inventoryItems} /> : <>
     <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Configured Recipes" value={summary.configured || 0} caption="Menu items with ingredient mapping" icon={ChefHat} /><StatCard label="Not Configured" value={summary.notConfigured || 0} caption="Menu items pending recipes" icon={TriangleAlert} tone="red" /><StatCard label="Do Not Track Items" value={summary.doNotTrack || 0} caption="Excluded from recipe tracking" icon={CircleSlash2} tone="violet" /><StatCard label="Food Cost Coverage" value={`${summary.costCoverage || 0}%`} caption="Share of menu sales value configured" icon={ChefHat} tone="green" /></div>
     <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
       <section className={`${cardClass} h-fit overflow-hidden`}><div className="border-b border-white/10 p-4"><h2 className="text-sm font-semibold text-white">Menu Items</h2><p className="mt-1 text-xs text-neutral-600">Select an item to edit its recipe.</p><div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1"><label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu items…" /></label><DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">All statuses</option><option value="configured">Configured</option><option value="not_configured">Not Configured</option><option value="do_not_track">Do Not Track</option></DarkSelect></div></div>
@@ -43,6 +47,6 @@ export default function RecipesPage() {
         <Pagination pagination={data?.pagination} onPageChange={setPage} />
       </section>
       <RecipeEditor selected={selected} inventoryItems={inventoryItems} onSaved={() => reload({ silent: true })} />
-    </div>
+    </div></>}
   </div>;
 }

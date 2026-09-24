@@ -24,7 +24,7 @@ import posRoutes from "./routes/posRoutes.js";
 import kitchenRoutes from "./routes/kitchenRoutes.js";
 import restaurantSettingsRoutes from "./routes/restaurantSettingsRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
-import { csrfProtection, securityHeaders } from "./middleware/security.js";
+import { csrfProtection, requestCorrelation, securityHeaders } from "./middleware/security.js";
 import { verifyTransactionCapability } from "./services/inventoryStockService.js";
 
 const app = express();
@@ -57,6 +57,7 @@ const connectToMongo = () => {
 // Middleware
 app.set("trust proxy", 1);
 app.use(securityHeaders);
+app.use(requestCorrelation);
 app.use(cors({
   credentials: true,
   origin(origin, callback) {

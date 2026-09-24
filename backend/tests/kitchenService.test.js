@@ -38,7 +38,7 @@ test("kitchen serialization excludes customer and financial secrets", () => {
   assert.equal("totalAmount" in serialized, false);
   assert.equal("paymentMethod" in serialized, false);
   assert.equal("price" in serialized.items[0], false);
-  assert.deepEqual(serialized.items[0].selectedAddOns, [{ name: "Extra Cheese" }]);
+  assert.deepEqual(serialized.items[0].selectedAddOns, [{ name: "Extra Cheese", quantity: 1 }]);
   assert.equal(serialized.items[0].spiceLevel, "hot");
   assert.equal(serialized.items[0].itemNote, "No onions");
 });

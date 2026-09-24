@@ -32,7 +32,7 @@ router.post("/staff/:id/reset-password", requireCapability(CAPABILITIES.STAFF_MA
 router.use(requireCapability(CAPABILITIES.ADMIN_DASHBOARD));
 router.get("/dashboard", getDashboard);
 router.get("/analytics", getAdminAnalytics);
-router.get("/audit-logs", listAuditLogs);
+router.get("/audit-logs", requireCapability(CAPABILITIES.AUDIT_READ), listAuditLogs);
 router.get("/users", getAdminUsers);
 router.get("/customers", getCustomers);
 router.get("/customers/:customerId", getCustomer);

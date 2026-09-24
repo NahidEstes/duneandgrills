@@ -99,3 +99,9 @@
   border-radius: 999px;
   background: #4b4038;
 }
+@media print {
+  body.printing-pos-shift * { visibility: hidden !important; }
+  body.printing-pos-shift .pos-shift-printable, body.printing-pos-shift .pos-shift-printable * { visibility: visible !important; color: #111 !important; }
+  body.printing-pos-shift .pos-shift-printable { position: fixed !important; inset: 0 !important; margin: 0 !important; border: 0 !important; background: #fff !important; }
+  body.printing-pos-shift .pos-shift-no-print { display: none !important; }
+}

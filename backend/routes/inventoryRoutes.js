@@ -49,6 +49,7 @@ import { CAPABILITIES } from "../config/permissions.js";
 import { getRecipe, listRecipes, updateRecipe } from "../controllers/inventory/recipeController.js";
 import { createWasteRecord, listWasteRecords } from "../controllers/inventory/wasteController.js";
 import { listBatches } from "../controllers/inventory/batchController.js";
+import { getAddOnRecipe, listAddOnRecipes, updateAddOnRecipe } from "../controllers/inventory/addOnRecipeController.js";
 
 const router = express.Router();
 
@@ -77,6 +78,8 @@ router.route("/suppliers/:id").patch(write, updateSupplier).delete(write, archiv
 router.route("/movements").get(listMovements).post(write, createMovement);
 router.get("/recipes", listRecipes);
 router.route("/recipes/:menuItemId").get(getRecipe).put(write, updateRecipe);
+router.get("/add-on-recipes", listAddOnRecipes);
+router.route("/add-on-recipes/:addOnId").get(getAddOnRecipe).put(write, updateAddOnRecipe);
 router.route("/waste").get(listWasteRecords).post(write, createWasteRecord);
 router.route("/counts").get(listCounts).post(write, createCount);
 router.post("/counts/:id/submit", write, submitCount);

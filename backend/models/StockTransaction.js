@@ -49,6 +49,7 @@ const stockTransactionSchema = new mongoose.Schema(
     purchaseOrder: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseOrder", default: null, immutable: true },
     inventoryCount: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryCount", default: null, immutable: true },
     order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null, immutable: true },
+    sourceDetails: { type: mongoose.Schema.Types.Mixed, default: {}, immutable: true },
     unitCost: { type: Number, default: null, min: 0, immutable: true },
     purchaseQuantity: { type: Number, default: null, min: 0, immutable: true },
     purchaseUnit: { type: String, default: null, trim: true, immutable: true },

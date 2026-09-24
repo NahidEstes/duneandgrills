@@ -73,6 +73,12 @@ const restaurantSettingsSchema = new mongoose.Schema(
     preparation: {
       defaultMinutes: { type: Number, default: 20, min: 1, max: 240 },
     },
+    posShifts: {
+      enabled: { type: Boolean, default: false },
+      requireOpenShift: { type: Boolean, default: false },
+      blindClose: { type: Boolean, default: false },
+      varianceThreshold: { type: Number, default: 50, min: 0, max: 100000 },
+    },
     receipt: {
       displayName: { type: String, default: "Dune & Grills", trim: true, maxlength: 120 },
       header: { type: String, default: "ORDER RECEIPT", trim: true, maxlength: 160 },

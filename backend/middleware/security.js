@@ -15,6 +15,13 @@ export const securityHeaders = (_req, res, next) => {
   next();
 };
 
+export const requestCorrelation = (req, res, next) => {
+  const incoming = String(req.headers["x-request-id"] || "").trim();
+  req.correlationId = /^[A-Za-z0-9._:-]{8,100}$/.test(incoming) ? incoming : crypto.randomUUID();
+  res.set("X-Request-Id", req.correlationId);
+  next();
+};
+
 export const csrfProtection = (req, res, next) => {
   if (SAFE_METHODS.has(req.method)) return next();
   const cookies = parseCookies(req.headers.cookie);

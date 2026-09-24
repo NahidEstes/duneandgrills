@@ -3,10 +3,10 @@
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Clock, Eye, MapPin, Phone, Printer, RefreshCw, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import { bulkUpdateOrderStatus, fetchOrdersPage, fetchOrderStats, fetchPublicRestaurantSettings, updateOrderStatus } from "../api/api.js";
+import { bulkUpdateOrderStatus, createOrderRefund, fetchOrderRefunds, fetchOrdersPage, fetchOrderStats, fetchPublicRestaurantSettings, transitionOrderRefund, updateOrderStatus } from "../api/api.js";
 import { formatAdminCurrency } from "./admin/adminUi.js";
 import { printOrderInvoice } from "../utils/adminExports.js";
 import { formatOrderType, getOrderSubtotal } from "../utils/order.js";
@@ -37,12 +37,13 @@ const STATUS_LABELS = {
 };
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
+const EDITABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter((status) => status !== "refunded");
 const FILTER_TABS = ["all", ...STATUS_OPTIONS];
 const SOURCE_OPTIONS = ["all", "website", "pos", "phone", "jahez", "hungerstation"];
 const ORDER_TYPE_OPTIONS = ["all", "dine-in", "pickup", "takeaway", "delivery"];
 const PAYMENT_OPTIONS = ["all", "cash", "card", "other", "unrecorded"];
 
-const needsReason = (status) => status === "cancelled" || status === "refunded";
+const needsReason = (status) => status === "cancelled";
 
 const labelSource = (value = "website") => value === "pos" ? "POS / Counter" : value.charAt(0).toUpperCase() + value.slice(1);
 
@@ -64,6 +65,53 @@ const StatCard = ({ label, value, sub }) => (
     {sub && <p className="text-dune-amber text-xs mt-1">{sub}</p>}
   </div>
 );
+
+const RefundPanel = ({ order, onChanged }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ amount: "", method: order.paymentMethod === "unrecorded" ? "cash" : order.paymentMethod, reason: "", externalReference: "" });
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await fetchOrderRefunds(order._id);
+      setData(result);
+      setForm((current) => ({ ...current, amount: current.amount || String(result.remainingRefundableAmount || "") }));
+    } catch (error) { toast.error(error.response?.data?.message || "Unable to load refund history."); }
+    finally { setLoading(false); }
+  }, [order._id]);
+  useEffect(() => { load(); }, [load]);
+  const request = async () => {
+    if (!form.reason.trim()) return toast.error("Refund reason is required.");
+    setSaving(true);
+    try {
+      await createOrderRefund(order._id, { ...form, amount: Number(form.amount), idempotencyKey: crypto.randomUUID() });
+      toast.success("Refund request recorded for approval.");
+      setForm((current) => ({ ...current, reason: "", externalReference: "", amount: "" }));
+      await load();
+      onChanged?.();
+    } catch (error) { toast.error(error.response?.data?.message || "Unable to request refund."); }
+    finally { setSaving(false); }
+  };
+  const transition = async (refund, action) => {
+    const note = ["reject", "fail"].includes(action) ? window.prompt(`${action === "reject" ? "Rejection" : "Failure"} reason`) : "";
+    if (["reject", "fail"].includes(action) && !note?.trim()) return;
+    setSaving(true);
+    try {
+      await transitionOrderRefund(refund._id, action, { note, externalReference: form.externalReference });
+      toast.success(`Refund ${action} action saved.`);
+      await load();
+      onChanged?.();
+    } catch (error) { toast.error(error.response?.data?.message || "Unable to update refund."); }
+    finally { setSaving(false); }
+  };
+  return <div className="mt-5 border-t border-dune-border pt-4">
+    <div className="flex items-center justify-between"><div><p className="eyebrow">Payment &amp; Refunds</p><p className="mt-1 text-xs text-neutral-500">Cancellation does not refund payment or restock prepared food.</p></div>{loading && <RefreshCw className="h-4 w-4 animate-spin text-dune-amber" />}</div>
+    {data && <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-lg bg-black/30 p-2"><span className="block text-neutral-500">Paid</span><strong className="text-white">{formatAdminCurrency(data.paidAmount)}</strong></div><div className="rounded-lg bg-black/30 p-2"><span className="block text-neutral-500">Refunded</span><strong className="text-red-300">{formatAdminCurrency(data.completedRefundAmount)}</strong></div><div className="rounded-lg bg-black/30 p-2"><span className="block text-neutral-500">Eligible</span><strong className="text-emerald-300">{formatAdminCurrency(data.remainingRefundableAmount)}</strong></div></div>}
+    {data?.remainingRefundableAmount > 0 && ["paid", "partially_refunded"].includes(order.paymentStatus) && <div className="mt-3 grid gap-2 rounded-xl border border-white/10 bg-black/20 p-3 sm:grid-cols-2"><input type="number" min="0.01" step="0.01" max={data.remainingRefundableAmount} value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} placeholder="Amount SAR" className="h-10 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white" /><DarkSelect value={form.method} onChange={(event) => setForm({ ...form, method: event.target.value })} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm"><option value="cash">Cash</option><option value="card">Card</option><option value="other">Other</option></DarkSelect><input value={form.externalReference} onChange={(event) => setForm({ ...form, externalReference: event.target.value })} placeholder="Manual/card reference (optional)" className="h-10 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white" /><input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Refund reason (required)" className="h-10 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white" /><button type="button" disabled={saving} onClick={request} className="h-10 rounded-lg bg-dune-amber px-4 text-sm font-semibold text-black sm:col-span-2 disabled:opacity-50">Request Refund</button></div>}
+    {data?.refunds?.length > 0 && <div className="mt-3 max-h-44 space-y-2 overflow-y-auto">{data.refunds.map((refund) => <div key={refund._id} className="rounded-lg border border-white/[0.07] bg-black/20 p-3 text-xs"><div className="flex justify-between gap-3"><span><strong className="text-white">{formatAdminCurrency(refund.amount)}</strong> · {refund.type}<br /><span className="text-neutral-500">{refund.reason}</span></span><span className="capitalize text-dune-amber">{refund.status.replaceAll("_", " ")}</span></div><div className="mt-2 flex flex-wrap gap-2">{refund.status === "requested" && <><button disabled={saving} type="button" onClick={() => transition(refund, "approve")} className="rounded-md bg-emerald-500/15 px-2 py-1 text-emerald-300">Approve</button><button disabled={saving} type="button" onClick={() => transition(refund, "reject")} className="rounded-md bg-red-500/15 px-2 py-1 text-red-300">Reject</button></>}{["approved", "processing"].includes(refund.status) && <button disabled={saving} type="button" onClick={() => transition(refund, "complete")} className="rounded-md bg-blue-500/15 px-2 py-1 text-blue-300">Mark Completed</button>}</div></div>)}</div>}
+  </div>;
+};
 
 // ---- Order details modal with inline status control ----
 export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
@@ -137,7 +185,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
             onChange={(e) => setStatus(e.target.value)}
             className="w-full rounded-lg bg-black border border-dune-border px-4 py-2.5 text-white focus:border-dune-amber outline-none disabled:opacity-60"
           >
-            {STATUS_OPTIONS.map((s) => (
+            {EDITABLE_STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {STATUS_LABELS[s]}
               </option>
@@ -155,7 +203,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
 
         {needsReason(status) && (
           <label className="mt-3 block">
-            <span className="eyebrow mb-2 block">{status === "cancelled" ? "Cancellation" : "Refund"} reason</span>
+            <span className="eyebrow mb-2 block">Cancellation reason</span>
             <textarea rows={2} value={reason} onChange={(event) => setReason(event.target.value)} className="w-full rounded-lg border border-dune-border bg-black px-4 py-2.5 text-white outline-none focus:border-dune-amber" placeholder="Required for the permanent order record" />
           </label>
         )}
@@ -234,6 +282,8 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
             </span>
           </div>
         </div>
+
+        <RefundPanel order={order} onChanged={onSaved} />
 
         {order.statusHistory?.length > 0 && (
           <div className="mt-5 border-t border-dune-border pt-4">
@@ -416,7 +466,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
       {selected.size > 0 && (
         <div className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-dune-amber/25 bg-dune-amber/[0.06] p-3">
           <p className="mr-auto self-center text-sm font-semibold text-dune-amber">{selected.size} selected</p>
-          <DarkSelect value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value)} className="h-10 min-w-44 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-white">{STATUS_OPTIONS.map((value) => <option key={value} value={value}>{STATUS_LABELS[value]}</option>)}</DarkSelect>
+          <DarkSelect value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value)} className="h-10 min-w-44 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm text-white">{EDITABLE_STATUS_OPTIONS.map((value) => <option key={value} value={value}>{STATUS_LABELS[value]}</option>)}</DarkSelect>
           <input type="number" min="1" max="240" value={bulkPrep} onChange={(event) => setBulkPrep(event.target.value)} placeholder="Prep minutes" className="h-10 w-32 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white outline-none focus:border-dune-amber" />
           {needsReason(bulkStatus) && <input value={bulkReason} onChange={(event) => setBulkReason(event.target.value)} placeholder="Required reason" className="h-10 min-w-56 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white outline-none focus:border-dune-amber" />}
           <button type="button" disabled={bulkSaving} onClick={handleBulkUpdate} className="h-10 rounded-lg bg-dune-amber px-4 text-sm font-semibold text-black disabled:opacity-50">{bulkSaving ? "Updating…" : "Update selected"}</button>

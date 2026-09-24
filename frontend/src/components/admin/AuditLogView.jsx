@@ -20,17 +20,18 @@ export default function AuditLogView() {
   const [payload, setPayload] = useState({ data: [], filters: {}, pagination: {} });
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState("");
+  const { entityType, action, from, to } = filters;
 
   useEffect(() => { const timeout = setTimeout(() => { setDebouncedSearch(filters.search.trim()); setPage(1); }, 250); return () => clearTimeout(timeout); }, [filters.search]);
   useEffect(() => {
     let active = true;
     setLoading(true);
-    fetchAuditLogs({ page, limit: 25, ...filters, search: debouncedSearch })
+    fetchAuditLogs({ page, limit: 25, entityType, action, from, to, search: debouncedSearch })
       .then((data) => active && setPayload(data))
       .catch((error) => active && toast.error(error.response?.data?.message || "Unable to load audit logs."))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [page, filters.entityType, filters.action, filters.from, filters.to, debouncedSearch]);
+  }, [page, entityType, action, from, to, debouncedSearch]);
 
   const set = (field, value) => { setFilters((current) => ({ ...current, [field]: value })); if (field !== "search") setPage(1); };
   const pagination = payload.pagination || {};
@@ -52,7 +53,17 @@ export default function AuditLogView() {
           <span className="text-xs text-neutral-500">{formatAdminDate(row.createdAt, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
           {expanded === row._id ? <ChevronUp className="h-4 w-4 text-neutral-500" /> : <ChevronDown className="h-4 w-4 text-neutral-500" />}
         </button>
-        {expanded === row._id && <div className="grid gap-3 border-t border-white/[0.05] bg-black/20 p-4 lg:grid-cols-2"><ValueBlock title="Before" value={row.before} /><ValueBlock title="After" value={row.after} />{row.metadata && Object.keys(row.metadata).length > 0 && <div className="lg:col-span-2"><ValueBlock title="Metadata" value={row.metadata} /></div>}</div>}
+        {expanded === row._id && <div className="grid gap-3 border-t border-white/[0.05] bg-black/20 p-4 lg:grid-cols-2">
+          <ValueBlock title="Before" value={row.before} />
+          <ValueBlock title="After" value={row.after} />
+          {(row.reason || row.correlationId || row.changedFields?.length > 0) && <div className="rounded-lg border border-white/[0.07] bg-black/30 p-3 text-xs text-neutral-400 lg:col-span-2">
+            {row.changedFields?.length > 0 && <p><span className="text-neutral-600">Changed fields:</span> {row.changedFields.join(", ")}</p>}
+            {row.reason && <p><span className="text-neutral-600">Reason:</span> {row.reason}</p>}
+            {row.correlationId && <p className="break-all"><span className="text-neutral-600">Correlation ID:</span> {row.correlationId}</p>}
+          </div>}
+          {row.related && Object.keys(row.related).length > 0 && <ValueBlock title="Related records" value={row.related} />}
+          {row.metadata && Object.keys(row.metadata).length > 0 && <ValueBlock title="Metadata" value={row.metadata} />}
+        </div>}
       </article>)}{!loading && !payload.data.length && <p className="py-14 text-center text-sm text-neutral-600">No audit activity matches these filters.</p>}</div>
       <div className="flex items-center justify-between border-t border-white/[0.07] px-4 py-3 text-xs text-neutral-600"><span>{pagination.total || 0} audit entries</span><div className="flex items-center gap-2"><button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="rounded-lg border border-white/10 px-3 py-1.5 text-neutral-400 disabled:opacity-30">Previous</button><span>Page {page} of {pagination.pages || 1}</span><button type="button" disabled={page >= (pagination.pages || 1)} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-white/10 px-3 py-1.5 text-neutral-400 disabled:opacity-30">Next</button></div></div>
     </section>

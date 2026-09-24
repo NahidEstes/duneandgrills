@@ -38,7 +38,9 @@ const cartItemSchema = new mongoose.Schema(
       min: 1,
       max: MAX_CART_QUANTITY,
     },
-    selectedAddOns: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuAddOn" }],
+    // Mixed keeps legacy ObjectId-only carts readable while allowing the
+    // quantity-aware { addOn, quantity } shape used by Phase 2.
+    selectedAddOns: [{ type: mongoose.Schema.Types.Mixed }],
     spiceLevel: { type: String, enum: ["", ...SPICE_LEVELS], default: "" },
     note: { type: String, trim: true, maxlength: MAX_ITEM_NOTE_LENGTH, default: "" },
     customizationKey: { type: String, default: "", maxlength: 1000 },

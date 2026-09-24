@@ -9,6 +9,7 @@ import { deductOrderInventory } from "../services/orderInventoryService.js";
 import { runInventoryTransaction } from "../services/inventoryStockService.js";
 import { creditOrderPoints } from "../services/rewardService.js";
 import { nextOrderNumber } from "../services/orderNumberService.js";
+import { findOpenShift, recordPosCashSale } from "../services/posShiftService.js";
 
 class PosValidationError extends Error {
   constructor(message, status = 400) {
@@ -62,6 +63,12 @@ export const createPosSale = async (req, res, next) => {
     if (!restaurantSettings.orders.channels.pos) {
       throw new PosValidationError("POS ordering is currently disabled in Restaurant Settings", 503);
     }
+    const shiftConfig = restaurantSettings.posShifts || { enabled: false, requireOpenShift: false };
+    const terminal = cleanText(req.body.terminal, 60).toUpperCase() || "MAIN";
+    const openShift = shiftConfig.enabled ? await findOpenShift({ cashier: req.user._id, terminal }) : null;
+    if (shiftConfig.enabled && shiftConfig.requireOpenShift && !openShift) {
+      throw new PosValidationError(`Open a POS shift on ${terminal} before completing a sale`, 409);
+    }
 
     const orderType = req.body.orderType;
     const paymentMethod = req.body.paymentMethod;
@@ -112,12 +119,18 @@ export const createPosSale = async (req, res, next) => {
         notes: cleanText(req.body.notes, 500),
         estimatedPreparationMinutes: restaurantSettings.preparation.defaultMinutes,
         inventoryStatus: "pending",
+        posShift: openShift?._id || null,
       }], session ? { session } : {});
       const transactions = await deductOrderInventory({ catalogLines, orderId, orderNumber, source: "pos", actorId: req.user._id, strictRecipes: true, session });
       created.inventoryTransactions = transactions.map((transaction) => transaction._id);
       created.inventoryStatus = transactions.length ? "deducted" : "not_required";
       created.inventoryDeductedAt = transactions.length ? now : null;
       await created.save(session ? { session } : {});
+      if (openShift) {
+        const transactionalShift = await findOpenShift({ cashier: req.user._id, terminal }, session);
+        if (!transactionalShift && shiftConfig.requireOpenShift) throw new PosValidationError("The POS shift closed before this sale completed", 409);
+        if (transactionalShift) await recordPosCashSale({ shift: transactionalShift, order: created, actor: req.user, session });
+      }
       return created;
     });
     saleCommitted = true;
