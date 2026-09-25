@@ -22,6 +22,7 @@ import {
   PackageX,
   CalendarClock,
   ReceiptText,
+  ListChecks,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import SmartImage from "../SmartImage.jsx";
@@ -157,12 +158,13 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
 
       <div>
         <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold text-white">Inventory Health</h2><Link href="/inventory" className="text-xs font-semibold text-dune-amber hover:text-dune-amberLight">Open Inventory <ArrowRight className="ml-1 inline h-3.5 w-3.5" /></Link></div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
             [AlertTriangle, "Low Stock", data?.inventorySummary?.lowStock || 0, "Needs reorder", "/inventory/low-stock-alerts", "text-amber-400"],
             [PackageX, "Out of Stock", data?.inventorySummary?.outOfStock || 0, "Unavailable inventory", "/inventory/stock-items", "text-red-400"],
             [CalendarClock, "Expiring Items", data?.inventorySummary?.expiringItems || 0, `Within ${data?.inventorySummary?.expiryAlertDays || 0} days`, "/inventory/expiry-tracking", "text-violet-400"],
             [ReceiptText, "Pending Purchase Orders", data?.inventorySummary?.pendingPurchaseOrders || 0, "Ordered or partially received", "/inventory/purchase-orders", "text-sky-400"],
+            [ListChecks, "Purchasing Actions", data?.inventorySummary?.openPurchasingActions || 0, "Open or acknowledged", "/inventory/purchasing-actions", "text-orange-400"],
           ].map(([Icon, label, value, note, href, tone]) => <Link key={label} href={href} className={`${PANEL_CLASS} flex items-center gap-3 p-4 transition hover:border-dune-amber/30 hover:bg-white/[0.04]`}><span className={`rounded-xl bg-white/[0.04] p-2.5 ${tone}`}><Icon className="h-5 w-5" /></span><span className="min-w-0"><span className="block text-xs text-neutral-500">{label}</span><strong className="mt-0.5 block text-xl text-white">{value}</strong><span className="block truncate text-[0.65rem] text-neutral-600">{note}</span></span></Link>)}
         </div>
       </div>

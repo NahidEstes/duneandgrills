@@ -3,6 +3,7 @@ import StockTransaction from "../../models/StockTransaction.js";
 import User from "../../models/User.js";
 import { performStockMovement, runInventoryTransaction } from "../../services/inventoryStockService.js";
 import { escapeRegex, parsePagination, validateWastePayload } from "../../utils/inventoryValidation.js";
+import { refreshAffectedSuggestions } from "../../services/reorderService.js";
 
 const endOfDay = (value) => {
   const date = new Date(value);
@@ -56,6 +57,7 @@ export const createWasteRecord = async (req, res, next) => {
       { path: "item", select: "name sku unit unitCost category", populate: { path: "category", select: "name" } },
       { path: "user", select: "name email" },
     ]);
+    await refreshAffectedSuggestions([payload.item]);
     res.status(201).json({ success: true, data: withCostImpact(result.transaction.toObject()) });
   } catch (error) { next(error); }
 };

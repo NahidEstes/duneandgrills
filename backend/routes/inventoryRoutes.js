@@ -52,6 +52,8 @@ import { listBatches } from "../controllers/inventory/batchController.js";
 import { getAddOnRecipe, listAddOnRecipes, updateAddOnRecipe } from "../controllers/inventory/addOnRecipeController.js";
 import { createSupplierInvoiceController, getSupplierInvoice, listSupplierInvoices, recordSupplierPaymentController, reverseSupplierPaymentController, transitionSupplierInvoiceController, updateSupplierInvoiceController } from "../controllers/inventory/supplierInvoiceController.js";
 import { listPurchasePriceHistory } from "../controllers/inventory/purchasePriceController.js";
+import { dismissSuggestion, generateDrafts, listReorderSuggestions, recalculateSuggestions, reviewSuggestion } from "../controllers/inventory/reorderController.js";
+import { listPurchasingActions, refreshActions, updateActionState } from "../controllers/inventory/purchasingActionController.js";
 
 const router = express.Router();
 
@@ -63,6 +65,11 @@ const payablesRead = requireCapability(CAPABILITIES.PAYABLES_READ);
 const payablesWrite = requireCapability(CAPABILITIES.PAYABLES_WRITE);
 const payablesApprove = requireCapability(CAPABILITIES.PAYABLES_APPROVE);
 const recordPayment = requireCapability(CAPABILITIES.SUPPLIER_PAYMENT_RECORD);
+const reorderRead = requireCapability(CAPABILITIES.REORDER_READ);
+const reorderManage = requireCapability(CAPABILITIES.REORDER_MANAGE);
+const automatePurchases = requireCapability(CAPABILITIES.PURCHASE_AUTOMATE);
+const actionRead = requireCapability(CAPABILITIES.PURCHASING_ACTION_READ);
+const actionManage = requireCapability(CAPABILITIES.PURCHASING_ACTION_MANAGE);
 
 router.get("/dashboard", getDashboard);
 router.get("/alerts", getAlerts);
@@ -99,6 +106,16 @@ router.patch("/purchase-orders/:id/status", (req, res, next) => ["approved", "re
 router.post("/purchase-orders/:id/receive", write, receivePurchaseOrderController);
 router.route("/purchase-orders/:id").get(getPurchaseOrder).patch(write, updatePurchaseOrderController);
 router.get("/purchase-price-history", listPurchasePriceHistory);
+
+router.get("/reorder-suggestions", reorderRead, listReorderSuggestions);
+router.post("/reorder-suggestions/recalculate", reorderManage, recalculateSuggestions);
+router.patch("/reorder-suggestions/:id/review", reorderManage, reviewSuggestion);
+router.patch("/reorder-suggestions/:id/dismiss", reorderManage, dismissSuggestion);
+router.post("/reorder-suggestions/generate-drafts", automatePurchases, generateDrafts);
+
+router.get("/purchasing-actions", actionRead, listPurchasingActions);
+router.post("/purchasing-actions/refresh", actionManage, refreshActions);
+router.patch("/purchasing-actions/:id/state", actionManage, updateActionState);
 
 router.route("/supplier-invoices").get(payablesRead, listSupplierInvoices).post(payablesWrite, createSupplierInvoiceController);
 router.route("/supplier-invoices/:id").get(payablesRead, getSupplierInvoice).patch(payablesWrite, updateSupplierInvoiceController);

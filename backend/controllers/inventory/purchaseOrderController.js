@@ -3,6 +3,7 @@ import { createPurchaseOrder, receivePurchaseOrder, transitionPurchaseOrder, upd
 import { parsePagination, validatePurchaseOrderPayload } from "../../utils/inventoryValidation.js";
 import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
 import { getEffectiveRestaurantSettings } from "../../services/restaurantSettingsService.js";
+import { refreshAffectedSuggestions } from "../../services/reorderService.js";
 
 const AUDIT_FIELDS = ["supplier", "items", "status", "subtotal", "tax", "discount", "additionalCharges", "total", "notes", "revision", "priceWarnings", "orderedAt", "expectedAt", "receivedAt"];
 
@@ -64,6 +65,7 @@ export const changePurchaseOrderStatus = async (req, res, next) => {
   try {
     const settings = await getEffectiveRestaurantSettings();
     const result = await transitionPurchaseOrder({ id: req.params.id, target: req.body.status, actor: req.user, settings: settings.procurement, reason: req.body.reason, externalReference: req.body.externalReference, idempotencyKey: req.body.idempotencyKey, emergencyOverride: Boolean(req.body.emergencyOverride) });
+    await refreshAffectedSuggestions(result.po.items.map((line) => line.item));
     await result.po.populate(populate);
     res.json({ success: true, data: result.po, duplicate: result.duplicate });
   } catch (error) { next(error); }
@@ -73,6 +75,7 @@ export const receivePurchaseOrderController = async (req, res, next) => {
   try {
     const settings = await getEffectiveRestaurantSettings();
     const result = await receivePurchaseOrder(req.params.id, req.body.items, req.user, req.body.notes, settings.procurement, req.body.idempotencyKey);
+    await refreshAffectedSuggestions(result.order.items.map((line) => line.item));
     await result.order.populate(populate);
     res.json({ success: true, data: result });
   } catch (error) { next(error); }

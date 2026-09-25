@@ -33,7 +33,7 @@ export const hydratePurchaseLines = async (lines, session = null) => {
   const items = await InventoryItem.find({ _id: { $in: ids }, isActive: true }).session(session || null);
   const map = new Map(items.map((item) => [String(item._id), item]));
   if (map.size !== ids.length) throw new ValidationError("One or more purchase items are missing or inactive");
-  return lines.map((line) => { const item = map.get(String(line.item)); const { baseUnit, purchaseUnit, conversionFactor } = getPurchaseConfiguration(item); return { item: item._id, itemName: item.name, sku: item.sku, quantity: Number(line.quantity), receivedQuantity: Number(line.receivedQuantity) || 0, unitCost: Number(line.unitCost), purchaseUnit, baseUnit, conversionFactor, expiryDate: line.expiryDate || null }; });
+  return lines.map((line) => { const item = map.get(String(line.item)); const { baseUnit, purchaseUnit, conversionFactor } = getPurchaseConfiguration(item); return { item: item._id, itemName: item.name, sku: item.sku, quantity: Number(line.quantity), receivedQuantity: Number(line.receivedQuantity) || 0, unitCost: Number(line.unitCost), purchaseUnit, baseUnit, conversionFactor, expiryDate: line.expiryDate || null, reorderSuggestion: line.reorderSuggestion || null, priceSource: line.priceSource || "manual", priceSourceReference: line.priceSourceReference || null }; });
 };
 
 export const calculatePurchaseTotals = (items, { tax = 0, discount = 0, additionalCharges = 0 } = {}) => {
@@ -44,15 +44,18 @@ export const calculatePurchaseTotals = (items, { tax = 0, discount = 0, addition
   return { subtotal, tax: normalizedTax, discount: normalizedDiscount, additionalCharges: charges, total: round(subtotal + normalizedTax + charges - normalizedDiscount) };
 };
 
-export const createPurchaseOrder = async (payload, actor, settings = {}) => runInventoryTransaction(async (session) => {
+export const createPurchaseOrderInSession = async (payload, actor, settings = {}, session = null) => {
   const actorId = actor?._id || actor;
   const supplier = await Supplier.findOne({ _id: payload.supplier, isActive: true }).session(session || null);
   if (!supplier) throw new ValidationError("Supplier was not found or is inactive");
   const items = await hydratePurchaseLines(payload.items, session); const calculated = calculatePurchaseTotals(items, payload); const warnings = await priceWarnings(items, settings, session);
   if (warnings.length && settings.blockPriceIncrease && !payload.priceOverrideReason) throw new ValidationError("Purchase price increase exceeds policy. An override reason is required");
-  const [po] = await PurchaseOrder.create([{ orderNumber: await nextNumber(session), supplier: supplier._id, items, ...calculated, notes: payload.notes, expectedAt: payload.expectedAt, status: "draft", priceWarnings: warnings, createdBy: actorId, updatedBy: actorId, revisionHistory: [{ revision: 1, action: "created", actor: actorId, at: new Date(), snapshot: calculated, priceOverrideReason: payload.priceOverrideReason || "" }] }], session ? { session } : {});
+  const [po] = await PurchaseOrder.create([{ orderNumber: await nextNumber(session), supplier: supplier._id, items, ...calculated, notes: payload.notes, expectedAt: payload.expectedAt, status: "draft", priceWarnings: warnings, automationRun: payload.automationRun || null, sourceSuggestions: payload.sourceSuggestions || [], createdBy: actorId, updatedBy: actorId, revisionHistory: [{ revision: 1, action: "created", actor: actorId, at: new Date(), snapshot: calculated, priceOverrideReason: payload.priceOverrideReason || "" }] }], session ? { session } : {});
   await recordPurchasePrices({ purchaseOrder: po, type: "proposed", actorId, session }); return po;
-});
+};
+
+export const createPurchaseOrder = async (payload, actor, settings = {}) =>
+  runInventoryTransaction((session) => createPurchaseOrderInSession(payload, actor, settings, session));
 
 export const updatePurchaseOrder = async (purchaseOrder, payload, actor, settings = {}) => runInventoryTransaction(async (session) => {
   const actorId = actor?._id || actor;

@@ -14,6 +14,9 @@ const purchaseOrderLineSchema = new mongoose.Schema(
     baseUnit: { type: String, default: null, trim: true },
     conversionFactor: { type: Number, default: 1, min: 0.000001 },
     expiryDate: { type: Date, default: null },
+    reorderSuggestion: { type: mongoose.Schema.Types.ObjectId, ref: "ReorderSuggestion", default: null },
+    priceSource: { type: String, enum: ["posted_invoice", "received", "approved", "manual"], default: "manual" },
+    priceSourceReference: { type: mongoose.Schema.Types.ObjectId, default: null },
   },
   { _id: true }
 );
@@ -50,6 +53,8 @@ const purchaseOrderSchema = new mongoose.Schema(
     transitionKeys: { type: [String], default: [] },
     receiptKeys: { type: [String], default: [] },
     priceWarnings: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    automationRun: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseAutomationRun", default: null },
+    sourceSuggestions: [{ type: mongoose.Schema.Types.ObjectId, ref: "ReorderSuggestion" }],
   },
   { timestamps: true, optimisticConcurrency: true }
 );

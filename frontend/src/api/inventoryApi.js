@@ -55,6 +55,15 @@ export const createSupplierPayment = (id, payload) => unwrap(api.post(`/inventor
 export const reverseSupplierPayment = (id, reason) => unwrap(api.post(`/inventory/supplier-payments/${id}/reverse`, { reason })).then((response) => response.data);
 export const fetchPurchasePriceHistory = (params = {}) => unwrap(api.get("/inventory/purchase-price-history", { params })).then((response) => response.data);
 
+export const fetchReorderSuggestions = (params = {}) => unwrap(api.get("/inventory/reorder-suggestions", { params }));
+export const recalculateReorderSuggestions = (item = null) => unwrap(api.post("/inventory/reorder-suggestions/recalculate", item ? { item } : {})).then((response) => response.data);
+export const reviewReorderSuggestion = (id, payload) => unwrap(api.patch(`/inventory/reorder-suggestions/${id}/review`, payload)).then((response) => response.data);
+export const dismissReorderSuggestion = (id, payload) => unwrap(api.patch(`/inventory/reorder-suggestions/${id}/dismiss`, payload)).then((response) => response.data);
+export const generateReorderDrafts = (payload) => unwrap(api.post("/inventory/reorder-suggestions/generate-drafts", payload)).then((response) => response.data);
+export const fetchPurchasingActions = (params = {}) => unwrap(api.get("/inventory/purchasing-actions", { params }));
+export const refreshPurchasingActions = () => unwrap(api.post("/inventory/purchasing-actions/refresh")).then((response) => response.data);
+export const updatePurchasingActionState = (id, payload) => unwrap(api.patch(`/inventory/purchasing-actions/${id}/state`, payload)).then((response) => response.data);
+
 export const fetchInventoryCounts = () => unwrap(api.get("/inventory/counts")).then((response) => response.data);
 export const createInventoryCount = (payload) => unwrap(api.post("/inventory/counts", payload)).then((response) => response.data);
 export const completeInventoryCount = (id, items) => unwrap(api.post(`/inventory/counts/${id}/complete`, { items })).then((response) => response.data);

@@ -24,6 +24,7 @@ const inventoryBatchSchema = new mongoose.Schema(
     purchaseQuantity: { type: Number, min: 0, default: null },
     purchaseUnit: { type: String, enum: PURCHASE_UNITS, default: null },
     conversionFactor: { type: Number, min: 0.000001, default: 1 },
+    qualityStatus: { type: String, enum: ["usable", "quarantined", "damaged"], default: "usable", index: true },
     isLegacy: { type: Boolean, default: false },
   },
   { timestamps: true, optimisticConcurrency: true }
@@ -35,6 +36,7 @@ inventoryBatchSchema.pre("validate", function setFefoDate(next) {
 });
 
 inventoryBatchSchema.index({ item: 1, remainingQuantity: 1, fefoDate: 1, receivedAt: 1 });
+inventoryBatchSchema.index({ item: 1, qualityStatus: 1, expiryDate: 1, remainingQuantity: 1 });
 inventoryBatchSchema.index({ expiryDate: 1, remainingQuantity: 1 }, { sparse: true });
 inventoryBatchSchema.index({ lotNumber: "text" });
 inventoryBatchSchema.index(

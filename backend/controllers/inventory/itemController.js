@@ -16,8 +16,9 @@ import {
 } from "../../services/inventorySkuService.js";
 import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
 import { buildInventoryValuation } from "../../services/inventoryValuationService.js";
+import { refreshAffectedSuggestions } from "../../services/reorderService.js";
 
-const AUDIT_FIELDS = ["name", "sku", "category", "unit", "purchaseUnit", "purchaseConversionFactor", "reorderLevel", "unitCost", "supplier", "tracksExpiry", "storageLocation", "isActive", "allowNegativeStock"];
+const AUDIT_FIELDS = ["name", "sku", "category", "unit", "purchaseUnit", "purchaseConversionFactor", "reorderLevel", "reorderEnabled", "targetStock", "safetyStock", "leadTimeDays", "minimumOrderQuantity", "orderMultiple", "supplierItemCode", "unitCost", "supplier", "tracksExpiry", "storageLocation", "isActive", "allowNegativeStock"];
 
 const itemPopulate = [
   { path: "category", select: "name color isActive skuPrefix" },
@@ -144,6 +145,7 @@ export const updateItem = async (req, res, next) => {
     });
     await item.populate(itemPopulate);
     const valuation = await buildInventoryValuation({ itemIds: [item._id] });
+    await refreshAffectedSuggestions([item._id]);
     res.json({ success: true, data: { ...item, ...(valuation.rows[0] || {}) } });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "An inventory item with this SKU already exists" });

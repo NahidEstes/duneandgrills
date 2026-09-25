@@ -7,6 +7,15 @@ const inventorySettingsSchema = new mongoose.Schema(
     currency: { type: String, enum: ["SAR"], default: "SAR", immutable: true },
     expiryAlertDays: { type: Number, default: 7, min: 1, max: 365 },
     defaultAllowNegativeStock: { type: Boolean, default: false },
+    purchasingAutomation: {
+      demandLookbackDays: { type: Number, default: 30, min: 1, max: 365 },
+      defaultLeadTimeDays: { type: Number, default: 7, min: 0, max: 3650 },
+      defaultSafetyStock: { type: Number, default: 0, min: 0 },
+      staleAfterHours: { type: Number, default: 24, min: 1, max: 8760 },
+      dismissalSnoozeDays: { type: Number, default: 7, min: 1, max: 365 },
+      dueSoonDays: { type: Number, default: 7, min: 1, max: 365 },
+      calculationVersion: { type: String, default: "reorder-v1", trim: true, maxlength: 40 },
+    },
     googleSheetsSync: {
       enabled: { type: Boolean, default: false, immutable: true },
       provider: { type: String, enum: ["google_sheets"], default: "google_sheets", immutable: true },

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Archive, ArrowDownToLine, ArrowUpFromLine, Pencil, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import {
-  archiveInventoryItem, createInventoryItem, fetchInventoryCategories, fetchInventoryItems,
+  archiveInventoryItem, createInventoryItem, fetchInventoryCategories, fetchInventoryItem, fetchInventoryItems,
   fetchSuppliers, updateInventoryItem,
 } from "@/src/api/inventoryApi.js";
 import { Badge, Button, DataTable, EmptyState, LoadingState, Modal, Money, PageHeader, Pagination, cardClass, inputClass } from "./InventoryUI.jsx";
@@ -32,6 +32,7 @@ export default function StockItemsPage() {
   useEffect(() => { const timeout = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 250); return () => clearTimeout(timeout); }, [search]);
   useEffect(() => { Promise.all([fetchInventoryCategories(), fetchSuppliers()]).then(([categories, suppliers]) => setMetadata({ categories, suppliers })).catch(() => toast.error("Unable to load categories and suppliers.")); }, []);
   useEffect(() => { if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("action") === "add") setModalOpen(true); }, []);
+  useEffect(() => { const id = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("edit") : null; if (id) fetchInventoryItem(id).then((row) => { setEditing(row); setModalOpen(true); }).catch(() => toast.error("The linked stock item could not be loaded.")); }, []);
 
   const { data, loading, reload } = useInventoryResource(
     () => fetchInventoryItems({ page, limit: 20, search: debouncedSearch || undefined, category: category || undefined, supplier: supplier || undefined, status: status || undefined, sortBy, sortOrder }),

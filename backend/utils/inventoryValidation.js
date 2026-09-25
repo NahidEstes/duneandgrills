@@ -56,7 +56,7 @@ export const validateItemPayload = (payload, { partial = false } = {}) => {
   if ("supplier" in payload) {
     result.supplier = payload.supplier ? assertObjectId(payload.supplier, "supplier") : null;
   }
-  for (const field of ["reorderLevel", "unitCost"]) {
+  for (const field of ["reorderLevel", "targetStock", "safetyStock", "leadTimeDays", "unitCost"]) {
     if (!partial || field in payload) {
       const value = number(payload[field] ?? 0);
       if (!Number.isFinite(value) || value < 0) throw new ValidationError(`${field} must be zero or greater`);
@@ -68,10 +68,10 @@ export const validateItemPayload = (payload, { partial = false } = {}) => {
     if (!Number.isFinite(value) || value < 0) throw new ValidationError("openingStock must be zero or greater");
     result.openingStock = value;
   }
-  for (const field of ["storageLocation", "externalId"]) {
+  for (const field of ["storageLocation", "supplierItemCode", "externalId"]) {
     if (field in payload) result[field] = text(payload[field]) || null;
   }
-  for (const field of ["tracksExpiry", "isActive", "allowNegativeStock"]) {
+  for (const field of ["tracksExpiry", "isActive", "allowNegativeStock", "reorderEnabled"]) {
     if (field in payload) result[field] = Boolean(payload[field]);
   }
   if ("expiryDate" in payload) {
@@ -96,6 +96,13 @@ export const validateMovementPayload = (payload) => {
   const unitCost = payload.unitCost === "" || payload.unitCost == null ? null : number(payload.unitCost);
   if (unitCost != null && (!Number.isFinite(unitCost) || unitCost < 0)) {
     throw new ValidationError("unitCost must be zero or greater");
+  }
+  for (const field of ["minimumOrderQuantity", "orderMultiple"]) {
+    if (!partial || field in payload) {
+      const value = number(payload[field] ?? 1);
+      if (!Number.isFinite(value) || value <= 0) throw new ValidationError(`${field} must be greater than zero`);
+      result[field] = value;
+    }
   }
   const expiryDate = payload.expiryDate ? new Date(payload.expiryDate) : null;
   if (expiryDate && Number.isNaN(expiryDate.getTime())) throw new ValidationError("expiryDate is invalid");
@@ -163,6 +170,7 @@ export const validatePurchaseOrderPayload = (payload, { partial = false } = {}) 
     if (field in payload || !partial) {
       const value = number(payload[field] ?? 0);
       if (!Number.isFinite(value) || value < 0) throw new ValidationError(`${field} must be zero or greater`);
+      if (field === "leadTimeDays" && value > 3650) throw new ValidationError("leadTimeDays must be 3650 or less");
       result[field] = value;
     }
   }

@@ -26,6 +26,8 @@ import {
   ArrowLeftRight,
   ChefHat,
   Trash2,
+  ListChecks,
+  ShoppingCart,
   X,
 } from "lucide-react";
 
@@ -38,6 +40,8 @@ const navigation = [
   ["Purchase Orders", "/inventory/purchase-orders", ReceiptText],
   ["Supplier Invoices", "/inventory/supplier-invoices", BadgeDollarSign, ["admin", "manager", "accountant"]],
   ["Purchase Prices", "/inventory/purchase-prices", ChartNoAxesCombined],
+  ["Reorder Suggestions", "/inventory/reorder-suggestions", ShoppingCart, ["admin", "manager", "inventory", "storekeeper"]],
+  ["Purchasing Actions", "/inventory/purchasing-actions", ListChecks, ["admin", "manager", "inventory", "storekeeper", "accountant"]],
   ["Stock In", "/inventory/stock-in", PackagePlus],
   ["Stock Out", "/inventory/stock-out", PackageMinus],
   ["Stock Movements", "/inventory/stock-movements", ArrowLeftRight],

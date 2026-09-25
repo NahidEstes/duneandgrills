@@ -9,6 +9,7 @@ import { getPurchaseConfiguration, toBaseQuantity, toBaseUnitCost } from "../../
 import { escapeRegex, parsePagination, validateMovementPayload, ValidationError } from "../../utils/inventoryValidation.js";
 import { recordAuditLog } from "../../services/auditLogService.js";
 import { hasCapability, CAPABILITIES } from "../../config/permissions.js";
+import { refreshAffectedSuggestions } from "../../services/reorderService.js";
 
 export const createMovement = async (req, res, next) => {
   try {
@@ -50,6 +51,7 @@ export const createMovement = async (req, res, next) => {
     );
     await result.item.populate([{ path: "category", select: "name color" }, { path: "supplier", select: "name code" }]);
     await result.transaction.populate([{ path: "item", select: "name sku unit" }, { path: "user", select: "name" }]);
+    await refreshAffectedSuggestions([payload.item]);
     res.status(201).json({ success: true, data: result });
   } catch (error) { next(error); }
 };
@@ -236,6 +238,7 @@ export const completeCount = async (req, res, next) => {
       await recordAuditLog({ actor: req.user, action: "INVENTORY_COUNT_COMPLETED", entityType: "InventoryCount", entityId: count._id, entityLabel: count.countNumber, metadata: { items: count.items.map((line) => ({ item: line.item, previousQuantity: line.expectedQuantity, countedQuantity: line.countedQuantity, appliedAdjustment: line.appliedAdjustment })), approvedBy: req.user._id } }, { session });
       return { count, movements };
     });
+    if (!result.conflicts?.length) await refreshAffectedSuggestions(result.count.items.map((line) => line.item));
     res.status(result.conflicts?.length ? 409 : 200).json({ success: !result.conflicts?.length, ...(result.conflicts?.length ? { message: "Stock changed after this count started. Review and recount the affected items." } : {}), data: result });
   } catch (error) { next(error); }
 };

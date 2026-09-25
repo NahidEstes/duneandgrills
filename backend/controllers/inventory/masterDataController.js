@@ -13,7 +13,7 @@ import { buildInventoryValuation } from "../../services/inventoryValuationServic
 import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
 
 const CATEGORY_FIELDS = ["name", "skuPrefix", "description", "color", "isActive"];
-const SUPPLIER_FIELDS = ["code", "name", "contactName", "email", "phone", "address", "taxNumber", "paymentTerms", "notes", "isActive"];
+const SUPPLIER_FIELDS = ["code", "name", "contactName", "email", "phone", "address", "taxNumber", "paymentTerms", "leadTimeDays", "notes", "isActive"];
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 
@@ -112,6 +112,11 @@ const supplierPayload = (body, partial = false) => {
   }
   for (const field of ["contactName", "email", "phone", "address", "taxNumber", "paymentTerms", "notes", "externalId"]) {
     if (field in body) result[field] = cleanText(body[field]);
+  }
+  if (!partial || "leadTimeDays" in body) {
+    const value = Number(body.leadTimeDays ?? 0);
+    if (!Number.isFinite(value) || value < 0 || value > 3650) throw new ValidationError("leadTimeDays must be between 0 and 3650");
+    result.leadTimeDays = value;
   }
   if ("isActive" in body) result.isActive = Boolean(body.isActive);
   return result;

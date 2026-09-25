@@ -10,6 +10,7 @@ const supplierSchema = new mongoose.Schema(
     address: { type: String, default: "", trim: true, maxlength: 300 },
     taxNumber: { type: String, default: "", trim: true, maxlength: 40 },
     paymentTerms: { type: String, default: "", trim: true, maxlength: 120 },
+    leadTimeDays: { type: Number, default: 0, min: 0, max: 3650 },
     notes: { type: String, default: "", trim: true, maxlength: 500 },
     isActive: { type: Boolean, default: true },
     externalId: { type: String, default: null, trim: true, sparse: true },
