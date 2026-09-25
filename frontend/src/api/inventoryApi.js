@@ -44,8 +44,16 @@ export const fetchPurchaseOrders = (params = {}) => unwrap(api.get("/inventory/p
 export const fetchPurchaseOrder = (id) => unwrap(api.get(`/inventory/purchase-orders/${id}`)).then((response) => response.data);
 export const createPurchaseOrder = (payload) => unwrap(api.post("/inventory/purchase-orders", payload)).then((response) => response.data);
 export const updatePurchaseOrder = (id, payload) => unwrap(api.patch(`/inventory/purchase-orders/${id}`, payload)).then((response) => response.data);
-export const updatePurchaseOrderStatus = (id, status) => unwrap(api.patch(`/inventory/purchase-orders/${id}/status`, { status })).then((response) => response.data);
+export const updatePurchaseOrderStatus = (id, status, options = {}) => unwrap(api.patch(`/inventory/purchase-orders/${id}/status`, { status, ...options })).then((response) => response.data);
 export const receivePurchaseOrder = (id, payload) => unwrap(api.post(`/inventory/purchase-orders/${id}/receive`, payload)).then((response) => response.data);
+export const fetchSupplierInvoices = (params = {}) => unwrap(api.get("/inventory/supplier-invoices", { params }));
+export const fetchSupplierInvoice = (id) => unwrap(api.get(`/inventory/supplier-invoices/${id}`));
+export const createSupplierInvoice = (payload) => unwrap(api.post("/inventory/supplier-invoices", payload)).then((response) => response.data);
+export const updateSupplierInvoice = (id, payload) => unwrap(api.patch(`/inventory/supplier-invoices/${id}`, payload)).then((response) => response.data);
+export const updateSupplierInvoiceStatus = (id, status, options = {}) => unwrap(api.patch(`/inventory/supplier-invoices/${id}/status`, { status, ...options })).then((response) => response.data);
+export const createSupplierPayment = (id, payload) => unwrap(api.post(`/inventory/supplier-invoices/${id}/payments`, payload)).then((response) => response.data);
+export const reverseSupplierPayment = (id, reason) => unwrap(api.post(`/inventory/supplier-payments/${id}/reverse`, { reason })).then((response) => response.data);
+export const fetchPurchasePriceHistory = (params = {}) => unwrap(api.get("/inventory/purchase-price-history", { params })).then((response) => response.data);
 
 export const fetchInventoryCounts = () => unwrap(api.get("/inventory/counts")).then((response) => response.data);
 export const createInventoryCount = (payload) => unwrap(api.post("/inventory/counts", payload)).then((response) => response.data);

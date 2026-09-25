@@ -79,6 +79,17 @@ const restaurantSettingsSchema = new mongoose.Schema(
       blindClose: { type: Boolean, default: false },
       varianceThreshold: { type: Number, default: 50, min: 0, max: 100000 },
     },
+    procurement: {
+      purchaseApprovalThreshold: { type: Number, default: 5000, min: 0, max: 10000000 },
+      overReceiveTolerancePercent: { type: Number, default: 0, min: 0, max: 100 },
+      invoiceQuantityTolerancePercent: { type: Number, default: 0, min: 0, max: 100 },
+      invoicePriceTolerancePercent: { type: Number, default: 2, min: 0, max: 100 },
+      invoicePriceToleranceAmount: { type: Number, default: 1, min: 0, max: 1000000 },
+      largePaymentThreshold: { type: Number, default: 10000, min: 0, max: 10000000 },
+      priceAlertPercent: { type: Number, default: 10, min: 0, max: 1000 },
+      priceAlertAmount: { type: Number, default: 5, min: 0, max: 1000000 },
+      blockPriceIncrease: { type: Boolean, default: false },
+    },
     receipt: {
       displayName: { type: String, default: "Dune & Grills", trim: true, maxlength: 120 },
       header: { type: String, default: "ORDER RECEIPT", trim: true, maxlength: 160 },

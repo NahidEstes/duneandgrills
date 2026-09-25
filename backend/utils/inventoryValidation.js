@@ -159,21 +159,20 @@ export const validatePurchaseOrderPayload = (payload, { partial = false } = {}) 
       return { item: line.item, quantity, unitCost, expiryDate };
     });
   }
-  if ("tax" in payload || !partial) {
-    const tax = number(payload.tax ?? 0);
-    if (!Number.isFinite(tax) || tax < 0) throw new ValidationError("tax must be zero or greater");
-    result.tax = tax;
+  for (const field of ["tax", "discount", "additionalCharges"]) {
+    if (field in payload || !partial) {
+      const value = number(payload[field] ?? 0);
+      if (!Number.isFinite(value) || value < 0) throw new ValidationError(`${field} must be zero or greater`);
+      result[field] = value;
+    }
   }
-  for (const field of ["notes"]) if (field in payload) result[field] = text(payload[field]);
+  for (const field of ["notes", "priceOverrideReason"]) if (field in payload) result[field] = text(payload[field]);
   if ("expectedAt" in payload) {
     const expectedAt = payload.expectedAt ? new Date(payload.expectedAt) : null;
     if (expectedAt && Number.isNaN(expectedAt.getTime())) throw new ValidationError("expectedAt is invalid");
     result.expectedAt = expectedAt;
   }
-  if ("status" in payload) {
-    if (!PURCHASE_ORDER_STATUSES.includes(payload.status)) throw new ValidationError("Invalid purchase order status");
-    result.status = payload.status;
-  }
+  if ("status" in payload && !PURCHASE_ORDER_STATUSES.includes(payload.status)) throw new ValidationError("Invalid purchase order status");
   return result;
 };
 

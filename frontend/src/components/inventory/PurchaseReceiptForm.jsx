@@ -30,6 +30,7 @@ export default function PurchaseReceiptForm({ order, onSubmit, submitting }) {
     event.preventDefault();
     onSubmit({
       notes,
+      idempotencyKey: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
       items: receivable.map((line) => ({
         lineId: line._id,
         quantity: Number(lines[line._id].quantity),

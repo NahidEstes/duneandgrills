@@ -41,6 +41,17 @@ export const getRestaurantSettingsDefaults = () => ({
     blindClose: false,
     varianceThreshold: 50,
   },
+  procurement: {
+    purchaseApprovalThreshold: 5000,
+    overReceiveTolerancePercent: 0,
+    invoiceQuantityTolerancePercent: 0,
+    invoicePriceTolerancePercent: 2,
+    invoicePriceToleranceAmount: 1,
+    largePaymentThreshold: 10000,
+    priceAlertPercent: 10,
+    priceAlertAmount: 5,
+    blockPriceIncrease: false,
+  },
   receipt: {
     displayName: "Dune & Grills",
     header: "ORDER RECEIPT",
@@ -73,6 +84,7 @@ const mergeSettings = (defaults, stored) => ({
   notifications: { ...defaults.notifications, ...(stored?.notifications || {}) },
   preparation: { ...defaults.preparation, ...(stored?.preparation || {}) },
   posShifts: { ...defaults.posShifts, ...(stored?.posShifts || {}) },
+  procurement: { ...defaults.procurement, ...(stored?.procurement || {}) },
   receipt: { ...defaults.receipt, ...(stored?.receipt || {}) },
   location: { ...defaults.location, ...(stored?.location || {}) },
 });
@@ -179,6 +191,17 @@ export const normalizeRestaurantSettings = (payload = {}, current = getRestauran
       blindClose: bool(payload.posShifts?.blindClose, current.posShifts.blindClose),
       varianceThreshold: number(payload.posShifts?.varianceThreshold, "POS shift variance threshold", 0, 100000, current.posShifts.varianceThreshold),
     },
+    procurement: {
+      purchaseApprovalThreshold: number(payload.procurement?.purchaseApprovalThreshold, "Purchase approval threshold", 0, 10000000, current.procurement.purchaseApprovalThreshold),
+      overReceiveTolerancePercent: number(payload.procurement?.overReceiveTolerancePercent, "Over receive tolerance", 0, 100, current.procurement.overReceiveTolerancePercent),
+      invoiceQuantityTolerancePercent: number(payload.procurement?.invoiceQuantityTolerancePercent, "Invoice quantity tolerance", 0, 100, current.procurement.invoiceQuantityTolerancePercent),
+      invoicePriceTolerancePercent: number(payload.procurement?.invoicePriceTolerancePercent, "Invoice price tolerance", 0, 100, current.procurement.invoicePriceTolerancePercent),
+      invoicePriceToleranceAmount: number(payload.procurement?.invoicePriceToleranceAmount, "Invoice price tolerance amount", 0, 1000000, current.procurement.invoicePriceToleranceAmount),
+      largePaymentThreshold: number(payload.procurement?.largePaymentThreshold, "Large supplier payment threshold", 0, 10000000, current.procurement.largePaymentThreshold),
+      priceAlertPercent: number(payload.procurement?.priceAlertPercent, "Purchase price alert percent", 0, 1000, current.procurement.priceAlertPercent),
+      priceAlertAmount: number(payload.procurement?.priceAlertAmount, "Purchase price alert amount", 0, 1000000, current.procurement.priceAlertAmount),
+      blockPriceIncrease: bool(payload.procurement?.blockPriceIncrease, current.procurement.blockPriceIncrease),
+    },
     receipt: {
       displayName: text(payload.receipt?.displayName, "Restaurant display name", 120, current.receipt.displayName),
       header: text(payload.receipt?.header, "Receipt header", 160, current.receipt.header),
@@ -230,7 +253,7 @@ export const getRestaurantSettingsDiff = (before, after) => {
     newValues.push({ field: path, value: newValue ?? null });
     changedFields.push(path);
   };
-  for (const group of ["openingHours", "orders", "notifications", "preparation", "posShifts", "receipt", "location"]) walk(before[group], after[group], group);
+  for (const group of ["openingHours", "orders", "notifications", "preparation", "posShifts", "procurement", "receipt", "location"]) walk(before[group], after[group], group);
   return { oldValues, newValues, changedFields };
 };
 
@@ -242,6 +265,7 @@ export const toAdminRestaurantSettings = (settings, configured = true) => ({
   notifications: settings.notifications,
   preparation: settings.preparation,
   posShifts: settings.posShifts,
+  procurement: settings.procurement,
   receipt: settings.receipt,
   location: settings.location,
   updatedAt: settings.updatedAt || null,

@@ -13,7 +13,7 @@ import Supplier from "../models/Supplier.js";
 import User from "../models/User.js";
 import { createOpeningBalance, performStockMovement } from "../services/inventoryStockService.js";
 import { deductOrderInventory, restoreOrderInventory } from "../services/orderInventoryService.js";
-import { createPurchaseOrder, receivePurchaseOrder } from "../services/purchaseOrderService.js";
+import { createPurchaseOrder, receivePurchaseOrder, transitionPurchaseOrder } from "../services/purchaseOrderService.js";
 import { completeCount, createCount, reviewCount, submitCount } from "../controllers/inventory/stockController.js";
 import AuditLog from "../models/AuditLog.js";
 
@@ -49,8 +49,12 @@ const run = async () => {
   );
   assert.equal((await InventoryItem.findById(item._id)).currentStock, 7);
 
-  const order = await createPurchaseOrder({ supplier: supplier._id, status: "ordered", tax: 0, notes: "Integration check", items: [{ item: item._id, quantity: 5, unitCost: 11 }] }, user._id);
-  const receipt = await receivePurchaseOrder(order._id, [{ lineId: order.items[0]._id, quantity: 5 }], user._id);
+  const order = await createPurchaseOrder({ supplier: supplier._id, tax: 0, notes: "Integration check", items: [{ item: item._id, quantity: 5, unitCost: 11 }] }, user);
+  const policy = { purchaseApprovalThreshold: 5000, overReceiveTolerancePercent: 0 };
+  await transitionPurchaseOrder({ id: order._id, target: "submitted", actor: user, settings: policy });
+  await transitionPurchaseOrder({ id: order._id, target: "approved", actor: user, settings: policy });
+  await transitionPurchaseOrder({ id: order._id, target: "ordered", actor: user, settings: policy });
+  const receipt = await receivePurchaseOrder(order._id, [{ lineId: order.items[0]._id, quantity: 5 }], user);
   assert.equal(receipt.order.status, "received");
   assert.equal((await InventoryItem.findById(item._id)).currentStock, 12);
   assert.equal((await PurchaseOrder.findById(order._id)).items[0].receivedQuantity, 5);
@@ -127,22 +131,24 @@ const run = async () => {
   });
   const batchOrder = await createPurchaseOrder({
     supplier: supplier._id,
-    status: "ordered",
     tax: 0,
     items: [{ item: bottledItem._id, quantity: 2, unitCost: 48 }],
-  }, user._id);
+  }, user);
+  await transitionPurchaseOrder({ id: batchOrder._id, target: "submitted", actor: user, settings: policy });
+  await transitionPurchaseOrder({ id: batchOrder._id, target: "approved", actor: user, settings: policy });
+  await transitionPurchaseOrder({ id: batchOrder._id, target: "ordered", actor: user, settings: policy });
   await receivePurchaseOrder(batchOrder._id, [{
     lineId: batchOrder.items[0]._id,
     quantity: 1,
     lotNumber: "LATE-LOT",
     expiryDate: "2027-06-01",
-  }], user._id);
+  }], user);
   await receivePurchaseOrder(batchOrder._id, [{
     lineId: batchOrder.items[0]._id,
     quantity: 1,
     lotNumber: "EARLY-LOT",
     expiryDate: "2027-01-01",
-  }], user._id);
+  }], user);
   assert.equal((await InventoryItem.findById(bottledItem._id)).currentStock, 48);
   assert.equal((await InventoryItem.findById(bottledItem._id)).unitCost, 2);
 

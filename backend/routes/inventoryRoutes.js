@@ -50,12 +50,19 @@ import { getRecipe, listRecipes, updateRecipe } from "../controllers/inventory/r
 import { createWasteRecord, listWasteRecords } from "../controllers/inventory/wasteController.js";
 import { listBatches } from "../controllers/inventory/batchController.js";
 import { getAddOnRecipe, listAddOnRecipes, updateAddOnRecipe } from "../controllers/inventory/addOnRecipeController.js";
+import { createSupplierInvoiceController, getSupplierInvoice, listSupplierInvoices, recordSupplierPaymentController, reverseSupplierPaymentController, transitionSupplierInvoiceController, updateSupplierInvoiceController } from "../controllers/inventory/supplierInvoiceController.js";
+import { listPurchasePriceHistory } from "../controllers/inventory/purchasePriceController.js";
 
 const router = express.Router();
 
 router.use(protect, requireCapability(CAPABILITIES.INVENTORY_READ));
 const write = requireCapability(CAPABILITIES.INVENTORY_WRITE);
 const approveCount = requireCapability(CAPABILITIES.INVENTORY_COUNT_APPROVE);
+const approvePurchase = requireCapability(CAPABILITIES.PURCHASE_APPROVE);
+const payablesRead = requireCapability(CAPABILITIES.PAYABLES_READ);
+const payablesWrite = requireCapability(CAPABILITIES.PAYABLES_WRITE);
+const payablesApprove = requireCapability(CAPABILITIES.PAYABLES_APPROVE);
+const recordPayment = requireCapability(CAPABILITIES.SUPPLIER_PAYMENT_RECORD);
 
 router.get("/dashboard", getDashboard);
 router.get("/alerts", getAlerts);
@@ -88,8 +95,15 @@ router.post("/counts/:id/review", approveCount, reviewCount);
 router.post("/counts/:id/cancel", approveCount, cancelCount);
 
 router.route("/purchase-orders").get(listPurchaseOrders).post(write, createPurchaseOrderController);
-router.patch("/purchase-orders/:id/status", write, changePurchaseOrderStatus);
+router.patch("/purchase-orders/:id/status", (req, res, next) => ["approved", "rejected"].includes(req.body.status) ? approvePurchase(req, res, next) : write(req, res, next), changePurchaseOrderStatus);
 router.post("/purchase-orders/:id/receive", write, receivePurchaseOrderController);
 router.route("/purchase-orders/:id").get(getPurchaseOrder).patch(write, updatePurchaseOrderController);
+router.get("/purchase-price-history", listPurchasePriceHistory);
+
+router.route("/supplier-invoices").get(payablesRead, listSupplierInvoices).post(payablesWrite, createSupplierInvoiceController);
+router.route("/supplier-invoices/:id").get(payablesRead, getSupplierInvoice).patch(payablesWrite, updateSupplierInvoiceController);
+router.patch("/supplier-invoices/:id/status", (req, res, next) => ["approved", "posted", "voided", "disputed"].includes(req.body.status) ? payablesApprove(req, res, next) : payablesWrite(req, res, next), transitionSupplierInvoiceController);
+router.post("/supplier-invoices/:id/payments", recordPayment, recordSupplierPaymentController);
+router.post("/supplier-payments/:paymentId/reverse", payablesApprove, reverseSupplierPaymentController);
 
 export default router;

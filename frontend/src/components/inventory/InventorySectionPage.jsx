@@ -13,6 +13,8 @@ import StockMovementsPage from "./StockMovementsPage.jsx";
 import RecipesPage from "./RecipesPage.jsx";
 import WasteDamagedPage from "./WasteDamagedPage.jsx";
 import BatchesPage from "./BatchesPage.jsx";
+import SupplierInvoicesPage from "./SupplierInvoicesPage.jsx";
+import PurchasePriceHistoryPage from "./PurchasePriceHistoryPage.jsx";
 
 export default function InventorySectionPage({ section }) {
   if (section === "stock-items") return <StockItemsPage />;
@@ -20,6 +22,8 @@ export default function InventorySectionPage({ section }) {
   if (section === "categories") return <CategoriesPage />;
   if (section === "suppliers") return <SuppliersPage />;
   if (section === "purchase-orders") return <PurchaseOrdersPage />;
+  if (section === "supplier-invoices") return <SupplierInvoicesPage />;
+  if (section === "purchase-prices") return <PurchasePriceHistoryPage />;
   if (section === "stock-in" || section === "stock-out") return <StockMovementPage pageType={section} />;
   if (section === "stock-movements") return <StockMovementsPage />;
   if (section === "recipes") return <RecipesPage />;
