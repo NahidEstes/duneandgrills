@@ -5,6 +5,7 @@ import {
   getRestaurantSettingsDiff,
   normalizeRestaurantSettings,
   toPublicRestaurantSettings,
+  upgradeLegacyOpeningHours,
 } from "../services/restaurantSettingsService.js";
 
 test("restaurant settings defaults use the configured Riyadh weekly schedule", () => {
@@ -12,6 +13,17 @@ test("restaurant settings defaults use the configured Riyadh weekly schedule", (
   assert.equal(defaults.timezone, "Asia/Riyadh");
   assert.deepEqual(defaults.openingHours.find((day) => day.day === "saturday").periods[0], { open: "11:00", close: "23:00" });
   assert.deepEqual(defaults.openingHours.find((day) => day.day === "friday").periods[0], { open: "13:00", close: "23:00" });
+});
+
+test("legacy all-week defaults upgrade Friday without changing custom schedules", () => {
+  const oldHours = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    .map((day) => ({ day, isOpen: true, periods: [{ open: "11:00", close: "23:00" }] }));
+  const upgraded = upgradeLegacyOpeningHours(oldHours);
+  assert.equal(upgraded.find((day) => day.day === "friday").periods[0].open, "13:00");
+
+  const custom = structuredClone(oldHours);
+  custom.find((day) => day.day === "monday").periods[0].open = "10:00";
+  assert.deepEqual(upgradeLegacyOpeningHours(custom), custom);
 });
 
 test("restaurant settings accept overnight hours and normalize numbers", () => {

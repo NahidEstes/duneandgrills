@@ -49,11 +49,11 @@ export default function VisitUs({ settings }) {
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-dune-amber/35 bg-dune-amber/10 text-dune-amber"><MapPin className="h-5 w-5" /></span>
               <div><p className="text-sm text-neutral-500">Restaurant location</p><address className="mt-1 not-italic text-white">{locationLabel}</address></div>
             </div>}
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-4 border-y border-white/10 py-6">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-dune-amber/35 bg-dune-amber/10 text-dune-amber"><Clock3 className="h-5 w-5" /></span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-neutral-500">Opening hours · {timezone}</p>
-                {groupedOpeningHours.length ? <dl className="mt-3 max-w-md space-y-2 text-sm">{groupedOpeningHours.map((group) => <div key={group.days.join("-")} className="grid grid-cols-[5.5rem_1fr] gap-4"><dt className="text-neutral-400">{group.label}</dt><dd className={group.isOpen ? "text-white" : "text-neutral-600"}>{group.schedule}</dd></div>)}</dl> : <p className="mt-2 text-sm text-neutral-500">Opening hours are currently unavailable.</p>}
+                {groupedOpeningHours.length ? <dl className="mt-3 max-w-md space-y-2 text-sm">{groupedOpeningHours.map((group) => <div key={group.days.join("-")} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center"><dt className="text-neutral-300">{group.label}</dt><dd className={`border-l border-white/15 pl-5 ${group.isOpen ? "text-white" : "text-neutral-600"}`}>{group.schedule}</dd></div>)}</dl> : <p className="mt-2 text-sm text-neutral-500">Opening hours are currently unavailable.</p>}
               </div>
             </div>
           </div>

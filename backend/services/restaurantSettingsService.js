@@ -13,6 +13,24 @@ const envNumber = (name, fallback, minimum, maximum) => {
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+const isLegacyDefaultOpeningHours = (openingHours) => (
+  Array.isArray(openingHours)
+  && openingHours.length === RESTAURANT_DAYS.length
+  && openingHours.every((entry) => (
+    entry?.isOpen === true
+    && Array.isArray(entry.periods)
+    && entry.periods.length === 1
+    && entry.periods[0]?.open === "11:00"
+    && entry.periods[0]?.close === "23:00"
+  ))
+);
+
+export const upgradeLegacyOpeningHours = (openingHours) => isLegacyDefaultOpeningHours(openingHours)
+  ? openingHours.map((entry) => entry.day === "friday"
+    ? { ...entry, periods: [{ open: "13:00", close: "23:00" }] }
+    : entry)
+  : openingHours;
+
 export const getRestaurantSettingsDefaults = () => ({
   timezone: "Asia/Riyadh",
   openingHours: RESTAURANT_DAYS.map((day) => ({
@@ -74,7 +92,7 @@ const mergeSettings = (defaults, stored) => ({
   ...defaults,
   ...stored,
   openingHours: Array.isArray(stored?.openingHours) && stored.openingHours.length
-    ? stored.openingHours
+    ? upgradeLegacyOpeningHours(stored.openingHours)
     : defaults.openingHours,
   orders: {
     ...defaults.orders,
