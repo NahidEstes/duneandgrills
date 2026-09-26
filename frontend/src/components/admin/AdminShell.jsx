@@ -13,6 +13,7 @@ import {
   Gift,
   LayoutDashboard,
   Layers3,
+  Lightbulb,
   LogOut,
   Menu as MenuIcon,
   Search,
@@ -33,6 +34,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import SmartImage from "../SmartImage.jsx";
+import { KNOWLEDGE_BASE_ROLES } from "../knowledge/knowledgePermissions.js";
 
 const NAV_ITEMS = [
   { id: "overview", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager"] },
@@ -40,19 +42,20 @@ const NAV_ITEMS = [
   { id: "kitchen", label: "Kitchen Display", icon: ChefHat, href: "/kitchen", roles: ["admin", "manager", "kitchen"] },
   { id: "inventory", label: "Inventory", icon: PackageSearch, href: "/inventory", roles: ["admin", "manager", "inventory", "storekeeper"] },
   { id: "expenses", label: "Finance & Expenses", icon: WalletCards, href: "/admin/expenses", roles: ["admin", "manager", "accountant"] },
-  { id: "orders", label: "Orders", icon: ClipboardList, badge: "orders" },
-  { id: "menu", label: "Menu Items", icon: UtensilsCrossed },
-  { id: "combos", label: "Combos", icon: Layers3 },
-  { id: "categories", label: "Categories", icon: Boxes },
-  { id: "customers", label: "Customers", icon: Users },
-  { id: "offers", label: "Offers", icon: Tag },
-  { id: "rewards", label: "Rewards", icon: Gift },
-  { id: "blog", label: "Blog", icon: BookOpenText },
-  { id: "reviews", label: "Reviews", icon: Star },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "orders", label: "Orders", icon: ClipboardList, badge: "orders", roles: ["admin", "manager"] },
+  { id: "menu", label: "Menu Items", icon: UtensilsCrossed, roles: ["admin", "manager"] },
+  { id: "combos", label: "Combos", icon: Layers3, roles: ["admin", "manager"] },
+  { id: "categories", label: "Categories", icon: Boxes, roles: ["admin", "manager"] },
+  { id: "customers", label: "Customers", icon: Users, roles: ["admin", "manager"] },
+  { id: "offers", label: "Offers", icon: Tag, roles: ["admin", "manager"] },
+  { id: "rewards", label: "Rewards", icon: Gift, roles: ["admin", "manager"] },
+  { id: "blog", label: "Blog", icon: BookOpenText, roles: ["admin", "manager"] },
+  { id: "reviews", label: "Reviews", icon: Star, roles: ["admin", "manager"] },
+  { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "manager"] },
   { id: "audit", label: "Audit Log", icon: ShieldCheck, roles: ["admin", "manager"] },
   { id: "staff", label: "Staff", icon: UserRoundCog, roles: ["admin", "manager"] },
-  { id: "settings", label: "Settings", icon: Settings },
+  { id: "settings", label: "Settings", icon: Settings, roles: ["admin", "manager"] },
+  { id: "tips", label: "Tips & Tricks", icon: Lightbulb, href: "/tips-and-tricks", roles: KNOWLEDGE_BASE_ROLES },
 ];
 
 const SearchResults = ({ results, searching, query, onSelect }) => {
@@ -105,7 +108,7 @@ const SearchResults = ({ results, searching, query, onSelect }) => {
   );
 };
 
-const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway, userRole }) => (
+const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway, userRole, user, onLogout, showUserCard }) => (
   <div className="flex h-full flex-col bg-[#080b0d]">
     <div className="flex h-20 items-center justify-between border-b border-white/[0.07] px-5">
       <Link href="/" onClick={(event) => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); }} className="flex items-center gap-2.5" aria-label="Dune & Grills home">
@@ -174,10 +177,14 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway, 
       >
         <Store className="h-4 w-4" /> View Restaurant
       </Link>
-      <p className="mt-4 px-3 text-[0.65rem] leading-5 text-neutral-600">
-        © {new Date().getFullYear()} DUNE &amp; GRILLS
-        <br />All rights reserved.
-      </p>
+      {showUserCard ? <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-dune-amber/15 text-sm font-bold text-dune-amber">{user?.name?.charAt(0)?.toUpperCase() || "S"}</span>
+        <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-white">{user?.name || "Staff"}</span><span className="block truncate text-[0.65rem] capitalize text-neutral-500">{user?.role || "Staff"}</span></span>
+        <button type="button" onClick={onLogout} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-neutral-500 transition-colors hover:bg-red-500/10 hover:text-red-300" aria-label="Log out"><LogOut className="h-4 w-4" /></button>
+      </div> : <p className="mt-4 px-3 text-[0.65rem] leading-5 text-neutral-600">
+          © {new Date().getFullYear()} DUNE &amp; GRILLS
+          <br />All rights reserved.
+        </p>}
     </div>
   </div>
 );
@@ -199,6 +206,10 @@ const AdminShell = ({
   orderAlertsEnabled = true,
   onEnableOrderAlerts,
   onToggleOrderAlerts,
+  showGlobalSearch = true,
+  showOrderControls = true,
+  showPageHeading = true,
+  showSidebarUserCard = false,
   children,
 }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -227,6 +238,9 @@ const AdminShell = ({
           orderBadge={dashboard?.stats?.openOrders || 0}
           onNavigateAway={onNavigateAway}
           userRole={user?.role}
+          user={user}
+          onLogout={onLogout}
+          showUserCard={showSidebarUserCard}
         />
       </aside>
 
@@ -246,6 +260,9 @@ const AdminShell = ({
               onClose={() => setMobileOpen(false)}
               onNavigateAway={onNavigateAway}
               userRole={user?.role}
+              user={user}
+              onLogout={onLogout}
+              showUserCard={showSidebarUserCard}
             />
           </aside>
         </div>
@@ -263,7 +280,7 @@ const AdminShell = ({
               <MenuIcon className="h-5 w-5" />
             </button>
 
-            <div className="relative min-w-0 flex-1 sm:max-w-md">
+            {showGlobalSearch ? <div className="relative min-w-0 flex-1 sm:max-w-md">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
               <input
                 type="search"
@@ -279,10 +296,10 @@ const AdminShell = ({
                 query={searchQuery}
                 onSelect={selectSearchResult}
               />
-            </div>
+            </div> : <div className="min-w-0 flex-1" />}
 
             <div className="ml-auto flex items-center gap-1 sm:gap-2">
-              <div className="hidden rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-400 xl:block">
+              {showOrderControls && <><div className="hidden rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-400 xl:block">
                 Live data · {new Date().toLocaleDateString("en-SA", { month: "short", day: "numeric", year: "numeric" })}
               </div>
               <button
@@ -315,6 +332,7 @@ const AdminShell = ({
               >
                 {orderAlertsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
               </button>
+              </>}
             </div>
 
             <div ref={profileRef} className="relative">
@@ -365,12 +383,12 @@ const AdminShell = ({
 
         <main className="px-4 py-5 sm:px-6 sm:py-6 xl:px-8">
           <div className="mx-auto max-w-[1600px]">
-            <div className="mb-5">
+            {showPageHeading && <div className="mb-5">
               <h1 className="font-body text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                 {title}
               </h1>
               <p className="mt-1 text-sm text-neutral-500">{subtitle}</p>
-            </div>
+            </div>}
             {children}
           </div>
         </main>

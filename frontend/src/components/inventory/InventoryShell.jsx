@@ -27,6 +27,7 @@ import {
   ChefHat,
   Trash2,
   ListChecks,
+  Lightbulb,
   ShoppingCart,
   X,
 } from "lucide-react";
@@ -52,6 +53,7 @@ const navigation = [
   ["Low Stock Alerts", "/inventory/low-stock-alerts", BellRing],
   ["Reports", "/inventory/reports", BarChart3],
   ["Settings", "/inventory/settings", Settings, ["admin", "manager"]],
+  ["Tips & Tricks", "/tips-and-tricks", Lightbulb],
 ];
 
 export default function InventoryShell({ children }) {
