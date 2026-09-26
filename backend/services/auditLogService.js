@@ -3,7 +3,7 @@ import User from "../models/User.js";
 
 const sessionOptions = (session) => (session ? { session } : {});
 
-const SENSITIVE_KEY = /(password|token|cookie|secret|credential|authorization|trackingTokenHash)/i;
+const SENSITIVE_KEY = /(password|pinHash|pinLookup|\bpin\b|token|cookie|secret|credential|authorization|trackingTokenHash)/i;
 
 const sanitizeValue = (value, depth = 0) => {
   if (depth > 8 || value == null) return value ?? null;

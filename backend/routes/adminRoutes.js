@@ -6,7 +6,7 @@ import {
 } from "../controllers/adminController.js";
 import { protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
-import { createStaff, listStaff, resetStaffPassword, setStaffActive, updateStaff } from "../controllers/staffController.js";
+import { createStaff, listStaff, resetStaffPassword, resetStaffPin, setStaffActive, updateStaff } from "../controllers/staffController.js";
 import { getAdminAnalytics } from "../controllers/adminAnalyticsController.js";
 import { listAuditLogs } from "../controllers/auditController.js";
 import {
@@ -29,6 +29,7 @@ router.post("/staff", requireCapability(CAPABILITIES.STAFF_MANAGE), createStaff)
 router.patch("/staff/:id", requireCapability(CAPABILITIES.STAFF_MANAGE), updateStaff);
 router.post("/staff/:id/active", requireCapability(CAPABILITIES.STAFF_MANAGE), setStaffActive);
 router.post("/staff/:id/reset-password", requireCapability(CAPABILITIES.STAFF_MANAGE), resetStaffPassword);
+router.post("/staff/:id/reset-pin", requireCapability(CAPABILITIES.STAFF_MANAGE), resetStaffPin);
 router.use(requireCapability(CAPABILITIES.ADMIN_DASHBOARD));
 router.get("/dashboard", getDashboard);
 router.get("/analytics", getAdminAnalytics);

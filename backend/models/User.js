@@ -81,6 +81,13 @@ const userSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true, index: true },
     sessionVersion: { type: Number, default: 0, min: 0, select: false },
     deactivatedAt: { type: Date, default: null },
+    employeeId: { type: String, trim: true, uppercase: true, maxlength: 30 },
+    joiningDate: { type: Date, default: null },
+    attendanceEnabled: { type: Boolean, default: false, index: true },
+    attendanceEnabledAt: { type: Date, default: null },
+    pinHash: { type: String, select: false },
+    pinLookup: { type: String, select: false },
+    defaultShift: { type: mongoose.Schema.Types.ObjectId, ref: "Shift", default: null },
     phone: { type: String, default: "" },
     address: { type: String, default: "" },
     bio: { type: String, default: "", trim: true, maxlength: 240 },
@@ -102,6 +109,9 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+userSchema.index({ employeeId: 1 }, { unique: true, partialFilterExpression: { employeeId: { $type: "string" } } });
+userSchema.index({ pinLookup: 1 }, { unique: true, partialFilterExpression: { pinLookup: { $type: "string" } } });
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();

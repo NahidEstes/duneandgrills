@@ -430,6 +430,27 @@ export const resetStaffAccountPassword = async (id, password) => {
   return data;
 };
 
+export const resetStaffAttendancePin = async (id, pin) => {
+  const { data } = await api.post(`/admin/staff/${id}/reset-pin`, { pin });
+  return data;
+};
+
+// ---- Staff attendance and time clock ----
+export const identifyStaffClock = async (pin) => (await api.post("/attendance/clock/identify", { pin })).data.data;
+export const clockInStaff = async (clockToken) => (await api.post("/attendance/clock/in", { clockToken })).data.data;
+export const clockOutStaff = async (clockToken) => (await api.post("/attendance/clock/out", { clockToken })).data.data;
+export const fetchAttendance = async (params = {}) => (await api.get("/attendance/records", { params })).data;
+export const fetchAttendanceDetails = async (id) => (await api.get(`/attendance/records/${id}`)).data.data;
+export const correctAttendance = async (id, payload) => (await api.patch(`/attendance/records/${id}`, payload)).data.data;
+export const fetchMonthlyAttendance = async (params = {}) => (await api.get("/attendance/reports/monthly", { params })).data;
+export const fetchShifts = async (includeInactive = false) => (await api.get("/attendance/shifts", { params: { includeInactive } })).data.data;
+export const createShift = async (payload) => (await api.post("/attendance/shifts", payload)).data.data;
+export const updateShift = async (id, payload) => (await api.patch(`/attendance/shifts/${id}`, payload)).data.data;
+export const archiveShift = async (id) => (await api.post(`/attendance/shifts/${id}/archive`)).data;
+export const fetchLeaves = async (params = {}) => (await api.get("/attendance/leave", { params })).data.data;
+export const createLeave = async (payload) => (await api.post("/attendance/leave", payload)).data.data;
+export const updateLeave = async (id, payload) => (await api.patch(`/attendance/leave/${id}`, payload)).data.data;
+
 export const fetchAdminCustomers = async (params = {}) => {
   const { data } = await api.get("/admin/customers", { params });
   return data;

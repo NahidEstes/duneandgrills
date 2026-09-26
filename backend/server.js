@@ -24,6 +24,7 @@ import posRoutes from "./routes/posRoutes.js";
 import kitchenRoutes from "./routes/kitchenRoutes.js";
 import restaurantSettingsRoutes from "./routes/restaurantSettingsRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
+import attendanceRoutes from "./routes/attendanceRoutes.js";
 import { csrfProtection, requestCorrelation, securityHeaders } from "./middleware/security.js";
 import { verifyTransactionCapability } from "./services/inventoryStockService.js";
 
@@ -95,6 +96,7 @@ app.use("/api/pos", posRoutes);
 app.use("/api/kitchen", kitchenRoutes);
 app.use("/api/settings", restaurantSettingsRoutes);
 app.use("/api/expenses", expenseRoutes);
+app.use("/api/attendance", attendanceRoutes);
 
 app.get("/api/health", (req, res) => {
   res

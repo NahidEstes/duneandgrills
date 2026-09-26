@@ -28,6 +28,7 @@
     "test:phase3a": "node tests/phase3aIntegration.js",
     "test:phase3b": "node --test tests/phase3bReorder.test.js && node tests/phase3bIntegration.js",
     "test:auth-security": "node tests/authSecurityIntegration.js",
+    "test:attendance": "node --test tests/attendanceService.test.js",
     "seed:expense-categories": "node data/seedExpenseCategories.js",
     "seed:inventory": "node data/seedInventory.js"
   },

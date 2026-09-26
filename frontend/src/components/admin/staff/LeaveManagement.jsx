@@ -1,0 +1,44 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Check, LoaderCircle, Pencil, Plane, Plus, X } from "lucide-react";
+import { toast } from "sonner";
+import { createLeave, fetchLeaves, fetchStaffAccounts, updateLeave } from "@/src/api/api.js";
+import { useAuth } from "@/src/context/AuthContext.jsx";
+import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+import { inputClass, panelClass, StaffDialog, todayRiyadh } from "./staffUi.jsx";
+
+const TYPES = [{ value: "annual", label: "Annual Leave" }, { value: "sick", label: "Sick Leave" }, { value: "emergency", label: "Emergency Leave" }, { value: "day_off", label: "Day Off" }, { value: "other", label: "Other" }];
+const EMPTY = { staff: "", type: "annual", startDate: todayRiyadh(), endDate: todayRiyadh(), reason: "", status: "pending" };
+const tone = { pending: "bg-amber-500/10 text-amber-300", approved: "bg-emerald-500/10 text-emerald-300", rejected: "bg-red-500/10 text-red-300" };
+
+export default function LeaveManagement() {
+  const { user } = useAuth();
+  const canManage = user?.role === "admin";
+  const [rows, setRows] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [filters, setFilters] = useState({ status: "all", staff: "all" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(EMPTY);
+  const load = useCallback(async () => { setLoading(true); try { const [leaveRows, people] = await Promise.all([fetchLeaves(filters), fetchStaffAccounts()]); setRows(leaveRows); setStaff(people); } catch (error) { toast.error(error.response?.data?.message || "Unable to load leave records."); } finally { setLoading(false); } }, [filters]);
+  useEffect(() => { load(); }, [load]);
+
+  const openCreate = () => { setEditing({ create: true }); setForm({ ...EMPTY, staff: staff[0]?._id || "" }); };
+  const openEdit = (row) => { setEditing(row); setForm({ staff: row.staff?._id || "", type: row.type, startDate: row.startDate, endDate: row.endDate, reason: row.reason || "", status: row.status }); };
+  const save = async (event) => {
+    event.preventDefault(); setSaving(true);
+    try { if (editing.create) await createLeave(form); else await updateLeave(editing._id, form); toast.success(editing.create ? "Leave record created." : "Leave record updated."); setEditing(null); await load(); }
+    catch (error) { toast.error(error.response?.data?.message || "Unable to save leave record."); }
+    finally { setSaving(false); }
+  };
+  const setStatus = async (row, status) => { try { await updateLeave(row._id, { status }); toast.success(`Leave ${status}.`); await load(); } catch (error) { toast.error(error.response?.data?.message || "Unable to update leave status."); } };
+
+  return <div className="space-y-4"><div className={`${panelClass} flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between`}><div><h2 className="font-semibold text-white">Staff Leave</h2><p className="mt-1 text-sm text-neutral-500">Approved leave automatically replaces absence for covered dates.</p></div><div className="flex flex-col gap-2 sm:flex-row"><DarkSelect value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} className={`${inputClass} sm:w-44`}><option value="all">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></DarkSelect><DarkSelect value={filters.staff} onChange={(event) => setFilters({ ...filters, staff: event.target.value })} className={`${inputClass} sm:w-52`}><option value="all">All employees</option>{staff.map((person) => <option key={person._id} value={person._id}>{person.name}</option>)}</DarkSelect>{canManage && <button type="button" onClick={openCreate} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-dune-amber px-4 text-sm font-semibold text-black"><Plus className="h-4 w-4" />Add leave</button>}</div></div>
+    <div className={`${panelClass} overflow-hidden`}><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="border-b border-white/[0.07] text-xs text-neutral-500"><tr><th className="px-4 py-3">Staff</th><th className="px-3 py-3">Type</th><th className="px-3 py-3">Dates</th><th className="px-3 py-3">Reason</th><th className="px-3 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-white/[0.055]">{rows.map((row) => <tr key={row._id} className="hover:bg-white/[0.025]"><td className="px-4 py-3"><span className="font-medium text-white">{row.staff?.name}</span><span className="block text-xs text-neutral-500">{row.staff?.employeeId || row.staff?.role}</span></td><td className="px-3 py-3 text-neutral-300">{TYPES.find((type) => type.value === row.type)?.label || row.type}</td><td className="px-3 py-3 tabular-nums text-neutral-300">{row.startDate}{row.endDate !== row.startDate ? ` → ${row.endDate}` : ""}</td><td className="max-w-xs truncate px-3 py-3 text-neutral-400">{row.reason || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2.5 py-1 text-xs capitalize ${tone[row.status]}`}>{row.status}</span></td><td className="px-4 py-3"><div className="flex justify-end gap-1">{canManage && <><button type="button" onClick={() => openEdit(row)} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white" aria-label={`Edit leave for ${row.staff?.name}`}><Pencil className="h-4 w-4" /></button>{row.status === "pending" && <><button type="button" onClick={() => setStatus(row, "approved")} className="rounded-lg p-2 text-emerald-400 hover:bg-emerald-500/10" aria-label="Approve leave"><Check className="h-4 w-4" /></button><button type="button" onClick={() => setStatus(row, "rejected")} className="rounded-lg p-2 text-red-400 hover:bg-red-500/10" aria-label="Reject leave"><X className="h-4 w-4" /></button></>}</>}</div></td></tr>)}</tbody></table></div>{loading && <div className="grid min-h-48 place-items-center"><LoaderCircle className="h-6 w-6 animate-spin text-dune-amber" /></div>}{!loading && !rows.length && <div className="grid min-h-48 place-items-center text-center"><div><Plane className="mx-auto h-8 w-8 text-neutral-700" /><p className="mt-3 text-sm text-neutral-500">No leave records match these filters.</p></div></div>}</div>
+
+    <StaffDialog open={Boolean(editing)} onClose={() => setEditing(null)} title={editing?.create ? "Add leave record" : "Edit leave record"}><form onSubmit={save} className="grid gap-4 sm:grid-cols-2"><label className="text-sm text-neutral-300">Staff member<DarkSelect required value={form.staff} onChange={(event) => setForm({ ...form, staff: event.target.value })} className={`${inputClass} mt-2`}><option value="">Choose staff</option>{staff.filter((person) => person.isActive !== false).map((person) => <option key={person._id} value={person._id}>{person.name} · {person.employeeId || person.role}</option>)}</DarkSelect></label><label className="text-sm text-neutral-300">Leave type<DarkSelect value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })} className={`${inputClass} mt-2`}>{TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</DarkSelect></label><label className="text-sm text-neutral-300">Start date<DarkDatePicker required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value, ...(form.endDate < event.target.value ? { endDate: event.target.value } : {}) })} className={`${inputClass} mt-2`} /></label><label className="text-sm text-neutral-300">End date<DarkDatePicker required min={form.startDate} value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} className={`${inputClass} mt-2`} /></label><label className="text-sm text-neutral-300">Status<DarkSelect value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className={`${inputClass} mt-2`}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></DarkSelect></label><label className="col-span-full text-sm text-neutral-300">Reason<textarea value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} className="mt-2 min-h-24 w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none focus:border-dune-amber/60" /></label><button disabled={saving} className="col-span-full flex h-11 items-center justify-center gap-2 rounded-xl bg-dune-amber font-semibold text-black disabled:opacity-50">{saving && <LoaderCircle className="h-4 w-4 animate-spin" />}{editing?.create ? "Create leave" : "Save leave"}</button></form></StaffDialog>
+  </div>;
+}

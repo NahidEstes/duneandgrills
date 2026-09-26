@@ -53,7 +53,7 @@ const NAV_ITEMS = [
   { id: "reviews", label: "Reviews", icon: Star, roles: ["admin", "manager"] },
   { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "manager"] },
   { id: "audit", label: "Audit Log", icon: ShieldCheck, roles: ["admin", "manager"] },
-  { id: "staff", label: "Staff", icon: UserRoundCog, roles: ["admin", "manager"] },
+  { id: "staff", label: "Staff", icon: UserRoundCog, href: "/admin/staff", roles: ["admin", "manager"] },
   { id: "settings", label: "Settings", icon: Settings, roles: ["admin", "manager"] },
   { id: "tips", label: "Tips & Tricks", icon: Lightbulb, href: "/tips-and-tricks", roles: KNOWLEDGE_BASE_ROLES },
 ];
