@@ -11,6 +11,8 @@ import VisitUs from "./VisitUs.jsx";
 import LandingFooter from "./LandingFooter.jsx";
 import CartDrawer from "./CartDrawer.jsx";
 
+const SHOW_CONTACT_SECTION = false;
+
 const HomePageClient = ({
   initialMenuItems = [],
   initialCombos = [],
@@ -33,7 +35,7 @@ const HomePageClient = ({
           onCartOpen={() => setCartOpen(true)}
         />
         <About />
-        <Contact settings={restaurantSettings} />
+        {SHOW_CONTACT_SECTION && <Contact settings={restaurantSettings} />}
         <VisitUs settings={restaurantSettings} />
       </main>
       <LandingFooter />
