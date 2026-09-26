@@ -7,6 +7,13 @@ import {
   toPublicRestaurantSettings,
 } from "../services/restaurantSettingsService.js";
 
+test("restaurant settings defaults use the configured Riyadh weekly schedule", () => {
+  const defaults = getRestaurantSettingsDefaults();
+  assert.equal(defaults.timezone, "Asia/Riyadh");
+  assert.deepEqual(defaults.openingHours.find((day) => day.day === "saturday").periods[0], { open: "11:00", close: "23:00" });
+  assert.deepEqual(defaults.openingHours.find((day) => day.day === "friday").periods[0], { open: "13:00", close: "23:00" });
+});
+
 test("restaurant settings accept overnight hours and normalize numbers", () => {
   const defaults = getRestaurantSettingsDefaults();
   const openingHours = defaults.openingHours.map((day) => day.day === "friday"

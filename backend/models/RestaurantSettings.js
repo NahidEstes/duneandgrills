@@ -49,7 +49,7 @@ const restaurantSettingsSchema = new mongoose.Schema(
       default: () => RESTAURANT_DAYS.map((day) => ({
         day,
         isOpen: true,
-        periods: [{ open: "11:00", close: "23:00" }],
+        periods: [{ open: day === "friday" ? "13:00" : "11:00", close: "23:00" }],
       })),
     },
     orders: {

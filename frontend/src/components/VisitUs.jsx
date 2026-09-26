@@ -1,45 +1,22 @@
 import { ArrowUpRight, Clock3, MapPin, Navigation } from "lucide-react";
+import { buildMapEmbedUrl, groupOpeningHours } from "../utils/visitUs.js";
 
 const FALLBACK_DIRECTIONS_URL = "https://maps.app.goo.gl/fB8oDz42G7eb1JLs6";
 
-const DAY_LABELS = { sunday: "Sun", monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat" };
-
-const displayTime = (value = "") => {
-  const [hours, minutes] = value.split(":").map(Number);
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return value;
-  return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
-};
-
-const scheduleLabel = (day) => !day.isOpen
-  ? "Closed"
-  : (day.periods || []).map((period) => `${displayTime(period.open)} – ${displayTime(period.close)}`).join(" · ");
-
-const MapPlaceholder = ({ directionsUrl, locationLabel }) => (
-  <div
-    role="img"
-    aria-label={`Map placeholder showing Dune and Grills in ${locationLabel}`}
-    className="relative min-h-[320px] overflow-hidden rounded-2xl border border-white/10 bg-[#101b22] sm:min-h-[380px]"
-  >
-    <div
-      aria-hidden="true"
-      className="absolute inset-0 opacity-70"
-      style={{
-        backgroundImage:
-          "linear-gradient(28deg, transparent 45%, rgba(148,163,184,.18) 46%, rgba(148,163,184,.18) 48%, transparent 49%), linear-gradient(118deg, transparent 43%, rgba(148,163,184,.12) 44%, rgba(148,163,184,.12) 46%, transparent 47%), repeating-linear-gradient(0deg, transparent 0 48px, rgba(148,163,184,.08) 49px 51px), repeating-linear-gradient(90deg, transparent 0 68px, rgba(148,163,184,.08) 69px 71px)",
-      }}
+const MapEmbed = ({ src, locationLabel }) => src ? (
+  <div className="relative min-h-[320px] overflow-hidden rounded-2xl border border-white/10 bg-neutral-100 shadow-2xl shadow-black/30 sm:min-h-[400px] lg:min-h-[480px]">
+    <iframe
+      src={src}
+      title={`Map showing Dune and Grills in ${locationLabel}`}
+      className="absolute inset-0 h-full w-full border-0"
+      loading="lazy"
+      referrerPolicy="no-referrer-when-downgrade"
+      allowFullScreen
     />
-    <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0,rgba(5,10,13,.14)_45%,rgba(5,10,13,.72)_100%)]" />
-    {directionsUrl ? <a href={directionsUrl} target="_blank" rel="noopener noreferrer" className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center" aria-label="Get directions to Dune and Grills">
-      <span className="grid h-16 w-16 place-items-center rounded-full border border-dune-amber/50 bg-black/75 text-dune-amber shadow-amberGlow transition-transform hover:scale-105">
-        <MapPin className="h-8 w-8 fill-dune-amber/20" />
-      </span>
-      <span className="mt-3 rounded-full border border-white/10 bg-black/75 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
-        Dune &amp; Grills
-      </span>
-    </a> : <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center"><span className="grid h-16 w-16 place-items-center rounded-full border border-dune-amber/30 bg-black/75 text-dune-amber"><MapPin className="h-8 w-8 fill-dune-amber/20" /></span><span className="mt-3 rounded-full border border-white/10 bg-black/75 px-4 py-2 text-sm font-semibold text-white">Dune &amp; Grills</span></div>}
-    <span className="absolute bottom-4 left-4 rounded-lg border border-white/10 bg-black/70 px-3 py-2 text-xs text-neutral-300 backdrop-blur-sm">
-      {locationLabel}
-    </span>
+  </div>
+) : (
+  <div className="grid min-h-[320px] place-items-center rounded-2xl border border-white/10 bg-white/[0.03] text-center text-sm text-neutral-500 sm:min-h-[400px] lg:min-h-[480px]">
+    Map location is not configured.
   </div>
 );
 
@@ -51,6 +28,9 @@ export default function VisitUs({ settings }) {
   const directionsUrl = settings ? location.directionsUrl : FALLBACK_DIRECTIONS_URL;
   const locationLabel = [address, city, country].filter(Boolean).join(", ");
   const openingHours = settings?.openingHours || [];
+  const groupedOpeningHours = groupOpeningHours(openingHours);
+  const timezone = settings?.timezone || "Asia/Riyadh";
+  const mapEmbedUrl = buildMapEmbedUrl({ address, city, country });
   return (
     <section id="visit" aria-labelledby="visit-heading" className="relative overflow-hidden border-t border-white/[0.06] bg-[#050807] py-20 md:py-28">
       <div aria-hidden="true" className="absolute left-0 top-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-dune-amber/[0.06] blur-3xl" />
@@ -71,7 +51,10 @@ export default function VisitUs({ settings }) {
             </div>}
             <div className="flex items-start gap-4">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-dune-amber/35 bg-dune-amber/10 text-dune-amber"><Clock3 className="h-5 w-5" /></span>
-              <div className="min-w-0 flex-1"><p className="text-sm text-neutral-500">Opening hours · Asia/Riyadh</p>{openingHours.length ? <dl className="mt-2 grid max-w-md gap-x-5 gap-y-1 text-sm sm:grid-cols-2">{openingHours.map((day) => <div key={day.day} className="flex justify-between gap-4"><dt className="text-neutral-500">{DAY_LABELS[day.day] || day.day}</dt><dd className={day.isOpen ? "text-white" : "text-neutral-600"}>{scheduleLabel(day)}</dd></div>)}</dl> : <p className="mt-1 font-medium text-white">Open daily · 11:00 AM – 11:00 PM</p>}</div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-neutral-500">Opening hours · {timezone}</p>
+                {groupedOpeningHours.length ? <dl className="mt-3 max-w-md space-y-2 text-sm">{groupedOpeningHours.map((group) => <div key={group.days.join("-")} className="grid grid-cols-[5.5rem_1fr] gap-4"><dt className="text-neutral-400">{group.label}</dt><dd className={group.isOpen ? "text-white" : "text-neutral-600"}>{group.schedule}</dd></div>)}</dl> : <p className="mt-2 text-sm text-neutral-500">Opening hours are currently unavailable.</p>}
+              </div>
             </div>
           </div>
 
@@ -79,7 +62,7 @@ export default function VisitUs({ settings }) {
             <Navigation className="h-4 w-4" /> Get Directions <ArrowUpRight className="h-4 w-4" />
           </a>}
         </div>
-        <MapPlaceholder directionsUrl={directionsUrl} locationLabel={locationLabel || "Riyadh"} />
+        <MapEmbed src={mapEmbedUrl} locationLabel={locationLabel || "Riyadh"} />
       </div>
     </section>
   );
