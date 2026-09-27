@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { DEFAULT_ORDER_TYPE, ORDER_TYPES } from "../config/orders.js";
-import { PAYMENT_METHODS, PAYMENT_STATUSES, SALES_SOURCES } from "../config/sales.js";
+import { DELIVERY_PROVIDERS, PAYMENT_METHODS, PAYMENT_STATUSES, SALES_SOURCES } from "../config/sales.js";
 import { MAX_ITEM_NOTE_LENGTH, SPICE_LEVELS } from "../config/menuCustomization.js";
 
 const orderItemSchema = new mongoose.Schema(
@@ -96,6 +96,15 @@ const orderSchema = new mongoose.Schema(
     source: { type: String, enum: SALES_SOURCES, default: "website", index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     idempotencyKey: { type: String, trim: true, default: undefined },
+    manualEntry: { type: Boolean, default: false, immutable: true, index: true },
+    deliveryProvider: { type: String, enum: DELIVERY_PROVIDERS, default: undefined, immutable: true },
+    externalOrderId: { type: String, trim: true, uppercase: true, maxlength: 100, default: undefined, immutable: true },
+    orderOccurredAt: { type: Date, default: null, immutable: true, index: true },
+    branch: { type: String, trim: true, maxlength: 160, default: "" },
+    deliveryPaymentType: { type: String, enum: ["", "aggregator_prepaid"], default: "" },
+    platformTotal: { type: Number, min: 0, default: null },
+    totalDifference: { type: Number, default: 0 },
+    differenceReason: { type: String, trim: true, maxlength: 300, default: "" },
     customer: {
       name: { type: String, required: true },
       phone: { type: String, required: true },
@@ -245,6 +254,17 @@ orderSchema.index({ preparationDueAt: 1, status: 1 });
 orderSchema.index({ status: 1, readyAt: 1, createdAt: 1 });
 orderSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 orderSchema.index({ trackingTokenHash: 1 }, { sparse: true });
+orderSchema.index(
+  { deliveryProvider: 1, externalOrderId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      manualEntry: true,
+      deliveryProvider: { $type: "string" },
+      externalOrderId: { $type: "string" },
+    },
+  }
+);
 
 const Order = mongoose.model("Order", orderSchema);
 

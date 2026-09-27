@@ -39,13 +39,13 @@ const STATUS_LABELS = {
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const EDITABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter((status) => status !== "refunded");
 const FILTER_TABS = ["all", ...STATUS_OPTIONS];
-const SOURCE_OPTIONS = ["all", "website", "pos", "phone", "jahez", "hungerstation"];
+const SOURCE_OPTIONS = ["all", "website", "pos", "phone", "jahez", "keeta", "hungerstation", "ninja"];
 const ORDER_TYPE_OPTIONS = ["all", "dine-in", "pickup", "takeaway", "delivery"];
 const PAYMENT_OPTIONS = ["all", "cash", "card", "other", "unrecorded"];
 
 const needsReason = (status) => status === "cancelled";
 
-const labelSource = (value = "website") => value === "pos" ? "POS / Counter" : value.charAt(0).toUpperCase() + value.slice(1);
+const labelSource = (value = "website") => value === "pos" ? "POS / Counter" : value === "hungerstation" ? "HungerStation" : value.charAt(0).toUpperCase() + value.slice(1);
 
 const StatusBadge = ({ status }) => (
   <span
@@ -156,16 +156,18 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
               ORDER #{order.orderNumber}
             </h2>
             <p className="text-xs text-neutral-500 mt-1">
-              {new Date(order.createdAt).toLocaleDateString(undefined, {
+              {order.manualEntry ? "Original order: " : ""}
+              {new Date(order.orderOccurredAt || order.createdAt).toLocaleDateString(undefined, {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
               })}{" "}
               at{" "}
-              {new Date(order.createdAt).toLocaleTimeString(undefined, {
+              {new Date(order.orderOccurredAt || order.createdAt).toLocaleTimeString(undefined, {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
+              {order.manualEntry && <span className="mt-1 block">Entered in system: {new Date(order.createdAt).toLocaleString()}</span>}
             </p>
           </div>
           <button
@@ -218,7 +220,8 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
             {formatOrderType(order.orderType)}
           </p>
           <p className="mt-1 text-xs text-neutral-500">
-            {labelSource(order.source)} · {order.paymentMethod === "unrecorded" || !order.paymentMethod ? "Payment not recorded" : `${formatOrderType(order.paymentMethod)} · ${formatOrderType(order.paymentStatus)}`}
+            {labelSource(order.source)} · {order.paymentMethod === "unrecorded" || !order.paymentMethod ? "Payment not recorded" : `${order.deliveryPaymentType === "aggregator_prepaid" ? "Aggregator prepaid" : formatOrderType(order.paymentMethod)} · ${formatOrderType(order.paymentStatus)}`}
+            {order.manualEntry && <span className="mt-1 block text-dune-amber">Manual delivery entry · External ID {order.externalOrderId}</span>}
           </p>
         </div>
 
@@ -507,12 +510,12 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                   </td>
                   <td className="p-4">{order.customer?.name}</td>
                   <td className="p-4 text-neutral-400 text-xs">
-                    {new Date(order.createdAt).toLocaleDateString(undefined, {
+                    {new Date(order.orderOccurredAt || order.createdAt).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
                     })}{" "}
                     ·{" "}
-                    {new Date(order.createdAt).toLocaleTimeString(undefined, {
+                    {new Date(order.orderOccurredAt || order.createdAt).toLocaleTimeString(undefined, {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
@@ -521,7 +524,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                   <td className="p-4 text-xs text-neutral-300">
                     {formatOrderType(order.orderType)}
                   </td>
-                  <td className="p-4 text-xs text-neutral-300">{labelSource(order.source)}</td>
+                  <td className="p-4 text-xs text-neutral-300"><span>{labelSource(order.source)}</span>{order.manualEntry && <span className="mt-1 block text-[0.65rem] text-dune-amber">Manual · {order.externalOrderId}</span>}</td>
                   <td className="p-4 text-xs text-neutral-300">{order.paymentMethod && order.paymentMethod !== "unrecorded" ? formatOrderType(order.paymentMethod) : "—"}</td>
                   <td className="p-4 text-dune-amber font-medium">
                     {formatAdminCurrency(order.totalAmount)}

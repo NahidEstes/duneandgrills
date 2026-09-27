@@ -51,16 +51,19 @@ const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
 const addDateFilter = (filter, query) => {
   if (!query.from && !query.to) return;
-  filter.createdAt = {};
+  const conditions = [];
   if (query.from) {
-    filter.createdAt.$gte = parseRiyadhDate(query.from, "From date");
+    conditions.push({ $gte: [{ $ifNull: ["$orderOccurredAt", "$createdAt"] }, parseRiyadhDate(query.from, "From date")] });
   }
   if (query.to) {
-    filter.createdAt.$lt = new Date(parseRiyadhDate(query.to, "To date").getTime() + ADMIN_DAY_MS);
+    conditions.push({ $lt: [{ $ifNull: ["$orderOccurredAt", "$createdAt"] }, new Date(parseRiyadhDate(query.to, "To date").getTime() + ADMIN_DAY_MS)] });
   }
-  if (filter.createdAt.$gte && filter.createdAt.$lt && filter.createdAt.$gte >= filter.createdAt.$lt) {
+  const lower = query.from ? parseRiyadhDate(query.from, "From date") : null;
+  const upper = query.to ? new Date(parseRiyadhDate(query.to, "To date").getTime() + ADMIN_DAY_MS) : null;
+  if (lower && upper && lower >= upper) {
     throw new ValidationError("From date must be before or equal to To date");
   }
+  filter.$expr = conditions.length === 1 ? conditions[0] : { $and: conditions };
 };
 
 const buildOrderFilter = (query, { includeStatus = true } = {}) => {
@@ -75,7 +78,7 @@ const buildOrderFilter = (query, { includeStatus = true } = {}) => {
   addDateFilter(filter, query);
   if (query.search?.trim()) {
     const value = new RegExp(escapeRegex(query.search.trim()), "i");
-    const searchFilter = [{ orderNumber: value }, { "customer.name": value }, { "customer.phone": value }, { "customer.email": value }];
+    const searchFilter = [{ orderNumber: value }, { externalOrderId: value }, { "customer.name": value }, { "customer.phone": value }, { "customer.email": value }];
     if (filter.$or) {
       filter.$and = [{ $or: filter.$or }, { $or: searchFilter }];
       delete filter.$or;
@@ -437,7 +440,7 @@ export const getOrderStats = async (req, res) => {
       .filter(countsAsGrossRevenue)
       .reduce((sum, o) => sum + o.totalAmount, 0);
 
-    const todayOrders = allOrders.filter((o) => o.createdAt >= startOfToday);
+    const todayOrders = allOrders.filter((o) => new Date(o.orderOccurredAt || o.createdAt) >= startOfToday);
     const todayGrossRevenue = todayOrders
       .filter(countsAsGrossRevenue)
       .reduce((sum, o) => sum + o.totalAmount, 0);

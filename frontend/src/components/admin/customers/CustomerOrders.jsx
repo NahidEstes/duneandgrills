@@ -12,7 +12,7 @@ import { formatAdminCurrency, formatAdminDate, labelStatus } from "../adminUi.js
 import { customerCardClass, customerInputClass, EmptySection, Pagination, SectionLoading, StatusPill } from "./customerUi.jsx";
 
 const STATUSES = ["all", "pending", "confirmed", "preparing", "ready", "out-for-delivery", "delivered", "cancelled", "refunded", "failed"];
-const SOURCES = ["all", "website", "pos", "phone", "jahez", "hungerstation"];
+const SOURCES = ["all", "website", "pos", "phone", "jahez", "keeta", "hungerstation", "ninja"];
 const sourceLabel = (value = "website") => value === "pos" ? "POS / Counter" : labelStatus(value);
 
 export default function CustomerOrders({ customerId, onChanged }) {

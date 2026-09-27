@@ -296,6 +296,15 @@ export const completePosSale = async (payload) => {
   return data;
 };
 
+// ---- Historical delivery platform entry ----
+export const fetchDeliveryEntryConfig = async () => (await api.get("/delivery-orders/config")).data.data;
+export const checkDeliveryOrderDuplicate = async (provider, externalOrderId) => (await api.get("/delivery-orders/duplicate-check", { params: { provider, externalOrderId } })).data;
+export const createDeliveryOrderEntry = async (payload) => {
+  const { data } = await api.post("/delivery-orders/orders", payload);
+  await refreshAfterMutation("orders");
+  return data.data;
+};
+
 export const fetchPosShiftConfig = async () => (await api.get("/pos/shift-config")).data.data;
 export const fetchCurrentPosShift = async (terminal = "MAIN") => (await api.get("/pos/shifts/current", { params: { terminal } })).data;
 export const openPosShift = async (payload) => (await api.post("/pos/shifts/open", payload)).data.data;

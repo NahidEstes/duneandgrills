@@ -5,7 +5,7 @@ import { Field, SettingsCard, Toggle, settingsInputClass } from "./settingsUi.js
 
 const CHANNELS = [
   ["website", "Website"], ["pos", "POS / Counter"], ["phone", "Phone"],
-  ["jahez", "Jahez"], ["hungerstation", "HungerStation"],
+  ["jahez", "Jahez"], ["keeta", "Keeta"], ["hungerstation", "HungerStation"], ["ninja", "Ninja"],
 ];
 
 export function OrdersDeliverySettings({ value, onChange }) {

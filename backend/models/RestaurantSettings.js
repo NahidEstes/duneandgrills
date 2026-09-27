@@ -60,7 +60,9 @@ const restaurantSettingsSchema = new mongoose.Schema(
         pos: { type: Boolean, default: true },
         phone: { type: Boolean, default: true },
         jahez: { type: Boolean, default: true },
+        keeta: { type: Boolean, default: true },
         hungerstation: { type: Boolean, default: true },
+        ninja: { type: Boolean, default: true },
       },
     },
     notifications: {

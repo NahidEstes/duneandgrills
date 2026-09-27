@@ -92,7 +92,7 @@ export const listKitchenOrders = async (
   if (orderType && orderType !== "all" && !ORDER_TYPES.includes(orderType)) throw new ValidationError("Invalid order type");
 
   const readyCutoff = new Date(now.getTime() - readyRetentionMinutes * 60 * 1000);
-  const filters = [{
+  const filters = [{ manualEntry: { $ne: true } }, {
     $or: [
       { status: { $in: ["pending", "confirmed", "preparing"] } },
       {

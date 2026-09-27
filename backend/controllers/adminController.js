@@ -14,6 +14,7 @@ import { NON_REVENUE_ORDER_STATUSES } from "../config/orderStatuses.js";
 import { STAFF_ROLES } from "../config/permissions.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
+const effectiveOrderDateExpression = { $ifNull: ["$orderOccurredAt", "$createdAt"] };
 
 const escapeRegex = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -133,13 +134,13 @@ export const getDashboard = async (req, res) => {
       Order.aggregate([
         {
           $match: {
-            createdAt: { $gte: currentPeriodStart },
             status: { $nin: nonRevenueStatuses },
+            $expr: { $gte: [effectiveOrderDateExpression, currentPeriodStart] },
           },
         },
         {
           $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            _id: { $dateToString: { format: "%Y-%m-%d", date: effectiveOrderDateExpression, timezone: "Asia/Riyadh" } },
             revenue: { $sum: "$totalAmount" },
           },
         },
@@ -170,30 +171,30 @@ export const getDashboard = async (req, res) => {
         },
         { $sort: { count: -1 } },
       ]),
-      Order.countDocuments({ createdAt: { $gte: currentPeriodStart } }),
+      Order.countDocuments({ $expr: { $gte: [effectiveOrderDateExpression, currentPeriodStart] } }),
       Order.countDocuments({
-        createdAt: { $gte: previousPeriodStart, $lt: currentPeriodStart },
+        $expr: { $and: [{ $gte: [effectiveOrderDateExpression, previousPeriodStart] }, { $lt: [effectiveOrderDateExpression, currentPeriodStart] }] },
       }),
       Order.countDocuments({
         status: "delivered",
-        createdAt: { $gte: currentPeriodStart },
+        $expr: { $gte: [effectiveOrderDateExpression, currentPeriodStart] },
       }),
       Order.countDocuments({
         status: "delivered",
-        createdAt: { $gte: previousPeriodStart, $lt: currentPeriodStart },
+        $expr: { $and: [{ $gte: [effectiveOrderDateExpression, previousPeriodStart] }, { $lt: [effectiveOrderDateExpression, currentPeriodStart] }] },
       }),
       Order.aggregate([
         {
           $match: {
-            createdAt: { $gte: previousPeriodStart },
             status: { $nin: nonRevenueStatuses },
+            $expr: { $gte: [effectiveOrderDateExpression, previousPeriodStart] },
           },
         },
         {
           $group: {
             _id: {
               $cond: [
-                { $gte: ["$createdAt", currentPeriodStart] },
+                { $gte: [effectiveOrderDateExpression, currentPeriodStart] },
                 "current",
                 "previous",
               ],

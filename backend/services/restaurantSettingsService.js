@@ -41,7 +41,7 @@ export const getRestaurantSettingsDefaults = () => ({
   orders: {
     deliveryFee: envNumber("DELIVERY_FEE_SAR", DELIVERY_FEE_SAR, 0, 10000),
     minimumDeliveryOrder: envNumber("MINIMUM_DELIVERY_ORDER_SAR", 0, 0, 100000),
-    channels: { website: true, pos: true, phone: true, jahez: true, hungerstation: true },
+    channels: { website: true, pos: true, phone: true, jahez: true, keeta: true, hungerstation: true, ninja: true },
   },
   notifications: {
     adminSoundEnabled: true,

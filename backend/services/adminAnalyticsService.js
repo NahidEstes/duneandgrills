@@ -55,7 +55,7 @@ const buildSeries = (rows, start, days) => {
 
 export const buildAdminAnalytics = async (query = {}) => {
   const range = resolveAnalyticsRange(query);
-  const match = { createdAt: { $gte: range.start, $lt: range.end } };
+  const match = {};
   if (query.source && query.source !== "all") {
     match.source = query.source === "website" ? { $in: ["website", null] } : query.source;
   }
@@ -64,6 +64,8 @@ export const buildAdminAnalytics = async (query = {}) => {
 
   const [result] = await Order.aggregate([
     { $match: match },
+    { $addFields: { analyticsOccurredAt: { $ifNull: ["$orderOccurredAt", "$createdAt"] } } },
+    { $match: { analyticsOccurredAt: { $gte: range.start, $lt: range.end } } },
     {
       $facet: {
         summary: [{
@@ -78,7 +80,7 @@ export const buildAdminAnalytics = async (query = {}) => {
         }],
         series: [
           { $match: { status: { $nin: NON_REVENUE_ORDER_STATUSES } } },
-          { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Asia/Riyadh" } }, orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
+          { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$analyticsOccurredAt", timezone: "Asia/Riyadh" } }, orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
           { $sort: { _id: 1 } },
         ],
         sources: [
