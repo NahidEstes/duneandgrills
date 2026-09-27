@@ -7,6 +7,13 @@ import {
 
 const expenseSchema = new mongoose.Schema(
   {
+    expenseNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      immutable: true,
+      match: /^EXP-\d{4}-\d{6}$/,
+    },
     title: { type: String, required: true, trim: true, maxlength: 160 },
     description: { type: String, default: "", trim: true, maxlength: 600 },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "ExpenseCategory", required: true, index: true },
@@ -34,9 +41,13 @@ const expenseSchema = new mongoose.Schema(
 );
 
 expenseSchema.index({ expenseDate: -1, recordStatus: 1 });
+expenseSchema.index(
+  { expenseNumber: 1 },
+  { unique: true, partialFilterExpression: { expenseNumber: { $type: "string" } } }
+);
 expenseSchema.index({ category: 1, expenseDate: -1 });
 expenseSchema.index({ paymentStatus: 1, dueDate: 1 });
-expenseSchema.index({ title: "text", vendor: "text", referenceNumber: "text" });
+expenseSchema.index({ expenseNumber: "text", title: "text", vendor: "text", referenceNumber: "text" });
 expenseSchema.index(
   { recurringTemplate: 1, recurrencePeriodKey: 1 },
   { unique: true, partialFilterExpression: { recurringTemplate: { $type: "objectId" }, recurrencePeriodKey: { $type: "string" } } }

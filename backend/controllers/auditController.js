@@ -1,4 +1,5 @@
 import AuditLog from "../models/AuditLog.js";
+import Expense from "../models/Expense.js";
 import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
 
@@ -22,11 +23,13 @@ export const listAuditLogs = async (req, res, next) => {
     }
     if (req.query.search?.trim()) {
       const value = new RegExp(escapeRegex(req.query.search.trim()), "i");
+      const expenseIds = await Expense.find({ expenseNumber: value }).select("_id").limit(100).lean();
       filter.$or = [
         { entityLabel: value },
         { action: value },
         { entityType: value },
         { actorName: value },
+        ...(expenseIds.length ? [{ entityType: "Expense", entityId: { $in: expenseIds.map((row) => row._id) } }] : []),
       ];
     }
     const [rows, total, entityTypes, actions] = await Promise.all([
@@ -35,9 +38,18 @@ export const listAuditLogs = async (req, res, next) => {
       AuditLog.distinct("entityType"),
       AuditLog.distinct("action"),
     ]);
+    const expenseEntityIds = rows.filter((row) => row.entityType === "Expense" && row.entityId).map((row) => row.entityId);
+    const expenseNumbers = expenseEntityIds.length
+      ? await Expense.find({ _id: { $in: expenseEntityIds } }).select("expenseNumber").lean()
+      : [];
+    const expenseNumberById = new Map(expenseNumbers.map((row) => [String(row._id), row.expenseNumber]));
+    const enrichedRows = rows.map((row) => ({
+      ...row,
+      expenseNumber: row.entityType === "Expense" ? expenseNumberById.get(String(row.entityId)) || null : undefined,
+    }));
     res.json({
       success: true,
-      data: rows,
+      data: enrichedRows,
       filters: { entityTypes: entityTypes.sort(), actions: actions.sort() },
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });

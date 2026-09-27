@@ -48,7 +48,7 @@ export default function AuditLogView() {
       <div className="flex items-center gap-3 border-b border-white/[0.07] px-4 py-3"><ShieldCheck className="h-4 w-4 text-dune-amber" /><div><h2 className="text-sm font-semibold text-white">Permanent Admin Activity</h2><p className="text-xs text-neutral-600">Old and new values are stored with the actor and timestamp.</p></div>{loading && <RefreshCw className="ml-auto h-4 w-4 animate-spin text-dune-amber" />}</div>
       <div className="divide-y divide-white/[0.06]">{payload.data.map((row) => <article key={row._id}>
         <button type="button" onClick={() => setExpanded((current) => current === row._id ? "" : row._id)} className="grid w-full gap-2 px-4 py-3 text-left hover:bg-white/[0.025] sm:grid-cols-[minmax(180px,1.2fr)_1fr_1fr_auto] sm:items-center">
-          <span><span className="block text-sm font-medium text-white">{row.entityLabel || row.entityType}</span><span className="text-xs text-neutral-600">{row.entityType}</span></span>
+          <span><span className="block text-sm font-medium text-white">{row.entityLabel || row.entityType}</span><span className="text-xs text-neutral-600">{row.expenseNumber ? `${row.entityType} · ${row.expenseNumber}` : row.entityType}</span></span>
           <span><span className="block text-xs text-dune-amber">{labelStatus(row.action.toLowerCase().replaceAll("_", "-"))}</span><span className="text-xs capitalize text-neutral-600">{row.actorName} · {row.actorRole}</span></span>
           <span className="text-xs text-neutral-500">{formatAdminDate(row.createdAt, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
           {expanded === row._id ? <ChevronUp className="h-4 w-4 text-neutral-500" /> : <ChevronDown className="h-4 w-4 text-neutral-500" />}

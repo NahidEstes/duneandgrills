@@ -4,6 +4,7 @@ import RecurringExpense from "../models/RecurringExpense.js";
 import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
 import {
   buildExpenseFilter,
+  createExpenseRecord,
   expenseSummaryAggregation,
   generateDueRecurringExpenses,
   toRiyadhDateKey,
@@ -13,7 +14,7 @@ import {
 import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
 import { assertObjectId, escapeRegex, parsePagination, ValidationError } from "../utils/inventoryValidation.js";
 
-const EXPENSE_AUDIT_FIELDS = ["title", "category", "totalAmount", "vatAmount", "expenseDate", "dueDate", "paymentStatus", "amountPaid", "paymentDate", "paymentMethod", "vendor", "referenceNumber", "branch", "notes", "receiptUrl", "recordStatus"];
+const EXPENSE_AUDIT_FIELDS = ["expenseNumber", "title", "category", "totalAmount", "vatAmount", "expenseDate", "dueDate", "paymentStatus", "amountPaid", "paymentDate", "paymentMethod", "vendor", "referenceNumber", "branch", "notes", "receiptUrl", "recordStatus"];
 const RECURRING_AUDIT_FIELDS = ["title", "category", "defaultAmount", "vatAmount", "frequency", "startDate", "endDate", "nextDueDate", "vendor", "isActive"];
 const CATEGORY_AUDIT_FIELDS = ["name", "description", "color", "isActive"];
 const expensePopulate = [
@@ -24,6 +25,7 @@ const expensePopulate = [
 ];
 
 const cleanText = (value, maximum = 300) => typeof value === "string" ? value.trim().slice(0, maximum) : "";
+const expenseAuditLabel = (expense) => [expense.expenseNumber, expense.title].filter(Boolean).join(" · ");
 
 const parseRange = (query = {}) => {
   if (query.from || query.to) {
@@ -145,8 +147,8 @@ export const getExpense = async (req, res, next) => {
 export const createExpense = async (req, res, next) => {
   try {
     const payload = await validateExpensePayload(req.body);
-    const expense = await Expense.create({ ...payload, createdBy: req.user._id, updatedBy: req.user._id });
-    await recordAuditLog({ actor: req.user, action: "EXPENSE_CREATED", entityType: "Expense", entityId: expense._id, entityLabel: expense.title, after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS) });
+    const expense = await createExpenseRecord({ ...payload, createdBy: req.user._id, updatedBy: req.user._id });
+    await recordAuditLog({ actor: req.user, action: "EXPENSE_CREATED", entityType: "Expense", entityId: expense._id, entityLabel: expenseAuditLabel(expense), after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS) });
     await expense.populate(expensePopulate);
     res.status(201).json({ success: true, data: expense });
   } catch (error) { next(error); }
@@ -162,7 +164,7 @@ export const updateExpense = async (req, res, next) => {
     expense.set({ ...payload, updatedBy: req.user._id });
     await expense.save();
     const paymentChanged = before.paymentStatus !== expense.paymentStatus || Number(before.amountPaid) !== Number(expense.amountPaid);
-    await recordAuditLog({ actor: req.user, action: paymentChanged ? "EXPENSE_PAYMENT_UPDATED" : "EXPENSE_UPDATED", entityType: "Expense", entityId: expense._id, entityLabel: expense.title, before, after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS) });
+    await recordAuditLog({ actor: req.user, action: paymentChanged ? "EXPENSE_PAYMENT_UPDATED" : "EXPENSE_UPDATED", entityType: "Expense", entityId: expense._id, entityLabel: expenseAuditLabel(expense), before, after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS) });
     await expense.populate(expensePopulate);
     res.json({ success: true, data: expense });
   } catch (error) { next(error); }
@@ -176,7 +178,7 @@ export const archiveExpense = async (req, res, next) => {
     expense.recordStatus = req.body.recordStatus === "cancelled" ? "cancelled" : "archived";
     expense.updatedBy = req.user._id;
     await expense.save();
-    await recordAuditLog({ actor: req.user, action: expense.recordStatus === "cancelled" ? "EXPENSE_CANCELLED" : "EXPENSE_ARCHIVED", entityType: "Expense", entityId: expense._id, entityLabel: expense.title, before, after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS), metadata: { reason: cleanText(req.body.reason, 500) } });
+    await recordAuditLog({ actor: req.user, action: expense.recordStatus === "cancelled" ? "EXPENSE_CANCELLED" : "EXPENSE_ARCHIVED", entityType: "Expense", entityId: expense._id, entityLabel: expenseAuditLabel(expense), before, after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS), metadata: { reason: cleanText(req.body.reason, 500) } });
     res.json({ success: true, message: `Expense ${expense.recordStatus}. Financial history was preserved.` });
   } catch (error) { next(error); }
 };
@@ -232,6 +234,20 @@ export const archiveRecurringExpense = async (req, res, next) => {
 export const generateRecurringExpenses = async (req, res, next) => {
   try {
     const result = await generateDueRecurringExpenses({ throughDate: req.body.throughDate || toRiyadhDateKey(new Date()), actor: req.user });
+    const createdExpenses = result.createdIds.length
+      ? await Expense.find({ _id: { $in: result.createdIds } })
+      : [];
+    for (const expense of createdExpenses) {
+      await recordAuditLog({
+        actor: req.user,
+        action: "EXPENSE_CREATED",
+        entityType: "Expense",
+        entityId: expense._id,
+        entityLabel: expenseAuditLabel(expense),
+        after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS),
+        related: { recurringTemplate: expense.recurringTemplate },
+      });
+    }
     await recordAuditLog({ actor: req.user, action: "RECURRING_EXPENSES_GENERATED", entityType: "RecurringExpense", entityLabel: "Due recurring expenses", metadata: result });
     res.json({ success: true, data: result });
   } catch (error) { next(error); }
