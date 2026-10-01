@@ -3,7 +3,7 @@ import PurchaseOrder from "../models/PurchaseOrder.js";
 import Supplier from "../models/Supplier.js";
 import SupplierInvoice from "../models/SupplierInvoice.js";
 import SupplierPayment from "../models/SupplierPayment.js";
-import { ValidationError } from "../utils/inventoryValidation.js";
+import { normalizeOptionalBrand, ValidationError } from "../utils/inventoryValidation.js";
 import { runInventoryTransaction } from "./inventoryStockService.js";
 import { recordAuditLog } from "./auditLogService.js";
 import { recordPurchasePrices } from "./purchasePriceService.js";
@@ -56,7 +56,10 @@ export const matchSupplierInvoice = async (payload, settings, session = null) =>
     summary[discrepancies.length ? "mismatches" : "matched"] += 1; summary.messages.push(...discrepancies.map((message) => `${poLine.itemName}: ${message}`));
     const lineTotal = round(quantity * unitPrice + tax - discount);
     if (lineTotal < 0) throw new ValidationError("Line discount cannot exceed its payable amount");
-    return { item: poLine.item, purchaseOrder: order._id, purchaseOrderLine: poLine._id, quantity, unit: poLine.purchaseUnit || poLine.baseUnit, conversionFactor: poLine.conversionFactor || 1, unitPrice: round(unitPrice), tax, discount, lineTotal, matchStatus, discrepancies };
+    const brand = "brand" in input
+      ? normalizeOptionalBrand(input.brand, `Invoice line ${index + 1} brand`)
+      : normalizeOptionalBrand(poLine.requestedBrand, `Invoice line ${index + 1} brand`);
+    return { item: poLine.item, purchaseOrder: order._id, purchaseOrderLine: poLine._id, brand, quantity, unit: poLine.purchaseUnit || poLine.baseUnit, conversionFactor: poLine.conversionFactor || 1, unitPrice: round(unitPrice), tax, discount, lineTotal, matchStatus, discrepancies };
   });
   const subtotal = round(items.reduce((sum, row) => sum + row.quantity * row.unitPrice, 0));
   const lineTax = round(items.reduce((sum, row) => sum + row.tax, 0)); const lineDiscount = round(items.reduce((sum, row) => sum + row.discount, 0));
@@ -78,7 +81,7 @@ export const createSupplierInvoice = async (payload, actor, settings) => runInve
   if (Number.isNaN(invoiceDate.getTime()) || (dueDate && Number.isNaN(dueDate.getTime()))) throw new ValidationError("Invoice or due date is invalid");
   const matched = await matchSupplierInvoice(payload, settings, session);
   const [invoice] = await SupplierInvoice.create([{ supplier: matched.supplier._id, supplierInvoiceNumber: String(payload.supplierInvoiceNumber).trim(), normalizedInvoiceNumber, internalReference: await nextReference(session), purchaseOrders: matched.orders.map((row) => row._id), invoiceDate, dueDate, items: matched.items, ...matched.totals, matchSummary: matched.summary, note: String(payload.note || "").trim(), attachment: payload.attachment || null, createdBy: actor._id, updatedBy: actor._id }], session ? { session } : {});
-  await recordAuditLog({ actor, action: "SUPPLIER_INVOICE_CREATED", entityType: "SupplierInvoice", entityId: invoice._id, entityLabel: invoice.internalReference, after: { total: invoice.total, status: invoice.status, matchSummary: invoice.matchSummary } }, { session });
+  await recordAuditLog({ actor, action: "SUPPLIER_INVOICE_CREATED", entityType: "SupplierInvoice", entityId: invoice._id, entityLabel: invoice.internalReference, after: { total: invoice.total, status: invoice.status, matchSummary: invoice.matchSummary, lineBrands: invoice.items.map((line) => ({ purchaseOrderLine: line.purchaseOrderLine, brand: line.brand || "" })) } }, { session });
   return invoice;
 });
 
@@ -90,7 +93,7 @@ export const updateSupplierInvoice = async (id, payload, actor, settings) => run
   const matched = await matchSupplierInvoice(merged, settings, session);
   existing.set({ supplier: matched.supplier._id, supplierInvoiceNumber: String(merged.supplierInvoiceNumber).trim(), normalizedInvoiceNumber: normalizeInvoiceNumber(merged.supplierInvoiceNumber), purchaseOrders: matched.orders.map((row) => row._id), invoiceDate: new Date(merged.invoiceDate), dueDate: merged.dueDate ? new Date(merged.dueDate) : null, items: matched.items, ...matched.totals, matchSummary: matched.summary, note: payload.note ?? existing.note, updatedBy: actor._id, status: "draft" });
   await existing.save({ session: session || undefined });
-  await recordAuditLog({ actor, action: "SUPPLIER_INVOICE_UPDATED", entityType: "SupplierInvoice", entityId: existing._id, entityLabel: existing.internalReference, after: { total: existing.total, matchSummary: existing.matchSummary } }, { session });
+  await recordAuditLog({ actor, action: "SUPPLIER_INVOICE_UPDATED", entityType: "SupplierInvoice", entityId: existing._id, entityLabel: existing.internalReference, after: { total: existing.total, matchSummary: existing.matchSummary, lineBrands: existing.items.map((line) => ({ purchaseOrderLine: line.purchaseOrderLine, brand: line.brand || "" })) } }, { session });
   return existing;
 });
 

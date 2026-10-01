@@ -29,6 +29,7 @@ const batchAllocationSchema = new mongoose.Schema(
     quantity: { type: Number, required: true, min: 0.000001, immutable: true },
     expiryDate: { type: Date, default: null, immutable: true },
     unitCost: { type: Number, default: 0, min: 0, immutable: true },
+    brand: { type: String, default: "", trim: true, maxlength: 120, immutable: true },
   },
   { _id: false }
 );

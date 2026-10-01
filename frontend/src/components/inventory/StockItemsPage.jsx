@@ -57,6 +57,7 @@ export default function StockItemsPage() {
   const columns = [
     { key: "name", label: "Item", render: (item) => <div><p className="font-medium text-white">{item.name}</p><p className="mt-0.5 text-[0.65rem] text-neutral-600">{item.sku}</p></div> },
     { key: "category", label: "Category", render: (item) => item.category?.name || "—" },
+    { key: "brand", label: "Preferred brand", render: (item) => item.preferredBrand || "—" },
     { key: "unit", label: "Usage unit" },
     { key: "purchaseUnit", label: "Purchase conversion", render: (item) => <div><p>{item.purchaseUnit || item.unit}</p><p className="text-[0.65rem] text-neutral-600">1 {item.purchaseUnit || item.unit} = {item.purchaseConversionFactor || 1} {item.unit}</p></div> },
     { key: "stock", label: "Current stock", render: (item) => <span className="tabular-nums">{formatQuantity(item.currentStock, item.unit)}</span> },
@@ -72,7 +73,7 @@ export default function StockItemsPage() {
     <PageHeader title="Stock Items" description="Create and maintain inventory items. Quantity changes are recorded separately as stock movements." actions={<><Link href="/inventory/stock-in"><Button variant="secondary"><ArrowDownToLine className="h-4 w-4" />Stock in</Button></Link><Link href="/inventory/stock-out"><Button variant="secondary"><ArrowUpFromLine className="h-4 w-4" />Stock out</Button></Link><Button onClick={openCreate}><Plus className="h-4 w-4" />Add item</Button></>} />
     <section className={cardClass}>
       <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_1fr_1fr_0.8fr_0.9fr]">
-        <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by item, SKU or location…" /></label>
+        <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by item, SKU, brand or location…" /></label>
         <DarkSelect className={inputClass} value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}><option value="">All categories</option>{metadata.categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
         <DarkSelect className={inputClass} value={supplier} onChange={(event) => { setSupplier(event.target.value); setPage(1); }}><option value="">All suppliers</option>{metadata.suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
         <DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">Active items</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="inactive">Inactive</option></DarkSelect>

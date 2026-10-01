@@ -66,6 +66,7 @@ export const createInventoryBatch = async ({
   receivedAt,
   expiryDate,
   unitCost,
+  brand,
   supplier,
   purchaseOrder,
   source,
@@ -83,6 +84,7 @@ export const createInventoryBatch = async ({
       receivedAt: receivedAt || new Date(),
       expiryDate: expiryDate || null,
       unitCost: Number(unitCost ?? item.unitCost ?? 0),
+      brand: String(brand || "").trim(),
       supplier: supplier || item.supplier || null,
       purchaseOrder: purchaseOrder || null,
       source,
@@ -98,6 +100,7 @@ export const createInventoryBatch = async ({
       quantity: normalizedQuantity,
       expiryDate: batch.expiryDate,
       unitCost: batch.unitCost,
+      brand: batch.brand || "",
     }],
     createdBatchIds: [batch._id],
     deltas: [],
@@ -134,6 +137,7 @@ export const consumeInventoryBatches = async ({ item, quantity }, session = null
         quantity: used,
         expiryDate: batch.expiryDate,
         unitCost: batch.unitCost,
+        brand: batch.brand || "",
       });
       deltas.push({ batchId: batch._id, delta: -used });
       needed = Number((needed - used).toFixed(6));
@@ -171,6 +175,7 @@ export const restoreInventoryBatches = async ({ item, allocations }, session = n
         lotNumber: allocation.lotNumber,
         expiryDate: allocation.expiryDate,
         unitCost: allocation.unitCost,
+        brand: allocation.brand || "",
         source: "RESTORATION",
         purchaseQuantity: quantity,
         purchaseUnit: item.unit,
@@ -186,6 +191,7 @@ export const restoreInventoryBatches = async ({ item, allocations }, session = n
       quantity,
       expiryDate: batch.expiryDate,
       unitCost: batch.unitCost,
+      brand: batch.brand || "",
     });
     deltas.push({ batchId: batch._id, delta: quantity });
   }

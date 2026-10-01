@@ -13,6 +13,7 @@ const inventoryBatchSchema = new mongoose.Schema(
     expiryDate: { type: Date, default: null },
     fefoDate: { type: Date, required: true, default: FAR_FUTURE },
     unitCost: { type: Number, required: true, min: 0 },
+    brand: { type: String, default: "", trim: true, maxlength: 120 },
     supplier: { type: mongoose.Schema.Types.ObjectId, ref: "Supplier", default: null },
     purchaseOrder: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseOrder", default: null },
     sourceTransaction: { type: mongoose.Schema.Types.ObjectId, ref: "StockTransaction", default: null },
@@ -39,6 +40,7 @@ inventoryBatchSchema.index({ item: 1, remainingQuantity: 1, fefoDate: 1, receive
 inventoryBatchSchema.index({ item: 1, qualityStatus: 1, expiryDate: 1, remainingQuantity: 1 });
 inventoryBatchSchema.index({ expiryDate: 1, remainingQuantity: 1 }, { sparse: true });
 inventoryBatchSchema.index({ lotNumber: "text" });
+inventoryBatchSchema.index({ item: 1, brand: 1, remainingQuantity: 1 });
 inventoryBatchSchema.index(
   { item: 1, isLegacy: 1 },
   { unique: true, partialFilterExpression: { isLegacy: true } }

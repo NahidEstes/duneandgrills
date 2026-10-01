@@ -7,6 +7,7 @@ const purchaseOrderLineSchema = new mongoose.Schema(
     item: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryItem", required: true },
     itemName: { type: String, required: true, trim: true },
     sku: { type: String, required: true, trim: true },
+    requestedBrand: { type: String, default: "", trim: true, maxlength: 120 },
     quantity: { type: Number, required: true, min: 0.0001 },
     receivedQuantity: { type: Number, default: 0, min: 0 },
     unitCost: { type: Number, required: true, min: 0 },

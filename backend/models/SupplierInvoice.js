@@ -7,6 +7,7 @@ const lineSchema = new mongoose.Schema({
   item: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryItem", required: true },
   purchaseOrder: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseOrder", required: true },
   purchaseOrderLine: { type: mongoose.Schema.Types.ObjectId, required: true },
+  brand: { type: String, default: "", trim: true, maxlength: 120 },
   quantity: { type: Number, required: true, min: 0.000001 },
   unit: { type: String, required: true, trim: true },
   conversionFactor: { type: Number, required: true, min: 0.000001, default: 1 },

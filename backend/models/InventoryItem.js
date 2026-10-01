@@ -21,6 +21,7 @@ const inventoryItemSchema = new mongoose.Schema(
     minimumOrderQuantity: { type: Number, default: 1, min: 0.000001 },
     orderMultiple: { type: Number, default: 1, min: 0.000001 },
     supplierItemCode: { type: String, default: "", trim: true, maxlength: 100 },
+    preferredBrand: { type: String, default: "", trim: true, maxlength: 120 },
     unitCost: { type: Number, default: 0, min: 0 },
     supplier: { type: mongoose.Schema.Types.ObjectId, ref: "Supplier", default: null },
     tracksExpiry: { type: Boolean, default: false },
@@ -35,6 +36,7 @@ const inventoryItemSchema = new mongoose.Schema(
 );
 
 inventoryItemSchema.index({ name: "text", sku: "text", storageLocation: "text" });
+inventoryItemSchema.index({ preferredBrand: 1, isActive: 1 });
 inventoryItemSchema.index({ category: 1, supplier: 1, isActive: 1 });
 inventoryItemSchema.index({ currentStock: 1, reorderLevel: 1 });
 inventoryItemSchema.index({ reorderEnabled: 1, isActive: 1, supplier: 1 });

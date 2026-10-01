@@ -18,7 +18,7 @@ import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.
 import { buildInventoryValuation } from "../../services/inventoryValuationService.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
 
-const AUDIT_FIELDS = ["name", "sku", "category", "unit", "purchaseUnit", "purchaseConversionFactor", "reorderLevel", "reorderEnabled", "targetStock", "safetyStock", "leadTimeDays", "minimumOrderQuantity", "orderMultiple", "supplierItemCode", "unitCost", "supplier", "tracksExpiry", "storageLocation", "isActive", "allowNegativeStock"];
+const AUDIT_FIELDS = ["name", "sku", "category", "unit", "purchaseUnit", "purchaseConversionFactor", "reorderLevel", "reorderEnabled", "targetStock", "safetyStock", "leadTimeDays", "minimumOrderQuantity", "orderMultiple", "supplierItemCode", "preferredBrand", "unitCost", "supplier", "tracksExpiry", "storageLocation", "isActive", "allowNegativeStock"];
 
 const itemPopulate = [
   { path: "category", select: "name color isActive skuPrefix" },
@@ -43,7 +43,7 @@ export const listItems = async (req, res, next) => {
     const search = req.query.search?.trim();
     if (search) {
       const value = new RegExp(escapeRegex(search), "i");
-      filter.$or = [{ name: value }, { sku: value }, { storageLocation: value }];
+      filter.$or = [{ name: value }, { sku: value }, { storageLocation: value }, { preferredBrand: value }];
     }
     if (req.query.category) filter.category = req.query.category;
     if (req.query.supplier) filter.supplier = req.query.supplier;

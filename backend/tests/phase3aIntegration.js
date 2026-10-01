@@ -50,7 +50,7 @@ const run = async () => {
   const admin = await User.create({
     name: "Phase 3 Admin",
     email: "phase3-admin@example.com",
-    password: " ",
+    password: "TestPassword123!",
     role: "admin",
   });
   const manager = await User.create({
@@ -77,6 +77,7 @@ const run = async () => {
     purchaseUnit: "carton",
     purchaseConversionFactor: 10,
     unitCost: 9,
+    preferredBrand: "Preferred Phase Brand",
   });
   const supplier = await Supplier.create({
     code: "P3-SUP",
@@ -97,6 +98,7 @@ const run = async () => {
   assert.equal(po.status, "draft");
   assert.equal(po.total, 1000);
   assert.equal(po.revision, 1);
+  assert.equal(po.items[0].requestedBrand, "Preferred Phase Brand");
   await transitionPurchaseOrder({
     id: po._id,
     target: "submitted",
@@ -129,7 +131,7 @@ const run = async () => {
   });
   const partial = await receivePurchaseOrder(
     po._id,
-    [{ lineId: po.items[0]._id, quantity: 4, lotNumber: "P3-A" }],
+    [{ lineId: po.items[0]._id, quantity: 4, lotNumber: "P3-A", brand: "Delivered Phase Brand" }],
     buyer,
     "Partial",
     policy,
@@ -179,6 +181,7 @@ const run = async () => {
         purchaseOrderLine: po.items[0]._id,
         quantity: 10,
         unitPrice: 100,
+        brand: "Delivered Phase Brand",
       },
     ],
     tax: 0,
@@ -188,6 +191,7 @@ const run = async () => {
   const invoice = await createSupplierInvoice(invoicePayload, manager, policy);
   assert.equal(invoice.total, 1000);
   assert.equal(invoice.matchSummary.mismatches, 0);
+  assert.equal(invoice.items[0].brand, "Delivered Phase Brand", "supplier invoice retains its brand snapshot");
   assert.equal(
     await Expense.countDocuments(),
     0,

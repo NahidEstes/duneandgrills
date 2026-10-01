@@ -58,6 +58,7 @@ const run = async () => {
   assert.equal(receipt.order.status, "received");
   assert.equal((await InventoryItem.findById(item._id)).currentStock, 12);
   assert.equal((await PurchaseOrder.findById(order._id)).items[0].receivedQuantity, 5);
+  assert.equal((await InventoryBatch.findOne({ purchaseOrder: order._id })).brand, "", "brandless records remain valid");
 
   const waste = await performStockMovement({ itemId: item._id, movementType: "WASTE", quantity: 1, reason: "Spoiled", reasonCode: "SPOILED", userId: user._id });
   assert.equal((await InventoryItem.findById(item._id)).currentStock, 11);
@@ -127,6 +128,7 @@ const run = async () => {
     purchaseConversionFactor: 24,
     reorderLevel: 12,
     unitCost: 2,
+    preferredBrand: "Almarai",
     tracksExpiry: true,
   });
   const batchOrder = await createPurchaseOrder({
@@ -134,6 +136,7 @@ const run = async () => {
     tax: 0,
     items: [{ item: bottledItem._id, quantity: 2, unitCost: 48 }],
   }, user);
+  assert.equal(batchOrder.items[0].requestedBrand, "Almarai", "preferred brand is copied to the PO line snapshot");
   await transitionPurchaseOrder({ id: batchOrder._id, target: "submitted", actor: user, settings: policy });
   await transitionPurchaseOrder({ id: batchOrder._id, target: "approved", actor: user, settings: policy });
   await transitionPurchaseOrder({ id: batchOrder._id, target: "ordered", actor: user, settings: policy });
@@ -147,10 +150,14 @@ const run = async () => {
     lineId: batchOrder.items[0]._id,
     quantity: 1,
     lotNumber: "EARLY-LOT",
+    brand: "NADEC",
     expiryDate: "2027-01-01",
   }], user);
   assert.equal((await InventoryItem.findById(bottledItem._id)).currentStock, 48);
   assert.equal((await InventoryItem.findById(bottledItem._id)).unitCost, 2);
+  assert.equal((await InventoryBatch.findOne({ lotNumber: "LATE-LOT" })).brand, "Almarai");
+  assert.equal((await InventoryBatch.findOne({ lotNumber: "EARLY-LOT" })).brand, "NADEC");
+  assert.equal(await InventoryBatch.countDocuments({ item: bottledItem._id, brand: { $in: ["Almarai", "NADEC"] } }), 2, "multiple brands can share one inventory item");
 
   const fefoMovement = await performStockMovement({
     itemId: bottledItem._id,
@@ -162,6 +169,11 @@ const run = async () => {
   assert.deepEqual(
     fefoMovement.transaction.batchAllocations.map((allocation) => [allocation.lotNumber, allocation.quantity]),
     [["EARLY-LOT", 24], ["LATE-LOT", 6]]
+  );
+  assert.deepEqual(
+    fefoMovement.transaction.batchAllocations.map((allocation) => allocation.brand),
+    ["NADEC", "Almarai"],
+    "FEFO allocation remains based on expiry, regardless of brand"
   );
   assert.equal((await InventoryBatch.findOne({ lotNumber: "EARLY-LOT" })).remainingQuantity, 0);
   assert.equal((await InventoryBatch.findOne({ lotNumber: "LATE-LOT" })).remainingQuantity, 18);

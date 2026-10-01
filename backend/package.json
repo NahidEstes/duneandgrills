@@ -20,6 +20,7 @@
     "test:settings": "node --test tests/restaurantSettingsService.test.js",
     "test:customers": "node tests/customerCrmIntegration.js",
     "test:inventory": "node --test tests/inventoryUnitService.test.js && node tests/inventoryIntegration.js",
+    "test:inventory-brands": "node --test tests/inventoryBrandValidation.test.js && node tests/inventoryIntegration.js && node tests/phase3aIntegration.js",
     "test:pos": "node tests/posIntegration.js",
     "test:customizations": "node tests/menuCustomizationIntegration.js",
     "test:sku": "node tests/inventorySkuIntegration.js",

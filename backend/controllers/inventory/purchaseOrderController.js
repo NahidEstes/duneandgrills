@@ -9,7 +9,7 @@ const AUDIT_FIELDS = ["supplier", "items", "status", "subtotal", "tax", "discoun
 
 const populate = [
   { path: "supplier", select: "name code contactName email phone" },
-  { path: "items.item", select: "name sku unit purchaseUnit purchaseConversionFactor currentStock tracksExpiry" },
+  { path: "items.item", select: "name sku unit purchaseUnit purchaseConversionFactor currentStock tracksExpiry preferredBrand" },
   { path: "createdBy", select: "name email" },
   { path: "updatedBy", select: "name email" },
 ];

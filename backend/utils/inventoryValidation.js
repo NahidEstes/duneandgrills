@@ -4,6 +4,7 @@ import { PURCHASE_ORDER_STATUSES } from "../models/PurchaseOrder.js";
 import { STOCK_MOVEMENT_TYPES, WASTE_REASON_CODES } from "../models/StockTransaction.js";
 
 const INVENTORY_SKU_PATTERN = /^[A-Z0-9][A-Z0-9-]{1,49}$/;
+export const INVENTORY_BRAND_MAX_LENGTH = 120;
 
 export class ValidationError extends Error {
   constructor(message, fields = {}) {
@@ -16,6 +17,16 @@ export class ValidationError extends Error {
 
 const text = (value) => (typeof value === "string" ? value.trim() : "");
 const number = (value) => (value === "" || value == null ? NaN : Number(value));
+
+export const normalizeOptionalBrand = (value, label = "brand") => {
+  if (value == null) return "";
+  if (typeof value !== "string") throw new ValidationError(`${label} must be a string`);
+  const normalized = value.trim();
+  if (normalized.length > INVENTORY_BRAND_MAX_LENGTH) {
+    throw new ValidationError(`${label} must be ${INVENTORY_BRAND_MAX_LENGTH} characters or fewer`);
+  }
+  return normalized;
+};
 
 export const assertObjectId = (value, label = "id") => {
   if (!mongoose.isValidObjectId(value)) throw new ValidationError(`Invalid ${label}`);
@@ -56,6 +67,7 @@ export const validateItemPayload = (payload, { partial = false } = {}) => {
   if ("supplier" in payload) {
     result.supplier = payload.supplier ? assertObjectId(payload.supplier, "supplier") : null;
   }
+  if ("preferredBrand" in payload) result.preferredBrand = normalizeOptionalBrand(payload.preferredBrand, "preferredBrand");
   for (const field of ["reorderLevel", "targetStock", "safetyStock", "leadTimeDays", "unitCost"]) {
     if (!partial || field in payload) {
       const value = number(payload[field] ?? 0);
@@ -163,7 +175,15 @@ export const validatePurchaseOrderPayload = (payload, { partial = false } = {}) 
       if (!Number.isFinite(unitCost) || unitCost < 0) throw new ValidationError(`items[${index}].unitCost must be zero or greater`);
       const expiryDate = line.expiryDate ? new Date(line.expiryDate) : null;
       if (expiryDate && Number.isNaN(expiryDate.getTime())) throw new ValidationError(`items[${index}].expiryDate is invalid`);
-      return { item: line.item, quantity, unitCost, expiryDate };
+      return {
+        item: line.item,
+        quantity,
+        unitCost,
+        expiryDate,
+        ...("requestedBrand" in line
+          ? { requestedBrand: normalizeOptionalBrand(line.requestedBrand, `items[${index}].requestedBrand`) }
+          : {}),
+      };
     });
   }
   for (const field of ["tax", "discount", "additionalCharges"]) {

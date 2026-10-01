@@ -34,6 +34,7 @@ export default function BatchesPage() {
   const [status, setStatus] = useState("active");
   const [item, setItem] = useState("");
   const [supplier, setSupplier] = useState("");
+  const [brand, setBrand] = useState("");
   const [page, setPage] = useState(1);
   const [items, setItems] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -62,13 +63,15 @@ export default function BatchesPage() {
       status,
       item: item || undefined,
       supplier: supplier || undefined,
+      brand: brand.trim() || undefined,
     }),
-    [page, debouncedSearch, status, item, supplier]
+    [page, debouncedSearch, status, item, supplier, brand]
   );
 
   const columns = useMemo(() => [
     { key: "item", label: "Inventory item", render: (batch) => <div><p className="font-medium text-white">{batch.item?.name || "Archived item"}</p><p className="text-[0.65rem] text-neutral-600">{batch.item?.sku || "—"}</p></div> },
     { key: "lot", label: "Batch / Lot", render: (batch) => <div><p className="font-medium text-dune-amberLight">{batch.lotNumber}</p>{batch.isLegacy && <p className="text-[0.62rem] text-neutral-600">Preserved existing stock</p>}</div> },
+    { key: "brand", label: "Brand", render: (batch) => batch.brand || "—" },
     { key: "received", label: "Received", render: (batch) => <div><p>{formatQuantity(batch.receivedQuantity, batch.item?.unit)}</p><p className="text-[0.65rem] text-neutral-600">{formatDate(batch.receivedAt)}</p></div> },
     { key: "remaining", label: "Remaining", render: (batch) => <span className="font-semibold text-white">{formatQuantity(batch.remainingQuantity, batch.item?.unit)}</span> },
     { key: "purchase", label: "Purchase conversion", render: (batch) => <div><p>{formatQuantity(batch.purchaseQuantity, batch.purchaseUnit)}</p><p className="text-[0.65rem] text-neutral-600">1 {batch.purchaseUnit} = {batch.conversionFactor} {batch.item?.unit}</p></div> },
@@ -94,10 +97,11 @@ export default function BatchesPage() {
         <StatCard label="Batch Stock Value" value={<Money value={summary.stockValue} />} caption="Current filtered value" icon={CircleDollarSign} tone="green" />
       </section>
       <section className={cardClass}>
-        <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_1fr_1fr_1fr]">
-          <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search item, SKU or lot number…" /></label>
+        <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_1fr_1fr_1fr_1fr]">
+          <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search item, SKU, brand or lot…" /></label>
           <DarkSelect className={inputClass} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="">All inventory items</option>{items.map((row) => <option key={row._id} value={row._id}>{row.name} · {row.sku}</option>)}</DarkSelect>
           <DarkSelect className={inputClass} value={supplier} onChange={(event) => { setSupplier(event.target.value); setPage(1); }}><option value="">All suppliers</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
+          <input maxLength={120} className={inputClass} value={brand} onChange={(event) => { setBrand(event.target.value); setPage(1); }} placeholder="Filter by brand" aria-label="Filter batches by brand" />
           <DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="active">Active batches</option><option value="expiring">Expiring soon</option><option value="expired">Expired</option><option value="depleted">Depleted</option><option value="all">All batches</option></DarkSelect>
         </div>
         {loading ? <LoadingState label="Loading batches…" /> : error ? <EmptyState title="Unable to load batches" description={apiErrorMessage(error)} /> : <DataTable columns={columns} rows={data?.data || []} empty={<EmptyState title="No batches found" description="Receive stock or change the current filters." />} />}

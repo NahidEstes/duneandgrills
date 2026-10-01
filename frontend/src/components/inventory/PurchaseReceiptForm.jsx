@@ -15,6 +15,7 @@ export default function PurchaseReceiptForm({ order, onSubmit, submitting }) {
     line._id,
     {
       quantity: line.quantity - line.receivedQuantity,
+      brand: line.requestedBrand || "",
       lotNumber: "",
       receivedAt: "",
       expiryDate: line.expiryDate ? new Date(line.expiryDate).toISOString().slice(0, 10) : "",
@@ -34,6 +35,7 @@ export default function PurchaseReceiptForm({ order, onSubmit, submitting }) {
       items: receivable.map((line) => ({
         lineId: line._id,
         quantity: Number(lines[line._id].quantity),
+        brand: lines[line._id].brand,
         lotNumber: lines[line._id].lotNumber.trim() || null,
         receivedAt: lines[line._id].receivedAt || null,
         expiryDate: lines[line._id].expiryDate || null,
@@ -66,12 +68,15 @@ export default function PurchaseReceiptForm({ order, onSubmit, submitting }) {
                 Adds {formatQuantity(baseQuantity, baseUnit)}
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <Field label={`Receive quantity (${purchaseUnit})`}>
                 <input required min="0.0001" max={remaining} step="any" type="number" className={inputClass} value={lines[line._id].quantity} onChange={(event) => set(line._id, "quantity", event.target.value)} />
               </Field>
               <Field label="Batch / Lot number" hint="Leave blank to generate one automatically.">
                 <input className={inputClass} value={lines[line._id].lotNumber} onChange={(event) => set(line._id, "lotNumber", event.target.value.toUpperCase())} placeholder="SUP-LOT-2026-001" />
+              </Field>
+              <Field label="Actual Brand" hint={line.requestedBrand ? `Requested: ${line.requestedBrand}` : "Brand is optional and separate from supplier."}>
+                <input maxLength={120} className={inputClass} value={lines[line._id].brand} onChange={(event) => set(line._id, "brand", event.target.value)} placeholder="Delivered brand" />
               </Field>
               <Field label="Received date" hint="Leave blank to use the current time.">
                 <DarkDatePicker type="datetime-local" className={inputClass} value={lines[line._id].receivedAt} onChange={(event) => set(line._id, "receivedAt", event.target.value)} />

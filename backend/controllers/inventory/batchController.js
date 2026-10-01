@@ -20,7 +20,8 @@ export const listBatches = async (req, res, next) => {
     rows = rows.filter((batch) => {
       if (req.query.item && String(batch.item?._id || batch.item) !== String(req.query.item)) return false;
       if (req.query.supplier && String(batch.supplier?._id || batch.supplier) !== String(req.query.supplier)) return false;
-      if (expression && ![batch.lotNumber, batch.item?.name, batch.item?.sku].some((value) => expression.test(value || ""))) return false;
+      if (req.query.brand && !new RegExp(escapeRegex(String(req.query.brand).trim()), "i").test(batch.brand || "")) return false;
+      if (expression && ![batch.lotNumber, batch.brand, batch.item?.name, batch.item?.sku].some((value) => expression.test(value || ""))) return false;
       const expiry = batch.expiryDate ? new Date(batch.expiryDate) : null;
       if (req.query.status === "active" && Number(batch.remainingQuantity) <= 0) return false;
       if (req.query.status === "depleted" && Number(batch.remainingQuantity) > 0) return false;

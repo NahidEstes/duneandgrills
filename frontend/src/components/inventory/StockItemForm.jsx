@@ -12,7 +12,7 @@ import { INVENTORY_UNITS, PURCHASE_UNITS } from "./inventoryUtils.js";
 const blank = {
   name: "", sku: "", category: "", unit: "kg", purchaseUnit: "kg", purchaseConversionFactor: 1, openingStock: 0, reorderLevel: 0,
   reorderEnabled: false, targetStock: 0, safetyStock: 0, leadTimeDays: 0, minimumOrderQuantity: 1, orderMultiple: 1, supplierItemCode: "",
-  unitCost: 0, supplier: "", tracksExpiry: false, expiryDate: "", storageLocation: "",
+  preferredBrand: "", unitCost: 0, supplier: "", tracksExpiry: false, expiryDate: "", storageLocation: "",
   isActive: true, allowNegativeStock: false,
 };
 
@@ -25,7 +25,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
       name: item.name || "", sku: item.sku || "", category: item.category?._id || item.category || "",
       unit: item.unit || "kg", purchaseUnit: item.purchaseUnit || item.unit || "kg",
       purchaseConversionFactor: item.purchaseConversionFactor ?? 1,
-      reorderLevel: item.reorderLevel ?? 0, reorderEnabled: Boolean(item.reorderEnabled), targetStock: item.targetStock ?? 0, safetyStock: item.safetyStock ?? 0, leadTimeDays: item.leadTimeDays ?? 0, minimumOrderQuantity: item.minimumOrderQuantity ?? 1, orderMultiple: item.orderMultiple ?? 1, supplierItemCode: item.supplierItemCode || "", unitCost: item.unitCost ?? 0,
+      reorderLevel: item.reorderLevel ?? 0, reorderEnabled: Boolean(item.reorderEnabled), targetStock: item.targetStock ?? 0, safetyStock: item.safetyStock ?? 0, leadTimeDays: item.leadTimeDays ?? 0, minimumOrderQuantity: item.minimumOrderQuantity ?? 1, orderMultiple: item.orderMultiple ?? 1, supplierItemCode: item.supplierItemCode || "", preferredBrand: item.preferredBrand || "", unitCost: item.unitCost ?? 0,
       supplier: item.supplier?._id || item.supplier || "", tracksExpiry: Boolean(item.tracksExpiry),
       expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().slice(0, 10) : "",
       storageLocation: item.storageLocation || "", isActive: item.isActive !== false,
@@ -84,6 +84,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
       <Field label={`Minimum order quantity (${form.purchaseUnit})`}><input required min="0.000001" step="any" type="number" className={inputClass} value={form.minimumOrderQuantity} onChange={(event) => set("minimumOrderQuantity", event.target.value)} /></Field>
       <Field label={`Order multiple (${form.purchaseUnit})`} hint="Suggested purchases round up to this multiple."><input required min="0.000001" step="any" type="number" className={inputClass} value={form.orderMultiple} onChange={(event) => set("orderMultiple", event.target.value)} /></Field>
       <Field label="Supplier item code"><input className={inputClass} value={form.supplierItemCode} onChange={(event) => set("supplierItemCode", event.target.value)} /></Field>
+      <Field label="Preferred Brand" hint="The normally preferred product brand. This is separate from the supplier."><input maxLength={120} className={inputClass} value={form.preferredBrand} onChange={(event) => set("preferredBrand", event.target.value)} placeholder="e.g. Almarai" /></Field>
       <Field label={`Base unit cost (SAR / ${form.unit})`} hint="Recipe costing uses this base-unit value."><input required min="0" step="0.01" type="number" className={inputClass} value={form.unitCost} onChange={(event) => set("unitCost", event.target.value)} /></Field>
       <Field label="Primary supplier"><DarkSelect className={inputClass} value={form.supplier} onChange={(event) => set("supplier", event.target.value)}><option value="">No supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
       <Field label="Storage location"><input className={inputClass} value={form.storageLocation} onChange={(event) => set("storageLocation", event.target.value)} placeholder="Walk-in freezer · Shelf B2" /></Field>
