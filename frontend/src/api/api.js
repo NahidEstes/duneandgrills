@@ -1,4 +1,5 @@
 import axios from "axios";
+import { collectSelectionOptions } from "./selectionOptions.js";
 import { refreshContentCache } from "@/app/actions/revalidate-content.js";
 
 const API_BASE_URL = "/api";
@@ -311,7 +312,7 @@ export const lockPosSession = async () => (await api.post("/pos/session/lock")).
 export const unlockPosSession = async (payload, switching = false) => (await api.post(`/pos/session/${switching ? "switch" : "unlock"}`, payload)).data.data;
 export const fetchPosCashiers = async () => (await api.get("/pos/session/cashiers")).data.data;
 export const setPosStaffPin = async (id, pin) => (await api.put(`/pos/session/pins/${id}`, { pin })).data;
-export const fetchPosTerminals = async (all = false) => (await api.get("/pos/terminals", { params: { all } })).data.data;
+export const fetchPosTerminals = async (all = false, params = {}) => (await api.get("/pos/terminals", { params: { all, ...params } })).data.data;
 export const savePosTerminal = async (payload, id) => (await (id ? api.patch(`/pos/terminals/${id}`, payload) : api.post("/pos/terminals", payload))).data.data;
 export const fetchPosQuickMenu = async () => (await api.get("/pos/quick-menu")).data.data;
 export const updatePosQuickItem = async (payload) => (await api.put("/pos/quick-menu", payload)).data;
@@ -441,10 +442,14 @@ export const fetchAdminUsers = async (scope = "customers", search = "") => {
   return data.data;
 };
 
-export const fetchStaffAccounts = async () => {
-  const { data } = await api.get("/admin/staff");
+export const fetchStaffAccounts = async (params) => {
+  if (!params) return collectSelectionOptions(async page => (await api.get("/admin/staff", { params: page })).data.data);
+  const { data } = await api.get("/admin/staff", { params });
   return data.data;
 };
+
+export const searchRecordIds = async (params) => (await api.get("/record-search", { params })).data;
+export const fetchRecordDetails = async (type, id) => (await api.get(`/record-search/${encodeURIComponent(type)}/${encodeURIComponent(id)}`)).data.data;
 
 export const createStaffAccount = async (payload) => {
   const { data } = await api.post("/admin/staff", payload);

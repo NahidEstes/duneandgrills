@@ -16,6 +16,8 @@
     "migrate:offers": "node data/migrateOfferCoupons.js",
     "migrate:categories": "node data/migrateCategories.js",
     "migrate:expense-numbers": "node data/backfillExpenseNumbers.js",
+    "migrate:record-numbers": "node data/backfillRecordNumbers.js",
+    "test:record-ids": "node --test tests/recordIdsIntegration.js",
     "test:kitchen": "node --test tests/kitchenService.test.js",
     "test:settings": "node --test tests/restaurantSettingsService.test.js",
     "test:customers": "node tests/customerCrmIntegration.js",

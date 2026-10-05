@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { automaticRecordNumber } from "../services/recordNumberService.js";
 
 const supplierPaymentSchema = new mongoose.Schema({
   invoice: { type: mongoose.Schema.Types.ObjectId, ref: "SupplierInvoice", required: true, index: true, immutable: true },
@@ -17,4 +18,5 @@ const supplierPaymentSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 supplierPaymentSchema.index({ invoice: 1, createdAt: -1 });
+supplierPaymentSchema.plugin(automaticRecordNumber, { type: "SupplierPayment" });
 export default mongoose.model("SupplierPayment", supplierPaymentSchema);

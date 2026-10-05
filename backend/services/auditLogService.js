@@ -1,5 +1,7 @@
 import AuditLog from "../models/AuditLog.js";
 import User from "../models/User.js";
+import mongoose from "mongoose";
+import { RECORD_NUMBERS } from "./recordNumberService.js";
 
 const sessionOptions = (session) => (session ? { session } : {});
 
@@ -56,6 +58,13 @@ export const recordAuditLog = async ({
   metadata = {},
 }, { session = null } = {}) => {
   let actorSnapshot = actor;
+  const numberField = RECORD_NUMBERS[entityType]?.field;
+  if (entityId && (numberField || entityType === "User")) {
+    const model = mongoose.models[entityType];
+    const record = model && await model.findById(entityId).select(numberField || "customerNumber employeeId").session(session || null).lean();
+    const number = record?.[numberField] || record?.customerNumber || record?.employeeId;
+    if (number) { entityLabel = `${number}${entityLabel ? ` · ${entityLabel}` : ""}`; metadata = { ...metadata, recordNumber: number }; }
+  }
   if (!actorSnapshot && actorId) {
     actorSnapshot = await User.findById(actorId).select("name role").session(session || null).lean();
   }

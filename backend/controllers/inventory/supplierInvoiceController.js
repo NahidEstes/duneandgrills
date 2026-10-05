@@ -1,6 +1,6 @@
 import SupplierInvoice from "../../models/SupplierInvoice.js";
 import SupplierPayment from "../../models/SupplierPayment.js";
-import { parsePagination } from "../../utils/inventoryValidation.js";
+import { escapeRegex, parsePagination } from "../../utils/inventoryValidation.js";
 import { getEffectiveRestaurantSettings } from "../../services/restaurantSettingsService.js";
 import { createSupplierInvoice, decorateInvoice, getPayablesAging, recordSupplierPayment, reverseSupplierPayment, transitionSupplierInvoice, updateSupplierInvoice } from "../../services/supplierInvoiceService.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
@@ -15,6 +15,10 @@ const populate = [
 export const listSupplierInvoices = async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query, 20); const filter = {};
+    if (req.query.search?.trim()) {
+      const expression = new RegExp(escapeRegex(req.query.search.trim().slice(0, 120)), "i");
+      filter.$or = [{ internalReference: expression }, { supplierInvoiceNumber: expression }];
+    }
     if (req.query.supplier) filter.supplier = req.query.supplier; if (req.query.status) filter.status = req.query.status;
     if (req.query.paymentStatus) filter.paymentStatus = String(req.query.paymentStatus).trim().toLowerCase().replaceAll(" ", "_");
     if (req.query.overdue === "true") filter.dueDate = { $lt: new Date() }, filter.paymentStatus = { $ne: "paid" }, filter.status = "posted";

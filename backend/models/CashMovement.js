@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { automaticRecordNumber } from "../services/recordNumberService.js";
 
 export const CASH_MOVEMENT_TYPES = Object.freeze(["opening_cash", "cash_sale", "cash_refund", "cash_void", "cash_in", "cash_out", "payout", "correction"]);
 
@@ -19,4 +20,5 @@ const cashMovementSchema = new mongoose.Schema({
 cashMovementSchema.index({ shift: 1, createdAt: -1 });
 cashMovementSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
+cashMovementSchema.plugin(automaticRecordNumber, { type: "CashMovement" });
 export default mongoose.model("CashMovement", cashMovementSchema);

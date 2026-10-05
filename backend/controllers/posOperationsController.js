@@ -11,13 +11,16 @@ import { createPosSession, publicPosActor, setPosPin, unlockPosSession } from ".
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
 import { hasCapability, CAPABILITIES } from "../config/permissions.js";
 import { recordAuditLog } from "../services/auditLogService.js";
-import { ValidationError, assertObjectId } from "../utils/inventoryValidation.js";
+import { ValidationError, assertObjectId, escapeRegex } from "../utils/inventoryValidation.js";
 import { runInventoryTransaction } from "../services/inventoryStockService.js";
 
 export const listTerminals = async (req, res, next) => { try {
   await ensureLegacyTerminal();
   const all = req.query.all === "true" && hasCapability(req.user.role, CAPABILITIES.POS_TERMINAL_MANAGE);
-  res.json({ success: true, data: await PosTerminal.find(all ? {} : { isActive: true }).sort({ code: 1 }).lean() });
+  const filter = all ? {} : { isActive: true };
+  if (req.query.search?.trim()) { const expression = new RegExp(escapeRegex(req.query.search.trim().slice(0, 120)), "i"); filter.$or = [{ code: expression }, { name: expression }]; }
+  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1); const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 100));
+  res.json({ success: true, data: await PosTerminal.find(filter).sort({ code: 1 }).skip((page - 1) * limit).limit(limit).lean() });
 } catch (e) { next(e); } };
 export const writeTerminal = async (req, res, next) => { try { res.json({ success: true, data: await savePosTerminal({ id: req.params.id, payload: req.body, actor: req.user }) }); } catch (e) { next(e); } };
 export const posSession = async (req, res, next) => { try {

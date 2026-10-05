@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 import { DEFAULT_ORDER_TYPE, ORDER_TYPES } from "../config/orders.js";
 import { DELIVERY_PROVIDERS, PAYMENT_METHODS, PAYMENT_STATUSES, SALES_SOURCES } from "../config/sales.js";
 import { MAX_ITEM_NOTE_LENGTH, SPICE_LEVELS } from "../config/menuCustomization.js";
@@ -287,6 +288,7 @@ orderSchema.index(
   }
 );
 
+addRecordSearchIndexes(orderSchema, ["orderNumber","externalOrderId"]);
 const Order = mongoose.model("Order", orderSchema);
 
 export default Order;

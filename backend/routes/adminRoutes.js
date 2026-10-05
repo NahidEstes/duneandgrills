@@ -1,4 +1,5 @@
 import express from "express";
+import { rejectClientRecordNumbers } from "../services/recordNumberService.js";
 import {
   getAdminUsers,
   getDashboard,
@@ -22,6 +23,7 @@ import {
 } from "../controllers/customerCrmController.js";
 
 const router = express.Router();
+router.use(rejectClientRecordNumbers);
 
 router.use(protect);
 router.get("/staff", requireCapability(CAPABILITIES.STAFF_READ), listStaff);

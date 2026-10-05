@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
@@ -109,7 +110,7 @@ const RefundPanel = ({ order, onChanged }) => {
     <div className="flex items-center justify-between"><div><p className="eyebrow">Payment &amp; Refunds</p><p className="mt-1 text-xs text-neutral-500">Cancellation does not refund payment or restock prepared food.</p></div>{loading && <RefreshCw className="h-4 w-4 animate-spin text-dune-amber" />}</div>
     {data && <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-lg bg-black/30 p-2"><span className="block text-neutral-500">Paid</span><strong className="text-white">{formatAdminCurrency(data.paidAmount)}</strong></div><div className="rounded-lg bg-black/30 p-2"><span className="block text-neutral-500">Refunded</span><strong className="text-red-300">{formatAdminCurrency(data.completedRefundAmount)}</strong></div><div className="rounded-lg bg-black/30 p-2"><span className="block text-neutral-500">Eligible</span><strong className="text-emerald-300">{formatAdminCurrency(data.remainingRefundableAmount)}</strong></div></div>}
     {data?.remainingRefundableAmount > 0 && ["paid", "partially_refunded"].includes(order.paymentStatus) && <div className="mt-3 grid gap-2 rounded-xl border border-white/10 bg-black/20 p-3 sm:grid-cols-2"><input type="number" min="0.01" step="0.01" max={data.remainingRefundableAmount} value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} placeholder="Amount SAR" className="h-10 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white" /><DarkSelect value={form.method} onChange={(event) => setForm({ ...form, method: event.target.value })} className="h-10 rounded-lg border border-white/10 bg-[#101315] px-3 text-sm"><option value="cash">Cash</option><option value="card">Card</option><option value="other">Other</option></DarkSelect><input value={form.externalReference} onChange={(event) => setForm({ ...form, externalReference: event.target.value })} placeholder="Manual/card reference (optional)" className="h-10 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white" /><input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Refund reason (required)" className="h-10 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white" /><button type="button" disabled={saving} onClick={request} className="h-10 rounded-lg bg-dune-amber px-4 text-sm font-semibold text-black sm:col-span-2 disabled:opacity-50">Request Refund</button></div>}
-    {data?.refunds?.length > 0 && <div className="mt-3 max-h-44 space-y-2 overflow-y-auto">{data.refunds.map((refund) => <div key={refund._id} className="rounded-lg border border-white/[0.07] bg-black/20 p-3 text-xs"><div className="flex justify-between gap-3"><span><strong className="text-white">{formatAdminCurrency(refund.amount)}</strong> · {refund.type}<br /><span className="text-neutral-500">{refund.reason}</span></span><span className="capitalize text-dune-amber">{refund.status.replaceAll("_", " ")}</span></div><div className="mt-2 flex flex-wrap gap-2">{refund.status === "requested" && <><button disabled={saving} type="button" onClick={() => transition(refund, "approve")} className="rounded-md bg-emerald-500/15 px-2 py-1 text-emerald-300">Approve</button><button disabled={saving} type="button" onClick={() => transition(refund, "reject")} className="rounded-md bg-red-500/15 px-2 py-1 text-red-300">Reject</button></>}{["approved", "processing"].includes(refund.status) && <button disabled={saving} type="button" onClick={() => transition(refund, "complete")} className="rounded-md bg-blue-500/15 px-2 py-1 text-blue-300">Mark Completed</button>}</div></div>)}</div>}
+    {data?.refunds?.length > 0 && <div className="mt-3 max-h-44 space-y-2 overflow-y-auto">{data.refunds.map((refund) => <div key={refund._id} className="rounded-lg border border-white/[0.07] bg-black/20 p-3 text-xs"><div className="flex justify-between gap-3"><span><RecordId value={refund.refundNumber} /><br /><strong className="text-white">{formatAdminCurrency(refund.amount)}</strong> · {refund.type}<br /><span className="text-neutral-500">{refund.reason}</span></span><span className="capitalize text-dune-amber">{refund.status.replaceAll("_", " ")}</span></div><div className="mt-2 flex flex-wrap gap-2">{refund.status === "requested" && <><button disabled={saving} type="button" onClick={() => transition(refund, "approve")} className="rounded-md bg-emerald-500/15 px-2 py-1 text-emerald-300">Approve</button><button disabled={saving} type="button" onClick={() => transition(refund, "reject")} className="rounded-md bg-red-500/15 px-2 py-1 text-red-300">Reject</button></>}{["approved", "processing"].includes(refund.status) && <button disabled={saving} type="button" onClick={() => transition(refund, "complete")} className="rounded-md bg-blue-500/15 px-2 py-1 text-blue-300">Mark Completed</button>}</div></div>)}</div>}
   </div>;
 };
 
@@ -153,7 +154,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
         <div className="flex items-start justify-between mb-5">
           <div>
             <h2 className="font-display text-2xl tracking-wide text-white">
-              ORDER #{order.orderNumber}
+              ORDER #<RecordId value={order.orderNumber} />
             </h2>
             <p className="text-xs text-neutral-500 mt-1">
               {order.manualEntry ? "Original order: " : ""}
@@ -221,7 +222,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
           </p>
           <p className="mt-1 text-xs text-neutral-500">
             {labelSource(order.source)} · {order.paymentMethod === "unrecorded" || !order.paymentMethod ? "Payment not recorded" : `${order.deliveryPaymentType === "aggregator_prepaid" ? "Aggregator prepaid" : formatOrderType(order.paymentMethod)} · ${formatOrderType(order.paymentStatus)}`}
-            {order.manualEntry && <span className="mt-1 block text-dune-amber">Manual delivery entry · External ID {order.externalOrderId}</span>}
+            {order.externalOrderId && <span className="mt-1 block text-dune-amber">{order.manualEntry ? "Manual delivery entry · " : ""}External ID <RecordId value={order.externalOrderId} /></span>}
           </p>
         </div>
 
@@ -506,7 +507,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                 >
                   <td className="p-4" onClick={(event) => event.stopPropagation()}><input aria-label={`Select order ${order.orderNumber}`} type="checkbox" checked={selected.has(order._id)} onChange={() => toggleSelected(order._id)} className="accent-orange-500" /></td>
                   <td className="p-4 text-white font-medium">
-                    <span className="flex items-center gap-2">#{order.orderNumber}{order.isOverdue && <span title="Preparation overdue" className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[0.65rem] text-red-300"><Clock className="h-3 w-3" />Overdue</span>}</span>
+                    <span className="flex items-center gap-2"><RecordId value={order.orderNumber} />{order.isOverdue && <span title="Preparation overdue" className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[0.65rem] text-red-300"><Clock className="h-3 w-3" />Overdue</span>}</span>
                   </td>
                   <td className="p-4">{order.customer?.name}</td>
                   <td className="p-4 text-neutral-400 text-xs">
@@ -524,7 +525,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                   <td className="p-4 text-xs text-neutral-300">
                     {formatOrderType(order.orderType)}
                   </td>
-                  <td className="p-4 text-xs text-neutral-300"><span>{labelSource(order.source)}</span>{order.manualEntry && <span className="mt-1 block text-[0.65rem] text-dune-amber">Manual · {order.externalOrderId}</span>}</td>
+                  <td className="p-4 text-xs text-neutral-300"><span>{labelSource(order.source)}</span>{order.externalOrderId && <span className="mt-1 block text-[0.65rem] text-dune-amber">{order.manualEntry ? "Manual · " : ""}<RecordId value={order.externalOrderId} /></span>}</td>
                   <td className="p-4 text-xs text-neutral-300">{order.paymentMethod && order.paymentMethod !== "unrecorded" ? formatOrderType(order.paymentMethod) : "—"}</td>
                   <td className="p-4 text-dune-amber font-medium">
                     {formatAdminCurrency(order.totalAmount)}

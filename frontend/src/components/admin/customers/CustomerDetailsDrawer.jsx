@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { Heart, History, NotebookPen, ShoppingBag, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -60,7 +61,7 @@ export default function CustomerDetailsDrawer({ customer, onClose, onCustomerCha
         <header className="border-b border-white/[0.08] px-4 py-4 sm:px-6">
           <div className="flex items-start gap-3">
             {currentCustomer.avatar ? <SmartImage src={currentCustomer.avatar} alt="" width={96} height={96} sizes="48px" className="h-12 w-12 rounded-full object-cover ring-1 ring-white/15" /> : <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-dune-amber/10 text-lg font-semibold text-dune-amber">{currentCustomer.name?.charAt(0)?.toUpperCase()}</span>}
-            <div className="min-w-0 flex-1"><h2 id="customer-drawer-title" className="truncate text-xl font-semibold text-white">{currentCustomer.name}</h2><p className="mt-1 truncate text-xs text-neutral-500">{currentCustomer.email}{currentCustomer.phone ? ` · ${currentCustomer.phone}` : ""}</p></div>
+            <div className="min-w-0 flex-1"><h2 id="customer-drawer-title" className="truncate text-xl font-semibold text-white">{currentCustomer.name}</h2><RecordId value={currentCustomer.customerNumber} /><p className="mt-1 truncate text-xs text-neutral-500">{currentCustomer.email}{currentCustomer.phone ? ` · ${currentCustomer.phone}` : ""}</p></div>
             <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 text-neutral-500 hover:text-white" aria-label="Close customer details"><X className="h-5 w-5" /></button>
           </div>
           <nav className="mt-4 flex gap-1 overflow-x-auto" aria-label="Customer detail sections">{TABS.map(([id, label, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-semibold ${tab === id ? "bg-dune-amber text-black" : "text-neutral-400 hover:bg-white/5 hover:text-white"}`}><Icon className="h-4 w-4" />{label}</button>)}</nav>

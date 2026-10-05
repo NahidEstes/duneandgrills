@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { automaticRecordNumber } from "../services/recordNumberService.js";
 
 const addressSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true, maxlength: 40 },
@@ -125,5 +126,7 @@ userSchema.methods.comparePassword = function (candidate) {
   return bcrypt.compare(candidate, this.password);
 };
 
+userSchema.plugin(automaticRecordNumber, { type: "Customer", when: (user) => !user.role || user.role === "customer" });
+userSchema.plugin(automaticRecordNumber, { type: "Staff", existingField: true, when: (user) => Boolean(user.role && user.role !== "customer") });
 const User = mongoose.model("User", userSchema);
 export default User;

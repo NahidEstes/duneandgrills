@@ -26,8 +26,10 @@ import restaurantSettingsRoutes from "./routes/restaurantSettingsRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
 import deliveryOrderRoutes from "./routes/deliveryOrderRoutes.js";
+import recordSearchRoutes from "./routes/recordSearchRoutes.js";
 import { csrfProtection, requestCorrelation, securityHeaders } from "./middleware/security.js";
 import { verifyTransactionCapability } from "./services/inventoryStockService.js";
+import { rejectClientRecordNumbers } from "./services/recordNumberService.js";
 
 const app = express();
 
@@ -68,6 +70,7 @@ app.use(cors({
   },
 }));
 app.use(express.json());
+app.use(rejectClientRecordNumbers);
 app.use(morgan("dev"));
 app.use(async (req, res, next) => {
   try {
@@ -88,6 +91,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/record-search", recordSearchRoutes);
 app.use("/api/rewards", rewardRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/combos", comboRoutes);

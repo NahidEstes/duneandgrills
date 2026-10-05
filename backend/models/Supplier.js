@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 
 const supplierSchema = new mongoose.Schema(
   {
@@ -20,4 +21,5 @@ const supplierSchema = new mongoose.Schema(
 
 supplierSchema.index({ name: 1 }, { collation: { locale: "en", strength: 2 } });
 
+addRecordSearchIndexes(supplierSchema, ["code"]);
 export default mongoose.model("Supplier", supplierSchema);

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 
 const schema = new mongoose.Schema({
   code: { type: String, required: true, uppercase: true, trim: true, match: /^[A-Z0-9][A-Z0-9-]{0,39}$/, unique: true, immutable: true },
@@ -10,4 +11,5 @@ const schema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, immutable: true },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 }, { timestamps: true });
+addRecordSearchIndexes(schema, ["code"]);
 export default mongoose.model("PosTerminal", schema);

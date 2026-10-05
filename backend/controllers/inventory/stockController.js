@@ -79,7 +79,7 @@ export const listMovements = async (req, res, next) => {
     if (req.query.search?.trim()) {
       const value = new RegExp(escapeRegex(req.query.search.trim()), "i");
       const itemIds = await InventoryItem.find({ $or: [{ name: value }, { sku: value }] }).distinct("_id");
-      filter.$or = [{ item: { $in: itemIds } }, { reason: value }, { notes: value }, { reference: value }];
+      filter.$or = [{ item: { $in: itemIds } }, { transactionNumber: value }, { reason: value }, { notes: value }, { reference: value }];
     }
     const summaryFilter = { ...filter };
     delete summaryFilter.movementType;
@@ -122,13 +122,15 @@ const nextCountNumber = async () => {
 
 export const listCounts = async (req, res, next) => {
   try {
-    const rows = await InventoryCount.find().populate("createdBy completedBy reviewedBy", "name").sort({ createdAt: -1 }).lean();
+    const { page, limit, skip } = parsePagination(req.query, 25);
+    const filter = req.query.search?.trim() ? { countNumber: new RegExp(escapeRegex(req.query.search.trim().slice(0, 120)), "i") } : {};
+    const [rows, total] = await Promise.all([InventoryCount.find(filter).populate("createdBy completedBy reviewedBy", "name").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(), InventoryCount.countDocuments(filter)]);
     if (!hasCapability(req.user.role, CAPABILITIES.INVENTORY_COUNT_APPROVE)) {
       for (const count of rows) if (count.blindCount && count.status === "in_progress") {
         count.items = count.items.map(({ expectedQuantity: _expectedQuantity, expectedStockVersion: _expectedStockVersion, ...line }) => line);
       }
     }
-    res.json({ success: true, data: rows });
+    res.json({ success: true, data: rows, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) { next(error); }
 };
 

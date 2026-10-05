@@ -10,6 +10,8 @@ const signToken = (user) =>
 
 const sanitize = (user) => ({
   _id: user._id,
+  customerNumber: user.customerNumber,
+  employeeId: user.employeeId,
   name: user.name,
   email: user.email,
   role: user.role,
@@ -79,10 +81,10 @@ export const register = async (req, res) => {
     res.status(201).json({ success: true, user: sanitize(user) });
   } catch (err) {
     res
-      .status(500)
+      .status(err.status === 503 ? 503 : 500)
       .json({
         success: false,
-        message: "Registration failed",
+        message: err.status === 503 ? err.message : "Registration failed",
       });
   }
 };

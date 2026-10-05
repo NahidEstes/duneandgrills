@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 
 const inventoryCountLineSchema = new mongoose.Schema(
   {
@@ -36,4 +37,5 @@ const inventoryCountSchema = new mongoose.Schema(
 
 inventoryCountSchema.index({ status: 1, createdAt: -1 });
 
+addRecordSearchIndexes(inventoryCountSchema, ["countNumber"]);
 export default mongoose.model("InventoryCount", inventoryCountSchema);

@@ -2,6 +2,7 @@
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { useEffect, useState } from "react";
 import { LoaderCircle, RefreshCw, Save } from "lucide-react";
@@ -70,6 +71,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, s
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="Item name"><input required className={inputClass} value={form.name} onChange={(event) => set("name", event.target.value)} placeholder="e.g. Chicken breast" /></Field>
       <Field label="SKU / stable inventory ID" hint={item ? "SKU is immutable after creation so historical references remain stable." : skuAutomatic ? "Reserved atomically by the server when the item is created." : "Manual SKU will be validated for format and uniqueness."} error={skuState.error}>
+        {item && <RecordId value={item.sku} className="mb-2" />}
         <div className="flex gap-2"><input required readOnly={Boolean(item)} className={`${inputClass} ${item ? "cursor-not-allowed text-neutral-500" : ""}`} value={form.sku} onChange={(event) => { set("sku", event.target.value.toUpperCase()); setSkuAutomatic(false); }} placeholder="Select a category" />{!item && <button type="button" onClick={() => regenerateSku()} disabled={!form.category || skuState.loading} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 px-3 text-xs text-neutral-300 hover:border-dune-amber/50 hover:text-dune-amber disabled:opacity-40" aria-label="Regenerate suggested SKU"><RefreshCw className={`h-3.5 w-3.5 ${skuState.loading ? "animate-spin" : ""}`} />Regenerate</button>}</div>
       </Field>
       <Field label="Category"><DarkSelect required className={inputClass} value={form.category} onChange={(event) => set("category", event.target.value)}><option value="">Choose category</option>{categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>

@@ -4,16 +4,10 @@ import { validateNewPassword } from "./authController.js";
 import { recordAuditLog } from "../services/auditLogService.js";
 import Shift from "../models/Shift.js";
 import { createPinLookup, hashStaffPin, normalizePin, parseDateKey } from "../services/attendanceService.js";
-import { assertObjectId, ValidationError } from "../utils/inventoryValidation.js";
+import { assertObjectId, escapeRegex, parsePagination, ValidationError } from "../utils/inventoryValidation.js";
 
 const fields = "name email phone role isActive deactivatedAt employeeId joiningDate attendanceEnabled attendanceEnabledAt defaultShift createdAt updatedAt";
 const clean = (value) => typeof value === "string" ? value.trim() : "";
-
-const parseEmployeeId = (value) => {
-  const employeeId = clean(value).toUpperCase();
-  if (employeeId && !/^[A-Z0-9-]{2,30}$/.test(employeeId)) throw new ValidationError("Employee ID may contain only letters, numbers and hyphens");
-  return employeeId || undefined;
-};
 
 const validateShift = async (value) => {
   if (!value) return null;
@@ -34,8 +28,13 @@ export const listStaff = async (req, res, next) => {
     const filter = { role: { $in: STAFF_ROLES } };
     if (req.query.active === "true") filter.isActive = { $ne: false };
     if (req.query.active === "false") filter.isActive = false;
-    const rows = await User.find(filter).select(fields).populate("defaultShift", "name startTime endTime gracePeriodMinutes daysOfWeek isActive").sort({ name: 1 }).lean();
-    res.json({ success: true, data: rows });
+    if (req.query.search?.trim()) {
+      const expression = new RegExp(escapeRegex(req.query.search.trim().slice(0, 120)), "i");
+      filter.$or = ["name", "email", "phone", "employeeId", "role"].map(field => ({ [field]: expression }));
+    }
+    const { page, limit, skip } = parsePagination(req.query, 50);
+    const [rows, total] = await Promise.all([User.find(filter).select(fields).populate("defaultShift", "name startTime endTime gracePeriodMinutes daysOfWeek isActive").sort({ name: 1, _id: 1 }).skip(skip).limit(limit).lean(), User.countDocuments(filter)]);
+    res.json({ success: true, data: rows, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) { next(error); }
 };
 
@@ -56,7 +55,6 @@ export const createStaff = async (req, res, next) => {
       phone: clean(req.body.phone),
       password: req.body.password,
       role,
-      employeeId: parseEmployeeId(req.body.employeeId),
       joiningDate: parseJoiningDate(req.body.joiningDate),
       defaultShift,
       attendanceEnabled,
@@ -79,7 +77,6 @@ export const updateStaff = async (req, res, next) => {
     const before = { name: user.name, email: user.email, phone: user.phone, role: user.role, employeeId: user.employeeId, joiningDate: user.joiningDate, defaultShift: user.defaultShift, attendanceEnabled: user.attendanceEnabled, isActive: user.isActive };
     if (req.body.role !== undefined && !STAFF_ROLES.includes(req.body.role)) return res.status(400).json({ success: false, message: "Invalid staff role" });
     for (const key of ["name", "email", "phone", "role"]) if (req.body[key] !== undefined) user[key] = clean(req.body[key]);
-    if ("employeeId" in req.body) user.employeeId = parseEmployeeId(req.body.employeeId);
     if ("joiningDate" in req.body) user.joiningDate = parseJoiningDate(req.body.joiningDate);
     if ("defaultShift" in req.body) user.defaultShift = await validateShift(req.body.defaultShift);
     if ("attendanceEnabled" in req.body) {

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 
 export const PURCHASE_ORDER_STATUSES = ["draft", "submitted", "approved", "rejected", "ordered", "partially_received", "received", "closed_short", "cancelled"];
 
@@ -63,4 +64,5 @@ const purchaseOrderSchema = new mongoose.Schema(
 purchaseOrderSchema.index({ supplier: 1, createdAt: -1 });
 purchaseOrderSchema.index({ status: 1, createdAt: -1 });
 
+addRecordSearchIndexes(purchaseOrderSchema, ["orderNumber"]);
 export default mongoose.model("PurchaseOrder", purchaseOrderSchema);

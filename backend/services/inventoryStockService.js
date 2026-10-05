@@ -224,10 +224,11 @@ export const performStockMovement = async (
       action: "INVENTORY_STOCK_MOVEMENT",
       entityType: "InventoryItem",
       entityId: item._id,
-      entityLabel: `${item.name} · ${transaction.reference}`,
+      entityLabel: `${transaction.transactionNumber} · ${item.name} · ${transaction.reference}`,
       before: { currentStock: item.currentStock, unitCost: item.unitCost, expiryDate: item.expiryDate },
       after: { currentStock: updated.currentStock, unitCost: updated.unitCost, expiryDate: updated.expiryDate },
       metadata: {
+        transactionNumber: transaction.transactionNumber,
         movementType,
         quantity: transaction.quantity,
         reference: transaction.reference,

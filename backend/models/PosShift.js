@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { automaticRecordNumber } from "../services/recordNumberService.js";
 
 const posShiftSchema = new mongoose.Schema({
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true, immutable: true },
@@ -36,4 +37,5 @@ posShiftSchema.index({ terminal: 1, openedAt: -1 });
 posShiftSchema.index({ closedAt: -1 }, { sparse: true });
 posShiftSchema.index({ closeIdempotencyKey: 1 }, { unique: true, sparse: true });
 
+posShiftSchema.plugin(automaticRecordNumber, { type: "PosShift" });
 export default mongoose.model("PosShift", posShiftSchema);

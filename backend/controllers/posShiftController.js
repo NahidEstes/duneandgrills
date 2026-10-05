@@ -1,7 +1,7 @@
 import PosShift from "../models/PosShift.js";
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
 import { addCashMovement, closePosShift, findOpenShift, openPosShift, reopenPosShift, summarizePosShift } from "../services/posShiftService.js";
-import { parsePagination } from "../utils/inventoryValidation.js";
+import { escapeRegex, parsePagination } from "../utils/inventoryValidation.js";
 
 const populateShift = (query) => query.populate("cashier openedBy closedBy managerApprovedBy", "name role");
 
@@ -54,6 +54,7 @@ export const listShifts = async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query, 25);
     const filter = {};
+    if (req.query.search?.trim()) filter.shiftNumber = new RegExp(escapeRegex(req.query.search.trim().slice(0, 120)), "i");
     if (req.query.status) filter.status = req.query.status;
     if (req.query.cashier) filter.cashier = req.query.cashier;
     if (req.query.terminal) filter.terminal = String(req.query.terminal).trim().toUpperCase();

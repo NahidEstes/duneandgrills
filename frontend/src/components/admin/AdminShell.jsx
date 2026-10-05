@@ -38,6 +38,7 @@ import SmartImage from "../SmartImage.jsx";
 import { KNOWLEDGE_BASE_ROLES } from "../knowledge/knowledgePermissions.js";
 
 const NAV_ITEMS = [
+  { id: "record-search", label: "Search by ID", icon: Search, href: "/admin/record-search", roles: ["admin", "manager", "cashier", "inventory", "storekeeper", "accountant"] },
   { id: "overview", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager"] },
   { id: "pos", label: "POS / New Sale", icon: ShoppingBasket, roles: ["admin", "manager", "cashier"] },
   { id: "kitchen", label: "Kitchen Display", icon: ChefHat, href: "/kitchen", roles: ["admin", "manager", "kitchen"] },
@@ -301,6 +302,7 @@ const AdminShell = ({
             </div> : <div className="min-w-0 flex-1" />}
 
             <div className="ml-auto flex items-center gap-1 sm:gap-2">
+              <Link href="/admin/record-search" onClick={event => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); }} className="flex h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-neutral-300 hover:text-dune-amber" aria-label="Search by ID"><Search className="h-4 w-4" /><span className="hidden sm:inline">Search by ID</span></Link>
               {showOrderControls && <><div className="hidden rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-400 xl:block">
                 Live data · {new Date().toLocaleDateString("en-SA", { month: "short", day: "numeric", year: "numeric" })}
               </div>

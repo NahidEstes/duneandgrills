@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
@@ -30,6 +31,7 @@ export default function ReportsPage() {
       { key: "unitCost", label: "Item unit cost", render: (row) => <Money value={row.unitCost} /> }, { key: "value", label: "Inventory value", render: (row) => <span className="font-semibold text-white"><Money value={row.inventoryValue} /></span> },
     ];
     if (["movement", "waste"].includes(type)) return [
+      { key: "transactionNumber", label: "Transaction ID", render: (row) => <RecordId value={row.transactionNumber} /> },
       { key: "date", label: "Date", render: (row) => formatDate(row.occurredAt, true) }, { key: "item", label: "Item", render: (row) => row.item?.name || "Archived item" },
       { key: "movement", label: "Movement", render: (row) => <Badge tone={row.stockAfter >= row.stockBefore ? "success" : "danger"}>{humanize(row.movementType)}</Badge> },
       { key: "quantity", label: "Quantity", render: (row) => formatQuantity(row.quantity, row.item?.unit) }, { key: "balance", label: "Balance", render: (row) => `${row.stockBefore} → ${row.stockAfter}` },

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 
 export const INVENTORY_UNITS = ["kg", "g", "L", "ml", "pcs", "box", "pack", "bottle", "can", "tray"];
 export const PURCHASE_UNITS = [...new Set([...INVENTORY_UNITS, "carton", "case", "bag", "sack"])];
@@ -42,4 +43,5 @@ inventoryItemSchema.index({ currentStock: 1, reorderLevel: 1 });
 inventoryItemSchema.index({ reorderEnabled: 1, isActive: 1, supplier: 1 });
 inventoryItemSchema.index({ expiryDate: 1 }, { sparse: true });
 
+addRecordSearchIndexes(inventoryItemSchema, ["sku"]);
 export default mongoose.model("InventoryItem", inventoryItemSchema);

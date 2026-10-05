@@ -25,7 +25,7 @@ const customerObjectId = (value) => {
 
 const requireCustomer = async (value) => {
   const customer = await User.findOne({ _id: customerObjectId(value), role: "customer" })
-    .select("name email phone address avatar pointsBalance createdAt updatedAt")
+    .select("customerNumber name email phone address avatar pointsBalance createdAt updatedAt")
     .lean();
   if (!customer) {
     const error = new Error("Customer not found");
@@ -58,7 +58,7 @@ export const listCustomerDirectory = async (query = {}) => {
   const match = { role: "customer" };
   if (query.search?.trim()) {
     const expression = new RegExp(escapeRegex(query.search.trim().slice(0, 120)), "i");
-    match.$or = [{ name: expression }, { email: expression }, { phone: expression }];
+    match.$or = [{ customerNumber: expression }, { name: expression }, { email: expression }, { phone: expression }];
   }
   const activity = ["all", "with-orders", "no-orders"].includes(query.activity)
     ? query.activity
@@ -95,6 +95,7 @@ export const listCustomerDirectory = async (query = {}) => {
           { $limit: limit },
           {
             $project: {
+              customerNumber: 1,
               name: 1,
               email: 1,
               phone: 1,

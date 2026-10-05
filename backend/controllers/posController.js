@@ -241,7 +241,7 @@ export const listPosSales = async (req, res, next) => {
     const search = cleanText(req.query.search, 100);
     if (search) {
       const expression = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      filter.$or = [{ orderNumber: expression }, { "customer.name": expression }, { pickupToken: expression }];
+      filter.$or = [{ orderNumber: expression }, { externalOrderId: expression }, { "customer.name": expression }, { pickupToken: expression }];
     }
     const [sales, total] = await Promise.all([Order.find(filter).populate("createdBy", "name role").sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).select("-customer.phone -customer.email -customer.address").lean(), Order.countDocuments(filter)]);
     res.json({ success: true, count: sales.length, data: sales, pagination: { page, limit, total, pages: Math.ceil(total / limit) }, currency: "SAR" });

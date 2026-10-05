@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 import { PURCHASE_UNITS } from "./InventoryItem.js";
 
 const FAR_FUTURE = new Date("9999-12-31T23:59:59.999Z");
@@ -46,4 +47,5 @@ inventoryBatchSchema.index(
   { unique: true, partialFilterExpression: { isLegacy: true } }
 );
 
+addRecordSearchIndexes(inventoryBatchSchema, ["lotNumber"]);
 export default mongoose.model("InventoryBatch", inventoryBatchSchema);

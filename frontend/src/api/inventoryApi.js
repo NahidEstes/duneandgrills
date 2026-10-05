@@ -1,4 +1,5 @@
 import api from "./api.js";
+import { collectSelectionOptions } from "./selectionOptions.js";
 
 const unwrap = (request) => request.then(({ data }) => data);
 
@@ -21,7 +22,9 @@ export const createInventoryCategory = (payload) => unwrap(api.post("/inventory/
 export const updateInventoryCategory = (id, payload) => unwrap(api.patch(`/inventory/categories/${id}`, payload)).then((response) => response.data);
 export const archiveInventoryCategory = (id) => unwrap(api.delete(`/inventory/categories/${id}`));
 
-export const fetchSuppliers = (params = {}) => unwrap(api.get("/inventory/suppliers", { params })).then((response) => response.data);
+export const fetchSuppliers = (params) => params
+  ? unwrap(api.get("/inventory/suppliers", { params })).then((response) => response.data)
+  : collectSelectionOptions(page => unwrap(api.get("/inventory/suppliers", { params: page })).then(response => response.data));
 export const createSupplier = (payload) => unwrap(api.post("/inventory/suppliers", payload)).then((response) => response.data);
 export const updateSupplier = (id, payload) => unwrap(api.patch(`/inventory/suppliers/${id}`, payload)).then((response) => response.data);
 export const archiveSupplier = (id) => unwrap(api.delete(`/inventory/suppliers/${id}`));
@@ -64,7 +67,7 @@ export const fetchPurchasingActions = (params = {}) => unwrap(api.get("/inventor
 export const refreshPurchasingActions = () => unwrap(api.post("/inventory/purchasing-actions/refresh")).then((response) => response.data);
 export const updatePurchasingActionState = (id, payload) => unwrap(api.patch(`/inventory/purchasing-actions/${id}/state`, payload)).then((response) => response.data);
 
-export const fetchInventoryCounts = () => unwrap(api.get("/inventory/counts")).then((response) => response.data);
+export const fetchInventoryCounts = (params = {}) => unwrap(api.get("/inventory/counts", { params })).then((response) => response.data);
 export const createInventoryCount = (payload) => unwrap(api.post("/inventory/counts", payload)).then((response) => response.data);
 export const completeInventoryCount = (id, items) => unwrap(api.post(`/inventory/counts/${id}/complete`, { items })).then((response) => response.data);
 export const submitInventoryCount = (id, items) => unwrap(api.post(`/inventory/counts/${id}/submit`, { items })).then((response) => response.data);

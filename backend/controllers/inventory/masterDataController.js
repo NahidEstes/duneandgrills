@@ -3,7 +3,7 @@ import InventoryItem from "../../models/InventoryItem.js";
 import PurchaseOrder from "../../models/PurchaseOrder.js";
 import Supplier from "../../models/Supplier.js";
 import SupplierInvoice from "../../models/SupplierInvoice.js";
-import { escapeRegex, ValidationError } from "../../utils/inventoryValidation.js";
+import { escapeRegex, parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
 import {
   ensureAllCategorySkuPrefixes,
   ensureCategorySkuPrefix,
@@ -84,6 +84,7 @@ export const archiveCategory = async (req, res, next) => {
 
 export const listSuppliers = async (req, res, next) => {
   try {
+    const { skip, limit } = parsePagination(req.query, 100);
     const match = req.query.includeInactive === "true" ? {} : { isActive: true };
     if (req.query.search?.trim()) {
       const search = new RegExp(escapeRegex(req.query.search.trim()), "i");
@@ -95,7 +96,9 @@ export const listSuppliers = async (req, res, next) => {
       { $lookup: { from: SupplierInvoice.collection.name, localField: "_id", foreignField: "supplier", as: "supplierInvoices" } },
       { $addFields: { purchaseCount: { $size: "$purchases" }, totalPurchases: { $sum: "$purchases.total" }, lastPurchaseAt: { $max: "$purchases.createdAt" }, invoiceCount: { $size: "$supplierInvoices" }, payableBalance: { $sum: { $map: { input: { $filter: { input: "$supplierInvoices", as: "invoice", cond: { $and: [{ $eq: ["$$invoice.status", "posted"] }, { $ne: ["$$invoice.paymentStatus", "paid"] }] } } }, as: "invoice", in: { $subtract: ["$$invoice.total", { $divide: ["$$invoice.paidAmountHalala", 100] }] } } } } } },
       { $project: { purchases: 0, supplierInvoices: 0 } },
-      { $sort: { name: 1 } },
+      { $sort: { name: 1, _id: 1 } },
+      { $skip: skip },
+      { $limit: limit },
     ]);
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }

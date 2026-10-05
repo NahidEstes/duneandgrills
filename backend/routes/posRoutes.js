@@ -1,4 +1,5 @@
 import express from "express";
+import { rejectClientRecordNumbers } from "../services/recordNumberService.js";
 import { createPosSale, listPosSales } from "../controllers/posController.js";
 import { protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
@@ -12,6 +13,7 @@ import { getPosSale, reprintPosSale, voidSale, requestPosRefund, repeatPosSale }
 import { changeRefundStatus } from "../controllers/refundController.js";
 
 const router = express.Router();
+router.use(rejectClientRecordNumbers);
 router.use(protect, resolvePosSession, requireCapability(CAPABILITIES.POS_OPERATE));
 router.get("/session", posSession);
 router.post("/session/lock", lockSession);

@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 
@@ -55,7 +56,7 @@ export default function StockItemsPage() {
     catch (error) { toast.error(apiErrorMessage(error, "Unable to archive item.")); }
   };
   const columns = [
-    { key: "name", label: "Item", render: (item) => <div><p className="font-medium text-white">{item.name}</p><p className="mt-0.5 text-[0.65rem] text-neutral-600">{item.sku}</p></div> },
+    { key: "name", label: "Item", render: (item) => <div><p className="font-medium text-white">{item.name}</p><p className="mt-0.5 text-[0.65rem] text-neutral-600"><RecordId value={item.sku} /></p></div> },
     { key: "category", label: "Category", render: (item) => item.category?.name || "—" },
     { key: "brand", label: "Preferred brand", render: (item) => item.preferredBrand || "—" },
     { key: "unit", label: "Usage unit" },

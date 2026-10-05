@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { automaticRecordNumber } from "../services/recordNumberService.js";
 
 export const REFUND_STATUSES = Object.freeze(["requested", "approved", "rejected", "processing", "completed", "failed", "cancelled"]);
 export const REFUND_METHODS = Object.freeze(["cash", "card", "other"]);
@@ -33,4 +34,5 @@ const refundSchema = new mongoose.Schema({
 refundSchema.index({ order: 1, createdAt: -1 });
 refundSchema.index({ status: 1, createdAt: -1 });
 
+refundSchema.plugin(automaticRecordNumber, { type: "Refund" });
 export default mongoose.model("Refund", refundSchema);

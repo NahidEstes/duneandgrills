@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -41,7 +42,7 @@ export default function PosSaleActionsDialog({ data, canManage, onClose, onRefre
     <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3"><p>Total: <strong>{formatAdminCurrency(sale.totalAmount)}</strong></p><p>Refunded: <strong>{formatAdminCurrency(refunds.completedRefundAmount)}</strong></p><p>Refundable: <strong>{formatAdminCurrency(refunds.remainingRefundableAmount)}</strong></p></div>
     <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={onReceipt} className="min-h-11 rounded-xl border border-dune-amber/30 px-4 text-sm text-dune-amber">Receipt reprint</button><button type="button" onClick={() => { onRepeat(sale); onClose(); }} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm">Add items to new sale</button></div>
     {refunds.refunds.length > 0 && <div className="mt-5 space-y-2"><h3 className="text-sm font-semibold">Refund records</h3>{refunds.refunds.map(row => <div key={row._id} className="rounded-xl border border-white/10 p-3 text-sm">
-      <div className="flex flex-wrap justify-between gap-2"><span>{formatAdminCurrency(row.amount)} · {row.method} · {row.status}</span><span className="text-xs text-neutral-500">{row.externalReference}</span></div>
+      <div className="flex flex-wrap justify-between gap-2"><span><RecordId value={row.refundNumber} /> · {formatAdminCurrency(row.amount)} · {row.method} · {row.status}</span><span className="text-xs text-neutral-500">{row.externalReference}</span></div>
       <p className="mt-1 text-xs text-neutral-400">{row.reason} · {row.restock ? "Returned stock restored on completion" : "No stock return"}</p>
       <button type="button" onClick={() => printPosRefundRecord(sale, row)} className="mt-2 min-h-10 text-xs text-neutral-300">Print refund record (not a fiscal credit note)</button>
       {canManage && <div className="mt-2 flex flex-wrap gap-3">

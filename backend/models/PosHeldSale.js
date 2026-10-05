@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { automaticRecordNumber } from "../services/recordNumberService.js";
 
 const posHeldSaleSchema = new mongoose.Schema({
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
@@ -34,4 +35,5 @@ const posHeldSaleSchema = new mongoose.Schema({
 posHeldSaleSchema.index({ cashier: 1, status: 1, updatedAt: -1 });
 posHeldSaleSchema.index({ terminal: 1, status: 1, updatedAt: -1 });
 
+posHeldSaleSchema.plugin(automaticRecordNumber, { type: "PosHeldSale" });
 export default mongoose.model("PosHeldSale", posHeldSaleSchema);

@@ -28,7 +28,7 @@ const wasteFilter = async (query) => {
   if (query.search?.trim()) {
     const value = new RegExp(escapeRegex(query.search.trim()), "i");
     const itemIds = await InventoryItem.find({ $or: [{ name: value }, { sku: value }] }).distinct("_id");
-    filter.$or = [{ item: { $in: itemIds } }, { reason: value }, { notes: value }, { reference: value }];
+    filter.$or = [{ item: { $in: itemIds } }, { transactionNumber: value }, { reason: value }, { notes: value }, { reference: value }];
   }
   return filter;
 };

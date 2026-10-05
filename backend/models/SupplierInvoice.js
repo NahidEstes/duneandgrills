@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 
 export const SUPPLIER_INVOICE_STATUSES = ["draft", "submitted", "review_required", "approved", "posted", "disputed", "voided"];
 export const SUPPLIER_PAYMENT_STATUSES = ["unpaid", "partially_paid", "paid"];
@@ -53,4 +54,5 @@ const supplierInvoiceSchema = new mongoose.Schema({
 supplierInvoiceSchema.index({ supplier: 1, normalizedInvoiceNumber: 1 }, { unique: true });
 supplierInvoiceSchema.index({ dueDate: 1, paymentStatus: 1, status: 1 });
 
+addRecordSearchIndexes(supplierInvoiceSchema, ["internalReference","supplierInvoiceNumber"]);
 export default mongoose.model("SupplierInvoice", supplierInvoiceSchema);

@@ -1,4 +1,5 @@
 import express from "express";
+import { rejectClientRecordNumbers } from "../services/recordNumberService.js";
 import {
   archiveItem,
   createItem,
@@ -56,6 +57,7 @@ import { dismissSuggestion, generateDrafts, listReorderSuggestions, recalculateS
 import { listPurchasingActions, refreshActions, updateActionState } from "../controllers/inventory/purchasingActionController.js";
 
 const router = express.Router();
+router.use(rejectClientRecordNumbers);
 
 router.use(protect, requireCapability(CAPABILITIES.INVENTORY_READ));
 const write = requireCapability(CAPABILITIES.INVENTORY_WRITE);

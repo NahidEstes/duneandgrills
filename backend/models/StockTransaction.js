@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { automaticRecordNumber } from "../services/recordNumberService.js";
 
 export const STOCK_MOVEMENT_TYPES = [
   "STOCK_IN",
@@ -70,4 +71,5 @@ stockTransactionSchema.index({ order: 1, occurredAt: -1 }, { sparse: true });
 stockTransactionSchema.index({ reference: 1 }, { sparse: true });
 stockTransactionSchema.index({ reasonCode: 1, occurredAt: -1 }, { sparse: true });
 
+stockTransactionSchema.plugin(automaticRecordNumber, { type: "StockTransaction" });
 export default mongoose.model("StockTransaction", stockTransactionSchema);

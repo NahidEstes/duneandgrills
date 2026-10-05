@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { useCallback, useEffect, useState } from "react";
 import { Monitor, LockKeyhole } from "lucide-react";
@@ -10,16 +11,18 @@ import { SettingsCard, Field, settingsInputClass } from "./settingsUi.jsx";
 
 export default function PosDeviceSettings() {
   const { user } = useAuth();
+  const [search, setSearch] = useState(""); const [page, setPage] = useState(1);
   const [rows, setRows] = useState([]); const [cashiers, setCashiers] = useState([]);
   const [form, setForm] = useState({ code: "", name: "", locationLabel: "", isActive: true });
   const [id, setId] = useState(""); const [busy, setBusy] = useState(false);
   const [cashierId, setCashierId] = useState(""); const [pin, setPin] = useState(""); const [error, setError] = useState("");
-  const load = useCallback(async () => { try { setRows(await fetchPosTerminals(true)); if (user?.role === "admin") setCashiers(await fetchPosCashiers()); setError(""); } catch (failure) { setError(failure.response?.data?.message || "Unable to load POS devices."); } }, [user]);
+  const load = useCallback(async () => { try { setRows(await fetchPosTerminals(true, { search, page, limit: 20 })); if (user?.role === "admin") setCashiers(await fetchPosCashiers()); setError(""); } catch (failure) { setError(failure.response?.data?.message || "Unable to load POS devices."); } }, [user, search, page]);
   useEffect(() => { load(); }, [load]);
   const save = async () => { setBusy(true); try { await savePosTerminal(form, id || undefined); setId(""); setForm({ code: "", name: "", locationLabel: "", isActive: true }); await load(); toast.success("POS terminal saved."); } catch (failure) { toast.error(failure.response?.data?.message || "Unable to save terminal."); } finally { setBusy(false); } };
   return <div className="space-y-4"><SettingsCard icon={Monitor} title="POS Terminals" description="Create cashier devices and preserve their historical identity.">
     {error && <p role="alert" className="mb-3 text-sm text-red-400">{error}<button type="button" onClick={load} className="ml-3 text-dune-amber">Retry</button></p>}
-    <div className="mb-4 space-y-2">{rows.map(row => <div key={row._id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 p-3 text-sm"><span>{row.name} <span className="text-neutral-500">· {row.code} · {row.isActive ? "Active" : "Inactive"}</span></span><button type="button" onClick={() => { setId(row._id); setForm({ code: row.code, name: row.name, locationLabel: row.locationLabel, isActive: row.isActive }); }} className="text-dune-amber">Edit</button></div>)}</div>
+    <label className="mb-4 block text-xs text-neutral-400">Search terminal name / code<input type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} className={`${settingsInputClass} mt-2`} /></label><div className="mb-3 flex gap-4 text-xs"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button disabled={rows.length < 20} onClick={() => setPage(page + 1)}>Next</button></div>
+    <div className="mb-4 space-y-2">{rows.map(row => <div key={row._id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 p-3 text-sm"><span>{row.name} <span className="text-neutral-500">· <RecordId value={row.code} /> · {row.isActive ? "Active" : "Inactive"}</span></span><button type="button" onClick={() => { setId(row._id); setForm({ code: row.code, name: row.name, locationLabel: row.locationLabel, isActive: row.isActive }); }} className="text-dune-amber">Edit</button></div>)}</div>
     <div className="grid gap-3 sm:grid-cols-3">{[["code", "Terminal code"], ["name", "Display name"], ["locationLabel", "Location label"]].map(([key, label]) => <Field key={key} label={label}><input value={form[key]} readOnly={key === "code" && Boolean(id)} maxLength={key === "code" ? 40 : key === "name" ? 100 : 120} onChange={event => setForm({ ...form, [key]: event.target.value })} className={`${settingsInputClass} mt-2`} /></Field>)}</div>
     <label className="mt-4 flex gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={event => setForm({ ...form, isActive: event.target.checked })} className="accent-orange-500" />Active</label>
     <div className="mt-4 flex gap-3"><button type="button" disabled={busy || !form.name.trim() || !form.code.trim()} onClick={save} className="rounded-xl bg-dune-amber px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">{busy ? "Saving…" : id ? "Update terminal" : "Add terminal"}</button>{id && <button type="button" onClick={() => { setId(""); setForm({ code: "", name: "", locationLabel: "", isActive: true }); }}>Cancel</button>}</div>

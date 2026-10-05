@@ -1,4 +1,5 @@
 import express from "express";
+import { rejectClientRecordNumbers } from "../services/recordNumberService.js";
 import {
   register,
   login,
@@ -11,6 +12,7 @@ import { protect } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/security.js";
 
 const router = express.Router();
+router.use(rejectClientRecordNumbers);
 
 const authLimit = rateLimit({ windowMs: 15 * 60_000, max: 20, keyPrefix: "auth" });
 router.post("/register", authLimit, register);

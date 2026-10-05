@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
@@ -27,6 +28,7 @@ export default function WasteDamagedPage() {
   const clearFilters = () => { setSearch(""); setReasonCode(""); setCategory(""); setUser(""); setFrom(""); setTo(""); setPage(1); };
   const rows = data?.data || [];
   const columns = useMemo(() => [
+    { key: "transactionNumber", label: "Transaction ID", render: row => <RecordId value={row.transactionNumber} /> },
     { key: "item", label: "Item", render: (row) => <div><p className="font-medium text-white">{row.item?.name || "Archived item"}</p><p className="text-[0.65rem] text-neutral-600">{row.item?.sku || "—"}</p></div> },
     { key: "category", label: "Category", render: (row) => row.item?.category?.name || "—" },
     { key: "quantity", label: "Quantity lost", render: (row) => formatQuantity(row.quantity, row.item?.unit) },
@@ -37,7 +39,7 @@ export default function WasteDamagedPage() {
     { key: "reference", label: "Reference", render: (row) => row.reference || "—" },
     { key: "status", label: "Status", render: (row) => <Badge tone="success">{humanize(row.status || "COMPLETED")}</Badge> },
   ], []);
-  const exportCsv = () => { if (!rows.length) return toast.error("There are no records to export."); downloadCsv(`waste-damaged-${new Date().toISOString().slice(0, 10)}.csv`, [["Date", (row) => new Date(row.occurredAt).toISOString()], ["Item", (row) => row.item?.name], ["SKU", (row) => row.item?.sku], ["Type", (row) => row.movementType], ["Quantity", (row) => row.quantity], ["Unit", (row) => row.item?.unit], ["Reason", (row) => row.reasonCode || row.reason], ["Cost SAR", (row) => row.costImpact], ["Recorded By", (row) => row.user?.name], ["Reference", (row) => row.reference]], rows); };
+  const exportCsv = () => { if (!rows.length) return toast.error("There are no records to export."); downloadCsv(`waste-damaged-${new Date().toISOString().slice(0, 10)}.csv`, [["Transaction ID", row => row.transactionNumber], ["Date", (row) => new Date(row.occurredAt).toISOString()], ["Item", (row) => row.item?.name], ["SKU", (row) => row.item?.sku], ["Type", (row) => row.movementType], ["Quantity", (row) => row.quantity], ["Unit", (row) => row.item?.unit], ["Reason", (row) => row.reasonCode || row.reason], ["Cost SAR", (row) => row.costImpact], ["Recorded By", (row) => row.user?.name], ["Reference", (row) => row.reference]], rows); };
   const summary = data?.summary || {};
   const maxReasonCost = Math.max(...(data?.reasonBreakdown || []).map((row) => Number(row.cost || 0)), 1);
   return <div className="mx-auto max-w-[1800px]">

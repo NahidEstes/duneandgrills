@@ -1,6 +1,6 @@
 import PurchaseOrder from "../../models/PurchaseOrder.js";
 import { createPurchaseOrder, receivePurchaseOrder, transitionPurchaseOrder, updatePurchaseOrder } from "../../services/purchaseOrderService.js";
-import { parsePagination, validatePurchaseOrderPayload } from "../../utils/inventoryValidation.js";
+import { escapeRegex, parsePagination, validatePurchaseOrderPayload } from "../../utils/inventoryValidation.js";
 import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
 import { getEffectiveRestaurantSettings } from "../../services/restaurantSettingsService.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
@@ -20,6 +20,7 @@ export const listPurchaseOrders = async (req, res, next) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.supplier) filter.supplier = req.query.supplier;
+    if (req.query.search?.trim()) filter.orderNumber = new RegExp(escapeRegex(req.query.search.trim().slice(0, 120)), "i");
     const [rows, total] = await Promise.all([
       PurchaseOrder.find(filter).populate(populate).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       PurchaseOrder.countDocuments(filter),

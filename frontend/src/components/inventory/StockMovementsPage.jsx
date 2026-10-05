@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
@@ -47,6 +48,7 @@ export default function StockMovementsPage() {
   const clearFilters = () => { setSearch(""); setMovementType(""); setItem(""); setUser(""); setFrom(""); setTo(""); setPage(1); };
   const rows = data?.data || [];
   const columns = useMemo(() => [
+    { key: "transactionNumber", label: "Transaction ID", render: (row) => <RecordId value={row.transactionNumber} /> },
     { key: "date", label: "Date & time", render: (row) => formatDate(row.occurredAt, true) },
     { key: "item", label: "Item", render: (row) => <div><p className="font-medium text-white">{row.item?.name || "Archived item"}</p><p className="text-[0.65rem] text-neutral-600">{row.item?.sku || "—"}</p></div> },
     { key: "type", label: "Movement", render: (row) => <Badge tone={movementTone(row.movementType)}>{humanize(row.movementType)}</Badge> },
@@ -66,7 +68,7 @@ export default function StockMovementsPage() {
       ["Date", (row) => new Date(row.occurredAt).toISOString()], ["Item", (row) => row.item?.name], ["SKU", (row) => row.item?.sku],
       ["Movement", (row) => row.movementType], ["Quantity", (row) => row.quantity], ["Unit", (row) => row.item?.unit],
       ["Stock Before", (row) => row.stockBefore], ["Stock After", (row) => row.stockAfter], ["Reason", (row) => row.reason],
-      ["Batch / Lot", (row) => row.batchAllocations?.map((allocation) => allocation.lotNumber).join(" | ")], ["Notes", (row) => row.notes], ["Reference", (row) => row.reference], ["Performed By", (row) => row.user?.name], ["Status", (row) => row.status || "COMPLETED"],
+      ["Transaction ID", (row) => row.transactionNumber], ["Batch / Lot", (row) => row.batchAllocations?.map((allocation) => allocation.lotNumber).join(" | ")], ["Notes", (row) => row.notes], ["Reference", (row) => row.reference], ["Performed By", (row) => row.user?.name], ["Status", (row) => row.status || "COMPLETED"],
     ], rows);
   };
   const summary = data?.summary || {};

@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { useEffect, useMemo, useState } from "react";
 import { Boxes, CalendarClock, CircleDollarSign, PackageCheck, Search } from "lucide-react";
@@ -70,7 +71,7 @@ export default function BatchesPage() {
 
   const columns = useMemo(() => [
     { key: "item", label: "Inventory item", render: (batch) => <div><p className="font-medium text-white">{batch.item?.name || "Archived item"}</p><p className="text-[0.65rem] text-neutral-600">{batch.item?.sku || "—"}</p></div> },
-    { key: "lot", label: "Batch / Lot", render: (batch) => <div><p className="font-medium text-dune-amberLight">{batch.lotNumber}</p>{batch.isLegacy && <p className="text-[0.62rem] text-neutral-600">Preserved existing stock</p>}</div> },
+    { key: "lot", label: "Batch / Lot", render: (batch) => <div><p className="font-medium text-dune-amberLight"><RecordId value={batch.lotNumber} /></p>{batch.isLegacy && <p className="text-[0.62rem] text-neutral-600">Preserved existing stock</p>}</div> },
     { key: "brand", label: "Brand", render: (batch) => batch.brand || "—" },
     { key: "received", label: "Received", render: (batch) => <div><p>{formatQuantity(batch.receivedQuantity, batch.item?.unit)}</p><p className="text-[0.65rem] text-neutral-600">{formatDate(batch.receivedAt)}</p></div> },
     { key: "remaining", label: "Remaining", render: (batch) => <span className="font-semibold text-white">{formatQuantity(batch.remainingQuantity, batch.item?.unit)}</span> },

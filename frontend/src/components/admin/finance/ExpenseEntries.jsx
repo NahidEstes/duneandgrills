@@ -1,4 +1,5 @@
 "use client";
+import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { useCallback, useEffect, useState } from "react";
 import { Archive, Download, FileText, Pencil, Plus, Search, XCircle } from "lucide-react";
@@ -25,7 +26,7 @@ export default function ExpenseEntries({ canManage, initialAdd = false }) {
   const exportCsv = async () => { try { const result = await exportExpenses({ ...filters, page: undefined, limit: undefined }); downloadCsv(`operating-expenses-${new Date().toISOString().slice(0, 10)}.csv`, [["Expense ID", (row) => row.expenseNumber], ["Date", (row) => row.expenseDate], ["Title", (row) => row.title], ["Category", (row) => row.category?.name], ["Vendor", (row) => row.vendor], ["Invoice / reference", (row) => row.referenceNumber], ["Total SAR", (row) => row.totalAmount], ["VAT SAR", (row) => row.vatAmount], ["Paid SAR", (row) => row.amountPaid], ["Payment status", (row) => row.paymentStatus], ["Recurring", (row) => Boolean(row.recurringTemplate)]], result.data); } catch (error) { toast.error(errorMessage(error)); } };
   const exportPdf = async () => { try { const opened = await exportExpensePdf({ filters, loadExport: () => exportExpenses({ ...filters, page: undefined, limit: undefined }) }); if (!opened) toast.error("Allow pop-ups to export the expense report as PDF."); } catch (error) { toast.error(errorMessage(error, "Unable to export the PDF report.")); } };
   const columns = [
-    { key: "expenseNumber", label: "Expense ID", render: (row) => <span className="whitespace-nowrap font-mono text-xs text-dune-amber">{row.expenseNumber || "Pending backfill"}</span> },
+    { key: "expenseNumber", label: "Expense ID", render: (row) => <span className="whitespace-nowrap font-mono text-xs text-dune-amber"><RecordId value={row.expenseNumber} /></span> },
     { key: "date", label: "Date", render: (row) => formatDate(row.expenseDate) },
     { key: "title", label: "Expense", render: (row) => <div className="max-w-64"><p className="truncate font-medium text-white" title={row.title}>{row.title}</p><p className="truncate text-[0.68rem] text-neutral-600" title={row.vendor}>{row.vendor || row.referenceNumber || "One-time expense"}</p></div> },
     { key: "category", label: "Category", render: (row) => row.category?.name || "Archived category" },

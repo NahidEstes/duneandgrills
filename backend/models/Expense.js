@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 import {
   EXPENSE_PAYMENT_METHODS,
   EXPENSE_PAYMENT_STATUSES,
@@ -53,4 +54,5 @@ expenseSchema.index(
   { unique: true, partialFilterExpression: { recurringTemplate: { $type: "objectId" }, recurrencePeriodKey: { $type: "string" } } }
 );
 
+addRecordSearchIndexes(expenseSchema, ["expenseNumber"]);
 export default mongoose.model("Expense", expenseSchema);
