@@ -3,6 +3,11 @@ import mongoose from "mongoose";
 const posShiftSchema = new mongoose.Schema({
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true, immutable: true },
   terminal: { type: String, required: true, trim: true, uppercase: true, maxlength: 60, default: "MAIN", immutable: true },
+  terminalRef: { type: mongoose.Schema.Types.ObjectId, ref: "PosTerminal", default: null, immutable: true },
+  terminalSnapshot: { code: String, name: String, locationLabel: String },
+  openingNote: { type: String, default: "", trim: true, maxlength: 500, immutable: true },
+  operationRevision: { type: Number, default: 0 },
+  closeHistory: { type: [new mongoose.Schema({ closedAt: Date, closedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, expectedCashHalala: Number, countedCashHalala: Number, differenceHalala: Number, totalsHalala: { type: mongoose.Schema.Types.Mixed, default: {} }, orderCount: Number, movementCount: Number, note: String, idempotencyKey: String, approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" } }, { _id: false })], default: [] },
   openingCashHalala: { type: Number, required: true, min: 0, immutable: true },
   openedAt: { type: Date, required: true, default: Date.now, immutable: true },
   openedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
@@ -23,7 +28,7 @@ const posShiftSchema = new mongoose.Schema({
   closedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   managerApprovedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   reopenReason: { type: String, default: "", trim: true, maxlength: 500 },
-  closeIdempotencyKey: { type: String, default: null, trim: true, maxlength: 120 },
+  closeIdempotencyKey: { type: String, default: undefined, trim: true, maxlength: 120 },
 }, { timestamps: true });
 
 posShiftSchema.index({ cashier: 1, terminal: 1, isOpen: 1 }, { unique: true, partialFilterExpression: { isOpen: true } });

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Flame, LockKeyhole, LogOut, Monitor, Settings, UserRound } from "lucide-react";
 
-export default function PosTopBar({ user, onLock, onLogout, clock24, onClockChange, displayUrl, shiftControl }) {
+export default function PosTopBar({ user, onLock, onLogout, onSwitch, clock24, onClockChange, displayUrl, shiftControl, terminalControl }) {
   const [now, setNow] = useState(null);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -47,6 +47,7 @@ export default function PosTopBar({ user, onLock, onLogout, clock24, onClockChan
       </div>
       {displayUrl && <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm text-neutral-300 hover:border-dune-amber/50 hover:text-dune-amber"><Monitor className="h-4 w-4" /><span className="hidden md:inline">Customer Display</span><span className="sr-only md:hidden">Open Customer Display</span></a>}
       {shiftControl}
+      {terminalControl}
       <time dateTime={now?.toISOString()} className="hidden min-w-32 text-right sm:block">
         <span className="block text-[0.65rem] text-neutral-400">{now?.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) || "—"}</span>
         <span className="block text-lg font-semibold tabular-nums text-white">{now?.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: !clock24 }) || "—"}</span>
@@ -68,6 +69,7 @@ export default function PosTopBar({ user, onLock, onLogout, clock24, onClockChan
               <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 rounded-lg px-3 hover:bg-white/5 hover:text-dune-amber"><Settings className="h-4 w-4" />Preferences</summary>
               <label className="flex cursor-pointer items-center justify-between gap-3 px-3 py-3 text-xs"><span>24-hour clock</span><input type="checkbox" checked={clock24} onChange={(event) => onClockChange(event.target.checked)} className="accent-orange-500" /></label>
             </details>
+            <button type="button" onClick={() => { setOpen(false); onSwitch?.(); }} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-neutral-300 hover:bg-white/5"><UserRound className="h-4 w-4" />Switch Cashier</button>
             <button type="button" onClick={onLogout} className="mt-1 flex min-h-10 w-full items-center gap-3 rounded-lg border-t border-white/10 px-3 text-sm text-red-400 hover:bg-red-500/10"><LogOut className="h-4 w-4" />Logout</button>
           </div>
         )}

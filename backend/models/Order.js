@@ -187,6 +187,15 @@ const orderSchema = new mongoose.Schema(
   refundedAmountHalala: { type: Number, min: 0, default: 0 },
   refundReservedHalala: { type: Number, min: 0, default: 0 },
     posShift: { type: mongoose.Schema.Types.ObjectId, ref: "PosShift", default: null },
+    terminal: { type: String, default: "MAIN", immutable: true },
+    terminalRef: { type: mongoose.Schema.Types.ObjectId, ref: "PosTerminal", default: null, immutable: true },
+    terminalSnapshot: { code: String, name: String, locationLabel: String },
+    voidIdempotencyKey: { type: String, default: undefined },
+    voidedAt: { type: Date, default: null },
+    voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    restoredItemQuantities: { type: mongoose.Schema.Types.Mixed, default: {} },
+    inventoryReturnedQuantities: { type: mongoose.Schema.Types.Mixed, default: {} },
+    rewardRefundPointsReversed: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: [
@@ -255,6 +264,10 @@ const orderSchema = new mongoose.Schema(
 );
 
 orderSchema.index({ source: 1, createdAt: -1 });
+orderSchema.index({ source: 1, createdBy: 1, createdAt: -1 });
+orderSchema.index({ source: 1, terminal: 1, createdAt: -1 });
+orderSchema.index({ source: 1, orderNumber: 1 });
+orderSchema.index({ voidIdempotencyKey: 1 }, { unique: true, sparse: true });
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ orderType: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });

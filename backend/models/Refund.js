@@ -5,6 +5,14 @@ export const REFUND_METHODS = Object.freeze(["cash", "card", "other"]);
 
 const refundSchema = new mongoose.Schema({
   order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", required: true, index: true, immutable: true },
+  originalCashier: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, immutable: true },
+  originalShift: { type: mongoose.Schema.Types.ObjectId, ref: "PosShift", default: null, immutable: true },
+  posShift: { type: mongoose.Schema.Types.ObjectId, ref: "PosShift", default: null },
+  terminalRef: { type: mongoose.Schema.Types.ObjectId, ref: "PosTerminal", default: null },
+  terminalSnapshot: { code: String, name: String, locationLabel: String },
+  restock: { type: Boolean, default: false, immutable: true },
+  items: { type: [new mongoose.Schema({ index: { type: Number, required: true, min: 0 }, quantity: { type: Number, required: true, min: 1 } }, { _id: false })], default: [], immutable: true },
+  restorationTransactions: [{ type: mongoose.Schema.Types.ObjectId, ref: "StockTransaction" }],
   originalPaymentReference: { type: String, default: "", trim: true, maxlength: 160, immutable: true },
   amountHalala: { type: Number, required: true, min: 1, immutable: true },
   type: { type: String, enum: ["full", "partial"], required: true, immutable: true },

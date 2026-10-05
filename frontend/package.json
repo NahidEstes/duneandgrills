@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test:pos": "node --test tests/posShortcuts.test.js",
     "preview": "next start"
   },
   "dependencies": {

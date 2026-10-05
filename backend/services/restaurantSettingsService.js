@@ -58,6 +58,7 @@ export const getRestaurantSettingsDefaults = () => ({
     requireOpenShift: false,
     blindClose: false,
     varianceThreshold: 50,
+    singleShiftPerTerminal: true,
   },
   posCheckout: {
     discountsEnabled: true,
@@ -68,6 +69,8 @@ export const getRestaurantSettingsDefaults = () => ({
     takeawayPhoneRequired: false,
     pickupTokenEnabled: true,
     heldSaleExpiryHours: 72,
+    autoLockMinutes: 5,
+    voidWindowMinutes: 120,
   },
   procurement: {
     purchaseApprovalThreshold: 5000,
@@ -219,6 +222,7 @@ export const normalizeRestaurantSettings = (payload = {}, current = getRestauran
       requireOpenShift: bool(payload.posShifts?.requireOpenShift, current.posShifts.requireOpenShift),
       blindClose: bool(payload.posShifts?.blindClose, current.posShifts.blindClose),
       varianceThreshold: number(payload.posShifts?.varianceThreshold, "POS shift variance threshold", 0, 100000, current.posShifts.varianceThreshold),
+      singleShiftPerTerminal: bool(payload.posShifts?.singleShiftPerTerminal, current.posShifts.singleShiftPerTerminal ?? true),
     },
     posCheckout: {
       discountsEnabled: bool(payload.posCheckout?.discountsEnabled, current.posCheckout.discountsEnabled),
@@ -229,6 +233,8 @@ export const normalizeRestaurantSettings = (payload = {}, current = getRestauran
       takeawayPhoneRequired: bool(payload.posCheckout?.takeawayPhoneRequired, current.posCheckout.takeawayPhoneRequired),
       pickupTokenEnabled: bool(payload.posCheckout?.pickupTokenEnabled, current.posCheckout.pickupTokenEnabled),
       heldSaleExpiryHours: number(payload.posCheckout?.heldSaleExpiryHours, "Held sale expiry", 1, 720, current.posCheckout.heldSaleExpiryHours, true),
+      autoLockMinutes: number(payload.posCheckout?.autoLockMinutes, "POS auto-lock timeout", 0, 60, current.posCheckout.autoLockMinutes ?? 5, true),
+      voidWindowMinutes: number(payload.posCheckout?.voidWindowMinutes, "POS void window", 1, 1440, current.posCheckout.voidWindowMinutes ?? 120, true),
     },
     procurement: {
       purchaseApprovalThreshold: number(payload.procurement?.purchaseApprovalThreshold, "Purchase approval threshold", 0, 10000000, current.procurement.purchaseApprovalThreshold),

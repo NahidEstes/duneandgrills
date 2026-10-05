@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 const posHeldSaleSchema = new mongoose.Schema({
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
   terminal: { type: String, required: true, trim: true, uppercase: true, maxlength: 60, default: "MAIN" },
+  terminalRef: { type: mongoose.Schema.Types.ObjectId, ref: "PosTerminal", default: null },
+  terminalSnapshot: { code: String, name: String, locationLabel: String },
   status: { type: String, enum: ["working", "held", "consumed", "cancelled", "expired"], default: "working", index: true },
   label: { type: String, trim: true, maxlength: 100, default: "" },
   items: { type: [mongoose.Schema.Types.Mixed], default: [] },

@@ -10,7 +10,7 @@ const proxyRequest = async (request, { params }) => {
   target.search = request.nextUrl.search;
 
   const headers = new Headers();
-  ["accept", "authorization", "content-type", "cookie", "origin", "x-csrf-token", "x-order-tracking-token", "x-forwarded-for"].forEach((name) => {
+  ["accept", "authorization", "content-type", "cookie", "origin", "x-csrf-token", "x-pos-session", "x-order-tracking-token", "x-forwarded-for"].forEach((name) => {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   });

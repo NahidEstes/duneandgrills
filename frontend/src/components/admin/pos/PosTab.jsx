@@ -13,9 +13,11 @@ import {
   fetchCombos,
   fetchPosHeldSale,
   fetchPosHeldSales,
-  fetchPosSales,
   fetchPublicRestaurantSettings,
   updatePosHeldSale,
+  fetchPosQuickMenu,
+  updatePosQuickItem,
+  repeatPosSale,
 } from "@/src/api/api.js";
 import PosProductGrid from "./PosProductGrid.jsx";
 import PosRecentSales from "./PosRecentSales.jsx";
@@ -25,6 +27,8 @@ import PosCustomizationModal from "./PosCustomizationModal.jsx";
 import PosHeldSalesDrawer from "./PosHeldSalesDrawer.jsx";
 import PosManagerApprovalDialog from "./PosManagerApprovalDialog.jsx";
 import { calculatePosBill } from "@/src/utils/posBill.js";
+import { resolvePosShortcut } from "@/src/utils/posShortcuts.js";
+import PosShortcutHelp from "./PosShortcutHelp.jsx";
 
 const RECOVERY_KEY = "dg_pos_working_sale";
 const emptyDiscount = () => ({ type: "fixed", value: "", reason: "" });
@@ -35,7 +39,11 @@ const lineRequest = (line) => ({
   customization: line.customization,
 });
 
-export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
+export default function PosTab({ user, terminal = "MAIN", locked = false, onSaleState, onLock, onSaleCompleted, onDisplayChange }) {
+  const recoveryKey = `${RECOVERY_KEY}:${user?._id}:${terminal}`;
+  const [quickMenu, setQuickMenu] = useState({ favourites: [], popular: [] });
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [historyRevision, setHistoryRevision] = useState(0);
   const [catalog, setCatalog] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -51,8 +59,6 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [walkIn, setWalkIn] = useState({ name: "", phone: "", pickupNote: "" });
   const [submitting, setSubmitting] = useState(false);
-  const [recentSales, setRecentSales] = useState([]);
-  const [recentLoading, setRecentLoading] = useState(true);
   const [receipt, setReceipt] = useState(null);
   const [restaurantSettings, setRestaurantSettings] = useState(null);
   const [customizing, setCustomizing] = useState(null);
@@ -64,13 +70,19 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
   const [approval, setApproval] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [recovered, setRecovered] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
+  const [recoveryAttempt, setRecoveryAttempt] = useState(0);
   const requestKey = useRef("");
   const draftRef = useRef({ id: "", revision: 0 });
+  const pendingSave = useRef(Promise.resolve());
+  const draftActionBusy = useRef(false);
   const bill = useMemo(
     () => calculatePosBill(sale, discount),
     [sale, discount],
   );
   const itemCount = sale.reduce((sum, line) => sum + line.quantity, 0);
+  useEffect(() => { onSaleState?.(sale.length > 0 || submitting); }, [sale.length, submitting, onSaleState]);
+  useEffect(() => { if (!locked) fetchPosQuickMenu().then(setQuickMenu).catch(() => undefined); }, [locked]);
   const policy = restaurantSettings?.posCheckout || {};
   const discountAmount = bill.discount;
   const approvalRequired =
@@ -99,20 +111,10 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
     submitting,
     onDisplayChange,
   ]);
-  const loadRecent = useCallback(async () => {
-    setRecentLoading(true);
-    try {
-      setRecentSales(await fetchPosSales({ limit: 10 }));
-    } catch {
-      toast.error("Unable to load recent POS sales.");
-    } finally {
-      setRecentLoading(false);
-    }
-  }, []);
   const loadHeld = useCallback(async () => {
     setHeldLoading(true);
     try {
-      setHeldSales(await fetchPosHeldSales());
+      setHeldSales(await fetchPosHeldSales({ terminal }));
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Unable to load held sales.",
@@ -120,7 +122,7 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
     } finally {
       setHeldLoading(false);
     }
-  }, []);
+  }, [terminal]);
   useEffect(() => {
     Promise.all([fetchAllMenuItems(), fetchCombos()])
       .then(([menuItems, combos]) =>
@@ -140,8 +142,7 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
       )
       .catch(() => toast.error("Unable to load the POS catalog."))
       .finally(() => setCatalogLoading(false));
-    loadRecent();
-  }, [loadRecent]);
+  }, []);
   useEffect(() => {
     let active = true;
     const loadSettings = () =>
@@ -207,17 +208,18 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
     setWalkIn(draft.customer || { name: "", phone: "", pickupNote: "" });
     draftRef.current = { id: draft._id, revision: draft.revision };
     try {
-      localStorage.setItem(RECOVERY_KEY, draft._id);
+      localStorage.setItem(recoveryKey, draft._id);
     } catch {
       /* reference is optional */
     }
     setApproval(null);
     requestKey.current = "";
-  }, []);
+  }, [recoveryKey]);
   useEffect(() => {
+    if (locked || recovered) return;
     let id = "";
     try {
-      id = localStorage.getItem(RECOVERY_KEY) || "";
+      id = localStorage.getItem(recoveryKey) || localStorage.getItem(RECOVERY_KEY) || "";
     } catch {
       /* ignore */
     }
@@ -227,18 +229,21 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
     }
     fetchPosHeldSale(id)
       .then((draft) => {
+        if (draft.terminal !== terminal) { toast.warning(`An unfinished sale belongs to terminal ${draft.terminal}. Select that terminal to recover it.`); setRecovered(true); return; }
         restore(draft);
+        localStorage.removeItem(RECOVERY_KEY);
+        setRecovered(true); setRecoveryError("");
         toast.info("Your unfinished sale was recovered.");
       })
-      .catch(() => {
-        try {
-          localStorage.removeItem(RECOVERY_KEY);
-        } catch {
-          /* ignore */
+      .catch(error => {
+        if ([404, 410].includes(error.response?.status)) {
+          try { localStorage.removeItem(recoveryKey); } catch { /* optional storage */ }
+          setRecovered(true);
+        } else {
+          setRecoveryError("Your unfinished sale is safe. Reconnect/unlock, then retry recovery before starting a sale.");
         }
-      })
-      .finally(() => setRecovered(true));
-  }, [restore]);
+      });
+  }, [restore, recoveryKey, terminal, locked, recovered, recoveryAttempt]);
 
   const draftPayload = useCallback(
     (extra = {}) => ({
@@ -250,7 +255,7 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
       orderType,
       paymentMethod,
       cashReceived: Number(cashReceived) || 0,
-      terminal: "MAIN",
+      terminal,
       ...extra,
     }),
     [
@@ -262,31 +267,29 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
       orderType,
       paymentMethod,
       cashReceived,
+      terminal,
     ],
   );
   useEffect(() => {
-    if (!recovered || !sale.length || submitting) return undefined;
-    const timer = setTimeout(async () => {
-      try {
-        const current = draftRef.current;
-        const saved = current.id
-          ? await updatePosHeldSale(current.id, {
-              ...draftPayload(),
-              revision: current.revision,
-            })
-          : await createPosHeldSale(draftPayload());
-        draftRef.current = { id: saved._id, revision: saved.revision };
+    if (!recovered || !sale.length || submitting || locked) return undefined;
+    const timer = setTimeout(() => {
+      if (draftActionBusy.current) return;
+      pendingSave.current = pendingSave.current.then(async () => {
         try {
-          localStorage.setItem(RECOVERY_KEY, saved._id);
-        } catch {
-          /* reference only */
+          const current = draftRef.current;
+          const saved = current.id
+            ? await updatePosHeldSale(current.id, {
+                ...draftPayload(),
+                revision: current.revision,
+              })
+            : await createPosHeldSale(draftPayload());
+          draftRef.current = { id: saved._id, revision: saved.revision };
+          try { localStorage.setItem(recoveryKey, saved._id); } catch { /* reference only */ }
+        } catch (error) {
+          if (error.response?.status === 409)
+            toast.error("This sale changed elsewhere. Resume the latest held copy before editing.");
         }
-      } catch (error) {
-        if (error.response?.status === 409)
-          toast.error(
-            "This sale changed elsewhere. Resume the latest held copy before editing.",
-          );
-      }
+      });
     }, 700);
     return () => clearTimeout(timer);
   }, [
@@ -301,6 +304,8 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
     cashReceived,
     submitting,
     draftPayload,
+    locked,
+    recoveryKey,
   ]);
 
   useEffect(() => {
@@ -309,6 +314,8 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
   const categories = useMemo(
     () => [
       "All",
+      "Favourites",
+      "Popular",
       ...new Set(
         catalog
           .map((item) =>
@@ -321,16 +328,19 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
   );
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return catalog.filter(
+    const quick = category === "Favourites" ? quickMenu.favourites : quickMenu.popular;
+    const rows = catalog.filter(
       (product) =>
         (category === "All" ||
+          (["Favourites", "Popular"].includes(category) && quick.some(row => String(row.productId) === String(product._id) && row.productType === product.productType)) ||
           (product.productType === "combo" ? "Combos" : product.category) ===
             category) &&
         (!query ||
           product.name.toLowerCase().includes(query) ||
           product.category?.toLowerCase().includes(query)),
     );
-  }, [catalog, category, search]);
+    return ["Favourites", "Popular"].includes(category) ? rows.sort((a, b) => quick.findIndex(row => String(row.productId) === String(a._id)) - quick.findIndex(row => String(row.productId) === String(b._id))) : rows;
+  }, [catalog, category, search, quickMenu]);
   const addConfigured = (product) =>
     setSale((current) => {
       const index = current.findIndex(
@@ -400,32 +410,37 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
     requestKey.current = "";
     draftRef.current = { id: "", revision: 0 };
     try {
-      localStorage.removeItem(RECOVERY_KEY);
+      localStorage.removeItem(recoveryKey);
     } catch {
       /* ignore */
     }
   };
   const clearSale = async () => {
+    if (draftActionBusy.current) return;
     if (
       !sale.length ||
       !window.confirm("Clear every item from the current sale?")
     )
       return;
-    const current = draftRef.current;
-    if (current.id)
-      await cancelPosHeldSale(current.id, "Current sale cleared").catch(
-        () => undefined,
-      );
-    resetSale();
+    draftActionBusy.current = true; setSubmitting(true);
+    try {
+      await pendingSave.current;
+      const current = draftRef.current;
+      if (current.id) await cancelPosHeldSale(current.id, "Current sale cleared");
+      resetSale();
+    } catch (error) { toast.error(error.response?.data?.message || "Unable to safely clear sale. Reconnect and retry."); }
+    finally { draftActionBusy.current = false; setSubmitting(false); }
   };
   const holdSale = async () => {
-    if (!sale.length) return;
+    if (!sale.length || draftActionBusy.current) return;
     const label =
       window.prompt(
         "Optional label or customer name for this held sale:",
         walkIn.name || selectedCustomer?.name || "",
       ) ?? "";
+    draftActionBusy.current = true; setSubmitting(true);
     try {
+      await pendingSave.current;
       const current = draftRef.current;
       if (current.id)
         await updatePosHeldSale(current.id, {
@@ -439,7 +454,7 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
       await loadHeld();
     } catch (error) {
       toast.error(error.response?.data?.message || "Unable to hold this sale.");
-    }
+    } finally { draftActionBusy.current = false; setSubmitting(false); }
   };
   const resumeSale = async (row) => {
     try {
@@ -453,6 +468,7 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
         orderType: latest.orderType,
         paymentMethod: latest.paymentMethod,
         cashReceived: latest.cashReceived,
+        terminal,
         revision: latest.revision,
         resume: true,
       });
@@ -499,6 +515,7 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
     }
   };
   const complete = async () => {
+    if (draftActionBusy.current) return;
     if (discountAmount > 0 && !discount.reason.trim()) {
       toast.error("Enter a discount reason.");
       return;
@@ -507,8 +524,9 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
       setManagerPinOpen(true);
       return;
     }
-    setSubmitting(true);
+    draftActionBusy.current = true; setSubmitting(true);
     try {
+      await pendingSave.current;
       if (!requestKey.current) requestKey.current = window.crypto.randomUUID();
       let current = draftRef.current;
       if (current.id) {
@@ -533,13 +551,13 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
         customer: selectedCustomer ? { pickupNote: walkIn.pickupNote } : walkIn,
         heldSaleId: current.id || undefined,
         heldSaleRevision: current.id ? current.revision : undefined,
-        terminal: "MAIN",
+        terminal,
       });
       setReceipt(response.data);
       if (response.warning) toast.warning(response.warning);
       else toast.success(`Sale #${response.data.orderNumber} completed.`);
       resetSale();
-      await loadRecent();
+      setHistoryRevision(value => value + 1);
       onSaleCompleted?.();
     } catch (error) {
       toast.error(
@@ -548,13 +566,43 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
           "Unable to complete sale.",
       );
     } finally {
+      draftActionBusy.current = false;
       setSubmitting(false);
     }
   };
 
+  useEffect(() => {
+    const handler = event => {
+      if (locked) return;
+      const action = resolvePosShortcut(event, { textInput: Boolean(event.target?.closest?.("input, textarea, select, [contenteditable='true']")), modalOpen: Boolean(customizing || heldOpen || managerPinOpen || receipt || helpOpen || document.querySelector("[role='dialog']")) });
+      if (!action) return; event.preventDefault();
+      if (action === "search") document.getElementById("pos-product-search")?.focus();
+      if (action === "hold") holdSale();
+      if (action === "held") { setHeldOpen(true); loadHeld(); }
+      if (action === "cash") setPaymentMethod("cash");
+      if (action === "card") setPaymentMethod("card");
+      if (action === "lock") onLock?.();
+      if (action === "help") setHelpOpen(true);
+      if (action === "complete" && sale.length && !submitting && window.confirm(`Complete sale for SAR ${bill.total.toFixed(2)}?`)) complete();
+    };
+    document.addEventListener("keydown", handler); return () => document.removeEventListener("keydown", handler);
+  });
+  const repeat = async row => {
+    if (sale.length) return toast.warning("Hold or clear the current sale before repeating another sale.");
+    try {
+      const result = await repeatPosSale(row._id);
+      resetSale();
+      setSale(result.data.map(line => ({ ...line, cartLineId: `${line.productType}:${line.productId}:${line.customization?.key || ""}`, customizationKey: line.customization?.key || "" })));
+      result.warnings.forEach(warning => toast.warning(warning));
+      if (result.data.length) toast.success("Items added using current catalog prices.");
+    } catch (error) { toast.error(error.response?.data?.message || "Unable to repeat sale."); }
+  };
+
   return (
     <div>
+      {recoveryError && <p role="alert" className="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-300">{recoveryError}<button type="button" onClick={() => { setRecoveryError(""); setRecoveryAttempt(value => value + 1); }} className="ml-3 underline">Retry recovery</button></p>}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <button type="button" onClick={() => setHelpOpen(true)} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm text-neutral-400">Shortcuts · F1</button>
         <button
           type="button"
           onClick={() => {
@@ -580,7 +628,10 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
           category={category}
           onCategoryChange={setCategory}
           onAdd={addProduct}
-          loading={catalogLoading}
+          loading={catalogLoading || !recovered}
+          quickMenu={quickMenu}
+          canManageQuickMenu={["admin", "manager"].includes(user?.role)}
+          onQuickChange={async (product, position, remove = false) => { try { await updatePosQuickItem({ productId: product._id, productType: product.productType, position, remove }); setQuickMenu(await fetchPosQuickMenu()); } catch (error) { toast.error(error.response?.data?.message || "Unable to update favourites."); } }}
         />
         <PosSalePanel
           bill={bill}
@@ -627,8 +678,11 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
         />
       </div>
       <PosRecentSales
-        sales={recentSales}
-        loading={recentLoading}
+        user={user}
+        terminal={terminal}
+        revision={historyRevision}
+        locked={locked}
+        onRepeat={repeat}
         onReceipt={setReceipt}
       />
       <PosReceiptDialog
@@ -648,6 +702,7 @@ export default function PosTab({ user, onSaleCompleted, onDisplayChange }) {
       )}
       <PosHeldSalesDrawer open={heldOpen} loading={heldLoading} sales={heldSales} onClose={() => setHeldOpen(false)} onResume={resumeSale} onCancel={cancelHeld} />
       <PosManagerApprovalDialog open={managerPinOpen} pin={managerPin} onPinChange={setManagerPin} loading={approvalLoading} onClose={() => setManagerPinOpen(false)} onSubmit={requestApproval} />
+      {helpOpen && <PosShortcutHelp onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

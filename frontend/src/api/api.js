@@ -45,6 +45,10 @@ api.interceptors.request.use((config) => {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("dg_token") : null;
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== "undefined" && window.location.pathname === "/pos" && String(config.url || "").startsWith("/pos/")) {
+    const posSession = sessionStorage.getItem("dg_pos_session");
+    if (posSession) config.headers["X-POS-Session"] = posSession;
+  }
   if (typeof document !== "undefined" && !["get", "head", "options"].includes(String(config.method || "get").toLowerCase())) {
     const csrf = document.cookie.split(";").map((value) => value.trim()).find((value) => value.startsWith("dg_csrf="))?.slice("dg_csrf=".length);
     if (csrf) config.headers["X-CSRF-Token"] = decodeURIComponent(csrf);
@@ -302,6 +306,22 @@ export const createPosHeldSale = async (payload) => (await api.post("/pos/held-s
 export const updatePosHeldSale = async (id, payload) => (await api.patch(`/pos/held-sales/${id}`, payload)).data.data;
 export const cancelPosHeldSale = async (id, reason = "") => (await api.delete(`/pos/held-sales/${id}`, { data: { reason } })).data.data;
 export const approvePosDiscount = async (payload) => (await api.post("/pos/discount-approvals", payload)).data.data;
+export const fetchPosSession = async () => (await api.get("/pos/session")).data.data;
+export const lockPosSession = async () => (await api.post("/pos/session/lock")).data;
+export const unlockPosSession = async (payload, switching = false) => (await api.post(`/pos/session/${switching ? "switch" : "unlock"}`, payload)).data.data;
+export const fetchPosCashiers = async () => (await api.get("/pos/session/cashiers")).data.data;
+export const setPosStaffPin = async (id, pin) => (await api.put(`/pos/session/pins/${id}`, { pin })).data;
+export const fetchPosTerminals = async (all = false) => (await api.get("/pos/terminals", { params: { all } })).data.data;
+export const savePosTerminal = async (payload, id) => (await (id ? api.patch(`/pos/terminals/${id}`, payload) : api.post("/pos/terminals", payload))).data.data;
+export const fetchPosQuickMenu = async () => (await api.get("/pos/quick-menu")).data.data;
+export const updatePosQuickItem = async (payload) => (await api.put("/pos/quick-menu", payload)).data;
+export const fetchPosHistory = async (params) => (await api.get("/pos/sales", { params })).data;
+export const fetchPosSaleDetail = async (id) => (await api.get(`/pos/sales/${id}`)).data;
+export const reprintPosSale = async (id) => (await api.post(`/pos/sales/${id}/reprint`)).data.data;
+export const voidPosSale = async (id, payload) => (await api.post(`/pos/sales/${id}/void`, payload)).data;
+export const requestPosRefund = async (id, payload) => (await api.post(`/pos/sales/${id}/refunds`, payload)).data;
+export const transitionPosRefund = async (id, action, payload = {}) => (await api.post(`/pos/refunds/${id}/${action}`, payload)).data.data;
+export const repeatPosSale = async (id) => (await api.post(`/pos/sales/${id}/repeat`)).data;
 
 // ---- Historical delivery platform entry ----
 export const fetchDeliveryEntryConfig = async () => (await api.get("/delivery-orders/config")).data.data;

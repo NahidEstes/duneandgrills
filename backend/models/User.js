@@ -87,6 +87,8 @@ const userSchema = new mongoose.Schema(
     attendanceEnabledAt: { type: Date, default: null },
     pinHash: { type: String, select: false },
     pinLookup: { type: String, select: false },
+    posPinHash: { type: String, select: false },
+    activePosShift: { type: mongoose.Schema.Types.ObjectId, ref: "PosShift", default: null, select: false },
     defaultShift: { type: mongoose.Schema.Types.ObjectId, ref: "Shift", default: null },
     phone: { type: String, default: "" },
     address: { type: String, default: "" },

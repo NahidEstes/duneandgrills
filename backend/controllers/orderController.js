@@ -511,6 +511,8 @@ export const trackGuestOrder = async (req, res) => {
 const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPreparationMinutes, actor }) => {
   if (!ORDER_STATUSES.has(status)) throw new Error("Invalid order status");
   if (status === "refunded") throw new Error("Use the refund workflow to refund a payment; order status and payment refund are separate");
+  if (order.source === "pos" && ["cancelled", "failed"].includes(status) && ["paid", "partially_refunded", "refunded", "voided"].includes(order.paymentStatus)) throw new Error("Use POS History to void/refund a captured POS payment");
+  if (order.source === "pos" && order.paymentStatus === "voided") throw new Error("Voided POS sales cannot change status");
   const normalizedReason = typeof reason === "string" ? reason.trim() : "";
   if (status === "cancelled" && !normalizedReason) throw new Error("Cancellation reason is required");
   if (status === "refunded" && !normalizedReason) throw new Error("Refund reason is required");

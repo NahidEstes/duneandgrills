@@ -4,6 +4,7 @@ import { resolveCartLines, calculateCartSubtotal } from "../services/catalogServ
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
 import { resolvePosDiscount } from "../services/posDiscountService.js";
 import { recordAuditLog } from "../services/auditLogService.js";
+import { resolvePosTerminal, terminalSnapshot } from "../services/posTerminalService.js";
 
 class DraftError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
 const clean = (value, maximum) => typeof value === "string" ? value.trim().slice(0, maximum) : "";
@@ -63,6 +64,7 @@ export const listHeldSales = async (req, res, next) => {
     await expireOld();
     const filter = { status: req.query.includeWorking === "true" ? { $in: ["working", "held"] } : "held" };
     if (!elevated(req.user)) filter.cashier = req.user._id;
+    if (req.query.terminal) filter.terminal = (await resolvePosTerminal(req.query.terminal)).code;
     const rows = await PosHeldSale.find(filter).populate("cashier", "name role").sort({ updatedAt: -1 }).limit(100).lean();
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }
@@ -81,8 +83,9 @@ export const getHeldSale = async (req, res, next) => {
 export const createHeldSale = async (req, res, next) => {
   try {
     const data = await normalizePayload(req.body, req.user);
+    const terminal = await resolvePosTerminal(req.body.terminal);
     const expiresAt = new Date(Date.now() + data.expiryHours * 60 * 60_000);
-    const draft = await PosHeldSale.create({ ...data, cashier: req.user._id, terminal: clean(req.body.terminal, 60).toUpperCase() || "MAIN", status: req.body.hold === true ? "held" : "working", expiresAt });
+    const draft = await PosHeldSale.create({ ...data, cashier: req.user._id, terminal: terminal.code, terminalRef: terminal._id, terminalSnapshot: terminalSnapshot(terminal), status: req.body.hold === true ? "held" : "working", expiresAt });
     if (draft.status === "held") await recordAuditLog({ actor: req.user, action: "POS_SALE_HELD", entityType: "PosHeldSale", entityId: draft._id, entityLabel: draft.label || "Held sale", after: { itemCount: draft.items.length, total: data.total } });
     res.status(201).json({ success: true, data: serialize(draft, data) });
   } catch (error) { next(error); }
@@ -95,6 +98,8 @@ export const updateHeldSale = async (req, res, next) => {
     const existing = await PosHeldSale.findById(req.params.id);
     if (!existing || !canAccess(existing, req.user)) throw new DraftError("Held sale was not found", 404);
     if (!["working", "held"].includes(existing.status)) throw new DraftError(`This sale is ${existing.status}`, 409);
+    const terminal = await resolvePosTerminal(req.body.terminal || existing.terminal);
+    if (terminal.code !== existing.terminal) throw new DraftError("Held sale cannot move between terminals", 409);
     const data = await normalizePayload(req.body, req.user);
     const nextStatus = req.body.hold === true ? "held" : req.body.resume === true ? "working" : existing.status;
     const updated = await PosHeldSale.findOneAndUpdate(

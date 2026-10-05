@@ -1,9 +1,11 @@
 import mongoose from "mongoose";
 
-export const CASH_MOVEMENT_TYPES = Object.freeze(["opening_cash", "cash_sale", "cash_refund", "cash_in", "cash_out", "payout", "correction"]);
+export const CASH_MOVEMENT_TYPES = Object.freeze(["opening_cash", "cash_sale", "cash_refund", "cash_void", "cash_in", "cash_out", "payout", "correction"]);
 
 const cashMovementSchema = new mongoose.Schema({
   shift: { type: mongoose.Schema.Types.ObjectId, ref: "PosShift", required: true, index: true, immutable: true },
+  terminalRef: { type: mongoose.Schema.Types.ObjectId, ref: "PosTerminal", default: null, immutable: true },
+  terminalSnapshot: { code: String, name: String, locationLabel: String },
   type: { type: String, enum: CASH_MOVEMENT_TYPES, required: true, immutable: true },
   amountHalala: { type: Number, required: true, min: 1, immutable: true },
   direction: { type: String, enum: ["in", "out"], required: true, immutable: true },
@@ -11,7 +13,7 @@ const cashMovementSchema = new mongoose.Schema({
   order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null, immutable: true },
   refund: { type: mongoose.Schema.Types.ObjectId, ref: "Refund", default: null, immutable: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
-  idempotencyKey: { type: String, default: null, trim: true, maxlength: 140, immutable: true },
+  idempotencyKey: { type: String, default: undefined, trim: true, maxlength: 140, immutable: true },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 
 cashMovementSchema.index({ shift: 1, createdAt: -1 });

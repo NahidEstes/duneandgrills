@@ -80,6 +80,7 @@ const restaurantSettingsSchema = new mongoose.Schema(
       requireOpenShift: { type: Boolean, default: false },
       blindClose: { type: Boolean, default: false },
       varianceThreshold: { type: Number, default: 50, min: 0, max: 100000 },
+      singleShiftPerTerminal: { type: Boolean, default: true },
     },
     posCheckout: {
       discountsEnabled: { type: Boolean, default: true },
@@ -90,6 +91,8 @@ const restaurantSettingsSchema = new mongoose.Schema(
       takeawayPhoneRequired: { type: Boolean, default: false },
       pickupTokenEnabled: { type: Boolean, default: true },
       heldSaleExpiryHours: { type: Number, default: 72, min: 1, max: 720 },
+      autoLockMinutes: { type: Number, default: 5, min: 0, max: 60 },
+      voidWindowMinutes: { type: Number, default: 120, min: 1, max: 1440 },
     },
     procurement: {
       purchaseApprovalThreshold: { type: Number, default: 5000, min: 0, max: 10000000 },

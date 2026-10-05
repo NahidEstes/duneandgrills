@@ -9,6 +9,7 @@ import BusinessHoursSettings from "./BusinessHoursSettings.jsx";
 import { NotificationSettings, OrdersDeliverySettings, PosCheckoutSettings, PosShiftSettings, PreparationSettings } from "./OrderNotificationSettings.jsx";
 import { LocationSettings, ReceiptSettings } from "./ReceiptLocationSettings.jsx";
 import ProcurementSettings from "./ProcurementSettings.jsx";
+import PosDeviceSettings from "./PosDeviceSettings.jsx";
 
 const editable = (settings) => ({
   timezone: settings.timezone,
@@ -97,6 +98,7 @@ export default function RestaurantSettingsPage({ onDirtyChange }) {
     <BusinessHoursSettings value={form.openingHours} onChange={(openingHours) => setForm({ ...form, openingHours })} />
     <div className="grid items-start gap-4 xl:grid-cols-2"><OrdersDeliverySettings value={form.orders} onChange={(orders) => setForm({ ...form, orders })} /><div className="space-y-4"><NotificationSettings value={form.notifications} onChange={(notifications) => setForm({ ...form, notifications })} /><PreparationSettings value={form.preparation} onChange={(preparation) => setForm({ ...form, preparation })} /></div></div>
     <PosShiftSettings value={form.posShifts} onChange={(posShifts) => setForm({ ...form, posShifts })} />
+    <PosDeviceSettings />
     <PosCheckoutSettings value={form.posCheckout} onChange={(posCheckout) => setForm({ ...form, posCheckout })} />
     <ProcurementSettings value={form.procurement} onChange={(procurement) => setForm({ ...form, procurement })} />
     <div className="grid items-start gap-4 xl:grid-cols-2"><ReceiptSettings value={form.receipt} onChange={(receipt) => setForm({ ...form, receipt })} /><LocationSettings value={form.location} onChange={(location) => setForm({ ...form, location })} /></div>

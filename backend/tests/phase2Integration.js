@@ -15,6 +15,7 @@ import { deductOrderInventory } from "../services/orderInventoryService.js";
 import { buildInventoryValuation } from "../services/inventoryValuationService.js";
 import { createRefundRequest, transitionRefund } from "../services/refundService.js";
 import { closePosShift, openPosShift, recordPosCashSale, summarizePosShift } from "../services/posShiftService.js";
+import { savePosTerminal } from "../services/posTerminalService.js";
 
 process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "true";
 const uri = process.env.MONGO_TEST_URI || "mongodb://127.0.0.1:27017/duneandgrills_phase2_test";
@@ -48,6 +49,7 @@ const run = async () => {
   assert.equal(valuation.rows[0].inventoryValue, 370);
   assert.equal(valuation.rows[0].valuationMethod, "batch");
 
+  await savePosTerminal({ payload: { code: "TEST-1", name: "Test counter" }, actor });
   const shift = await openPosShift({ actor, openingCash: 50, terminal: "TEST-1", correlationId: "phase2-test" });
   await assert.rejects(openPosShift({ actor, openingCash: 0, terminal: "TEST-1" }), /already exists/);
   const order = await Order.create({ orderNumber: "P2-PAY-1", source: "pos", createdBy: actor._id, customer: { name: "Walk-in", phone: "N/A" }, items: [{ menuItem: menuItem._id, name: menuItem.name, price: 100, quantity: 1 }], orderType: "dine-in", subtotal: 100, originalSubtotal: 100, totalAmount: 100, paymentMethod: "cash", paymentStatus: "paid", status: "pending", posShift: shift._id });

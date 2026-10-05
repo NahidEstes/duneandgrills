@@ -9,7 +9,7 @@ const toObjectId = (value) =>
     ? value
     : new mongoose.Types.ObjectId(value);
 
-export const ensurePointsBalance = async (userId) => {
+export const ensurePointsBalance = async (userId, session = null) => {
   const _id = toObjectId(userId);
   await User.collection.updateOne(
     { _id, pointsBalance: { $exists: false } },
@@ -61,7 +61,8 @@ export const ensurePointsBalance = async (userId) => {
           },
         },
       },
-    ]
+    ],
+    session ? { session } : {}
   );
 };
 
@@ -303,9 +304,10 @@ export const creditOrderPoints = async ({
   orderId,
   orderNumber,
   points,
+  session = null,
 }) => {
   if (!userId || points <= 0) return null;
-  await ensurePointsBalance(userId);
+  await ensurePointsBalance(userId, session);
   const sourceKey = `ORDER_EARN:${orderId}`;
   const now = new Date();
 
@@ -338,7 +340,7 @@ export const creditOrderPoints = async ({
         },
       },
     ],
-    { new: true }
+    { new: true, ...(session ? { session } : {}) }
   );
 };
 

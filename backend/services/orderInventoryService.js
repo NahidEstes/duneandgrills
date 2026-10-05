@@ -144,6 +144,7 @@ export const deductOrderInventory = async ({ catalogLines, orderId, orderNumber,
   const existing = await StockTransaction.find({ order: orderId, movementType: "STOCK_OUT" }).session(session || null);
   if (existing.length) return existing;
   const requirements = await buildRequirements(catalogLines, { strictRecipes, session });
+  const perLine = await Promise.all(catalogLines.map(line => buildRequirements([line], { strictRecipes, session })));
   const movements = [];
   try {
     for (const requirement of requirements) {
@@ -158,7 +159,7 @@ export const deductOrderInventory = async ({ catalogLines, orderId, orderNumber,
         userId: actorId,
         allowNegativeStock: false,
         respectItemNegativeStock: false,
-        sourceDetails: { components: requirement.components },
+        sourceDetails: { components: requirement.components, lineQuantities: perLine.map((rows, index) => ({ index, quantity: rows.find(row => String(row.inventoryItem) === String(requirement.inventoryItem))?.quantity || 0 })).filter(row => row.quantity > 0) },
       }, { session }));
     }
     return movements.map((movement) => movement.transaction);

@@ -27,7 +27,7 @@ export const openShift = async (req, res, next) => {
   try {
     const settings = await getEffectiveRestaurantSettings();
     if (!settings.posShifts.enabled) return res.status(409).json({ success: false, message: "POS shifts are not enabled in Restaurant Settings" });
-    const shift = await openPosShift({ actor: req.user, openingCash: req.body.openingCash, terminal: req.body.terminal, correlationId: req.correlationId });
+    const shift = await openPosShift({ actor: req.user, openingCash: req.body.openingCash, openingNote: req.body.openingNote, terminal: req.body.terminal, correlationId: req.correlationId });
     await shift.populate("cashier openedBy", "name role");
     res.status(201).json({ success: true, data: await summarizePosShift(shift, { includeExpected: !settings.posShifts.blindClose || ["admin", "manager"].includes(req.user.role) }) });
   } catch (error) { next(error); }
@@ -35,7 +35,8 @@ export const openShift = async (req, res, next) => {
 
 export const postCashMovement = async (req, res, next) => {
   try {
-    const movement = await addCashMovement({ shiftId: req.params.shiftId, type: req.body.type, amount: req.body.amount, reason: req.body.reason, direction: req.body.direction, actor: req.user, correlationId: req.correlationId });
+    if (!req.body.idempotencyKey) return res.status(400).json({ success: false, message: "Cash movement request identifier is required" });
+    const movement = await addCashMovement({ shiftId: req.params.shiftId, type: req.body.type, amount: req.body.amount, reason: req.body.reason, direction: req.body.direction, idempotencyKey: req.body.idempotencyKey, actor: req.user, correlationId: req.correlationId });
     res.status(201).json({ success: true, data: movement });
   } catch (error) { next(error); }
 };
@@ -43,7 +44,7 @@ export const postCashMovement = async (req, res, next) => {
 export const closeShift = async (req, res, next) => {
   try {
     const settings = await getEffectiveRestaurantSettings();
-    const result = await closePosShift({ shiftId: req.params.shiftId, countedCash: req.body.countedCash, note: req.body.note, idempotencyKey: req.body.idempotencyKey, actor: req.user, settings: settings.posShifts, correlationId: req.correlationId });
+    const result = await closePosShift({ shiftId: req.params.shiftId, countedCash: req.body.countedCash, note: req.body.note, managerId: req.body.managerId, managerPin: req.body.managerPin, acknowledgeOpenSales: req.body.acknowledgeOpenSales === true, idempotencyKey: req.body.idempotencyKey, actor: req.user, settings: settings.posShifts, correlationId: req.correlationId });
     await result.shift.populate("cashier openedBy closedBy managerApprovedBy", "name role");
     res.json({ success: true, duplicate: result.duplicate, data: result.shift });
   } catch (error) { next(error); }
@@ -68,7 +69,10 @@ export const getShift = async (req, res, next) => {
   try {
     const shift = await populateShift(PosShift.findById(req.params.shiftId));
     if (!shift) return res.status(404).json({ success: false, message: "Shift not found" });
-    res.json({ success: true, data: await summarizePosShift(shift, { includeExpected: true }) });
+    if (String(shift.cashier?._id || shift.cashier) !== String(req.user._id) && !["admin", "manager"].includes(req.user.role)) return res.status(403).json({ success: false, message: "Not authorized to view this shift" });
+    const settings = await getEffectiveRestaurantSettings();
+    const includeExpected = !shift.isOpen || !settings.posShifts.blindClose || ["admin", "manager"].includes(req.user.role);
+    res.json({ success: true, data: await summarizePosShift(shift, { includeExpected }) });
   } catch (error) { next(error); }
 };
 
