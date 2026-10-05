@@ -345,7 +345,7 @@ export const createOrder = async (req, res) => {
         orderNumber,
         source: "website",
         actorId: req.user?._id || null,
-        strictRecipes: false,
+        strictRecipes: true,
         session,
       });
       created.inventoryTransactions = transactions.map((transaction) => transaction._id);

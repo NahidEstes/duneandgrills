@@ -94,6 +94,8 @@ export const performStockMovement = async (
     conversionFactor = 1,
     restoreAllocations = null,
     sourceDetails = {},
+    saleOnly = false,
+    eligibilityNow = new Date(),
   },
   { session = null } = {}
 ) => {
@@ -162,7 +164,7 @@ export const performStockMovement = async (
         conversionFactor,
       }, session);
     } else if (stockDelta < 0) {
-      batchChanges = await consumeInventoryBatches({ item, quantity: Math.abs(stockDelta) }, session);
+      batchChanges = await consumeInventoryBatches({ item, quantity: Math.abs(stockDelta), saleOnly: saleOnly || Boolean(order && movementType === "STOCK_OUT"), now: eligibilityNow }, session);
     }
 
     const nextExpiry = item.tracksExpiry ? await updateItemNextExpiry(item._id, session) : null;

@@ -56,7 +56,7 @@ export default function RecipeEditor({ selected, inventoryItems, onSaved }) {
 
   const updateLine = (index, field, value) => {
     setIngredients((current) => current.map((line, lineIndex) => (
-      lineIndex === index ? { ...line, [field]: value } : line
+      lineIndex === index ? { ...line, [field]: value, ...(field === "inventoryItem" ? { inventoryItemData: null } : {}) } : line
     )));
   };
 
@@ -140,6 +140,7 @@ export default function RecipeEditor({ selected, inventoryItems, onSaved }) {
           </div>
         </div>
 
+        {selected.recipeStatus === "not_configured" && <p role="status" className="mx-5 mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-200">Sales blocked: {selected.recipeIssue || "Missing valid recipe"}. Configure active ingredients or explicitly save Do Not Track.</p>}
         {doNotTrack ? (
           <div className="p-8">
             <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.07] p-5 text-center">
@@ -215,7 +216,7 @@ export default function RecipeEditor({ selected, inventoryItems, onSaved }) {
                     <Field label="Unit">
                       <ReadOnlyValue>{detail?.unit || "—"}</ReadOnlyValue>
                     </Field>
-                    <Field label="Available Stock">
+                    <Field label="Physical Stock" hint={`Saleable: ${line.inventoryItemData?.saleableStock == null ? "—" : formatQuantity(line.inventoryItemData.saleableStock, detail?.unit)}`}>
                       <ReadOnlyValue tone="text-emerald-400">
                         {detail ? formatQuantity(detail.currentStock, detail.unit) : "—"}
                       </ReadOnlyValue>

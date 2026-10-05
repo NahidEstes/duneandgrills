@@ -22,10 +22,11 @@ import useInventoryResource from "./useInventoryResource.js";
 
 const batchStatus = (batch) => {
   if (Number(batch.remainingQuantity) <= 0) return { label: "Depleted", tone: "neutral" };
+  if (batch.usability && batch.usability !== "usable") return { label: humanize(batch.usability), tone: "danger" };
   if (!batch.expiryDate) return { label: "Active", tone: "success" };
   const days = daysUntil(batch.expiryDate);
-  if (days < 0) return { label: "Expired", tone: "danger" };
-  if (days <= 7) return { label: `${days}d left`, tone: "warning" };
+  if (days < 0 && batch.usability !== "usable") return { label: "Expired", tone: "danger" };
+  if (days <= 7) return { label: `${Math.max(0, days)}d left`, tone: "warning" };
   return { label: "Active", tone: "success" };
 };
 
@@ -74,7 +75,7 @@ export default function BatchesPage() {
     { key: "lot", label: "Batch / Lot", render: (batch) => <div><p className="font-medium text-dune-amberLight"><RecordId value={batch.lotNumber} /></p>{batch.isLegacy && <p className="text-[0.62rem] text-neutral-600">Preserved existing stock</p>}</div> },
     { key: "brand", label: "Brand", render: (batch) => batch.brand || "—" },
     { key: "received", label: "Received", render: (batch) => <div><p>{formatQuantity(batch.receivedQuantity, batch.item?.unit)}</p><p className="text-[0.65rem] text-neutral-600">{formatDate(batch.receivedAt)}</p></div> },
-    { key: "remaining", label: "Remaining", render: (batch) => <span className="font-semibold text-white">{formatQuantity(batch.remainingQuantity, batch.item?.unit)}</span> },
+    { key: "remaining", label: "Physical remaining", render: (batch) => <div><span className="font-semibold text-white">{formatQuantity(batch.remainingQuantity, batch.item?.unit)}</span><p className="text-[0.65rem] text-neutral-500">Saleable: {formatQuantity(batch.saleableQuantity || 0, batch.item?.unit)}</p></div> },
     { key: "purchase", label: "Purchase conversion", render: (batch) => <div><p>{formatQuantity(batch.purchaseQuantity, batch.purchaseUnit)}</p><p className="text-[0.65rem] text-neutral-600">1 {batch.purchaseUnit} = {batch.conversionFactor} {batch.item?.unit}</p></div> },
     { key: "expiry", label: "Expiry", render: (batch) => formatDate(batch.expiryDate) },
     { key: "cost", label: "Base unit cost", render: (batch) => <Money value={batch.unitCost} /> },
@@ -88,7 +89,7 @@ export default function BatchesPage() {
       <PageHeader
         eyebrow="FEFO Inventory"
         title="Batches / Lots"
-        description="Track received quantities, remaining balances, supplier lots, expiry dates and base-unit costs. Outbound stock is consumed by earliest expiry first."
+        description="Physical balances include blocked stock. Sales use FEFO only among usable, unexpired batches; expiry is inclusive through the Asia/Riyadh expiry day."
       />
       <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Active Batches" value={summary.active || 0} caption="With stock remaining" icon={PackageCheck} tone="green" />

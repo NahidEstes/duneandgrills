@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import MenuItem from "../models/MenuItem.js";
 import MenuAddOn from "../models/MenuAddOn.js";
 import InventoryRecipe from "../models/InventoryRecipe.js";
+import AddOnInventoryRecipe from "../models/AddOnInventoryRecipe.js";
 import Order from "../models/Order.js";
 import AuditLog from "../models/AuditLog.js";
 import PosHeldSale from "../models/PosHeldSale.js";
@@ -38,6 +39,7 @@ const run = async () => {
   item.customization.groups = [{ name: "Sauce choice", selectionType: "single", minSelections: 1, maxSelections: 1, addOns: [sauce._id] }];
   await item.save();
   await InventoryRecipe.create({ menuItem: item._id, doNotTrack: true, isActive: true, ingredients: [], updatedBy: manager._id });
+  await AddOnInventoryRecipe.create({ addOn: sauce._id, doNotTrack: true, ingredients: [], updatedBy: manager._id });
   const configuredItem = { productId: item._id, productType: "menuItem", quantity: 1, customization: { selectedAddOns: [{ id: sauce._id, quantity: 1 }], note: "No onion" } };
   await assert.rejects(resolveCartLines([{ productId: item._id, quantity: 1 }]), /Choose at least 1 option/);
   const merged = await resolveCartLines([configuredItem, configuredItem]);

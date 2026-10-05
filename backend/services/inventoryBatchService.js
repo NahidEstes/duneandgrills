@@ -2,8 +2,8 @@ import Counter from "../models/Counter.js";
 import InventoryBatch from "../models/InventoryBatch.js";
 import InventoryItem from "../models/InventoryItem.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
+import { eligibleBatchFilter, inventoryUsability } from "./inventoryEligibilityService.js";
 
-const EPSILON = 0.000001;
 const sessionOptions = (session) => (session ? { session } : {});
 
 const nextLotNumber = async (session = null) => {
@@ -16,28 +16,11 @@ const nextLotNumber = async (session = null) => {
   return `LOT-${date}-${String(counter.seq).padStart(4, "0")}`;
 };
 
-const trackedQuantity = async (itemId, session = null) => {
-  const aggregate = InventoryBatch.aggregate([
-    { $match: { item: itemId, remainingQuantity: { $gt: 0 } } },
-    { $group: { _id: null, total: { $sum: "$remainingQuantity" } } },
-  ]);
-  if (session) aggregate.session(session);
-  const rows = await aggregate;
-  return Number(rows[0]?.total || 0);
-};
-
 export const ensureLegacyBatch = async (item, session = null) => {
-  const tracked = await trackedQuantity(item._id, session);
-  const gap = Number((Number(item.currentStock) - tracked).toFixed(6));
-  if (gap <= EPSILON) return null;
-
-  const legacy = await InventoryBatch.findOne({ item: item._id, isLegacy: true }).session(session || null);
-  if (legacy) {
-    legacy.receivedQuantity = Number((legacy.receivedQuantity + gap).toFixed(6));
-    legacy.remainingQuantity = Number((legacy.remainingQuantity + gap).toFixed(6));
-    await legacy.save(sessionOptions(session));
-    return legacy;
-  }
+  // Never manufacture legacy stock/expiry from a gap after real batch history exists.
+  if (await InventoryBatch.exists({ item: item._id }).session(session || null)) return null;
+  const gap = Number(Number(item.currentStock).toFixed(6));
+  if (gap <= 0) return null;
 
   const [created] = await InventoryBatch.create([
     {
@@ -107,14 +90,15 @@ export const createInventoryBatch = async ({
   };
 };
 
-export const consumeInventoryBatches = async ({ item, quantity }, session = null) => {
+export const consumeInventoryBatches = async ({ item, quantity, saleOnly = false, now = new Date() }, session = null) => {
   await ensureLegacyBatch(item, session);
   let needed = Number(Number(quantity).toFixed(6));
-  const batches = await InventoryBatch.find({ item: item._id, remainingQuantity: { $gt: 0 } })
+  const batches = await InventoryBatch.find(saleOnly ? eligibleBatchFilter(item, now) : { item: item._id, remainingQuantity: { $gt: 0 } })
     .sort({ fefoDate: 1, receivedAt: 1, _id: 1 })
     .session(session || null);
   const available = batches.reduce((sum, batch) => sum + Number(batch.remainingQuantity || 0), 0);
-  if (available + EPSILON < needed) {
+  if (Number(available.toFixed(6)) < needed) {
+    if (saleOnly) throw new ValidationError(`Insufficient saleable stock for ${item.name}: needs ${needed} ${item.unit}, only ${Number(available.toFixed(6))} saleable (${item.currentStock} physical). Expired, quarantined, damaged and unknown-expiry tracked stock cannot be sold`);
     throw new ValidationError(`Batch balances are short by ${Number((needed - available).toFixed(6))} ${item.unit}. Reconcile this item before continuing`);
   }
   const allocations = [];
@@ -122,11 +106,11 @@ export const consumeInventoryBatches = async ({ item, quantity }, session = null
 
   try {
     for (const batch of batches) {
-      if (needed <= EPSILON) break;
+      if (needed <= 0) break;
       const used = Number(Math.min(needed, batch.remainingQuantity).toFixed(6));
-      if (used <= EPSILON) continue;
+      if (used <= 0) continue;
       const updated = await InventoryBatch.findOneAndUpdate(
-        { _id: batch._id, remainingQuantity: batch.remainingQuantity },
+        { ...(saleOnly ? eligibleBatchFilter(item, now) : {}), _id: batch._id, remainingQuantity: batch.remainingQuantity },
         { $inc: { remainingQuantity: -used } },
         { new: true, ...sessionOptions(session) }
       );
@@ -151,7 +135,7 @@ export const consumeInventoryBatches = async ({ item, quantity }, session = null
     throw error;
   }
 
-  if (needed > EPSILON) throw new ValidationError(`Batch balances are short by ${needed} ${item.unit}. Reconcile this item before continuing`);
+  if (needed > 0) throw new ValidationError(`Batch balances are short by ${needed} ${item.unit}. Reconcile this item before continuing`);
   return { allocations, createdBatchIds: [], deltas };
 };
 
@@ -217,14 +201,14 @@ export const rollbackBatchChanges = async (changes) => {
   }
 };
 
-export const getBatchSnapshots = async ({ includeDepleted = true } = {}) => {
+export const getBatchSnapshots = async ({ includeDepleted = true, now = new Date() } = {}) => {
   const [items, batches] = await Promise.all([
     InventoryItem.find({ isActive: true })
       .populate("category", "name color")
       .populate("supplier", "name code")
       .lean(),
-    InventoryBatch.find(includeDepleted ? {} : { remainingQuantity: { $gt: 0 } })
-      .populate({ path: "item", select: "name sku unit category storageLocation isActive", populate: { path: "category", select: "name color" } })
+    InventoryBatch.find({})
+      .populate({ path: "item", select: "name sku unit category storageLocation isActive tracksExpiry", populate: { path: "category", select: "name color" } })
       .populate("supplier", "name code")
       .populate("purchaseOrder", "orderNumber")
       .sort({ fefoDate: 1, receivedAt: 1 })
@@ -238,7 +222,7 @@ export const getBatchSnapshots = async ({ includeDepleted = true } = {}) => {
   }
   const synthetic = items.flatMap((item) => {
     const gap = Number((Number(item.currentStock) - Number(trackedByItem.get(String(item._id)) || 0)).toFixed(6));
-    if (gap <= EPSILON) return [];
+    if (gap <= 0) return [];
     return [{
       _id: `legacy-${item._id}`,
       item,
@@ -246,7 +230,7 @@ export const getBatchSnapshots = async ({ includeDepleted = true } = {}) => {
       receivedQuantity: gap,
       remainingQuantity: gap,
       receivedAt: item.createdAt,
-      expiryDate: item.expiryDate || null,
+      expiryDate: trackedByItem.has(String(item._id)) ? null : item.expiryDate || null,
       unitCost: Number(item.unitCost || 0),
       supplier: item.supplier || null,
       purchaseOrder: null,
@@ -256,7 +240,11 @@ export const getBatchSnapshots = async ({ includeDepleted = true } = {}) => {
       conversionFactor: 1,
       isLegacy: true,
       isSynthetic: true,
+      unallocated: trackedByItem.has(String(item._id)),
     }];
   });
-  return [...batches, ...synthetic];
+  return [...batches, ...synthetic].filter(batch => includeDepleted || Number(batch.remainingQuantity) > 0).map(batch => {
+    const usability = batch.unallocated ? "unallocated" : inventoryUsability(batch, batch.item || {}, now);
+    return { ...batch, usability, saleableQuantity: usability === "usable" ? batch.remainingQuantity : 0 };
+  });
 };

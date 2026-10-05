@@ -1,21 +1,20 @@
 import { getBatchSnapshots } from "../../services/inventoryBatchService.js";
 import { escapeRegex, parsePagination } from "../../utils/inventoryValidation.js";
+import { expiryDayStart, isExpiredInventory } from "../../services/inventoryEligibilityService.js";
+import { ADMIN_DAY_MS, parseRiyadhDate } from "../../utils/adminDate.js";
 
 const endOfDay = (date) => {
-  const value = new Date(date);
-  value.setUTCHours(23, 59, 59, 999);
-  return value;
+  return new Date(parseRiyadhDate(date).getTime() + ADMIN_DAY_MS - 1);
 };
 
 export const listBatches = async (req, res, next) => {
   try {
     const { page, limit } = parsePagination(req.query, 25);
     const now = new Date();
-    const expiryEnd = new Date(now);
-    expiryEnd.setUTCDate(expiryEnd.getUTCDate() + Math.max(1, Number(req.query.expiryDays) || 7));
+    const expiryEnd = new Date(expiryDayStart(now).getTime() + (Math.max(1, Number(req.query.expiryDays) || 7) + 1) * ADMIN_DAY_MS - 1);
     const search = req.query.search?.trim();
     const expression = search ? new RegExp(escapeRegex(search), "i") : null;
-    let rows = await getBatchSnapshots({ includeDepleted: ["depleted", "all"].includes(req.query.status) });
+    let rows = await getBatchSnapshots({ includeDepleted: ["depleted", "all"].includes(req.query.status), now });
 
     rows = rows.filter((batch) => {
       if (req.query.item && String(batch.item?._id || batch.item) !== String(req.query.item)) return false;
@@ -25,9 +24,9 @@ export const listBatches = async (req, res, next) => {
       const expiry = batch.expiryDate ? new Date(batch.expiryDate) : null;
       if (req.query.status === "active" && Number(batch.remainingQuantity) <= 0) return false;
       if (req.query.status === "depleted" && Number(batch.remainingQuantity) > 0) return false;
-      if (req.query.status === "expired" && (!expiry || expiry >= now || Number(batch.remainingQuantity) <= 0)) return false;
-      if (req.query.status === "expiring" && (!expiry || expiry < now || expiry > expiryEnd || Number(batch.remainingQuantity) <= 0)) return false;
-      if (req.query.from && (!expiry || expiry < new Date(req.query.from))) return false;
+      if (req.query.status === "expired" && (!isExpiredInventory(expiry, now) || Number(batch.remainingQuantity) <= 0)) return false;
+      if (req.query.status === "expiring" && (!expiry || isExpiredInventory(expiry, now) || expiry > expiryEnd || Number(batch.remainingQuantity) <= 0)) return false;
+      if (req.query.from && (!expiry || expiry < parseRiyadhDate(req.query.from))) return false;
       if (req.query.to && (!expiry || expiry > endOfDay(req.query.to))) return false;
       return true;
     });
@@ -43,7 +42,7 @@ export const listBatches = async (req, res, next) => {
       const expiry = batch.expiryDate ? new Date(batch.expiryDate) : null;
       if (remaining > 0) result.active += 1;
       else result.depleted += 1;
-      if (remaining > 0 && expiry && expiry < now) result.expired += 1;
+      if (remaining > 0 && isExpiredInventory(expiry, now)) result.expired += 1;
       else if (remaining > 0 && expiry && expiry <= expiryEnd) result.expiring += 1;
       result.stockValue += remaining * Number(batch.unitCost || 0);
       return result;

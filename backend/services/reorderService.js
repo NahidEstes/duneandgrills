@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import InventoryBatch from "../models/InventoryBatch.js";
+import { getSaleableInventory } from "./inventoryEligibilityService.js";
 import InventoryItem from "../models/InventoryItem.js";
 import InventorySettings from "../models/InventorySettings.js";
 import PurchaseAutomationRun from "../models/PurchaseAutomationRun.js";
@@ -50,19 +50,18 @@ export const collectReorderInputs = async (item, { now = new Date(), settings, s
   const policy = settings?.purchasingAutomation || {};
   const lookbackDays = Number(policy.demandLookbackDays || 30);
   const lookbackStart = new Date(now.getTime() - lookbackDays * 86400000);
-  const [batches, inboundOrders, usage] = await Promise.all([
-    InventoryBatch.find({ item: item._id, remainingQuantity: { $gt: 0 }, $and: [{ $or: [{ qualityStatus: "usable" }, { qualityStatus: { $exists: false } }] }, { $or: [{ expiryDate: null }, { expiryDate: { $gt: now } }] }] }).select("remainingQuantity").session(session || null).lean(),
+  const [stock, inboundOrders, usage] = await Promise.all([
+    getSaleableInventory(item, { now, session }),
     PurchaseOrder.find({ status: { $in: ["ordered", "partially_received"] }, "items.item": item._id }).select("items status").session(session || null).lean(),
     StockTransaction.aggregate([{ $match: { item: item._id, movementType: "STOCK_OUT", order: { $ne: null }, occurredAt: { $gte: lookbackStart, $lte: now } } }, { $group: { _id: null, quantity: { $sum: "$quantity" }, days: { $addToSet: { $dateToString: { date: "$occurredAt", format: "%Y-%m-%d" } } } } }]).session(session || null),
   ]);
-  const hasBatchData = batches.length > 0 || Number(item.currentStock) === 0;
-  const usableOnHand = hasBatchData ? batches.reduce((sum, row) => sum + Number(row.remainingQuantity), 0) : Number(item.currentStock || 0);
+  const usableOnHand = stock.saleableStock;
   const confirmedInbound = inboundOrders.reduce((sum, po) => sum + po.items.filter((line) => String(line.item) === String(item._id)).reduce((lineSum, line) => lineSum + Math.max(0, Number(line.quantity) - Number(line.receivedQuantity || 0)) * Number(line.conversionFactor || 1), 0), 0);
   const usageRow = usage[0];
   const reliableUsage = Boolean(usageRow && usageRow.days.length >= 3);
   const averageDailyUsage = reliableUsage ? quantity(Number(usageRow.quantity) / lookbackDays) : null;
   const { purchaseUnit, baseUnit, conversionFactor } = getPurchaseConfiguration(item);
-  return { usableOnHand: quantity(usableOnHand), reservedQuantity: 0, confirmedInbound: quantity(confirmedInbound), averageDailyUsage, usageQuantity: quantity(usageRow?.quantity || 0), usageDays: usageRow?.days?.length || 0, reliableUsage, leadTimeDays: Number(item.leadTimeDays || item.supplier?.leadTimeDays || policy.defaultLeadTimeDays || 0), purchaseUnit, baseUnit, conversionFactor, legacyStockFallback: !hasBatchData };
+  return { usableOnHand: quantity(usableOnHand), physicalOnHand: stock.physicalStock, nonSaleableOnHand: stock.nonSaleableStock, reservedQuantity: 0, confirmedInbound: quantity(confirmedInbound), averageDailyUsage, usageQuantity: quantity(usageRow?.quantity || 0), usageDays: usageRow?.days?.length || 0, reliableUsage, leadTimeDays: Number(item.leadTimeDays || item.supplier?.leadTimeDays || policy.defaultLeadTimeDays || 0), purchaseUnit, baseUnit, conversionFactor, legacyStockFallback: stock.legacyStockFallback };
 };
 
 export const calculateItemReorder = async (item, { now = new Date(), settings, session = null } = {}) => {

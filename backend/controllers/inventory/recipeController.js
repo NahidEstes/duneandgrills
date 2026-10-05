@@ -2,6 +2,7 @@ import InventoryItem from "../../models/InventoryItem.js";
 import InventoryRecipe from "../../models/InventoryRecipe.js";
 import MenuItem from "../../models/MenuItem.js";
 import { calculateRecipeCosts } from "../../services/recipeCostService.js";
+import { recipeReadiness, attachRecipeSaleableStock } from "../../services/recipeReadinessService.js";
 import {
   assertObjectId,
   escapeRegex,
@@ -12,7 +13,7 @@ import { recordAuditLog } from "../../services/auditLogService.js";
 
 const recipePopulate = {
   path: "ingredients.inventoryItem",
-  select: "name sku unit currentStock unitCost isActive category",
+  select: "name sku unit currentStock unitCost isActive category tracksExpiry expiryDate",
   populate: { path: "category", select: "name" },
 };
 
@@ -33,11 +34,8 @@ const serializeRecipe = (menuItem, recipe) => {
   return {
     ...menuItem,
     recipe: costedRecipe,
-    recipeStatus: recipe?.doNotTrack
-      ? "do_not_track"
-      : recipe?.ingredients?.length
-        ? "configured"
-        : "not_configured",
+    recipeStatus: recipeReadiness(recipe).status,
+    recipeIssue: recipeReadiness(recipe).issue,
     metrics: {
       ingredientCost: costs.totalEstimatedIngredientCost,
       totalEstimatedIngredientCost: costs.totalEstimatedIngredientCost,
@@ -62,6 +60,7 @@ export const listRecipes = async (req, res, next) => {
       MenuItem.find(menuFilter).populate("categoryRef", "name slug").sort({ name: 1 }).lean(),
       InventoryRecipe.find().populate(recipePopulate).populate("updatedBy", "name").lean(),
     ]);
+    await attachRecipeSaleableStock(recipes);
     const recipesByMenuItem = new Map(recipes.map((row) => [String(row.menuItem), row]));
     const allRows = menuItems.map((item) => serializeRecipe(item, recipesByMenuItem.get(String(item._id))));
     const summary = allRows.reduce(
@@ -100,6 +99,7 @@ export const getRecipe = async (req, res, next) => {
       InventoryRecipe.findOne({ menuItem: req.params.menuItemId }).populate(recipePopulate).populate("updatedBy", "name").lean(),
     ]);
     if (!menuItem) return res.status(404).json({ success: false, message: "Menu item not found" });
+    await attachRecipeSaleableStock([recipe]);
     res.json({ success: true, data: serializeRecipe(menuItem, recipe) });
   } catch (error) { next(error); }
 };
@@ -109,7 +109,8 @@ export const updateRecipe = async (req, res, next) => {
     assertObjectId(req.params.menuItemId, "menu item");
     const menuItem = await MenuItem.findById(req.params.menuItemId);
     if (!menuItem) throw new ValidationError("Menu item was not found");
-    const doNotTrack = Boolean(req.body.doNotTrack);
+    if (req.body.doNotTrack !== undefined && typeof req.body.doNotTrack !== "boolean") throw new ValidationError("Do Not Track must be an explicit boolean setting");
+    const doNotTrack = req.body.doNotTrack === true;
     const isActive = req.body.isActive !== false;
     const lines = doNotTrack ? [] : req.body.ingredients;
     if (!doNotTrack && (!Array.isArray(lines) || lines.length === 0)) {
@@ -155,7 +156,9 @@ export const updateRecipe = async (req, res, next) => {
     await recipe.populate(recipePopulate);
     await recipe.populate("updatedBy", "name");
     await recordAuditLog({ actor: req.user, action: existing ? "INVENTORY_RECIPE_UPDATED" : "INVENTORY_RECIPE_CREATED", entityType: "InventoryRecipe", entityId: recipe._id, entityLabel: menuItem.name, correlationId: req.correlationId, before: existing ? { ingredients: existing.ingredients, doNotTrack: existing.doNotTrack, isActive: existing.isActive } : null, after: { ingredients: recipe.ingredients, doNotTrack: recipe.doNotTrack, isActive: recipe.isActive }, reason: String(req.body.reason || "").trim(), related: { menuItem: menuItem._id } });
-    res.json({ success: true, data: serializeRecipe(menuItem.toObject(), recipe.toObject()) });
+    const snapshot = recipe.toObject();
+    await attachRecipeSaleableStock([snapshot]);
+    res.json({ success: true, data: serializeRecipe(menuItem.toObject(), snapshot) });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "This menu item already has a recipe" });
     next(error);

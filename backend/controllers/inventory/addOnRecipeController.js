@@ -4,16 +4,15 @@ import MenuAddOn from "../../models/MenuAddOn.js";
 import { recordAuditLog } from "../../services/auditLogService.js";
 import { runInventoryTransaction } from "../../services/inventoryStockService.js";
 import { assertObjectId, ValidationError } from "../../utils/inventoryValidation.js";
+import { recipeReadiness, attachRecipeSaleableStock } from "../../services/recipeReadinessService.js";
 
 const populate = [
   { path: "addOn", select: "name price image isActive menuItems" },
-  { path: "ingredients.inventoryItem", select: "name sku unit currentStock unitCost isActive" },
+  { path: "ingredients.inventoryItem", select: "name sku unit currentStock unitCost isActive tracksExpiry expiryDate" },
   { path: "updatedBy", select: "name role" },
 ];
 
-const statusOf = (recipe) => recipe?.doNotTrack
-  ? "do_not_track"
-  : recipe?.ingredients?.length ? "configured" : "not_configured";
+const statusOf = (recipe) => recipeReadiness(recipe, "quantityPerAddOn").status;
 
 export const listAddOnRecipes = async (_req, res, next) => {
   try {
@@ -21,10 +20,11 @@ export const listAddOnRecipes = async (_req, res, next) => {
       MenuAddOn.find().sort({ name: 1 }).lean(),
       AddOnInventoryRecipe.find().populate(populate).lean(),
     ]);
+    await attachRecipeSaleableStock(recipes);
     const byAddOn = new Map(recipes.map((row) => [String(row.addOn?._id || row.addOn), row]));
     const data = addOns.map((addOn) => {
       const recipe = byAddOn.get(String(addOn._id)) || null;
-      return { ...addOn, inventoryRecipe: recipe, recipeStatus: statusOf(recipe) };
+      return { ...addOn, inventoryRecipe: recipe, recipeStatus: statusOf(recipe), recipeIssue: recipeReadiness(recipe, "quantityPerAddOn").issue };
     });
     res.json({ success: true, data, summary: {
       configured: data.filter((row) => row.recipeStatus === "configured").length,
@@ -42,13 +42,15 @@ export const getAddOnRecipe = async (req, res, next) => {
       AddOnInventoryRecipe.findOne({ addOn: req.params.addOnId }).populate(populate).lean(),
     ]);
     if (!addOn) return res.status(404).json({ success: false, message: "Add-on not found" });
-    res.json({ success: true, data: { ...addOn, inventoryRecipe: recipe, recipeStatus: statusOf(recipe) } });
+    await attachRecipeSaleableStock([recipe]);
+    res.json({ success: true, data: { ...addOn, inventoryRecipe: recipe, recipeStatus: statusOf(recipe), recipeIssue: recipeReadiness(recipe, "quantityPerAddOn").issue } });
   } catch (error) { next(error); }
 };
 
 export const updateAddOnRecipe = async (req, res, next) => {
   try {
     assertObjectId(req.params.addOnId, "add-on");
+    if (req.body.doNotTrack !== undefined && typeof req.body.doNotTrack !== "boolean") throw new ValidationError("Do Not Track must be an explicit boolean setting");
     const result = await runInventoryTransaction(async (session) => {
       const addOn = await MenuAddOn.findById(req.params.addOnId).session(session || null);
       if (!addOn) throw new ValidationError("Add-on was not found");

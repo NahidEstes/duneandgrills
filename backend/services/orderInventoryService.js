@@ -6,6 +6,8 @@ import StockTransaction from "../models/StockTransaction.js";
 import { PRODUCT_TYPES } from "./catalogService.js";
 import { updateItemNextExpiry } from "./inventoryBatchService.js";
 import { performStockMovement } from "./inventoryStockService.js";
+import { getSaleableInventory } from "./inventoryEligibilityService.js";
+import { recipeReadiness } from "./recipeReadinessService.js";
 
 export class OrderInventoryError extends Error {
   constructor(message, status = 409) {
@@ -20,6 +22,9 @@ const roundQuantity = (value) => Number(Number(value).toFixed(6));
 const expandMenuQuantities = (catalogLines) => {
   const menu = new Map();
   const add = (menuItem, quantity) => {
+    if (!Number.isFinite(Number(quantity)) || Number(quantity) <= 0) {
+      throw new OrderInventoryError("Invalid menu/combo component quantity. Repair the menu configuration before selling");
+    }
     const id = String(menuItem?._id || menuItem);
     const current = menu.get(id) || { menuItem: id, name: menuItem?.name || "Menu item", quantity: 0 };
     current.quantity = roundQuantity(current.quantity + Number(quantity));
@@ -46,7 +51,7 @@ const addRequirement = (requirements, inventoryItem, quantity, component) => {
   requirements.set(id, current);
 };
 
-const buildRequirements = async (catalogLines, { strictRecipes, session }) => {
+const buildRequirements = async (catalogLines, { session, now }) => {
   const menuQuantities = expandMenuQuantities(catalogLines);
   const menuIds = menuQuantities.map((row) => row.menuItem);
   const recipes = await InventoryRecipe.find({ menuItem: { $in: menuIds } }).session(session || null).lean();
@@ -56,16 +61,16 @@ const buildRequirements = async (catalogLines, { strictRecipes, session }) => {
 
   for (const soldItem of menuQuantities) {
     const recipe = recipeMap.get(String(soldItem.menuItem));
-    if (recipe?.doNotTrack) continue;
-    const activeIngredients = recipe?.isActive === false ? [] : (recipe?.ingredients || []).filter((line) => line.isActive !== false);
-    if (!activeIngredients.length) {
-      if (strictRecipes) missing.push(soldItem.name);
+    const readiness = recipeReadiness(recipe);
+    if (readiness.status === "do_not_track") continue;
+    if (readiness.status !== "configured") {
+      missing.push(`${soldItem.name} (${readiness.issue})`);
       continue;
     }
-    for (const line of activeIngredients) {
+    for (const line of readiness.ingredients) {
       const quantity = Number(line.quantityPerSale) * soldItem.quantity;
       addRequirement(requirements, line.inventoryItem, quantity, {
-        type: "menu_recipe", menuItem: soldItem.menuItem, name: soldItem.name, soldQuantity: soldItem.quantity, ingredientQuantity: roundQuantity(quantity),
+        type: "menu_recipe", menuItem: soldItem.menuItem, name: soldItem.name, soldQuantity: soldItem.quantity, ingredientQuantity: roundQuantity(quantity), unit: line.unit,
       });
     }
   }
@@ -78,12 +83,14 @@ const buildRequirements = async (catalogLines, { strictRecipes, session }) => {
   })));
   if (selectedAddOns.length) {
     const addOnIds = [...new Set(selectedAddOns.map((entry) => entry.addOnId))];
-    const addOnRecipes = await AddOnInventoryRecipe.find({ addOn: { $in: addOnIds }, isActive: true }).session(session || null).lean();
+    const addOnRecipes = await AddOnInventoryRecipe.find({ addOn: { $in: addOnIds } }).session(session || null).lean();
     const addOnRecipeMap = new Map(addOnRecipes.map((recipe) => [String(recipe.addOn), recipe]));
     for (const selected of selectedAddOns) {
       const recipe = addOnRecipeMap.get(selected.addOnId);
-      if (!recipe || recipe.doNotTrack) continue;
-      for (const line of (recipe.ingredients || []).filter((entry) => entry.isActive !== false)) {
+      const readiness = recipeReadiness(recipe, "quantityPerAddOn");
+      if (readiness.status === "do_not_track") continue;
+      if (readiness.status !== "configured") { missing.push(`Add-on ${selected.addOnName} (${readiness.issue})`); continue; }
+      for (const line of readiness.ingredients) {
         const quantity = Number(line.quantityPerAddOn) * selected.addOnQuantity * selected.orderItemQuantity;
         addRequirement(requirements, line.inventoryItem, quantity, {
           type: "add_on_recipe",
@@ -92,6 +99,7 @@ const buildRequirements = async (catalogLines, { strictRecipes, session }) => {
           addOnQuantity: selected.addOnQuantity,
           orderItemQuantity: selected.orderItemQuantity,
           ingredientQuantity: roundQuantity(quantity),
+          unit: line.unit,
         });
       }
     }
@@ -107,12 +115,15 @@ const buildRequirements = async (catalogLines, { strictRecipes, session }) => {
   const unavailable = [];
   for (const requirement of requirements.values()) {
     const item = itemMap.get(requirement.inventoryItem);
-    if (!item || !item.isActive) unavailable.push("an inactive inventory ingredient");
-    else if (Number(item.currentStock) < requirement.quantity) {
-      unavailable.push(`${item.name} needs ${requirement.quantity} ${item.unit}, only ${item.currentStock} available`);
+    if (!item || !item.isActive) unavailable.push("Missing/inactive inventory ingredient. Repair the recipe or explicitly mark Do Not Track");
+    else if (requirement.components.some(component => component.unit !== item.unit)) unavailable.push(`${item.name} recipe unit does not match its base unit (${item.unit}). Update the recipe`);
+    else if (!Number.isFinite(requirement.quantity) || requirement.quantity <= 0) unavailable.push(`Invalid ingredient quantity for ${item.name}. Update the recipe`);
+    else {
+      const stock = await getSaleableInventory(item, { now, session });
+      if (stock.saleableStock < requirement.quantity) unavailable.push(`${item.name} needs ${requirement.quantity} ${item.unit}, only ${stock.saleableStock} saleable (${stock.physicalStock} physical). Expired, quarantined, damaged and unknown-expiry tracked stock cannot be sold`);
     }
   }
-  if (unavailable.length) throw new OrderInventoryError(`Insufficient inventory: ${unavailable.join("; ")}`);
+  if (unavailable.length) throw new OrderInventoryError(`Insufficient saleable inventory / invalid recipe: ${unavailable.join("; ")}`);
   return [...requirements.values()].map((requirement) => ({ ...requirement, item: itemMap.get(requirement.inventoryItem) }));
 };
 
@@ -140,11 +151,15 @@ const rollbackStandaloneMovements = async (movements) => {
   }
 };
 
-export const deductOrderInventory = async ({ catalogLines, orderId, orderNumber, source, actorId, strictRecipes = false, session = null }) => {
+export const deductOrderInventory = async ({ catalogLines, orderId, orderNumber, source, actorId, session = null }) => {
   const existing = await StockTransaction.find({ order: orderId, movementType: "STOCK_OUT" }).session(session || null);
   if (existing.length) return existing;
-  const requirements = await buildRequirements(catalogLines, { strictRecipes, session });
-  const perLine = await Promise.all(catalogLines.map(line => buildRequirements([line], { strictRecipes, session })));
+  // All channels share the same mandatory rules; legacy strictRecipes flags cannot bypass them.
+  const now = new Date();
+  const requirements = await buildRequirements(catalogLines, { session, now });
+  // Keep operations on the transaction session sequential, including read-only snapshot queries.
+  const perLine = [];
+  for (const line of catalogLines) perLine.push(await buildRequirements([line], { session, now }));
   const movements = [];
   try {
     for (const requirement of requirements) {
@@ -159,6 +174,8 @@ export const deductOrderInventory = async ({ catalogLines, orderId, orderNumber,
         userId: actorId,
         allowNegativeStock: false,
         respectItemNegativeStock: false,
+        saleOnly: true,
+        eligibilityNow: now,
         sourceDetails: { components: requirement.components, lineQuantities: perLine.map((rows, index) => ({ index, quantity: rows.find(row => String(row.inventoryItem) === String(requirement.inventoryItem))?.quantity || 0 })).filter(row => row.quantity > 0) },
       }, { session }));
     }
