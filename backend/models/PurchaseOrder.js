@@ -54,6 +54,8 @@ const purchaseOrderSchema = new mongoose.Schema(
     statusVersion: { type: Number, default: 0, min: 0 },
     transitionKeys: { type: [String], default: [] },
     receiptKeys: { type: [String], default: [] },
+    receiptResults: { type: [mongoose.Schema.Types.Mixed], default: [], select: false },
+    invoiceMatchVersion: { type: Number, default: 0, min: 0 },
     priceWarnings: { type: [mongoose.Schema.Types.Mixed], default: [] },
     automationRun: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseAutomationRun", default: null },
     sourceSuggestions: [{ type: mongoose.Schema.Types.ObjectId, ref: "ReorderSuggestion" }],

@@ -53,6 +53,7 @@ const supplierInvoiceSchema = new mongoose.Schema({
 
 supplierInvoiceSchema.index({ supplier: 1, normalizedInvoiceNumber: 1 }, { unique: true });
 supplierInvoiceSchema.index({ dueDate: 1, paymentStatus: 1, status: 1 });
+supplierInvoiceSchema.index({ status: 1, "items.purchaseOrder": 1 });
 
 addRecordSearchIndexes(supplierInvoiceSchema, ["internalReference","supplierInvoiceNumber"]);
 export default mongoose.model("SupplierInvoice", supplierInvoiceSchema);

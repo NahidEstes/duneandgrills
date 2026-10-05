@@ -54,7 +54,7 @@ const run = async () => {
   await transitionPurchaseOrder({ id: order._id, target: "submitted", actor: user, settings: policy });
   await transitionPurchaseOrder({ id: order._id, target: "approved", actor: user, settings: policy });
   await transitionPurchaseOrder({ id: order._id, target: "ordered", actor: user, settings: policy });
-  const receipt = await receivePurchaseOrder(order._id, [{ lineId: order.items[0]._id, quantity: 5 }], user);
+  const receipt = await receivePurchaseOrder(order._id, [{ lineId: order.items[0]._id, quantity: 5 }], user, "", policy, "inventory-receipt-1");
   assert.equal(receipt.order.status, "received");
   assert.equal((await InventoryItem.findById(item._id)).currentStock, 12);
   assert.equal((await PurchaseOrder.findById(order._id)).items[0].receivedQuantity, 5);
@@ -145,14 +145,14 @@ const run = async () => {
     quantity: 1,
     lotNumber: "LATE-LOT",
     expiryDate: "2027-06-01",
-  }], user);
+  }], user, "", policy, "inventory-receipt-late");
   await receivePurchaseOrder(batchOrder._id, [{
     lineId: batchOrder.items[0]._id,
     quantity: 1,
     lotNumber: "EARLY-LOT",
     brand: "NADEC",
     expiryDate: "2027-01-01",
-  }], user);
+  }], user, "", policy, "inventory-receipt-early");
   assert.equal((await InventoryItem.findById(bottledItem._id)).currentStock, 48);
   assert.equal((await InventoryItem.findById(bottledItem._id)).unitCost, 2);
   assert.equal((await InventoryBatch.findOne({ lotNumber: "LATE-LOT" })).brand, "Almarai");

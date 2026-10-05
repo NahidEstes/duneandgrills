@@ -1,6 +1,8 @@
 import SupplierInvoice from "../../models/SupplierInvoice.js";
 import SupplierPayment from "../../models/SupplierPayment.js";
-import { escapeRegex, parsePagination } from "../../utils/inventoryValidation.js";
+import PurchaseOrder from "../../models/PurchaseOrder.js";
+import { assertObjectId, escapeRegex, parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
+import { billableLineAvailability, committedInvoiceQuantities, BILLABLE_RESERVATION_STATUSES } from "../../services/supplierInvoiceMatchingService.js";
 import { getEffectiveRestaurantSettings } from "../../services/restaurantSettingsService.js";
 import { createSupplierInvoice, decorateInvoice, getPayablesAging, recordSupplierPayment, reverseSupplierPayment, transitionSupplierInvoice, updateSupplierInvoice } from "../../services/supplierInvoiceService.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
@@ -33,6 +35,18 @@ export const getSupplierInvoice = async (req, res, next) => {
 };
 
 const settings = async () => (await getEffectiveRestaurantSettings()).procurement;
+export const getBillableQuantities = async (req, res, next) => {
+  try {
+    const id = assertObjectId(req.query.purchaseOrder, "purchase order");
+    const excludeInvoiceId = req.query.excludeInvoiceId ? assertObjectId(req.query.excludeInvoiceId, "invoice") : null;
+    const order = await PurchaseOrder.findById(id).lean();
+    if (!order) throw new ValidationError("Purchase order was not found");
+    if (excludeInvoiceId && !await SupplierInvoice.exists({ _id: excludeInvoiceId })) throw new ValidationError("Invoice was not found");
+    const committed = await committedInvoiceQuantities([id], { excludeInvoiceId });
+    const policy = await settings();
+    res.json({ success: true, data: order.items.map(line => billableLineAvailability(order, line, committed, policy)), reservationStatuses: BILLABLE_RESERVATION_STATUSES });
+  } catch (error) { next(error); }
+};
 export const createSupplierInvoiceController = async (req, res, next) => { try { const row = await createSupplierInvoice(req.body, req.user, await settings()); await row.populate(populate); res.status(201).json({ success: true, data: decorateInvoice(row.toObject()) }); } catch (error) { if (error?.code === 11000) return res.status(409).json({ success: false, message: "This supplier invoice number already exists for the supplier" }); next(error); } };
 export const updateSupplierInvoiceController = async (req, res, next) => { try { const row = await updateSupplierInvoice(req.params.id, req.body, req.user, await settings()); await row.populate(populate); res.json({ success: true, data: decorateInvoice(row.toObject()) }); } catch (error) { if (error?.code === 11000) return res.status(409).json({ success: false, message: "This supplier invoice number already exists for the supplier" }); next(error); } };
 export const transitionSupplierInvoiceController = async (req, res, next) => { try { const result = await transitionSupplierInvoice({ id: req.params.id, target: req.body.status, actor: req.user, settings: await settings(), reason: req.body.reason, idempotencyKey: req.body.idempotencyKey }); if (req.body.status === "posted") await refreshAffectedSuggestions(result.invoice.items.map((line) => line.item)); await result.invoice.populate(populate); res.json({ success: true, data: decorateInvoice(result.invoice.toObject()), duplicate: result.duplicate }); } catch (error) { next(error); } };

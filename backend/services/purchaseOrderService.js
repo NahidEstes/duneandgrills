@@ -1,13 +1,16 @@
 import Counter from "../models/Counter.js";
+import crypto from "node:crypto";
 import InventoryItem from "../models/InventoryItem.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import Supplier from "../models/Supplier.js";
-import { normalizeOptionalBrand, ValidationError } from "../utils/inventoryValidation.js";
+import { assertObjectId, normalizeOptionalBrand, ValidationError } from "../utils/inventoryValidation.js";
 import { performStockMovement, runInventoryTransaction } from "./inventoryStockService.js";
 import { getPurchaseConfiguration, toBaseQuantity, toBaseUnitCost } from "./inventoryUnitService.js";
 import { recordPurchasePrices } from "./purchasePriceService.js";
 import { recordAuditLog } from "./auditLogService.js";
 import PurchasePriceHistory from "../models/PurchasePriceHistory.js";
+import StockTransaction from "../models/StockTransaction.js";
+import { purchaseQuantity, purchasingManager, receiptKey, requirePurchasingTransaction } from "./purchasingSafetyService.js";
 
 const nextNumber = async (session = null) => {
   const year = new Date().getUTCFullYear();
@@ -82,6 +85,8 @@ const allowed = { draft: ["submitted", "cancelled"], rejected: ["cancelled"], su
 export const transitionPurchaseOrder = async ({ id, target, actor, settings, reason = "", externalReference = "", idempotencyKey = "", emergencyOverride = false }) => runInventoryTransaction(async (session) => {
   const po = await PurchaseOrder.findById(id).session(session || null); if (!po) throw new ValidationError("Purchase order was not found");
   if (idempotencyKey && po.transitionKeys.includes(idempotencyKey)) return { po, duplicate: true };
+  if (target === "received" && !po.items.every(line => purchaseQuantity(line.receivedQuantity) >= purchaseQuantity(line.quantity))) throw new ValidationError("Incomplete purchase orders cannot be marked Received. Receive outstanding items or use Closed Short with an authorized reason");
+  if (target === "closed_short" && !purchasingManager(actor)) throw new ValidationError("Manager or Admin authorization is required to close outstanding quantities short");
   if (!allowed[po.status]?.includes(target)) throw new ValidationError(`Cannot change ${po.status} purchase order to ${target}`);
   const from = po.status; const note = String(reason || "").trim();
   if (["rejected", "cancelled", "closed_short"].includes(target) && !note) throw new ValidationError(`${target.replace("_", " ")} reason is required`);
@@ -99,15 +104,80 @@ export const transitionPurchaseOrder = async ({ id, target, actor, settings, rea
   return { po, duplicate: false, from };
 });
 
-export const receivePurchaseOrder = async (purchaseOrderId, receiptLines, actor, notes = "", settings = {}, idempotencyKey = "") => runInventoryTransaction(async (session) => {
-  const actorId = actor?._id || actor;
-  const order = await PurchaseOrder.findById(purchaseOrderId).session(session || null); if (!order) throw new ValidationError("Purchase order was not found"); if (!["ordered", "partially_received"].includes(order.status)) throw new ValidationError("Only ordered purchase orders can be received"); if (!Array.isArray(receiptLines) || !receiptLines.length) throw new ValidationError("At least one receipt line is required");
-  if (idempotencyKey && order.receiptKeys.includes(idempotencyKey)) return { order, movements: [], duplicate: true };
-  const lineMap = new Map(order.items.map((line) => [String(line._id), line]));
-  for (const receipt of receiptLines) { const line = lineMap.get(String(receipt.lineId)); if (!line) throw new ValidationError("A receipt line does not belong to this purchase order"); const quantity = Number(receipt.quantity); const remaining = line.quantity - line.receivedQuantity; const tolerance = line.quantity * Number(settings.overReceiveTolerancePercent || 0) / 100; if (!Number.isFinite(quantity) || quantity <= 0 || quantity > remaining + tolerance) throw new ValidationError(`Receipt quantity for ${line.itemName} exceeds the allowed remaining quantity`); normalizeOptionalBrand(receipt.brand, "actual brand"); if (quantity > remaining && (!["admin", "manager"].includes(actor.role) || !String(receipt.overrideReason || notes).trim())) throw new ValidationError("Over-receiving requires Manager/Admin authorization and a reason"); }
-  const movements = []; const priceReceipts = [];
-  for (const receipt of receiptLines) { const line = lineMap.get(String(receipt.lineId)); const quantity = Number(receipt.quantity); const conversionFactor = Number(line.conversionFactor || 1); const brand = "brand" in receipt ? normalizeOptionalBrand(receipt.brand, "actual brand") : normalizeOptionalBrand(line.requestedBrand, "requested brand"); const result = await performStockMovement({ itemId: line.item, movementType: "PURCHASE_RECEIPT", quantity: toBaseQuantity(quantity, conversionFactor), reason: `Purchase receipt ${order.orderNumber}`, notes: receipt.notes || notes, userId: actorId, purchaseOrder: order._id, reference: receipt.idempotencyKey ? `${order.orderNumber}:${receipt.idempotencyKey}` : order.orderNumber, unitCost: toBaseUnitCost(line.unitCost, conversionFactor), expiryDate: receipt.expiryDate || line.expiryDate, lotNumber: receipt.lotNumber, receivedAt: receipt.receivedAt, supplier: order.supplier, brand, purchaseQuantity: quantity, purchaseUnit: line.purchaseUnit || line.baseUnit, conversionFactor, sourceDetails: { requestedBrand: line.requestedBrand || "", actualBrand: brand } }, { session }); line.receivedQuantity += quantity; movements.push(result.transaction); priceReceipts.push({ ...receipt, brand, quantity, transaction: result.transaction, receivedAt: receipt.receivedAt || new Date() }); }
-  order.status = order.items.every((line) => line.receivedQuantity >= line.quantity) ? "received" : "partially_received"; order.receivedAt = order.status === "received" ? new Date() : null; order.updatedBy = actorId; if (idempotencyKey) order.receiptKeys.push(idempotencyKey); await order.save({ session: session || undefined }); await recordPurchasePrices({ purchaseOrder: order, type: "received", actorId, session, receipts: priceReceipts });
-  await recordAuditLog({ actor: actor?._id ? actor : null, actorId, action: order.status === "received" ? "PURCHASE_ORDER_RECEIVED" : "PURCHASE_ORDER_PARTIALLY_RECEIVED", entityType: "PurchaseOrder", entityId: order._id, entityLabel: order.orderNumber, reason: String(notes || "").trim(), after: { status: order.status, receivedLines: priceReceipts.map((row) => ({ lineId: row.lineId, quantity: row.quantity, brand: row.brand || "" })) }, related: { movements: movements.map((row) => row._id) } }, { session });
-  return { order, movements, duplicate: false };
-});
+export const receivePurchaseOrder = async (purchaseOrderId, receiptLines, actor, notes = "", settings = {}, idempotencyKey = "") => {
+  const key = receiptKey(idempotencyKey);
+  if (!Array.isArray(receiptLines) || !receiptLines.length || receiptLines.length > 100) throw new ValidationError("Select 1–100 delivered receipt lines");
+  const seen = new Set();
+  for (const line of receiptLines) {
+    if (!line || typeof line !== "object") throw new ValidationError("Invalid receipt line");
+    assertObjectId(line.lineId, "purchase-order line");
+    const id = String(line.lineId);
+    if (seen.has(id)) throw new ValidationError("Duplicate purchase-order line in receipt");
+    seen.add(id);
+  }
+  // Bind a key to the submitted content, not just the PO. Sorting makes line order irrelevant.
+  const requestHash = crypto.createHash("sha256").update(JSON.stringify({
+    notes: String(notes || "").trim(),
+    items: receiptLines.map(line => ({
+      lineId: String(line.lineId), quantity: Number(line.quantity),
+      brand: "brand" in line ? normalizeOptionalBrand(line.brand, "actual brand") : null,
+      lotNumber: String(line.lotNumber || "").trim().toUpperCase(), receivedAt: line.receivedAt || null,
+      expiryDate: line.expiryDate || null, notes: String(line.notes || "").trim(), overrideReason: String(line.overrideReason || "").trim(),
+    })).sort((a, b) => a.lineId.localeCompare(b.lineId)),
+  })).digest("hex");
+  return runInventoryTransaction(async session => {
+    requirePurchasingTransaction(session);
+    const actorId = actor?._id || actor;
+    const order = await PurchaseOrder.findById(purchaseOrderId).select("+receiptResults").session(session);
+    if (!order) throw new ValidationError("Purchase order was not found");
+    const prior = order.receiptResults.find(row => row.key === key);
+    if (prior) {
+      if (prior.requestHash !== requestHash) throw Object.assign(new ValidationError("This receipt key belongs to a different submission. Retry the original receipt"), { status: 409 });
+      const movements = await StockTransaction.find({ _id: { $in: prior.movementIds } }).session(session);
+      const byId = new Map(movements.map(row => [String(row._id), row]));
+      return { order: PurchaseOrder.hydrate(prior.orderSnapshot), movements: prior.movementIds.map(id => byId.get(String(id))), duplicate: true };
+    }
+    // Pre-upgrade keys still prevent duplicate stock; historical response snapshots did not exist.
+    if (order.receiptKeys.includes(key)) return { order, movements: [], duplicate: true, legacyReceipt: true };
+    if (!["ordered", "partially_received"].includes(order.status)) throw new ValidationError("Only ordered or partially received purchase orders can be received");
+    const lineMap = new Map(order.items.map(line => [String(line._id), line]));
+    const normalized = receiptLines.map(receipt => {
+      const line = lineMap.get(String(receipt.lineId));
+      if (!line) throw new ValidationError("A receipt line does not belong to this purchase order");
+      const rawQuantity = Number(receipt.quantity); const quantity = purchaseQuantity(rawQuantity);
+      const remaining = purchaseQuantity(Number(line.quantity) - Number(line.receivedQuantity));
+      const allowedTotal = purchaseQuantity(Number(line.quantity) * (1 + Number(settings.overReceiveTolerancePercent || 0) / 100));
+      if (!Number.isFinite(rawQuantity) || quantity <= 0 || quantity !== rawQuantity) throw new ValidationError("Receipt quantity must be positive with at most six decimal places");
+      if (purchaseQuantity(Number(line.receivedQuantity) + quantity) > allowedTotal) throw new ValidationError(`Receipt quantity for ${line.itemName} exceeds the allowed remaining quantity (${Math.max(0, remaining)} ${line.purchaseUnit || line.baseUnit})`);
+      const overrideReason = String(receipt.overrideReason || notes || "").trim();
+      if (quantity > remaining && (!purchasingManager(actor) || !overrideReason)) throw new ValidationError("Over-receiving requires Manager/Admin authorization and a reason");
+      const conversionFactor = Number(line.conversionFactor || 1);
+      if (!Number.isFinite(conversionFactor) || conversionFactor <= 0 || toBaseQuantity(quantity, conversionFactor) <= 0) throw new ValidationError("Receipt conversion must produce a positive base-unit quantity");
+      return { ...receipt, line, quantity, conversionFactor, overrideReason: quantity > remaining ? overrideReason : "", brand: "brand" in receipt ? normalizeOptionalBrand(receipt.brand, "actual brand") : normalizeOptionalBrand(line.requestedBrand, "requested brand") };
+    });
+    const movements = []; const priceReceipts = [];
+    for (const receipt of normalized) {
+      const { line, quantity, conversionFactor, brand, overrideReason } = receipt;
+      const result = await performStockMovement({
+        itemId: line.item, movementType: "PURCHASE_RECEIPT", quantity: toBaseQuantity(quantity, conversionFactor),
+        reason: `Purchase receipt ${order.orderNumber}`, notes: receipt.notes || notes, userId: actorId,
+        purchaseOrder: order._id, reference: order.orderNumber, unitCost: toBaseUnitCost(line.unitCost, conversionFactor),
+        expiryDate: receipt.expiryDate || line.expiryDate, lotNumber: receipt.lotNumber, receivedAt: receipt.receivedAt,
+        supplier: order.supplier, brand, purchaseQuantity: quantity, purchaseUnit: line.purchaseUnit || line.baseUnit,
+        conversionFactor, sourceDetails: { receiptKey: key, purchaseOrderLine: line._id, requestedBrand: line.requestedBrand || "", actualBrand: brand, overrideReason },
+      }, { session });
+      line.receivedQuantity = purchaseQuantity(Number(line.receivedQuantity) + quantity);
+      movements.push(result.transaction); priceReceipts.push({ ...receipt, transaction: result.transaction, receivedAt: receipt.receivedAt || new Date() });
+    }
+    order.status = order.items.every(line => purchaseQuantity(line.receivedQuantity) >= purchaseQuantity(line.quantity)) ? "received" : "partially_received";
+    order.receivedAt = order.status === "received" ? new Date() : null; order.updatedBy = actorId;
+    order.statusVersion += 1; order.receiptKeys.push(key);
+    order.revisionHistory.push({ revision: order.revision, action: "stock_received", actor: actorId, at: new Date(), receiptKey: key, receivedLines: normalized.map(row => ({ lineId: row.line._id, quantity: row.quantity, overrideReason: row.overrideReason })) });
+    await order.save({ session });
+    const { receiptResults: _results, ...orderSnapshot } = order.toObject();
+    await PurchaseOrder.updateOne({ _id: order._id }, { $push: { receiptResults: { key, requestHash, orderSnapshot, movementIds: movements.map(row => row._id) } } }, { session, timestamps: false });
+    await recordPurchasePrices({ purchaseOrder: order, type: "received", actorId, session, receipts: priceReceipts });
+    await recordAuditLog({ actor: actor?._id ? actor : null, actorId, action: order.status === "received" ? "PURCHASE_ORDER_RECEIVED" : "PURCHASE_ORDER_PARTIALLY_RECEIVED", entityType: "PurchaseOrder", entityId: order._id, entityLabel: order.orderNumber, reason: String(notes || "").trim(), after: { status: order.status, receivedLines: normalized.map(row => ({ lineId: row.line._id, quantity: row.quantity, brand: row.brand, overrideReason: row.overrideReason })) }, metadata: { receiptKey: key }, related: { movements: movements.map(row => row._id) } }, { session });
+    return { order: PurchaseOrder.hydrate(orderSnapshot), movements, duplicate: false };
+  });
+};

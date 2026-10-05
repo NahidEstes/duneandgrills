@@ -51,6 +51,7 @@ export const updatePurchaseOrderStatus = (id, status, options = {}) => unwrap(ap
 export const receivePurchaseOrder = (id, payload) => unwrap(api.post(`/inventory/purchase-orders/${id}/receive`, payload)).then((response) => response.data);
 export const fetchSupplierInvoices = (params = {}) => unwrap(api.get("/inventory/supplier-invoices", { params }));
 export const fetchSupplierInvoice = (id) => unwrap(api.get(`/inventory/supplier-invoices/${id}`));
+export const fetchBillableQuantities = (purchaseOrder, excludeInvoiceId) => unwrap(api.get("/inventory/supplier-invoices/billable-quantities", { params: { purchaseOrder, excludeInvoiceId } })).then(response => response.data);
 export const createSupplierInvoice = (payload) => unwrap(api.post("/inventory/supplier-invoices", payload)).then((response) => response.data);
 export const updateSupplierInvoice = (id, payload) => unwrap(api.patch(`/inventory/supplier-invoices/${id}`, payload)).then((response) => response.data);
 export const updateSupplierInvoiceStatus = (id, status, options = {}) => unwrap(api.patch(`/inventory/supplier-invoices/${id}/status`, { status, ...options })).then((response) => response.data);

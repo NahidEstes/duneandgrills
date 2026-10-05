@@ -6,6 +6,7 @@ export const recordPurchasePrices = async ({ purchaseOrder, type, actorId, sessi
   const invoiceByLine = new Map((invoice?.items || []).map((row) => [String(row.purchaseOrderLine), row]));
   const operations = purchaseOrder.items.map((line) => {
     const receipt = receiptByLine.get(String(line._id));
+    if (type === "received" && !receipt) return null;
     const invoiceLine = invoiceByLine.get(String(line._id));
     if (type === "invoiced" && !invoiceLine) return null;
     const unitPrice = Number(invoiceLine?.unitPrice ?? receipt?.unitPrice ?? line.unitCost);

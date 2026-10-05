@@ -140,9 +140,9 @@ const run = async () => {
   assert.equal(partial.order.status, "partially_received");
   const receiptRetry = await receivePurchaseOrder(
     po._id,
-    [{ lineId: po.items[0]._id, quantity: 4 }],
+    [{ lineId: po.items[0]._id, quantity: 4, lotNumber: "P3-A", brand: "Delivered Phase Brand" }],
     buyer,
-    "Retry",
+    "Partial",
     policy,
     "p3-receive-1"
   );
@@ -249,8 +249,14 @@ const run = async () => {
     manager,
     policy
   );
+  await assert.rejects(transitionSupplierInvoice({ id: mismatch._id, target: "submitted", actor: manager, settings: policy, reason: "No cumulative over-billing bypass" }), /remaining billable/);
+  // Use a separate received PO to keep testing the existing price-override approval policy.
+  const reviewPo = await createPurchaseOrder({ supplier: supplier._id, items: [{ item: item._id, quantity: 5, unitCost: 100 }] }, buyer, policy);
+  for (const target of ["submitted", "approved", "ordered"]) await transitionPurchaseOrder({ id: reviewPo._id, target, actor: target === "approved" ? manager : buyer, settings: policy });
+  await receivePurchaseOrder(reviewPo._id, [{ lineId: reviewPo.items[0]._id, quantity: 5 }], buyer, "", policy, "p3-review-receipt");
+  const priceMismatch = await createSupplierInvoice({ ...invoicePayload, supplierInvoiceNumber: "INV-PRICE-REVIEW", items: [{ ...invoicePayload.items[0], purchaseOrder: reviewPo._id, purchaseOrderLine: reviewPo.items[0]._id, quantity: 5, unitPrice: 120 }] }, manager, policy);
   const review = await transitionSupplierInvoice({
-    id: mismatch._id,
+    id: priceMismatch._id,
     target: "submitted",
     actor: manager,
     settings: policy,
@@ -259,7 +265,7 @@ const run = async () => {
   assert.equal(review.invoice.status, "review_required");
   await assert.rejects(
     transitionSupplierInvoice({
-      id: mismatch._id,
+      id: priceMismatch._id,
       target: "approved",
       actor: buyer,
       settings: policy,
@@ -268,7 +274,7 @@ const run = async () => {
   );
   await assert.rejects(
     transitionSupplierInvoice({
-      id: mismatch._id,
+      id: priceMismatch._id,
       target: "approved",
       actor: manager,
       settings: policy,

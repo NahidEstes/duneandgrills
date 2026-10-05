@@ -51,7 +51,7 @@ import { getRecipe, listRecipes, updateRecipe } from "../controllers/inventory/r
 import { createWasteRecord, listWasteRecords } from "../controllers/inventory/wasteController.js";
 import { listBatches } from "../controllers/inventory/batchController.js";
 import { getAddOnRecipe, listAddOnRecipes, updateAddOnRecipe } from "../controllers/inventory/addOnRecipeController.js";
-import { createSupplierInvoiceController, getSupplierInvoice, listSupplierInvoices, recordSupplierPaymentController, reverseSupplierPaymentController, transitionSupplierInvoiceController, updateSupplierInvoiceController } from "../controllers/inventory/supplierInvoiceController.js";
+import { createSupplierInvoiceController, getBillableQuantities, getSupplierInvoice, listSupplierInvoices, recordSupplierPaymentController, reverseSupplierPaymentController, transitionSupplierInvoiceController, updateSupplierInvoiceController } from "../controllers/inventory/supplierInvoiceController.js";
 import { listPurchasePriceHistory } from "../controllers/inventory/purchasePriceController.js";
 import { dismissSuggestion, generateDrafts, listReorderSuggestions, recalculateSuggestions, reviewSuggestion } from "../controllers/inventory/reorderController.js";
 import { listPurchasingActions, refreshActions, updateActionState } from "../controllers/inventory/purchasingActionController.js";
@@ -104,7 +104,7 @@ router.post("/counts/:id/review", approveCount, reviewCount);
 router.post("/counts/:id/cancel", approveCount, cancelCount);
 
 router.route("/purchase-orders").get(listPurchaseOrders).post(write, createPurchaseOrderController);
-router.patch("/purchase-orders/:id/status", (req, res, next) => ["approved", "rejected"].includes(req.body.status) ? approvePurchase(req, res, next) : write(req, res, next), changePurchaseOrderStatus);
+router.patch("/purchase-orders/:id/status", (req, res, next) => ["approved", "rejected", "closed_short"].includes(req.body.status) ? approvePurchase(req, res, next) : write(req, res, next), changePurchaseOrderStatus);
 router.post("/purchase-orders/:id/receive", write, receivePurchaseOrderController);
 router.route("/purchase-orders/:id").get(getPurchaseOrder).patch(write, updatePurchaseOrderController);
 router.get("/purchase-price-history", listPurchasePriceHistory);
@@ -120,6 +120,7 @@ router.post("/purchasing-actions/refresh", actionManage, refreshActions);
 router.patch("/purchasing-actions/:id/state", actionManage, updateActionState);
 
 router.route("/supplier-invoices").get(payablesRead, listSupplierInvoices).post(payablesWrite, createSupplierInvoiceController);
+router.get("/supplier-invoices/billable-quantities", payablesRead, getBillableQuantities);
 router.route("/supplier-invoices/:id").get(payablesRead, getSupplierInvoice).patch(payablesWrite, updateSupplierInvoiceController);
 router.patch("/supplier-invoices/:id/status", (req, res, next) => ["approved", "posted", "voided", "disputed"].includes(req.body.status) ? payablesApprove(req, res, next) : payablesWrite(req, res, next), transitionSupplierInvoiceController);
 router.post("/supplier-invoices/:id/payments", recordPayment, recordSupplierPaymentController);

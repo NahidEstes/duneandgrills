@@ -3,10 +3,12 @@ import PurchaseOrder from "../models/PurchaseOrder.js";
 import Supplier from "../models/Supplier.js";
 import SupplierInvoice from "../models/SupplierInvoice.js";
 import SupplierPayment from "../models/SupplierPayment.js";
-import { normalizeOptionalBrand, ValidationError } from "../utils/inventoryValidation.js";
+import { assertObjectId, normalizeOptionalBrand, ValidationError } from "../utils/inventoryValidation.js";
 import { runInventoryTransaction } from "./inventoryStockService.js";
 import { recordAuditLog } from "./auditLogService.js";
 import { recordPurchasePrices } from "./purchasePriceService.js";
+import { purchaseQuantity, requirePurchasingTransaction } from "./purchasingSafetyService.js";
+import { billableLineAvailability, committedInvoiceQuantities, invoiceMatchingPayload, lockInvoicePurchaseOrders, validateInvoiceCommitment } from "./supplierInvoiceMatchingService.js";
 
 const round = (value) => Number(Number(value || 0).toFixed(2));
 const toHalala = (value) => Math.round(Number(value || 0) * 100);
@@ -23,16 +25,22 @@ const validateMoney = (value, label) => {
   return round(number);
 };
 
-export const matchSupplierInvoice = async (payload, settings, session = null) => {
+export const matchSupplierInvoice = async (payload, settings = {}, session = null, { excludeInvoiceId = null, lockOrderIds = null } = {}) => {
   const supplier = await Supplier.findOne({ _id: payload.supplier, isActive: true }).session(session || null);
   if (!supplier) throw new ValidationError("Supplier was not found or is inactive");
   if (!Array.isArray(payload.items) || !payload.items.length) throw new ValidationError("At least one invoice line is required");
+  for (const line of payload.items) {
+    if (!line || typeof line !== "object") throw new ValidationError("Invalid supplier invoice line");
+    assertObjectId(line.item, "invoice item"); assertObjectId(line.purchaseOrder, "purchase order"); assertObjectId(line.purchaseOrderLine, "purchase-order line");
+  }
   const poIds = [...new Set(payload.items.map((line) => String(line.purchaseOrder)))];
+  if (session) await lockInvoicePurchaseOrders([...poIds, ...(lockOrderIds || [])], session);
   const orders = await PurchaseOrder.find({ _id: { $in: poIds } }).session(session || null);
   if (orders.length !== poIds.length) throw new ValidationError("One or more purchase orders were not found");
   const orderMap = new Map(orders.map((row) => [String(row._id), row]));
+  const committed = await committedInvoiceQuantities(poIds, { excludeInvoiceId, session });
   const seen = new Set();
-  const summary = { matched: 0, warnings: 0, mismatches: 0, messages: [] };
+  const summary = { matched: 0, warnings: 0, mismatches: 0, messages: [], quantityChecks: [] };
   const items = payload.items.map((input, index) => {
     const order = orderMap.get(String(input.purchaseOrder));
     if (String(order.supplier) !== String(supplier._id)) throw new ValidationError("Invoice supplier must match every linked purchase order");
@@ -42,13 +50,17 @@ export const matchSupplierInvoice = async (payload, settings, session = null) =>
     if (seen.has(duplicateKey)) throw new ValidationError("Duplicate purchase-order line in invoice");
     seen.add(duplicateKey);
     const quantity = Number(input.quantity); const unitPrice = Number(input.unitPrice);
-    if (!Number.isFinite(quantity) || quantity <= 0) throw new ValidationError(`Invoice line ${index + 1} quantity must be greater than zero`);
+    if (!Number.isFinite(quantity) || quantity <= 0 || purchaseQuantity(quantity) !== quantity) throw new ValidationError(`Invoice line ${index + 1} quantity must be positive with at most six decimal places`);
     if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new ValidationError(`Invoice line ${index + 1} unit price must be zero or greater`);
     const tax = validateMoney(input.tax, "Line tax"); const discount = validateMoney(input.discount, "Line discount");
     const discrepancies = [];
-    const quantityTolerance = Number(poLine.quantity) * Number(settings.invoiceQuantityTolerancePercent || 0) / 100;
+    const availability = billableLineAvailability(order, poLine, committed, settings);
+    const cumulative = purchaseQuantity(availability.committedQuantity + quantity);
+    const excessQuantity = purchaseQuantity(Math.max(0, cumulative - availability.receivedQuantity));
+    const exceedsPolicy = cumulative > purchaseQuantity(availability.receivedQuantity + availability.toleranceQuantity);
+    summary.quantityChecks.push({ ...availability, proposedQuantity: quantity, excessQuantity, exceedsPolicy });
     if (Number(poLine.receivedQuantity) <= 0) discrepancies.push("Invoice was submitted before goods were received");
-    if (quantity > Number(poLine.receivedQuantity) + quantityTolerance) discrepancies.push(`Invoice quantity exceeds received quantity (${poLine.receivedQuantity})`);
+    if (excessQuantity > 0) discrepancies.push(`Cumulative invoice quantity exceeds received quantity: ${availability.committedQuantity} already committed, ${availability.remainingBillableQuantity} remaining billable; excess ${excessQuantity}${exceedsPolicy ? " exceeds policy" : " requires an authorized tolerance override"}`);
     const difference = Math.abs(unitPrice - Number(poLine.unitCost));
     const percent = Number(poLine.unitCost) > 0 ? difference / Number(poLine.unitCost) * 100 : (difference ? Infinity : 0);
     if (difference > Number(settings.invoicePriceToleranceAmount || 0) && percent > Number(settings.invoicePriceTolerancePercent || 0)) discrepancies.push(`Unit price differs from PO price (${poLine.unitCost} SAR)`);
@@ -74,6 +86,7 @@ export const matchSupplierInvoice = async (payload, settings, session = null) =>
 };
 
 export const createSupplierInvoice = async (payload, actor, settings) => runInventoryTransaction(async (session) => {
+  requirePurchasingTransaction(session);
   const normalizedInvoiceNumber = normalizeInvoiceNumber(payload.supplierInvoiceNumber);
   if (!normalizedInvoiceNumber) throw new ValidationError("Supplier invoice number is required");
   if (await SupplierInvoice.exists({ supplier: payload.supplier, normalizedInvoiceNumber }).session(session || null)) throw new ValidationError("This supplier invoice number already exists for the supplier");
@@ -86,18 +99,22 @@ export const createSupplierInvoice = async (payload, actor, settings) => runInve
 });
 
 export const updateSupplierInvoice = async (id, payload, actor, settings) => runInventoryTransaction(async (session) => {
+  requirePurchasingTransaction(session);
   const existing = await SupplierInvoice.findById(id).session(session || null);
   if (!existing) throw new ValidationError("Supplier invoice was not found");
   if (!["draft", "review_required"].includes(existing.status)) throw new ValidationError("Only draft or review-required invoices can be edited");
-  const merged = { supplier: payload.supplier ?? existing.supplier, supplierInvoiceNumber: payload.supplierInvoiceNumber ?? existing.supplierInvoiceNumber, invoiceDate: payload.invoiceDate ?? existing.invoiceDate, dueDate: payload.dueDate ?? existing.dueDate, items: payload.items ?? existing.items.map((row) => row.toObject()), tax: payload.tax ?? 0, discount: payload.discount ?? 0, additionalCharges: payload.additionalCharges ?? existing.additionalCharges };
-  const matched = await matchSupplierInvoice(merged, settings, session);
+  const before = { status: existing.status, total: existing.total, quantities: existing.items.map(line => ({ purchaseOrder: line.purchaseOrder, purchaseOrderLine: line.purchaseOrderLine, quantity: line.quantity })) };
+  const previous = invoiceMatchingPayload(existing);
+  const merged = { supplier: payload.supplier ?? existing.supplier, supplierInvoiceNumber: payload.supplierInvoiceNumber ?? existing.supplierInvoiceNumber, invoiceDate: payload.invoiceDate ?? existing.invoiceDate, dueDate: payload.dueDate ?? existing.dueDate, items: payload.items ?? previous.items, tax: payload.tax ?? previous.tax, discount: payload.discount ?? previous.discount, additionalCharges: payload.additionalCharges ?? existing.additionalCharges };
+  const matched = await matchSupplierInvoice(merged, settings, session, { excludeInvoiceId: existing._id, lockOrderIds: existing.purchaseOrders });
   existing.set({ supplier: matched.supplier._id, supplierInvoiceNumber: String(merged.supplierInvoiceNumber).trim(), normalizedInvoiceNumber: normalizeInvoiceNumber(merged.supplierInvoiceNumber), purchaseOrders: matched.orders.map((row) => row._id), invoiceDate: new Date(merged.invoiceDate), dueDate: merged.dueDate ? new Date(merged.dueDate) : null, items: matched.items, ...matched.totals, matchSummary: matched.summary, note: payload.note ?? existing.note, updatedBy: actor._id, status: "draft" });
   await existing.save({ session: session || undefined });
-  await recordAuditLog({ actor, action: "SUPPLIER_INVOICE_UPDATED", entityType: "SupplierInvoice", entityId: existing._id, entityLabel: existing.internalReference, after: { total: existing.total, matchSummary: existing.matchSummary, lineBrands: existing.items.map((line) => ({ purchaseOrderLine: line.purchaseOrderLine, brand: line.brand || "" })) } }, { session });
+  await recordAuditLog({ actor, action: "SUPPLIER_INVOICE_UPDATED", entityType: "SupplierInvoice", entityId: existing._id, entityLabel: existing.internalReference, before, after: { status: existing.status, total: existing.total, matchSummary: existing.matchSummary, quantities: existing.items.map(line => ({ purchaseOrder: line.purchaseOrder, purchaseOrderLine: line.purchaseOrderLine, quantity: line.quantity })), lineBrands: existing.items.map((line) => ({ purchaseOrderLine: line.purchaseOrderLine, brand: line.brand || "" })) }, metadata: { reservationReleased: before.status === "review_required" } }, { session });
   return existing;
 });
 
 export const transitionSupplierInvoice = async ({ id, target, actor, settings, reason = "", idempotencyKey = "" }) => runInventoryTransaction(async (session) => {
+  requirePurchasingTransaction(session);
   const invoice = await SupplierInvoice.findById(id).session(session || null); if (!invoice) throw new ValidationError("Supplier invoice was not found");
   if (idempotencyKey && invoice.transitionKeys.includes(idempotencyKey)) return { invoice, duplicate: true };
   const from = invoice.status; const note = String(reason || "").trim();
@@ -106,12 +123,23 @@ export const transitionSupplierInvoice = async ({ id, target, actor, settings, r
   if (["approved", "posted", "voided", "disputed"].includes(target) && !["admin", "manager"].includes(actor.role)) throw new ValidationError("Manager or Admin authorization is required");
   if (["voided", "disputed"].includes(target) && !note) throw new ValidationError(`${target} reason is required`);
   if (target === "voided" && Number(invoice.paidAmountHalala || 0) > 0) throw new ValidationError("Reverse completed payments before voiding this invoice");
+  let quantityOverrides = [];
+  if (["submitted", "approved", "posted", "review_required"].includes(target)) {
+    const matched = await matchSupplierInvoice(invoiceMatchingPayload(invoice), settings, session, { excludeInvoiceId: invoice._id });
+    quantityOverrides = validateInvoiceCommitment(matched.summary, actor, note);
+    invoice.matchSummary = matched.summary;
+    for (const line of invoice.items) {
+      const current = matched.items.find(row => String(row.purchaseOrderLine) === String(line.purchaseOrderLine));
+      line.matchStatus = current.matchStatus; line.discrepancies = current.discrepancies;
+    }
+  } else await lockInvoicePurchaseOrders(invoice.purchaseOrders.map(String), session);
+  if (target === "posted" && Number(invoice.matchSummary?.mismatches || 0) && !note) throw new ValidationError("Posting mismatch override reason is required");
   if (target === "submitted") invoice.status = Number(invoice.matchSummary?.mismatches || 0) ? "review_required" : "submitted";
   else if (target === "approved") { if (Number(invoice.matchSummary?.mismatches || 0) && !note) throw new ValidationError("Mismatch override reason is required"); invoice.status = "approved"; invoice.approvedBy = actor._id; invoice.approvedAmount = invoice.total; }
   else { invoice.status = target; }
   if (target === "posted") { invoice.postedBy = actor._id; invoice.postedAt = new Date(); for (const poId of invoice.purchaseOrders) { const po = await PurchaseOrder.findById(poId).session(session || null); if (po) await recordPurchasePrices({ purchaseOrder: po, type: "invoiced", actorId: actor._id, session, invoice }); } }
   if (idempotencyKey) invoice.transitionKeys.push(idempotencyKey); invoice.updatedBy = actor._id; await invoice.save({ session: session || undefined });
-  await recordAuditLog({ actor, action: `SUPPLIER_INVOICE_${invoice.status.toUpperCase()}`, entityType: "SupplierInvoice", entityId: invoice._id, entityLabel: invoice.internalReference, reason: note, before: { status: from }, after: { status: invoice.status, approvedAmount: invoice.approvedAmount }, metadata: { matchSummary: invoice.matchSummary } }, { session });
+  await recordAuditLog({ actor, action: `SUPPLIER_INVOICE_${invoice.status.toUpperCase()}`, entityType: "SupplierInvoice", entityId: invoice._id, entityLabel: invoice.internalReference, reason: note, before: { status: from }, after: { status: invoice.status, approvedAmount: invoice.approvedAmount }, metadata: { matchSummary: invoice.matchSummary, quantityOverrides, reservationReleased: target === "voided" } }, { session });
   return { invoice, duplicate: false };
 });
 
