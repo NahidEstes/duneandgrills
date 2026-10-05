@@ -153,8 +153,7 @@ const run = async () => {
   ]);
   assert.equal(differentConfigurations.length, 2);
 
-  await assert.rejects(
-    resolveCartLines([
+  const mergedConfiguration = await resolveCartLines([
       {
         productId: customizable._id,
         quantity: 1,
@@ -165,9 +164,9 @@ const run = async () => {
         quantity: 1,
         customization: { selectedAddOns: [cheese._id], spiceLevel: "medium" },
       },
-    ]),
-    /duplicate configured product lines/
-  );
+    ]);
+  assert.equal(mergedConfiguration.length, 1);
+  assert.equal(mergedConfiguration[0].quantity, 2);
   await assert.rejects(
     resolveCartLines([{
       productId: customizable._id,

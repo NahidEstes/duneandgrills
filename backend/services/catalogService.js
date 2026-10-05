@@ -189,13 +189,18 @@ export const resolveCartLines = async (items = []) => {
       unitPrice: Number((baseUnitPrice + customization.addOnTotal).toFixed(2)),
     };
   });
-  const keys = lines.map(
-    (line) => `${productKey(line.productType, line.productId)}:${line.customization.key}`
-  );
-  if (keys.length !== new Set(keys).size) {
-    throw new CatalogValidationError("Cart cannot contain duplicate configured product lines");
+  const merged = new Map();
+  for (const line of lines) {
+    const key = `${productKey(line.productType, line.productId)}:${line.customization.key}`;
+    const existing = merged.get(key);
+    if (!existing) merged.set(key, line);
+    else {
+      const quantity = existing.quantity + line.quantity;
+      if (quantity > 99) throw new CatalogValidationError("Configured product quantity cannot exceed 99");
+      existing.quantity = quantity;
+    }
   }
-  return lines;
+  return [...merged.values()];
 };
 
 export const calculateCartSubtotal = (lines = []) =>

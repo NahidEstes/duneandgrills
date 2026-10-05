@@ -140,6 +140,12 @@ const orderSchema = new mongoose.Schema(
       default: 0,
     },
     discountReason: { type: String, default: "", trim: true, maxlength: 160 },
+    posDiscount: {
+      type: { type: String, enum: ["", "fixed", "percentage"], default: "" },
+      value: { type: Number, min: 0, default: 0 },
+      approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      approvedAt: { type: Date, default: null },
+    },
     couponCode: {
       type: String,
       default: "",
@@ -175,6 +181,8 @@ const orderSchema = new mongoose.Schema(
     paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: "pending" },
     cashReceived: { type: Number, min: 0, default: 0 },
     changeDue: { type: Number, min: 0, default: 0 },
+    pickupNote: { type: String, trim: true, maxlength: 240, default: "" },
+    pickupToken: { type: String, trim: true, uppercase: true, maxlength: 12, default: "" },
   refundedAmount: { type: Number, min: 0, default: 0 },
   refundedAmountHalala: { type: Number, min: 0, default: 0 },
   refundReservedHalala: { type: Number, min: 0, default: 0 },

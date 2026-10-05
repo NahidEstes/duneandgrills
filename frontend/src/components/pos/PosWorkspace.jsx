@@ -36,7 +36,7 @@ export default function PosWorkspace() {
     try { localStorage.setItem("dg_pos_clock24", String(value)); } catch { /* Preference lasts for this visit. */ }
   };
   const handleLogout = () => {
-    if (!window.confirm("Log out of POS? Any unfinished sale on this page will be discarded.")) return;
+    if (!window.confirm("Log out of POS? Your unfinished sale will remain available for recovery.")) return;
     changeLock(true);
     logout();
   };
@@ -50,7 +50,7 @@ export default function PosWorkspace() {
         <PosTopBar user={user} onLock={() => changeLock(true)} onLogout={handleLogout} clock24={clock24} onClockChange={changeClock} displayUrl={displayUrl} shiftControl={<PosShiftControl user={user} />} />
         <main className="p-4 sm:p-6" aria-label="POS / New Sale">
           <h1 className="sr-only">POS / New Sale</h1>
-          <PosTab onDisplayChange={publishBill} />
+          <PosTab user={user} onDisplayChange={publishBill} />
         </main>
       </div>
       {locked && <PosLockScreen user={user} onUnlock={() => changeLock(false)} />}

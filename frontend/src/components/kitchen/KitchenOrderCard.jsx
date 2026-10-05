@@ -105,7 +105,8 @@ export default function KitchenOrderCard({ order, nowMs, defaultPreparationMinut
         </div>
 
         {order.notes && <div className="mt-4 rounded-xl border border-dune-amber/20 bg-dune-amber/[0.06] p-3"><p className="text-[0.62rem] font-semibold uppercase tracking-wider text-dune-amber">Kitchen notes</p><p className="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-neutral-200">{order.notes}</p></div>}
-        {order.customerName && <p className="mt-3 flex items-center gap-2 text-xs text-neutral-500"><UserRound className="h-3.5 w-3.5" />{order.customerName}</p>}
+        {(order.customerName || order.pickupToken) && <p className="mt-3 flex items-center gap-2 text-xs text-neutral-500"><UserRound className="h-3.5 w-3.5" />{order.customerName}{order.pickupToken ? ` · ${order.pickupToken}` : ""}</p>}
+        {order.pickupNote && <p className="mt-2 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-neutral-400">Pickup: {order.pickupNote}</p>}
 
         {order.status === "pending" && (
           <label className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-neutral-400">

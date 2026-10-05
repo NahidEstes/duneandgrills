@@ -9,12 +9,19 @@ export function customerSafeBill(value) {
   if (value.items.length > 100 || ![value.subtotal, value.discount, value.total].every(isAmount)) return null;
   if (value.items.some((item) => !item || typeof item.name !== "string" || !Number.isInteger(item.quantity) || item.quantity < 1 || !isAmount(item.unitPrice) || !isAmount(item.lineTotal))) return null;
   return {
-    items: value.items.map((item) => ({ name: item.name.slice(0, 200), quantity: item.quantity, unitPrice: item.unitPrice, lineTotal: item.lineTotal })),
+    items: value.items.map((item) => ({
+      name: item.name.slice(0, 200), quantity: item.quantity, unitPrice: item.unitPrice, lineTotal: item.lineTotal,
+      selectedAddOns: Array.isArray(item.selectedAddOns) ? item.selectedAddOns.slice(0, 20).map((entry) => ({ name: String(entry.name || "").slice(0, 80), quantity: Math.max(1, Number(entry.quantity || 1)) })) : [],
+      spiceLevel: typeof item.spiceLevel === "string" ? item.spiceLevel.slice(0, 30) : "",
+      note: typeof item.note === "string" ? item.note.slice(0, 240) : "",
+    })),
     subtotal: value.subtotal,
     discount: value.discount,
     total: value.total,
     orderType: ["dine-in", "takeaway"].includes(value.orderType) ? value.orderType : null,
     status: ["awaiting-payment", "processing"].includes(value.status) ? value.status : null,
+    pickupName: typeof value.pickupName === "string" ? value.pickupName.slice(0, 100) : "",
+    pickupToken: typeof value.pickupToken === "string" ? value.pickupToken.slice(0, 12) : "",
   };
 }
 

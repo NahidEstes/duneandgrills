@@ -59,7 +59,8 @@ export const getAllMenuItemsForAdmin = async (req, res) => {
     const items = await MenuItem.find()
       .populate("categoryRef", "name slug isActive type")
       .sort({ updatedAt: -1 });
-    res.status(200).json({ success: true, count: items.length, data: items });
+    const data = await attachPublicCustomizations(items);
+    res.status(200).json({ success: true, count: data.length, data });
   } catch (err) {
     res.status(500).json({
       success: false,

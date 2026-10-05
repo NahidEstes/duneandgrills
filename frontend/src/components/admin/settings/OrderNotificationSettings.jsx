@@ -1,6 +1,6 @@
 "use client";
 
-import { Banknote, BellRing, ChefHat, ShoppingBag } from "lucide-react";
+import { BadgePercent, Banknote, BellRing, ChefHat, ShoppingBag } from "lucide-react";
 import { Field, SettingsCard, Toggle, settingsInputClass } from "./settingsUi.jsx";
 
 const CHANNELS = [
@@ -42,5 +42,13 @@ export function PosShiftSettings({ value, onChange }) {
   return <SettingsCard icon={Banknote} title="POS Shifts & Cash Closing" description="Safe rollout controls for cashier shifts. Existing POS sales continue when this module is disabled.">
     <div className="grid gap-2 sm:grid-cols-2"><Toggle checked={value.enabled} onChange={(enabled) => update({ enabled, requireOpenShift: enabled ? value.requireOpenShift : false })} label="Enable shift module" description="Shows shift controls in the standalone POS." /><Toggle checked={value.requireOpenShift} disabled={!value.enabled} onChange={(requireOpenShift) => update({ requireOpenShift })} label="Require open shift" description="Blocks new POS sales when the cashier has no open shift." /><Toggle checked={value.blindClose} disabled={!value.enabled} onChange={(blindClose) => update({ blindClose })} label="Blind close" description="Hides expected cash from cashiers until the count is submitted." /></div>
     <Field label="Variance explanation threshold (SAR)" hint="A closing note is required when the over/short difference exceeds this amount."><input type="number" min="0" max="100000" step="0.01" value={value.varianceThreshold} onChange={(event) => update({ varianceThreshold: event.target.value })} className={`${settingsInputClass} mt-2 max-w-xs`} /></Field>
+  </SettingsCard>;
+}
+
+export function PosCheckoutSettings({ value, onChange }) {
+  const update = (patch) => onChange({ ...value, ...patch });
+  return <SettingsCard icon={BadgePercent} title="POS Checkout Policy" description="Server-enforced cashier discounts, takeaway details and held-sale recovery.">
+    <div className="grid gap-2 sm:grid-cols-2"><Toggle checked={value.discountsEnabled} onChange={(discountsEnabled) => update({ discountsEnabled })} label="Enable POS discounts" /><Toggle checked={value.pickupTokenEnabled} onChange={(pickupTokenEnabled) => update({ pickupTokenEnabled })} label="Generate pickup token" /><Toggle checked={value.takeawayNameRequired} onChange={(takeawayNameRequired) => update({ takeawayNameRequired })} label="Require takeaway name" /><Toggle checked={value.takeawayPhoneRequired} onChange={(takeawayPhoneRequired) => update({ takeawayPhoneRequired })} label="Require takeaway phone" /></div>
+    <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Field label="Cashier max (%)"><input type="number" min="0" max="100" step="0.01" value={value.cashierMaxPercentage} onChange={(event) => update({ cashierMaxPercentage: event.target.value })} className={`${settingsInputClass} mt-2`} /></Field><Field label="Cashier max (SAR)"><input type="number" min="0" max="100000" step="0.01" value={value.cashierMaxAmount} onChange={(event) => update({ cashierMaxAmount: event.target.value })} className={`${settingsInputClass} mt-2`} /></Field><Field label="Manager threshold (SAR)"><input type="number" min="0" max="100000" step="0.01" value={value.managerApprovalThreshold} onChange={(event) => update({ managerApprovalThreshold: event.target.value })} className={`${settingsInputClass} mt-2`} /></Field><Field label="Held sale expiry (hours)"><input type="number" min="1" max="720" step="1" value={value.heldSaleExpiryHours} onChange={(event) => update({ heldSaleExpiryHours: event.target.value })} className={`${settingsInputClass} mt-2`} /></Field></div>
   </SettingsCard>;
 }

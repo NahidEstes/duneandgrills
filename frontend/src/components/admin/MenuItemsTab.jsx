@@ -47,6 +47,7 @@ const EMPTY_FORM = {
   spiceEnabled: false,
   spiceOptions: [],
   defaultSpice: "",
+  customizationGroups: [],
 };
 
 const FIELD_CLASS =
@@ -130,6 +131,7 @@ const MenuItemsTab = ({ onDataChanged }) => {
       spiceEnabled: Boolean(item.customization?.spice?.enabled),
       spiceOptions: item.customization?.spice?.options || [],
       defaultSpice: item.customization?.spice?.default || "",
+      customizationGroups: item.customization?.groups || [],
     });
     setShowForm(true);
   };
@@ -156,6 +158,7 @@ const MenuItemsTab = ({ onDataChanged }) => {
           options: form.spiceOptions,
           default: form.defaultSpice,
         },
+        groups: form.customizationGroups || [],
       },
     };
 
@@ -318,7 +321,7 @@ const MenuItemsTab = ({ onDataChanged }) => {
               <div className="flex items-start justify-between gap-4"><div><h3 className="text-sm font-semibold text-white">Item customization</h3><p className="mt-1 text-xs text-neutral-600">Allow add-ons, spice selection and item-level instructions.</p></div><label className="flex shrink-0 items-center gap-2 text-xs text-neutral-300"><input type="checkbox" checked={form.customizationEnabled} onChange={(event) => setForm({ ...form, customizationEnabled: event.target.checked })} className="h-4 w-4 accent-amber-600" />Enabled</label></div>
               {form.customizationEnabled && <div className="mt-4 border-t border-white/[0.07] pt-4"><label className="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" checked={form.spiceEnabled} onChange={(event) => { const enabled = event.target.checked; const options = enabled && !form.spiceOptions.length ? ["no-spice", "mild", "medium", "hot"] : form.spiceOptions; setForm({ ...form, spiceEnabled: enabled, spiceOptions: options, defaultSpice: enabled ? form.defaultSpice || options[0] : "" }); }} className="h-4 w-4 accent-amber-600" />Enable spice level</label>{form.spiceEnabled && <div className="mt-3 grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-neutral-500">Available options</p><div className="mt-2 flex flex-wrap gap-2">{SPICE_OPTIONS.map(([value, label]) => { const selected = form.spiceOptions.includes(value); return <label key={value} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${selected ? "border-dune-amber/40 bg-dune-amber/10 text-dune-amber" : "border-white/10 text-neutral-500"}`}><input type="checkbox" checked={selected} onChange={() => { const options = selected ? form.spiceOptions.filter((entry) => entry !== value) : [...form.spiceOptions, value]; setForm({ ...form, spiceOptions: options, defaultSpice: options.includes(form.defaultSpice) ? form.defaultSpice : options[0] || "" }); }} className="h-3.5 w-3.5 accent-amber-600" />{label}</label>; })}</div></div><label className="text-xs text-neutral-400">Default spice level<DarkSelect value={form.defaultSpice} onChange={(event) => setForm({ ...form, defaultSpice: event.target.value })} className={FIELD_CLASS}><option value="">Choose default</option>{SPICE_OPTIONS.filter(([value]) => form.spiceOptions.includes(value)).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</DarkSelect></label></div>}</div>}
             </section>
-            {form.customizationEnabled && <MenuCustomizationEditor currentItemId={editingId} menuItems={items} />}
+            {form.customizationEnabled && <MenuCustomizationEditor currentItemId={editingId} menuItems={items} groups={form.customizationGroups || []} onGroupsChange={(customizationGroups) => setForm({ ...form, customizationGroups })} />}
             <div className="mt-5 flex flex-wrap gap-5"><label className="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" checked={form.isAvailable} onChange={(event) => setForm({ ...form, isAvailable: event.target.checked })} className="h-4 w-4 accent-amber-600" /> Available on public menu</label><label className="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" checked={form.isFeatured} onChange={(event) => setForm({ ...form, isFeatured: event.target.checked })} className="h-4 w-4 accent-amber-600" /> Featured on homepage</label></div>
             <button type="submit" disabled={saving} className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-dune-amber px-5 font-semibold text-black hover:bg-dune-amberLight disabled:opacity-60">{saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{saving ? "Saving…" : editingId ? "Update Item" : "Create Item"}</button>
           </form>

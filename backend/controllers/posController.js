@@ -10,6 +10,9 @@ import { runInventoryTransaction } from "../services/inventoryStockService.js";
 import { creditOrderPoints } from "../services/rewardService.js";
 import { nextOrderNumber } from "../services/orderNumberService.js";
 import { findOpenShift, recordPosCashSale } from "../services/posShiftService.js";
+import PosHeldSale from "../models/PosHeldSale.js";
+import { consumePosDiscountApproval, resolvePosDiscount } from "../services/posDiscountService.js";
+import { recordAuditLog } from "../services/auditLogService.js";
 
 class PosValidationError extends Error {
   constructor(message, status = 400) {
@@ -76,11 +79,13 @@ export const createPosSale = async (req, res, next) => {
     if (!isPaymentMethod(paymentMethod)) throw new PosValidationError("Payment method must be cash, card or other");
     const catalogLines = await resolveCartLines(req.body.items);
     const subtotal = calculateCartSubtotal(catalogLines);
-    const discountAmount = Number(req.body.discountAmount || 0);
-    if (!Number.isFinite(discountAmount) || discountAmount < 0 || discountAmount > subtotal) {
-      throw new PosValidationError("Discount must be between zero and the sale subtotal");
-    }
-    const roundedDiscount = Number(discountAmount.toFixed(2));
+    const discount = resolvePosDiscount({
+      subtotal,
+      discount: req.body.discount || { type: "fixed", value: req.body.discountAmount || 0, reason: req.body.discountReason },
+      settings: restaurantSettings.posCheckout,
+      role: req.user.role,
+    });
+    const roundedDiscount = discount.amount;
     const totalAmount = Number((subtotal - roundedDiscount).toFixed(2));
     const cashReceived = paymentMethod === "cash" ? Number(req.body.cashReceived) : 0;
     if (paymentMethod === "cash" && (!Number.isFinite(cashReceived) || cashReceived < totalAmount)) {
@@ -88,12 +93,33 @@ export const createPosSale = async (req, res, next) => {
     }
     const changeDue = paymentMethod === "cash" ? Number((cashReceived - totalAmount).toFixed(2)) : 0;
     const customer = await buildCustomer(req.body.customerId, req.body.customer);
+    if (orderType === "takeaway") {
+      const suppliedName = customer.userId || cleanText(req.body.customer?.name, 100);
+      const suppliedPhone = customer.userId || cleanText(req.body.customer?.phone, 30);
+      if (restaurantSettings.posCheckout.takeawayNameRequired && !suppliedName) throw new PosValidationError("Pickup name is required for takeaway sales");
+      if (restaurantSettings.posCheckout.takeawayPhoneRequired && !suppliedPhone) throw new PosValidationError("Phone number is required for takeaway sales");
+      if (suppliedPhone && !customer.userId && !/^[+\d][\d\s()-]{5,29}$/.test(suppliedPhone)) throw new PosValidationError("Enter a valid takeaway phone number");
+    }
     const orderId = new mongoose.Types.ObjectId();
     createdOrderId = orderId;
     const orderNumber = await nextOrderNumber();
+    const pickupToken = orderType === "takeaway" && restaurantSettings.posCheckout.pickupTokenEnabled
+      ? `P${String(orderNumber).replace(/\D/g, "").slice(-5).padStart(5, "0")}`
+      : "";
     const now = new Date();
 
     let order = await runInventoryTransaction(async (session) => {
+      let heldSale = null;
+      if (req.body.heldSaleId) {
+        if (!mongoose.isValidObjectId(req.body.heldSaleId)) throw new PosValidationError("Held sale reference is invalid");
+        const access = ["manager", "admin"].includes(req.user.role) ? {} : { cashier: req.user._id };
+        heldSale = await PosHeldSale.findOne({ _id: req.body.heldSaleId, ...access, status: { $in: ["working", "held"] }, revision: Number(req.body.heldSaleRevision) }).session(session || null);
+        if (!heldSale) throw new PosValidationError("Held sale changed, expired or is no longer available", 409);
+      }
+      let approval = null;
+      if (discount.approvalRequired) {
+        approval = await consumePosDiscountApproval({ token: req.body.discountApprovalToken, cashierId: req.user._id, items: req.body.items, discount, orderId, session });
+      }
       const [created] = await Order.create([{
         _id: orderId,
         orderNumber,
@@ -107,7 +133,8 @@ export const createPosSale = async (req, res, next) => {
         subtotal,
         originalSubtotal: subtotal,
         discountAmount: roundedDiscount,
-        discountReason: roundedDiscount ? cleanText(req.body.discountReason, 160) || "POS discount" : "",
+        discountReason: roundedDiscount ? discount.reason : "",
+        posDiscount: roundedDiscount ? { type: discount.type, value: discount.value, approvedBy: approval?.approver || (["manager", "admin"].includes(req.user.role) ? req.user._id : null), approvedAt: approval ? new Date() : null } : undefined,
         deliveryFee: 0,
         totalAmount,
         status: "pending",
@@ -115,6 +142,8 @@ export const createPosSale = async (req, res, next) => {
         paymentStatus: "paid",
         cashReceived: Number((cashReceived || 0).toFixed(2)),
         changeDue,
+        pickupNote: orderType === "takeaway" ? cleanText(req.body.customer?.pickupNote, 240) : "",
+        pickupToken,
         eligiblePointsAmount: totalAmount,
         notes: cleanText(req.body.notes, 500),
         estimatedPreparationMinutes: restaurantSettings.preparation.defaultMinutes,
@@ -130,6 +159,17 @@ export const createPosSale = async (req, res, next) => {
         const transactionalShift = await findOpenShift({ cashier: req.user._id, terminal }, session);
         if (!transactionalShift && shiftConfig.requireOpenShift) throw new PosValidationError("The POS shift closed before this sale completed", 409);
         if (transactionalShift) await recordPosCashSale({ shift: transactionalShift, order: created, actor: req.user, session });
+      }
+      if (heldSale) {
+        const consumed = await PosHeldSale.findOneAndUpdate(
+          { _id: heldSale._id, revision: heldSale.revision, status: { $in: ["working", "held"] } },
+          { $set: { status: "consumed", consumedOrder: created._id, consumedIdempotencyKey: idempotencyKey, consumedAt: now }, $inc: { revision: 1 } },
+          { new: true, ...(session ? { session } : {}) }
+        );
+        if (!consumed) throw new PosValidationError("Held sale was updated before checkout completed", 409);
+      }
+      if (roundedDiscount) {
+        await recordAuditLog({ actor: req.user, action: "POS_DISCOUNT_APPLIED", entityType: "Order", entityId: created._id, entityLabel: orderNumber, reason: discount.reason, related: { approver: created.posDiscount?.approvedBy || null }, after: { discountType: discount.type, discountValue: discount.value, discountAmount: roundedDiscount }, correlationId: req.correlationId }, { session });
       }
       return created;
     });

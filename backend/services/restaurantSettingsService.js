@@ -59,6 +59,16 @@ export const getRestaurantSettingsDefaults = () => ({
     blindClose: false,
     varianceThreshold: 50,
   },
+  posCheckout: {
+    discountsEnabled: true,
+    cashierMaxPercentage: 10,
+    cashierMaxAmount: 50,
+    managerApprovalThreshold: 50,
+    takeawayNameRequired: false,
+    takeawayPhoneRequired: false,
+    pickupTokenEnabled: true,
+    heldSaleExpiryHours: 72,
+  },
   procurement: {
     purchaseApprovalThreshold: 5000,
     overReceiveTolerancePercent: 0,
@@ -102,6 +112,7 @@ const mergeSettings = (defaults, stored) => ({
   notifications: { ...defaults.notifications, ...(stored?.notifications || {}) },
   preparation: { ...defaults.preparation, ...(stored?.preparation || {}) },
   posShifts: { ...defaults.posShifts, ...(stored?.posShifts || {}) },
+  posCheckout: { ...defaults.posCheckout, ...(stored?.posCheckout || {}) },
   procurement: { ...defaults.procurement, ...(stored?.procurement || {}) },
   receipt: { ...defaults.receipt, ...(stored?.receipt || {}) },
   location: { ...defaults.location, ...(stored?.location || {}) },
@@ -209,6 +220,16 @@ export const normalizeRestaurantSettings = (payload = {}, current = getRestauran
       blindClose: bool(payload.posShifts?.blindClose, current.posShifts.blindClose),
       varianceThreshold: number(payload.posShifts?.varianceThreshold, "POS shift variance threshold", 0, 100000, current.posShifts.varianceThreshold),
     },
+    posCheckout: {
+      discountsEnabled: bool(payload.posCheckout?.discountsEnabled, current.posCheckout.discountsEnabled),
+      cashierMaxPercentage: number(payload.posCheckout?.cashierMaxPercentage, "Cashier discount percentage", 0, 100, current.posCheckout.cashierMaxPercentage),
+      cashierMaxAmount: number(payload.posCheckout?.cashierMaxAmount, "Cashier discount amount", 0, 100000, current.posCheckout.cashierMaxAmount),
+      managerApprovalThreshold: number(payload.posCheckout?.managerApprovalThreshold, "Manager approval threshold", 0, 100000, current.posCheckout.managerApprovalThreshold),
+      takeawayNameRequired: bool(payload.posCheckout?.takeawayNameRequired, current.posCheckout.takeawayNameRequired),
+      takeawayPhoneRequired: bool(payload.posCheckout?.takeawayPhoneRequired, current.posCheckout.takeawayPhoneRequired),
+      pickupTokenEnabled: bool(payload.posCheckout?.pickupTokenEnabled, current.posCheckout.pickupTokenEnabled),
+      heldSaleExpiryHours: number(payload.posCheckout?.heldSaleExpiryHours, "Held sale expiry", 1, 720, current.posCheckout.heldSaleExpiryHours, true),
+    },
     procurement: {
       purchaseApprovalThreshold: number(payload.procurement?.purchaseApprovalThreshold, "Purchase approval threshold", 0, 10000000, current.procurement.purchaseApprovalThreshold),
       overReceiveTolerancePercent: number(payload.procurement?.overReceiveTolerancePercent, "Over receive tolerance", 0, 100, current.procurement.overReceiveTolerancePercent),
@@ -271,7 +292,7 @@ export const getRestaurantSettingsDiff = (before, after) => {
     newValues.push({ field: path, value: newValue ?? null });
     changedFields.push(path);
   };
-  for (const group of ["openingHours", "orders", "notifications", "preparation", "posShifts", "procurement", "receipt", "location"]) walk(before[group], after[group], group);
+  for (const group of ["openingHours", "orders", "notifications", "preparation", "posShifts", "posCheckout", "procurement", "receipt", "location"]) walk(before[group], after[group], group);
   return { oldValues, newValues, changedFields };
 };
 
@@ -283,6 +304,7 @@ export const toAdminRestaurantSettings = (settings, configured = true) => ({
   notifications: settings.notifications,
   preparation: settings.preparation,
   posShifts: settings.posShifts,
+  posCheckout: settings.posCheckout,
   procurement: settings.procurement,
   receipt: settings.receipt,
   location: settings.location,
@@ -301,6 +323,7 @@ export const toPublicRestaurantSettings = (settings) => ({
     },
   },
   preparation: settings.preparation,
+  posCheckout: settings.posCheckout,
   receipt: {
     ...settings.receipt,
     address: [settings.location.address, settings.location.city, settings.location.country].filter(Boolean).join(", "),

@@ -62,6 +62,8 @@ export const serializeKitchenOrder = (order, now = new Date()) => {
     preparationDueAt: value.preparationDueAt || null,
     isOverdue: Boolean(dueAt && ["confirmed", "preparing"].includes(value.status) && dueAt < now),
     customerName: value.customer?.name || "",
+    pickupToken: value.pickupToken || "",
+    pickupNote: value.pickupNote || "",
     notes: value.notes || "",
     items: (value.items || []).map(cleanKitchenItem),
   };
@@ -115,7 +117,7 @@ export const listKitchenOrders = async (
   }
 
   const orders = await Order.find({ $and: filters })
-    .select("orderNumber source orderType status createdAt updatedAt acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt customer.name notes items.name items.quantity items.productType items.comboItems.name items.comboItems.quantity")
+    .select("orderNumber source orderType status createdAt updatedAt acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt customer.name pickupToken pickupNote notes items.name items.quantity items.productType items.selectedAddOns.name items.selectedAddOns.quantity items.spiceLevel items.itemNote items.comboItems.name items.comboItems.quantity")
     .sort({ createdAt: 1 })
     .lean();
   return orders.map((order) => serializeKitchenOrder(order, now));

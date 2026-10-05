@@ -36,6 +36,19 @@ export const normalizeCustomizationSettings = (value = {}) => {
       "Default spice level must be one of the available options"
     );
   }
+  const groups = (Array.isArray(value.groups) ? value.groups : []).map((group, index) => {
+    const name = cleanText(group?.name, 80);
+    if (!name) throw new MenuCustomizationError(`Customization group ${index + 1} needs a name`);
+    const selectionType = group?.selectionType === "single" ? "single" : "multiple";
+    const addOns = [...new Set((Array.isArray(group?.addOns) ? group.addOns : []).map(objectIdString).filter(Boolean))];
+    if (addOns.some((id) => !mongoose.isValidObjectId(id))) throw new MenuCustomizationError(`${name} contains an invalid add-on`);
+    const minSelections = Number(group?.minSelections || 0);
+    const maxSelections = selectionType === "single" ? 1 : Number(group?.maxSelections || Math.max(1, addOns.length));
+    if (!Number.isInteger(minSelections) || !Number.isInteger(maxSelections) || minSelections < 0 || maxSelections < 1 || minSelections > maxSelections || maxSelections > Math.max(1, addOns.length)) {
+      throw new MenuCustomizationError(`${name} has invalid minimum or maximum selections`);
+    }
+    return { name, selectionType, minSelections, maxSelections, addOns };
+  });
   return {
     enabled: Boolean(value.enabled),
     spice: {
@@ -43,6 +56,7 @@ export const normalizeCustomizationSettings = (value = {}) => {
       options,
       default: defaultSpice,
     },
+    groups,
   };
 };
 
@@ -82,21 +96,29 @@ export const attachPublicCustomizations = async (items) => {
   if (!enabledIds.length) {
     return plainItems.map((item) => ({ ...item, addOns: [] }));
   }
+  const groupIds = plainItems.flatMap((item) => (item.customization?.groups || []).flatMap((group) => group.addOns || []));
   const addOns = await MenuAddOn.find({
     isActive: true,
-    menuItems: { $in: enabledIds },
+    $or: [{ menuItems: { $in: enabledIds } }, { _id: { $in: groupIds } }],
   })
     .select("name price image menuItems")
     .sort({ name: 1 })
     .lean();
-  return plainItems.map((item) => ({
-    ...item,
-    addOns: item.customization?.enabled
-      ? addOns
-          .filter((addOn) => addOn.menuItems.some((id) => String(id) === String(item._id)))
-          .map(({ _id, name, price, image }) => ({ _id, name, price, image }))
-      : [],
-  }));
+  return plainItems.map((item) => {
+    const applicable = item.customization?.enabled
+      ? addOns.filter((addOn) => addOn.menuItems.some((id) => String(id) === String(item._id)))
+      : [];
+    const byId = new Map(addOns.map((addOn) => [String(addOn._id), addOn]));
+    const groups = (item.customization?.groups || []).map((group) => ({
+      ...group,
+      addOns: (group.addOns || []).map((id) => byId.get(String(id))).filter(Boolean).map(({ _id, name, price, image }) => ({ _id, name, price, image })),
+    }));
+    return {
+      ...item,
+      customization: { ...(item.customization || {}), groups },
+      addOns: applicable.map(({ _id, name, price, image }) => ({ _id, name, price, image })),
+    };
+  });
 };
 
 export const customizationRequestFrom = (item = {}) => {
@@ -136,7 +158,9 @@ export const resolveLineCustomization = ({
   request,
   addOnMap,
 }) => {
-  if (!request.requested) {
+  const groups = product.customization?.groups || [];
+  const hasRequiredGroups = groups.some((group) => Number(group.minSelections || 0) > 0);
+  if (!request.requested && !hasRequiredGroups) {
     return {
       selectedAddOns: [],
       spiceLevel: "",
@@ -160,9 +184,11 @@ export const resolveLineCustomization = ({
   }
   const selectedAddOns = uniqueIds.map((id) => {
     const addOn = addOnMap.get(id);
-    const applies = addOn?.menuItems?.some(
+    const appliesByItem = addOn?.menuItems?.some(
       (menuItemId) => String(menuItemId) === String(product._id)
     );
+    const appliesByGroup = groups.some((group) => (group.addOns || []).some((addOnId) => String(addOnId) === id));
+    const applies = appliesByItem || appliesByGroup;
     if (!addOn || !addOn.isActive || !applies) {
       throw new MenuCustomizationError(
         "One or more selected add-ons are no longer available",
@@ -177,6 +203,18 @@ export const resolveLineCustomization = ({
       quantity: request.selectedAddOns.find((entry) => entry.id === id)?.quantity || 1,
     };
   });
+
+  if (groups.length) {
+    const selectedIds = new Set(selectedAddOns.map((entry) => String(entry.addOn)));
+    for (const group of groups) {
+      const groupIds = (group.addOns || []).map(String);
+      const count = groupIds.filter((id) => selectedIds.has(id)).length;
+      const minimum = Number(group.minSelections || 0);
+      const maximum = group.selectionType === "single" ? 1 : Number(group.maxSelections || groupIds.length || 1);
+      if (count < minimum) throw new MenuCustomizationError(`Choose at least ${minimum} option${minimum === 1 ? "" : "s"} for ${group.name}`, 409);
+      if (count > maximum) throw new MenuCustomizationError(`Choose no more than ${maximum} option${maximum === 1 ? "" : "s"} for ${group.name}`, 409);
+    }
+  }
 
   const spice = product.customization?.spice || {};
   let spiceLevel = "";

@@ -296,6 +296,13 @@ export const completePosSale = async (payload) => {
   return data;
 };
 
+export const fetchPosHeldSales = async (params = {}) => (await api.get("/pos/held-sales", { params })).data.data;
+export const fetchPosHeldSale = async (id) => (await api.get(`/pos/held-sales/${id}`)).data.data;
+export const createPosHeldSale = async (payload) => (await api.post("/pos/held-sales", payload)).data.data;
+export const updatePosHeldSale = async (id, payload) => (await api.patch(`/pos/held-sales/${id}`, payload)).data.data;
+export const cancelPosHeldSale = async (id, reason = "") => (await api.delete(`/pos/held-sales/${id}`, { data: { reason } })).data.data;
+export const approvePosDiscount = async (payload) => (await api.post("/pos/discount-approvals", payload)).data.data;
+
 // ---- Historical delivery platform entry ----
 export const fetchDeliveryEntryConfig = async () => (await api.get("/delivery-orders/config")).data.data;
 export const checkDeliveryOrderDuplicate = async (provider, externalOrderId) => (await api.get("/delivery-orders/duplicate-check", { params: { provider, externalOrderId } })).data;

@@ -10,6 +10,7 @@ import {
   updateMenuAddOn,
 } from "../../api/api.js";
 import SmartImage from "../SmartImage.jsx";
+import DarkSelect from "../ui/DarkSelect.jsx";
 import { formatAdminCurrency } from "./adminUi.js";
 
 const EMPTY_ADD_ON = { name: "", price: "", image: "", isActive: true, menuItems: [] };
@@ -24,11 +25,12 @@ const payloadFrom = (addOn, overrides = {}) => ({
   ...overrides,
 });
 
-export default function MenuCustomizationEditor({ currentItemId, menuItems }) {
+export default function MenuCustomizationEditor({ currentItemId, menuItems, groups = [], onGroupsChange }) {
   const [addOns, setAddOns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [editor, setEditor] = useState(null);
+  const [groupEditor, setGroupEditor] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +112,14 @@ export default function MenuCustomizationEditor({ currentItemId, menuItems }) {
     menuItems: currentItemId ? [String(currentItemId)] : [],
   });
 
+  const saveGroup = () => {
+    if (!groupEditor?.name.trim() || !groupEditor.addOns.length) return;
+    const normalized = { ...groupEditor, name: groupEditor.name.trim(), minSelections: Number(groupEditor.minSelections || 0), maxSelections: groupEditor.selectionType === "single" ? 1 : Number(groupEditor.maxSelections || 1) };
+    const next = groupEditor.index === undefined ? [...groups, normalized] : groups.map((group, index) => index === groupEditor.index ? normalized : group);
+    onGroupsChange?.(next.map(({ index, ...group }) => group));
+    setGroupEditor(null);
+  };
+
   return (
     <section className="mt-5 rounded-2xl border border-white/[0.08] bg-black/20 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -126,6 +136,10 @@ export default function MenuCustomizationEditor({ currentItemId, menuItems }) {
           {savingId === addOn._id ? <LoaderCircle className="h-4 w-4 animate-spin text-neutral-500" /> : <div className="flex"><button type="button" onClick={() => setEditor({ ...payloadFrom(addOn), _id: addOn._id, price: String(addOn.price) })} className="grid h-8 w-8 place-items-center rounded-lg text-neutral-500 hover:bg-white/5 hover:text-dune-amber" aria-label={`Edit ${addOn.name}`}><Pencil className="h-3.5 w-3.5" /></button><button type="button" onClick={() => remove(addOn)} className="grid h-8 w-8 place-items-center rounded-lg text-neutral-500 hover:bg-red-500/10 hover:text-red-300" aria-label={`Delete ${addOn.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div>}
         </article>;
       })}{!addOns.length && <p className="py-6 text-center text-xs text-neutral-600 sm:col-span-2">No add-ons created yet.</p>}</div>}
+
+      <div className="mt-5 border-t border-white/[0.07] pt-4"><div className="flex items-center justify-between gap-3"><div><h4 className="text-sm font-semibold text-white">Choice groups</h4><p className="mt-1 text-xs text-neutral-600">Configure required/optional, single or multiple selections for this item.</p></div><button type="button" disabled={!currentItemId || !addOns.length} onClick={() => setGroupEditor({ name: "", selectionType: "multiple", minSelections: 0, maxSelections: 1, addOns: [] })} className="inline-flex h-9 items-center gap-2 rounded-lg border border-dune-amber/40 px-3 text-xs font-semibold text-dune-amber disabled:opacity-40"><Plus className="h-3.5 w-3.5" />New group</button></div><div className="mt-3 space-y-2">{groups.map((group, index) => <div key={group._id || `${group.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-black/20 p-3"><button type="button" onClick={() => setGroupEditor({ ...group, addOns: (group.addOns || []).map((entry) => String(entry?._id || entry)), index })} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm text-white">{group.name}</span><span className="mt-1 block text-[0.65rem] text-neutral-500">{group.selectionType === "single" ? "Single select" : "Multi select"} · {Number(group.minSelections || 0) ? `Required ${group.minSelections}–${group.maxSelections}` : `Optional · max ${group.maxSelections}`}</span></button><button type="button" onClick={() => onGroupsChange?.(groups.filter((_, groupIndex) => groupIndex !== index))} className="grid h-9 w-9 place-items-center rounded-lg text-red-400 hover:bg-red-500/10" aria-label={`Delete ${group.name} group`}><Trash2 className="h-4 w-4" /></button></div>)}{!groups.length && <p className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-neutral-600">No choice groups. Applied add-ons remain optional multi-select.</p>}</div></div>
+
+      {groupEditor && <div className="fixed inset-0 z-[101] flex items-center justify-center overflow-y-auto bg-black/80 p-4" onMouseDown={(event) => event.target === event.currentTarget && setGroupEditor(null)}><div role="dialog" aria-modal="true" aria-label="Edit choice group" className="my-8 w-full max-w-lg rounded-2xl border border-white/10 bg-[#101416] p-5"><div className="flex justify-between"><h3 className="text-lg font-semibold text-white">Choice group</h3><button type="button" onClick={() => setGroupEditor(null)} className="grid h-9 w-9 place-items-center text-neutral-400"><X className="h-4 w-4" /></button></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs text-neutral-400 sm:col-span-2">Group name<input value={groupEditor.name} maxLength={80} onChange={(event) => setGroupEditor({ ...groupEditor, name: event.target.value })} className={INPUT} /></label><label className="text-xs text-neutral-400">Selection type<DarkSelect value={groupEditor.selectionType} onChange={(event) => setGroupEditor({ ...groupEditor, selectionType: event.target.value, maxSelections: event.target.value === "single" ? 1 : groupEditor.maxSelections })} className={INPUT}><option value="single">Single select</option><option value="multiple">Multiple select</option></DarkSelect></label><label className="text-xs text-neutral-400">Minimum<input type="number" min="0" max="20" value={groupEditor.minSelections} onChange={(event) => setGroupEditor({ ...groupEditor, minSelections: event.target.value })} className={INPUT} /></label>{groupEditor.selectionType === "multiple" && <label className="text-xs text-neutral-400">Maximum<input type="number" min="1" max={Math.max(1, groupEditor.addOns.length)} value={groupEditor.maxSelections} onChange={(event) => setGroupEditor({ ...groupEditor, maxSelections: event.target.value })} className={INPUT} /></label>}</div><p className="mt-4 text-xs font-semibold text-neutral-300">Options</p><div className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-xl border border-white/10 p-2">{addOns.filter((addOn) => addOn.isActive && menuItemIds(addOn).includes(String(currentItemId))).map((addOn) => { const id = String(addOn._id); const checked = groupEditor.addOns.includes(id); return <label key={id} className="flex min-h-10 items-center gap-2 rounded-lg px-2 text-xs text-neutral-300 hover:bg-white/5"><input type="checkbox" checked={checked} onChange={() => setGroupEditor({ ...groupEditor, addOns: checked ? groupEditor.addOns.filter((entry) => entry !== id) : [...groupEditor.addOns, id] })} className="h-4 w-4 accent-amber-600" />{addOn.name}</label>; })}</div><button type="button" onClick={saveGroup} disabled={!groupEditor.name.trim() || !groupEditor.addOns.length} className="mt-5 min-h-11 w-full rounded-lg bg-dune-amber font-semibold text-black disabled:opacity-40">Save choice group</button></div></div>}
 
       {editor && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/80 p-4" onMouseDown={(event) => event.target === event.currentTarget && setEditor(null)}><div role="dialog" aria-modal="true" aria-label={editor._id ? "Edit add-on" : "Create add-on"} className="my-8 w-full max-w-xl rounded-2xl border border-white/10 bg-[#101416] p-5 shadow-2xl"><div className="flex items-start justify-between"><div><h3 className="text-lg font-semibold text-white">{editor._id ? "Edit Add-on" : "New Add-on"}</h3><p className="mt-1 text-xs text-neutral-600">Price is added per menu item unit and validated by the server.</p></div><button type="button" onClick={() => setEditor(null)} className="grid h-9 w-9 place-items-center rounded-lg text-neutral-500 hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button></div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-xs text-neutral-400 sm:col-span-2">Add-on name<input value={editor.name} maxLength={80} onChange={(event) => setEditor({ ...editor, name: event.target.value })} className={INPUT} /></label><label className="text-xs text-neutral-400">Price (SAR)<input type="number" min="0" step="0.01" value={editor.price} onChange={(event) => setEditor({ ...editor, price: event.target.value })} className={INPUT} /></label><label className="text-xs text-neutral-400">Image URL or local path<input value={editor.image} onChange={(event) => setEditor({ ...editor, image: event.target.value })} className={INPUT} /></label></div>

@@ -10,10 +10,22 @@ const spiceSettingsSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const customizationGroupSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 80 },
+    selectionType: { type: String, enum: ["single", "multiple"], default: "multiple" },
+    minSelections: { type: Number, min: 0, max: 20, default: 0 },
+    maxSelections: { type: Number, min: 1, max: 20, default: 20 },
+    addOns: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuAddOn" }],
+  },
+  { _id: true }
+);
+
 const customizationSettingsSchema = new mongoose.Schema(
   {
     enabled: { type: Boolean, default: false },
     spice: { type: spiceSettingsSchema, default: () => ({}) },
+    groups: { type: [customizationGroupSchema], default: [] },
   },
   { _id: false }
 );
@@ -86,6 +98,14 @@ menuItemSchema.pre("validate", function validateCustomization(next) {
   }
   if (spice.default && !spice.options.includes(spice.default)) {
     return next(new Error("Default spice level must be one of the available options"));
+  }
+  for (const group of this.customization?.groups || []) {
+    group.addOns = [...new Set((group.addOns || []).map(String))];
+    if (group.selectionType === "single") group.maxSelections = 1;
+    if (group.minSelections > group.maxSelections) {
+      return next(new Error(`${group.name} minimum selections cannot exceed its maximum`));
+    }
+    if (group.maxSelections > group.addOns.length && group.addOns.length) group.maxSelections = group.addOns.length;
   }
   return next();
 });
