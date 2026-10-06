@@ -63,13 +63,32 @@ export const printPosRefundRecord = (sale, refund, settings = {}) => openPrintWi
   440,
 );
 
+export const buildAnalyticsCsvRows = (analytics) => {
+  const metricKeys = ["orderedAmount", "grossSales", "collectedAmount", "completedRefunds", "voidAmount", "netSales"];
+  const money = row => metricKeys.map(key => row[key] ?? 0);
+  const rows = [
+    ["Order-date summary · Asia/Riyadh", `${analytics.range.from} to ${analytics.range.to}`, analytics.summary.totalOrders, ...money(analytics.summary)],
+    ...analytics.series.map(row => ["Order date · Asia/Riyadh", row.date, row.orders, ...money(row)]),
+    ...(analytics.sourceBreakdown || []).map(row => ["Order-date source", row.source, row.orders, ...money(row)]),
+    ...(analytics.orderTypeBreakdown || []).map(row => ["Order-date type", row.orderType, row.orders, ...money(row)]),
+    ["Event-date activity · Asia/Riyadh", `${analytics.range.from} to ${analytics.range.to}`, "", "", "", analytics.cashActivity?.collectedAmount ?? 0, analytics.cashActivity?.completedRefunds ?? 0, analytics.cashActivity?.voidAmount ?? 0, analytics.cashActivity?.netCollected ?? 0],
+    ...Object.entries(analytics.definitions || {}).map(([key, value]) => [`Definition: ${key}`, value]),
+    ["Unknown payment dates · full source/type history", analytics.cashActivity?.unknownPaymentDateAmount ?? 0],
+    ["Unknown refund dates · full source/type history", analytics.cashActivity?.unknownRefundDateAmount ?? 0],
+    ["Source filter", analytics.filters?.source || "all"], ["Order type filter", analytics.filters?.orderType || "all"],
+  ];
+  return rows;
+};
+
 export const exportAnalyticsCsv = (analytics) => downloadCsv(
-  `sales-analytics-${analytics.range.from}-to-${analytics.range.to}.csv`,
-  ["Date", "Orders", "Revenue SAR"],
-  analytics.series.map((row) => [row.date, row.orders, row.revenue])
+  `sales-analytics-${analytics.range.from}-${analytics.range.to}.csv`,
+  ["Basis", "Date / label", "Orders", "Ordered SAR", "Gross sales SAR", "Recorded captures SAR", "Completed refunds SAR", "Voids SAR", "Net sales / event net collections SAR"],
+  buildAnalyticsCsvRows(analytics),
 );
 
-export const printAnalyticsReport = (analytics) => {
-  const rows = analytics.series.map((row) => `<tr><td>${escapeHtml(row.date)}</td><td>${row.orders}</td><td>${escapeHtml(formatAdminCurrency(row.revenue))}</td></tr>`).join("");
-  return openPrintWindow("Sales Analytics", `<h1>DUNE &amp; GRILLS</h1><p class="muted">SALES ANALYTICS · ${escapeHtml(analytics.range.from)} — ${escapeHtml(analytics.range.to)}</p><div class="meta"><span>Revenue <strong>${escapeHtml(formatAdminCurrency(analytics.summary.totalRevenue))}</strong></span><span>Orders <strong>${analytics.summary.totalOrders}</strong></span><span>Average order <strong>${escapeHtml(formatAdminCurrency(analytics.summary.averageOrderValue))}</strong></span><span>Discounts <strong>${escapeHtml(formatAdminCurrency(analytics.summary.discountTotal))}</strong></span><span>Refunds <strong>${escapeHtml(formatAdminCurrency(analytics.summary.refundTotal))}</strong></span></div><h2>Daily performance</h2><table><thead><tr><th>Date</th><th>Orders</th><th>Revenue</th></tr></thead><tbody>${rows}</tbody></table>`);
+export const buildAnalyticsReportHtml = (analytics) => {
+  const keys = [["Ordered amount", "orderedAmount"], ["Gross sales", "grossSales"], ["Recorded collections before reversals", "collectedAmount"], ["Completed refunds", "completedRefunds"], ["Voids", "voidAmount"], ["Net sales (not profit)", "netSales"]];
+  const rows = analytics.series.map(row => `<tr><td>${escapeHtml(row.date)}</td><td>${row.orders}</td>${keys.map(([, key]) => `<td>${escapeHtml(formatAdminCurrency(row[key]))}</td>`).join("")}</tr>`).join("");
+  return `<h1>DUNE &amp; GRILLS</h1><p class="muted">SALES ANALYTICS · ${escapeHtml(analytics.range.from)} — ${escapeHtml(analytics.range.to)} · Asia/Riyadh · Source: ${escapeHtml(analytics.filters?.source || "all")} · Type: ${escapeHtml(analytics.filters?.orderType || "all")}</p><h2>Order-date sales</h2><div class="meta">${keys.map(([label, key]) => `<span>${label} <strong>${escapeHtml(formatAdminCurrency(analytics.summary[key]))}</strong></span>`).join("")}<span>Aggregator prepaid (not restaurant collection) ${escapeHtml(formatAdminCurrency(analytics.summary.aggregatorPrepaidAmount))}</span></div><h2>Daily order-date performance</h2><table><thead><tr><th>Date</th><th>Orders</th>${keys.map(([label]) => `<th>${label}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table><h2>Payment / refund event-date activity (separate basis)</h2><div class="meta">${Object.entries(analytics.cashActivity || {}).map(([key, value]) => `<span>${escapeHtml(key.replace(/([A-Z])/g, " $1"))} <strong>${escapeHtml(formatAdminCurrency(value))}</strong></span>`).join("")}</div><p class="muted">Unknown-date amounts cover the full selected source/type history and are excluded from dated activity.</p><h2>Definitions</h2>${Object.values(analytics.definitions || {}).map(value => `<p class="muted">${escapeHtml(value)}</p>`).join("")}`;
 };
+export const printAnalyticsReport = (analytics) => openPrintWindow("Sales Analytics", buildAnalyticsReportHtml(analytics), 1200);

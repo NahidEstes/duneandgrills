@@ -1,4 +1,7 @@
 import Expense from "../models/Expense.js";
+import { expenseFinancialRow, expenseFinancialStages, EXPENSE_REPORT_BOUNDARY } from "../services/expenseReportingService.js";
+import { runInventoryTransaction } from "../services/inventoryStockService.js";
+import { CAPABILITIES, hasCapability } from "../config/permissions.js";
 import ExpenseCategory from "../models/ExpenseCategory.js";
 import RecurringExpense from "../models/RecurringExpense.js";
 import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
@@ -11,10 +14,10 @@ import {
   validateExpensePayload,
   validateRecurringPayload,
 } from "../services/expenseService.js";
-import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
+import { ADMIN_DAY_MS, parseRiyadhDate, startOfRiyadhMonth } from "../utils/adminDate.js";
 import { assertObjectId, escapeRegex, parsePagination, ValidationError } from "../utils/inventoryValidation.js";
 
-const EXPENSE_AUDIT_FIELDS = ["expenseNumber", "title", "category", "totalAmount", "vatAmount", "expenseDate", "dueDate", "paymentStatus", "amountPaid", "paymentDate", "paymentMethod", "vendor", "referenceNumber", "branch", "notes", "receiptUrl", "recordStatus"];
+const EXPENSE_AUDIT_FIELDS = ["expenseNumber", "title", "category", "totalAmount", "vatAmount", "expenseDate", "dueDate", "paymentStatus", "amountPaid", "paymentDate", "paymentMethod", "vendor", "referenceNumber", "branch", "notes", "receiptUrl", "recordStatus", "cancelledAt", "cancelledBy", "cancellationReason"];
 const RECURRING_AUDIT_FIELDS = ["title", "category", "defaultAmount", "vatAmount", "frequency", "startDate", "endDate", "nextDueDate", "vendor", "isActive"];
 const CATEGORY_AUDIT_FIELDS = ["name", "description", "color", "isActive"];
 const expensePopulate = [
@@ -46,8 +49,8 @@ export const listExpenseCategories = async (req, res, next) => {
     const match = req.query.includeInactive === "true" ? {} : { isActive: true };
     const rows = await ExpenseCategory.aggregate([
       { $match: match },
-      { $lookup: { from: Expense.collection.name, localField: "_id", foreignField: "category", as: "expenses" } },
-      { $addFields: { expenseCount: { $size: "$expenses" }, totalRecorded: { $sum: "$expenses.totalAmount" } } },
+      { $lookup: { from: Expense.collection.name, let: { categoryId: "$_id" }, pipeline: [{ $match: { source: "operating_expense", $expr: { $eq: ["$category", "$$categoryId"] } } }, ...expenseFinancialStages()], as: "expenses" } },
+      { $addFields: { expenseCount: { $size: "$expenses" }, totalRecorded: { $sum: "$expenses.recognizedAmount" } } },
       { $project: { expenses: 0 } },
       { $sort: { name: 1 } },
     ]);
@@ -121,18 +124,18 @@ export const listExpenses = async (req, res, next) => {
       Expense.countDocuments(filter),
       expenseSummaryAggregation(filter),
     ]);
-    res.json({ success: true, data: rows, summary, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+    res.json({ success: true, data: rows.map(expenseFinancialRow), summary, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) { next(error); }
 };
 
 export const exportExpenses = async (req, res, next) => {
   try {
-    const rows = await Expense.find(buildExpenseFilter(req.query))
+    const rows = await Expense.find(buildExpenseFilter(req.query, { financial: true }))
       .populate("category", "name")
       .sort({ expenseDate: -1, createdAt: -1 })
       .limit(5000)
       .lean();
-    res.json({ success: true, data: rows, truncated: rows.length === 5000 });
+    res.json({ success: true, data: rows.map(expenseFinancialRow), truncated: rows.length === 5000, accountingBoundary: EXPENSE_REPORT_BOUNDARY });
   } catch (error) { next(error); }
 };
 
@@ -170,18 +173,37 @@ export const updateExpense = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-export const archiveExpense = async (req, res, next) => {
+const changeExpenseRecordState = async (req, res, next, cancel) => {
   try {
-    const expense = await Expense.findById(req.params.id);
-    if (!expense) return res.status(404).json({ success: false, message: "Expense not found" });
-    const before = pickAuditFields(expense, EXPENSE_AUDIT_FIELDS);
-    expense.recordStatus = req.body.recordStatus === "cancelled" ? "cancelled" : "archived";
-    expense.updatedBy = req.user._id;
-    await expense.save();
-    await recordAuditLog({ actor: req.user, action: expense.recordStatus === "cancelled" ? "EXPENSE_CANCELLED" : "EXPENSE_ARCHIVED", entityType: "Expense", entityId: expense._id, entityLabel: expenseAuditLabel(expense), before, after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS), metadata: { reason: cleanText(req.body.reason, 500) } });
-    res.json({ success: true, message: `Expense ${expense.recordStatus}. Financial history was preserved.` });
+    if (!hasCapability(req.user?.role, CAPABILITIES.FINANCE_WRITE)) throw Object.assign(new ValidationError("Not authorized for this action"), { status: 403 });
+    if (!cancel && req.body.recordStatus && req.body.recordStatus !== "archived") throw new ValidationError("Use the dedicated cancellation action; archive does not cancel an expense");
+    const reason = cleanText(req.body.reason, 500);
+    if (cancel && reason.length < 3) throw new ValidationError("A cancellation reason of at least 3 characters is required");
+    await runInventoryTransaction(async (session) => {
+      if (!session) throw Object.assign(new Error("Expense state changes require MongoDB transaction support"), { status: 503 });
+      const expense = await Expense.findById(req.params.id).session(session);
+      if (!expense) throw Object.assign(new ValidationError("Expense not found"), { status: 404 });
+      const target = cancel ? "cancelled" : "archived";
+      if (expense.recordStatus === target) return;
+      if (!cancel && expense.recordStatus === "cancelled") throw new ValidationError("Cancelled expenses cannot be reclassified as archived");
+      if (cancel && Number(expense.amountPaid) > 0) throw new ValidationError("Paid or partially paid expenses cannot be cancelled. Record an authorized payment reversal first; archiving safely preserves their financial effect");
+      const before = pickAuditFields(expense, EXPENSE_AUDIT_FIELDS);
+      expense.recordStatus = target;
+      expense.updatedBy = req.user._id;
+      if (cancel) {
+        expense.cancelledAt = new Date();
+        expense.cancelledBy = req.user._id;
+        expense.cancellationReason = reason;
+      }
+      await expense.save({ session });
+      await recordAuditLog({ actor: req.user, action: cancel ? "EXPENSE_CANCELLED" : "EXPENSE_ARCHIVED", entityType: "Expense", entityId: expense._id, entityLabel: expenseAuditLabel(expense), before, after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS), reason, correlationId: req.correlationId }, { session });
+    });
+    res.json({ success: true, message: cancel ? "Unpaid expense cancelled; original amounts and history preserved." : "Expense archived; historical financial totals are unchanged." });
   } catch (error) { next(error); }
 };
+
+export const archiveExpense = (req, res, next) => changeExpenseRecordState(req, res, next, false);
+export const cancelExpense = (req, res, next) => changeExpenseRecordState(req, res, next, true);
 
 export const listRecurringExpenses = async (req, res, next) => {
   try {
@@ -255,7 +277,8 @@ export const generateRecurringExpenses = async (req, res, next) => {
 
 const categoryBreakdown = (filter) => Expense.aggregate([
   { $match: filter },
-  { $group: { _id: "$category", total: { $sum: "$totalAmount" }, count: { $sum: 1 } } },
+  ...expenseFinancialStages(),
+  { $group: { _id: "$category", total: { $sum: "$recognizedAmount" }, count: { $sum: 1 } } },
   { $lookup: { from: ExpenseCategory.collection.name, localField: "_id", foreignField: "_id", as: "category" } },
   { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
   { $project: { _id: 1, total: 1, count: 1, name: { $ifNull: ["$category.name", "Archived category"] }, color: { $ifNull: ["$category.color", "#737373"] } } },
@@ -264,7 +287,8 @@ const categoryBreakdown = (filter) => Expense.aggregate([
 
 const trendBreakdown = (filter) => Expense.aggregate([
   { $match: filter },
-  { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$expenseDate", timezone: "+03:00" } }, total: { $sum: "$totalAmount" }, paid: { $sum: "$amountPaid" }, count: { $sum: 1 } } },
+  ...expenseFinancialStages(),
+  { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$expenseDate", timezone: "Asia/Riyadh" } }, total: { $sum: "$recognizedAmount" }, paid: { $sum: "$amountPaid" }, count: { $sum: 1 } } },
   { $sort: { _id: 1 } },
   { $project: { _id: 0, month: "$_id", total: 1, paid: 1, count: 1 } },
 ]);
@@ -272,9 +296,8 @@ const trendBreakdown = (filter) => Expense.aggregate([
 export const getExpenseDashboard = async (req, res, next) => {
   try {
     const range = parseRange(req.query);
-    const filter = { source: "operating_expense", recordStatus: "active", expenseDate: { $gte: range.from, $lt: new Date(range.to) } };
-    const trendFrom = new Date(range.from);
-    trendFrom.setUTCMonth(trendFrom.getUTCMonth() - 5);
+    const filter = { ...buildExpenseFilter(req.query, { financial: true }), expenseDate: { $gte: range.from, $lt: new Date(range.to) } };
+    const trendFrom = startOfRiyadhMonth(range.from, -5);
     const trendFilter = { ...filter, expenseDate: { $gte: trendFrom, $lt: new Date(range.to) } };
     const duration = new Date(range.to).getTime() - range.from.getTime();
     const previousFilter = { ...filter, expenseDate: { $gte: new Date(range.from.getTime() - duration), $lt: range.from } };
@@ -299,7 +322,7 @@ export const getExpenseDashboard = async (req, res, next) => {
         trend,
         recentExpenses: recent,
         upcomingRecurring: upcoming,
-        accountingBoundary: "Operating expenses only. Inventory purchases and COGS are excluded.",
+        accountingBoundary: EXPENSE_REPORT_BOUNDARY,
       },
     });
   } catch (error) { next(error); }
@@ -307,14 +330,14 @@ export const getExpenseDashboard = async (req, res, next) => {
 
 export const getExpenseReports = async (req, res, next) => {
   try {
-    const filter = buildExpenseFilter(req.query);
+    const filter = buildExpenseFilter(req.query, { financial: true });
     const [summary, categories, trend, paymentStatus, recurring] = await Promise.all([
       expenseSummaryAggregation(filter),
       categoryBreakdown(filter),
       trendBreakdown(filter),
-      Expense.aggregate([{ $match: filter }, { $group: { _id: "$paymentStatus", total: { $sum: "$totalAmount" }, paid: { $sum: "$amountPaid" }, count: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
-      Expense.aggregate([{ $match: filter }, { $group: { _id: { $cond: [{ $ne: ["$recurringTemplate", null] }, "recurring", "one_time"] }, total: { $sum: "$totalAmount" }, count: { $sum: 1 } } }]),
+      Expense.aggregate([{ $match: filter }, ...expenseFinancialStages(), { $group: { _id: "$paymentStatus", total: { $sum: "$recognizedAmount" }, paid: { $sum: "$amountPaid" }, count: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
+      Expense.aggregate([{ $match: filter }, ...expenseFinancialStages(), { $group: { _id: { $cond: [{ $ne: ["$recurringTemplate", null] }, "recurring", "one_time"] }, total: { $sum: "$recognizedAmount" }, count: { $sum: 1 } } }]),
     ]);
-    res.json({ success: true, data: { summary, categoryBreakdown: categories, trend, paymentStatus, recurring, accountingBoundary: "Operating expenses only. Inventory purchases and COGS are excluded." } });
+    res.json({ success: true, data: { summary, categoryBreakdown: categories, trend, paymentStatus, recurring, accountingBoundary: EXPENSE_REPORT_BOUNDARY } });
   } catch (error) { next(error); }
 };

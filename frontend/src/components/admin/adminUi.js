@@ -16,6 +16,7 @@ export const formatAdminDate = (value, options = {}) =>
     day: "numeric",
     year: "numeric",
     ...options,
+    timeZone: "Asia/Riyadh",
   }).format(new Date(value));
 
 export const formatRelativeTime = (value) => {

@@ -52,6 +52,7 @@ export default function PosSalePanel({
   customerSearch,
   onCustomerSearchChange,
   customerResults,
+  customerSearchStatus,
   selectedCustomer,
   onSelectCustomer,
   onClearCustomer,
@@ -187,7 +188,7 @@ export default function PosSalePanel({
             <div className="flex h-12 items-center rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] pl-10 pr-2 text-sm">
               <span className="min-w-0 flex-1 truncate text-emerald-300">
                 {selectedCustomer.name} ·{" "}
-                {selectedCustomer.phone || selectedCustomer.email}
+                {selectedCustomer.phone || selectedCustomer.customerNumber}
               </span>
               <button
                 type="button"
@@ -200,12 +201,14 @@ export default function PosSalePanel({
           ) : (
             <input
               aria-label="Search registered customer"
+              maxLength={80}
               value={customerSearch}
               onChange={(event) => onCustomerSearchChange(event.target.value)}
               placeholder="Optional customer search…"
               className="h-12 w-full rounded-xl border border-white/10 bg-black/25 pl-10 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60"
             />
           )}
+          {!selectedCustomer && customerSearchStatus !== "idle" && customerSearchStatus !== "success" && <p role={customerSearchStatus === "error" ? "alert" : "status"} className={`mt-2 text-xs ${customerSearchStatus === "error" ? "text-red-300" : "text-neutral-400"}`}>{customerSearchStatus === "loading" ? "Searching customers…" : customerSearchStatus === "error" ? "Customer search unavailable. Please retry or continue as a walk-in." : "No customers found."}</p>}
           {!selectedCustomer && customerResults.length > 0 && (
             <div
               className="absolute z-30 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-white/10 bg-[#15191b] p-1 shadow-xl"
@@ -224,7 +227,7 @@ export default function PosSalePanel({
                     {customer.name}
                   </span>
                   <span className="text-[0.65rem] text-neutral-500">
-                    {customer.phone || customer.email}
+                    {customer.phone || customer.customerNumber}
                   </span>
                 </button>
               ))}

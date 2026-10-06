@@ -12,6 +12,8 @@ import { getBatchSnapshots } from "../services/inventoryBatchService.js";
 import { getInventorySettings } from "../services/inventoryAnalyticsService.js";
 import { NON_REVENUE_ORDER_STATUSES } from "../config/orderStatuses.js";
 import { STAFF_ROLES } from "../config/permissions.js";
+import { buildSalesReport } from "../services/salesReportingService.js";
+import { ADMIN_DAY_MS, startOfRiyadhDay } from "../utils/adminDate.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
 const effectiveOrderDateExpression = { $ifNull: ["$orderOccurredAt", "$createdAt"] };
@@ -24,19 +26,6 @@ const percentageChange = (current, previous) => {
   return Number((((current - previous) / previous) * 100).toFixed(1));
 };
 
-const getDateKey = (date) => date.toISOString().slice(0, 10);
-
-const buildRevenueSeries = (rows, startDate, days) => {
-  const totals = new Map(rows.map((row) => [row._id, row.revenue]));
-
-  return Array.from({ length: days }, (_, index) => {
-    const date = new Date(startDate);
-    date.setUTCDate(startDate.getUTCDate() + index);
-    const key = getDateKey(date);
-    return { date: key, revenue: totals.get(key) || 0 };
-  });
-};
-
 const offerStatus = (offer, now) => {
   if (!offer.isActive) return "inactive";
   if (offer.startDate > now) return "upcoming";
@@ -47,8 +36,7 @@ const offerStatus = (offer, now) => {
 export const getDashboard = async (req, res) => {
   try {
     const now = new Date();
-    const today = new Date(now);
-    today.setUTCHours(0, 0, 0, 0);
+    const today = startOfRiyadhDay(now);
 
     const currentPeriodStart = new Date(today);
     currentPeriodStart.setUTCDate(currentPeriodStart.getUTCDate() - 6);
@@ -63,12 +51,18 @@ export const getDashboard = async (req, res) => {
       "out-for-delivery",
     ];
 
+    const periodEnd = new Date(today.getTime() + ADMIN_DAY_MS);
+    const [allSales, currentSales, previousSales] = await Promise.all([
+      buildSalesReport(),
+      buildSalesReport({ range: { start: currentPeriodStart, end: periodEnd, days: 7 } }),
+      buildSalesReport({ range: { start: previousPeriodStart, end: currentPeriodStart, days: 7 } }),
+    ]);
+
     const [
       totalOrders,
       completedOrders,
       pendingOrders,
       openOrders,
-      revenueRows,
       reviewRows,
       customerCount,
       staffCount,
@@ -81,24 +75,17 @@ export const getDashboard = async (req, res) => {
       recentOffers,
       recentReviews,
       statusRows,
-      dailyRevenueRows,
-      popularItemRows,
       categoryRows,
       currentOrders,
       previousOrders,
       currentCompleted,
       previousCompleted,
-      periodRevenueRows,
       inventorySummary,
     ] = await Promise.all([
       Order.countDocuments(),
       Order.countDocuments({ status: "delivered" }),
       Order.countDocuments({ status: "pending" }),
       Order.countDocuments({ status: { $in: openStatuses } }),
-      Order.aggregate([
-        { $match: { status: { $nin: nonRevenueStatuses } } },
-        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-      ]),
       Review.aggregate([
         {
           $group: {
@@ -131,36 +118,6 @@ export const getDashboard = async (req, res) => {
         { $group: { _id: "$status", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
-      Order.aggregate([
-        {
-          $match: {
-            status: { $nin: nonRevenueStatuses },
-            $expr: { $gte: [effectiveOrderDateExpression, currentPeriodStart] },
-          },
-        },
-        {
-          $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: effectiveOrderDateExpression, timezone: "Asia/Riyadh" } },
-            revenue: { $sum: "$totalAmount" },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
-      Order.aggregate([
-        { $match: { status: { $nin: nonRevenueStatuses } } },
-        { $unwind: "$items" },
-        {
-          $group: {
-            _id: { menuItem: "$items.menuItem", name: "$items.name" },
-            quantity: { $sum: "$items.quantity" },
-            revenue: {
-              $sum: { $multiply: ["$items.price", "$items.quantity"] },
-            },
-          },
-        },
-        { $sort: { quantity: -1 } },
-        { $limit: 5 },
-      ]),
       MenuItem.aggregate([
         {
           $group: {
@@ -183,26 +140,6 @@ export const getDashboard = async (req, res) => {
         status: "delivered",
         $expr: { $and: [{ $gte: [effectiveOrderDateExpression, previousPeriodStart] }, { $lt: [effectiveOrderDateExpression, currentPeriodStart] }] },
       }),
-      Order.aggregate([
-        {
-          $match: {
-            status: { $nin: nonRevenueStatuses },
-            $expr: { $gte: [effectiveOrderDateExpression, previousPeriodStart] },
-          },
-        },
-        {
-          $group: {
-            _id: {
-              $cond: [
-                { $gte: [effectiveOrderDateExpression, currentPeriodStart] },
-                "current",
-                "previous",
-              ],
-            },
-            total: { $sum: "$totalAmount" },
-          },
-        },
-      ]),
       (async () => {
         const settings = await getInventorySettings();
         const expiryEnd = new Date(now);
@@ -225,11 +162,9 @@ export const getDashboard = async (req, res) => {
       })(),
     ]);
 
-    const totalRevenue = revenueRows[0]?.total || 0;
-    const currentRevenue =
-      periodRevenueRows.find((row) => row._id === "current")?.total || 0;
-    const previousRevenue =
-      periodRevenueRows.find((row) => row._id === "previous")?.total || 0;
+    const totalRevenue = allSales.summary.netSales;
+    const currentRevenue = currentSales.summary.netSales;
+    const previousRevenue = previousSales.summary.netSales;
 
     const activities = [
       ...recentOrders.slice(0, 4).map((order) => ({
@@ -275,6 +210,7 @@ export const getDashboard = async (req, res) => {
         stats: {
           totalOrders,
           totalRevenue,
+          ...allSales.summary,
           completedOrders,
           pendingOrders,
           openOrders,
@@ -301,18 +237,15 @@ export const getDashboard = async (req, res) => {
         recentReviews,
         activities,
         inventorySummary,
+        reportingDefinitions: allSales.definitions,
+        cashActivity: currentSales.cashActivity,
         analytics: {
           statusBreakdown: statusRows.map((row) => ({
             status: row._id,
             count: row.count,
           })),
-          dailyRevenue: buildRevenueSeries(dailyRevenueRows, currentPeriodStart, 7),
-          popularItems: popularItemRows.map((row) => ({
-            menuItem: row._id.menuItem,
-            name: row._id.name,
-            quantity: row.quantity,
-            revenue: row.revenue,
-          })),
+          dailyRevenue: currentSales.series,
+          popularItems: allSales.bestSelling.slice(0, 5),
           categories: categoryRows.map((row) => ({
             category: row._id,
             count: row.count,

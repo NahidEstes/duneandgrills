@@ -290,6 +290,8 @@ export const updateKitchenOrderStatus = async (id, status, options = {}) => {
 };
 
 // ---- Web POS ----
+export const searchPosCustomers = async (search) => (await api.get("/pos/customers", { params: { search, limit: 8 } })).data.data;
+
 export const fetchPosSales = async (params = {}) => {
   const { data } = await api.get("/pos/sales", { params });
   return data.data;

@@ -8,6 +8,7 @@ export const fetchExpenses = (params = {}) => unwrap(api.get("/expenses/entries"
 export const exportExpenses = (params = {}) => unwrap(api.get("/expenses/entries/export", { params }));
 export const createExpense = (payload) => unwrap(api.post("/expenses/entries", payload)).then((row) => row.data);
 export const updateExpense = (id, payload) => unwrap(api.patch(`/expenses/entries/${id}`, payload)).then((row) => row.data);
+export const cancelExpense = (id, payload) => unwrap(api.post(`/expenses/entries/${id}/cancel`, payload));
 export const archiveExpense = (id, payload = {}) => unwrap(api.post(`/expenses/entries/${id}/archive`, payload));
 
 export const fetchExpenseCategories = (includeInactive = false) => unwrap(api.get("/expenses/categories", { params: { includeInactive } })).then((row) => row.data);

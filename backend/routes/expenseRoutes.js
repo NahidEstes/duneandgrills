@@ -1,6 +1,7 @@
 import express from "express";
 import {
   archiveExpense,
+  cancelExpense,
   archiveExpenseCategory,
   archiveRecurringExpense,
   createExpense,
@@ -30,6 +31,7 @@ router.get("/reports", getExpenseReports);
 router.get("/entries/export", exportExpenses);
 router.route("/entries").get(listExpenses).post(writeAccess, createExpense);
 router.post("/entries/:id/archive", writeAccess, archiveExpense);
+router.post("/entries/:id/cancel", writeAccess, cancelExpense);
 router.route("/entries/:id").get(getExpense).patch(writeAccess, updateExpense);
 
 router.route("/categories").get(listExpenseCategories).post(writeAccess, createExpenseCategory);

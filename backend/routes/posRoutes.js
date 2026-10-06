@@ -11,10 +11,12 @@ import { resolvePosSession } from "../services/posSessionService.js";
 import { listTerminals, writeTerminal, posSession, lockSession, unlockSession, listCashiers, writePin, listQuickMenu, writeQuickItem } from "../controllers/posOperationsController.js";
 import { getPosSale, reprintPosSale, voidSale, requestPosRefund, repeatPosSale } from "../controllers/posSaleHistoryController.js";
 import { changeRefundStatus } from "../controllers/refundController.js";
+import { searchPosCustomers } from "../controllers/posCustomerController.js";
 
 const router = express.Router();
 router.use(rejectClientRecordNumbers);
 router.use(protect, resolvePosSession, requireCapability(CAPABILITIES.POS_OPERATE));
+router.get("/customers", rateLimit({ windowMs: 60_000, max: 90, keyPrefix: "pos-customer-search" }), searchPosCustomers);
 router.get("/session", posSession);
 router.post("/session/lock", lockSession);
 router.post("/session/unlock", rateLimit({ windowMs: 5 * 60_000, max: 10, keyPrefix: "pos-unlock" }), unlockSession());

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SalesReportSummary from "./SalesReportSummary.jsx";
 
 import {
   ArrowDownRight,
@@ -129,7 +130,7 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
         />
         <StatCard
           icon={CircleDollarSign}
-          label="Revenue"
+          label="Net Sales · all time"
           value={formatAdminCurrency(stats.totalRevenue)}
           trend={stats.trends?.revenue}
         />
@@ -155,6 +156,8 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
           tone="blue"
         />
       </div>
+
+      <SalesReportSummary summary={stats} activity={data?.cashActivity} definitions={data?.reportingDefinitions} activityPeriod="last 7 Riyadh days" />
 
       <div>
         <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold text-white">Inventory Health</h2><Link href="/inventory" className="text-xs font-semibold text-dune-amber hover:text-dune-amberLight">Open Inventory <ArrowRight className="ml-1 inline h-3.5 w-3.5" /></Link></div>

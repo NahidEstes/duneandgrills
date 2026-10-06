@@ -8,7 +8,8 @@ import Expense from "../models/Expense.js";
 import ExpenseCategory from "../models/ExpenseCategory.js";
 import RecurringExpense from "../models/RecurringExpense.js";
 import { isExpenseNumberDuplicate, reserveNextExpenseNumber } from "./expenseNumberService.js";
-import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
+import { ADMIN_DAY_MS, parseRiyadhDate, toRiyadhDateKey } from "../utils/adminDate.js";
+import { expenseFinancialStages } from "./expenseReportingService.js";
 import { assertObjectId, escapeRegex, ValidationError } from "../utils/inventoryValidation.js";
 
 const RIYADH_OFFSET_MS = 3 * 60 * 60 * 1000;
@@ -19,7 +20,7 @@ const money = (value, label, { minimum = 0 } = {}) => {
   return Number(parsed.toFixed(2));
 };
 
-export const toRiyadhDateKey = (date) => new Date(new Date(date).getTime() + RIYADH_OFFSET_MS).toISOString().slice(0, 10);
+export { toRiyadhDateKey };
 
 export const addRecurringPeriod = (date, frequency) => {
   const months = frequency === "monthly" ? 1 : frequency === "quarterly" ? 3 : 12;
@@ -81,6 +82,7 @@ export const validateExpensePayload = async (body = {}, { partial = false, exist
   const paymentMethod = result.paymentMethod ?? existing?.paymentMethod ?? "unrecorded";
   if (vatAmount > totalAmount) throw new ValidationError("VAT amount cannot exceed the total amount");
   if (amountPaid > totalAmount) throw new ValidationError("Amount paid cannot exceed the total amount");
+  if (existing && amountPaid < Number(existing.amountPaid || 0)) throw new ValidationError("Recorded payments cannot be erased or reduced. A separately authorized payment reversal is required");
   const paymentStatus = derivePaymentStatus(amountPaid, totalAmount);
   if (body.paymentStatus && (!EXPENSE_PAYMENT_STATUSES.includes(body.paymentStatus) || body.paymentStatus !== paymentStatus)) {
     throw new ValidationError(`Payment status must be ${paymentStatus.replaceAll("_", " ")} for the recorded amount paid`);
@@ -148,10 +150,10 @@ export const validateRecurringPayload = async (body = {}, { partial = false, exi
   return result;
 };
 
-export const buildExpenseFilter = (query = {}) => {
-  const recordStatus = query.recordStatus || "active";
-  if (!EXPENSE_RECORD_STATUSES.includes(recordStatus)) throw new ValidationError("Invalid expense record status filter");
-  const filter = { source: "operating_expense", recordStatus };
+export const buildExpenseFilter = (query = {}, { financial = false } = {}) => {
+  const recordStatus = query.recordStatus || (financial ? "all" : "active");
+  if (recordStatus !== "all" && !EXPENSE_RECORD_STATUSES.includes(recordStatus)) throw new ValidationError("Invalid expense record status filter");
+  const filter = { source: "operating_expense", recordStatus: recordStatus === "all" ? { $in: EXPENSE_RECORD_STATUSES } : recordStatus };
   if (query.category) filter.category = assertObjectId(query.category, "expense category");
   if (query.paymentStatus && query.paymentStatus !== "all") {
     if (!EXPENSE_PAYMENT_STATUSES.includes(query.paymentStatus)) throw new ValidationError("Invalid payment status filter");
@@ -254,16 +256,17 @@ export const generateDueRecurringExpenses = async ({ throughDate = toRiyadhDateK
 export const expenseSummaryAggregation = async (filter) => {
   const [summary = {}] = await Expense.aggregate([
     { $match: filter },
+    ...expenseFinancialStages(),
     {
       $group: {
         _id: null,
-        totalExpenses: { $sum: "$totalAmount" },
+        totalExpenses: { $sum: "$recognizedAmount" },
         paidAmount: { $sum: "$amountPaid" },
-        outstandingAmount: { $sum: { $subtract: ["$totalAmount", "$amountPaid"] } },
+        outstandingAmount: { $sum: "$outstandingAmount" },
         count: { $sum: 1 },
         paidCount: { $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0] } },
-        unpaidCount: { $sum: { $cond: [{ $ne: ["$paymentStatus", "paid"] }, 1, 0] } },
-        recurringTotal: { $sum: { $cond: [{ $ne: ["$recurringTemplate", null] }, "$totalAmount", 0] } },
+        unpaidCount: { $sum: { $cond: [{ $gt: ["$outstandingAmount", 0] }, 1, 0] } },
+        recurringTotal: { $sum: { $cond: [{ $ne: ["$recurringTemplate", null] }, "$recognizedAmount", 0] } },
         recurringCount: { $sum: { $cond: [{ $ne: ["$recurringTemplate", null] }, 1, 0] } },
       },
     },

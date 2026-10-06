@@ -8,7 +8,7 @@ import {
   cancelPosHeldSale,
   completePosSale,
   createPosHeldSale,
-  fetchAdminUsers,
+  searchPosCustomers,
   fetchAllMenuItems,
   fetchCombos,
   fetchPosHeldSale,
@@ -56,6 +56,7 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
   const [cashReceived, setCashReceived] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState([]);
+  const [customerSearchStatus, setCustomerSearchStatus] = useState("idle");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [walkIn, setWalkIn] = useState({ name: "", phone: "", pickupNote: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -160,14 +161,17 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
     const query = customerSearch.trim();
     if (query.length < 2 || selectedCustomer) {
       setCustomerResults([]);
+      setCustomerSearchStatus("idle");
       return undefined;
     }
     let active = true;
+    setCustomerResults([]);
+    setCustomerSearchStatus("loading");
     const timeout = setTimeout(
       () =>
-        fetchAdminUsers("customers", query)
-          .then((rows) => active && setCustomerResults(rows.slice(0, 8)))
-          .catch(() => active && setCustomerResults([])),
+        searchPosCustomers(query)
+          .then((rows) => { if (active) { setCustomerResults(rows); setCustomerSearchStatus(rows.length ? "success" : "empty"); } })
+          .catch(() => { if (active) { setCustomerResults([]); setCustomerSearchStatus("error"); } }),
       250,
     );
     return () => {
@@ -658,6 +662,7 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
           customerSearch={customerSearch}
           onCustomerSearchChange={setCustomerSearch}
           customerResults={customerResults}
+          customerSearchStatus={customerSearchStatus}
           selectedCustomer={selectedCustomer}
           onSelectCustomer={(customer) => {
             setSelectedCustomer(customer);
