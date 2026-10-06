@@ -18,6 +18,7 @@ export const formatDate = (value, withTime = false) => {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Riyadh",
     ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}),
   }).format(date);
 };

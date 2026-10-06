@@ -10,6 +10,7 @@ import { escapeRegex, parsePagination, validateMovementPayload, ValidationError 
 import { recordAuditLog } from "../../services/auditLogService.js";
 import { hasCapability, CAPABILITIES } from "../../config/permissions.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
+import { riyadhDateRange, toRiyadhDateKey } from "../../utils/adminDate.js";
 
 export const createMovement = async (req, res, next) => {
   try {
@@ -68,13 +69,7 @@ export const listMovements = async (req, res, next) => {
       filter.movementType = types.length > 1 ? { $in: types } : types[0];
     }
     if (req.query.from || req.query.to) {
-      filter.occurredAt = {};
-      if (req.query.from) filter.occurredAt.$gte = new Date(req.query.from);
-      if (req.query.to) {
-        const to = new Date(req.query.to);
-        to.setUTCHours(23, 59, 59, 999);
-        filter.occurredAt.$lte = to;
-      }
+      filter.occurredAt = riyadhDateRange(req.query);
     }
     if (req.query.search?.trim()) {
       const value = new RegExp(escapeRegex(req.query.search.trim()), "i");
@@ -115,7 +110,7 @@ export const listMovements = async (req, res, next) => {
 };
 
 const nextCountNumber = async () => {
-  const year = new Date().getUTCFullYear();
+  const year = toRiyadhDateKey().slice(0, 4);
   const counter = await Counter.findOneAndUpdate({ _id: `inventory-count-${year}` }, { $inc: { seq: 1 } }, { upsert: true, new: true });
   return `IC-${year}-${String(counter.seq).padStart(4, "0")}`;
 };

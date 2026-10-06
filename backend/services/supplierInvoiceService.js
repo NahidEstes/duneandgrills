@@ -9,12 +9,13 @@ import { recordAuditLog } from "./auditLogService.js";
 import { recordPurchasePrices } from "./purchasePriceService.js";
 import { purchaseQuantity, requirePurchasingTransaction } from "./purchasingSafetyService.js";
 import { billableLineAvailability, committedInvoiceQuantities, invoiceMatchingPayload, lockInvoicePurchaseOrders, validateInvoiceCommitment } from "./supplierInvoiceMatchingService.js";
+import { parseRiyadhDate, toRiyadhDateKey } from "../utils/adminDate.js";
 
 const round = (value) => Number(Number(value || 0).toFixed(2));
 const toHalala = (value) => Math.round(Number(value || 0) * 100);
 const normalizeInvoiceNumber = (value) => String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
 const nextReference = async (session) => {
-  const year = new Date().getUTCFullYear();
+  const year = toRiyadhDateKey().slice(0, 4);
   const counter = await Counter.findOneAndUpdate({ _id: `supplier-invoice-${year}` }, { $inc: { seq: 1 } }, { upsert: true, new: true, session });
   return `SIN-${year}-${String(counter.seq).padStart(5, "0")}`;
 };
@@ -145,20 +146,27 @@ export const transitionSupplierInvoice = async ({ id, target, actor, settings, r
 
 const paymentStatus = (paidHalala, total) => paidHalala <= 0 ? "unpaid" : paidHalala >= toHalala(total) ? "paid" : "partially_paid";
 export const recordSupplierPayment = async ({ invoiceId, payload, actor, settings }) => runInventoryTransaction(async (session) => {
-  const key = String(payload.idempotencyKey || "").trim(); if (!key) throw new ValidationError("Payment idempotency key is required");
-  const prior = await SupplierPayment.findOne({ idempotencyKey: key }).session(session || null); if (prior) return { payment: prior, invoice: await SupplierInvoice.findById(prior.invoice).session(session || null), duplicate: true };
+  requirePurchasingTransaction(session);
+  const key = payload.idempotencyKey; if (typeof key !== "string" || !key.trim() || key.trim().length > 128) throw new ValidationError("Payment idempotency key must contain 1–128 characters");
   const amountHalala = toHalala(payload.amount); if (!Number.isInteger(amountHalala) || amountHalala <= 0) throw new ValidationError("Payment amount must be greater than zero");
+  const date = payload.paymentDate ? (/^\d{4}-\d{2}-\d{2}$/.test(payload.paymentDate) ? parseRiyadhDate(payload.paymentDate, "Payment date") : new Date(payload.paymentDate)) : new Date(); if (Number.isNaN(date.getTime())) throw new ValidationError("Payment date is invalid");
+  const prior = await SupplierPayment.findOne({ idempotencyKey: key.trim() }).session(session);
+  if (prior) {
+    const sameDate = !payload.paymentDate || (/^\d{4}-\d{2}-\d{2}$/.test(payload.paymentDate) ? toRiyadhDateKey(prior.paymentDate) === payload.paymentDate : new Date(prior.paymentDate).getTime() === date.getTime());
+    if (String(prior.invoice) !== String(invoiceId) || String(prior.createdBy) !== String(actor._id) || prior.amountHalala !== amountHalala || prior.method !== payload.method || prior.transactionReference !== String(payload.transactionReference || "").trim() || prior.note !== String(payload.note || "").trim() || !sameDate) throw Object.assign(new ValidationError("This payment key belongs to different details; retry the original payment"), { status: 409 });
+    return { payment: prior, invoice: await SupplierInvoice.findById(prior.invoice).session(session), duplicate: true };
+  }
   if (Number(payload.amount) > Number(settings.largePaymentThreshold || Infinity) && actor.role !== "admin" && actor.role !== "manager") throw new ValidationError("Manager or Admin authorization is required for a large supplier payment");
   const invoice = await SupplierInvoice.findOneAndUpdate({ _id: invoiceId, status: "posted", $expr: { $lte: [{ $add: ["$paidAmountHalala", "$paymentReservedHalala", amountHalala] }, { $multiply: ["$total", 100] }] } }, { $inc: { paymentReservedHalala: amountHalala } }, { new: true, session });
   if (!invoice) throw new ValidationError("Invoice is not posted or payment would exceed its outstanding balance");
-  const date = payload.paymentDate ? new Date(payload.paymentDate) : new Date(); if (Number.isNaN(date.getTime())) throw new ValidationError("Payment date is invalid");
-  const [payment] = await SupplierPayment.create([{ invoice: invoice._id, supplier: invoice.supplier, amountHalala, method: payload.method, transactionReference: String(payload.transactionReference || "").trim(), paymentDate: date, note: String(payload.note || "").trim(), idempotencyKey: key, createdBy: actor._id }], session ? { session } : {});
+  const [payment] = await SupplierPayment.create([{ invoice: invoice._id, supplier: invoice.supplier, amountHalala, method: payload.method, transactionReference: String(payload.transactionReference || "").trim(), paymentDate: date, note: String(payload.note || "").trim(), idempotencyKey: key.trim(), createdBy: actor._id }], { session });
   invoice.paymentReservedHalala -= amountHalala; invoice.paidAmountHalala += amountHalala; invoice.paymentStatus = paymentStatus(invoice.paidAmountHalala, invoice.total); await invoice.save({ session: session || undefined });
   await recordAuditLog({ actor, action: "SUPPLIER_PAYMENT_COMPLETED", entityType: "SupplierPayment", entityId: payment._id, entityLabel: invoice.internalReference, after: { amount: amountHalala / 100, method: payment.method, invoicePaymentStatus: invoice.paymentStatus }, related: { invoice: invoice._id, supplier: invoice.supplier } }, { session });
   return { payment, invoice, duplicate: false };
 });
 
 export const reverseSupplierPayment = async ({ paymentId, actor, reason }) => runInventoryTransaction(async (session) => {
+  requirePurchasingTransaction(session);
   const note = String(reason || "").trim(); if (!note) throw new ValidationError("Payment reversal reason is required");
   if (!["admin", "manager"].includes(actor.role)) throw new ValidationError("Manager or Admin authorization is required");
   const payment = await SupplierPayment.findOne({ _id: paymentId, status: "completed" }).session(session || null); if (!payment) throw new ValidationError("Completed supplier payment was not found");

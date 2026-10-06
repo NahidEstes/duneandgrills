@@ -4,12 +4,7 @@ import User from "../../models/User.js";
 import { performStockMovement, runInventoryTransaction } from "../../services/inventoryStockService.js";
 import { escapeRegex, parsePagination, validateWastePayload } from "../../utils/inventoryValidation.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
-
-const endOfDay = (value) => {
-  const date = new Date(value);
-  date.setUTCHours(23, 59, 59, 999);
-  return date;
-};
+import { ADMIN_DAY_MS, riyadhDateRange, startOfRiyadhDay } from "../../utils/adminDate.js";
 
 const wasteFilter = async (query) => {
   const filter = { movementType: { $in: ["WASTE", "DAMAGED"] } };
@@ -17,9 +12,7 @@ const wasteFilter = async (query) => {
   if (query.user) filter.user = query.user;
   if (query.reasonCode) filter.reasonCode = query.reasonCode;
   if (query.from || query.to) {
-    filter.occurredAt = {};
-    if (query.from) filter.occurredAt.$gte = new Date(query.from);
-    if (query.to) filter.occurredAt.$lte = endOfDay(query.to);
+    filter.occurredAt = riyadhDateRange(query);
   }
   if (query.category) {
     const ids = await InventoryItem.find({ category: query.category }).distinct("_id");
@@ -67,8 +60,8 @@ export const listWasteRecords = async (req, res, next) => {
     const { page, limit, skip } = parsePagination(req.query, 20);
     const filter = await wasteFilter(req.query);
     const now = new Date();
-    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-    const weekStart = new Date(now); weekStart.setDate(now.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
+    const todayStart = startOfRiyadhDay(now);
+    const weekStart = new Date(todayStart.getTime() - 6 * ADMIN_DAY_MS);
     const [rows, total, summaryRows, reasonRows, recentRows, userIds] = await Promise.all([
       StockTransaction.find(filter)
         .populate({ path: "item", select: "name sku unit unitCost category", populate: { path: "category", select: "name" } })

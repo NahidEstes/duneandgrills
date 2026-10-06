@@ -9,7 +9,7 @@ import {
   completePosSale,
   createPosHeldSale,
   searchPosCustomers,
-  fetchAllMenuItems,
+  fetchMenuItems,
   fetchCombos,
   fetchPosHeldSale,
   fetchPosHeldSales,
@@ -125,7 +125,7 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
     }
   }, [terminal]);
   useEffect(() => {
-    Promise.all([fetchAllMenuItems(), fetchCombos()])
+    Promise.all([fetchMenuItems(), fetchCombos()])
       .then(([menuItems, combos]) =>
         setCatalog([
           ...menuItems.map((item) => ({

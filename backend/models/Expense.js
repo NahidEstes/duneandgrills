@@ -15,6 +15,8 @@ const expenseSchema = new mongoose.Schema(
       immutable: true,
       match: /^EXP-\d{4}-\d{6}$/,
     },
+    creationKey: { type: String, trim: true, maxlength: 128, immutable: true, default: undefined },
+    creationHash: { type: String, maxlength: 64, immutable: true, default: undefined },
     title: { type: String, required: true, trim: true, maxlength: 160 },
     description: { type: String, default: "", trim: true, maxlength: 600 },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "ExpenseCategory", required: true, index: true },
@@ -45,6 +47,7 @@ const expenseSchema = new mongoose.Schema(
 );
 
 expenseSchema.index({ expenseDate: -1, recordStatus: 1 });
+expenseSchema.index({ createdBy: 1, creationKey: 1 }, { unique: true, partialFilterExpression: { creationKey: { $type: "string" } } });
 expenseSchema.index(
   { expenseNumber: 1 },
   { unique: true, partialFilterExpression: { expenseNumber: { $type: "string" } } }

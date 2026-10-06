@@ -4,6 +4,8 @@ import User from "../models/User.js";
 import PosSession from "../models/PosSession.js";
 import PosShift from "../models/PosShift.js";
 import PosHeldSale from "../models/PosHeldSale.js";
+import Counter from "../models/Counter.js";
+import { runInventoryTransaction } from "./inventoryStockService.js";
 import { hasCapability, CAPABILITIES } from "../config/permissions.js";
 import { normalizePin } from "./attendanceService.js";
 import { recordAuditLog } from "./auditLogService.js";
@@ -29,8 +31,15 @@ export const setPosPin = async (userId, pin, actor) => {
 export const resolvePosSession = async (req, res, next) => {
   req.posOwner = req.user;
   const token = req.headers["x-pos-session"];
-  if (!token) return next(); // Existing authenticated clients remain compatible.
   try {
+    if (!token) {
+      // Legacy clients without session history remain compatible. Once a workspace
+      // exists, omitting its header must not bypass its actor, expiry or lock.
+      const bootstrap = req.method === "GET" && req.path === "/session";
+      if (!bootstrap && (await PosSession.exists({ owner: req.user._id }) || await Counter.exists({ _id: `pos-session-owner:${req.user._id}` }))) throw error("Restore the POS session before continuing", 401);
+      return next();
+    }
+    if (typeof token !== "string") throw error("Invalid POS session", 401);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.purpose !== "pos-session" || decoded.owner !== String(req.user._id) || Number(decoded.sv) !== Number(req.user.sessionVersion || 0)) throw error("Invalid POS session", 401);
     const session = await PosSession.findOne({ _id: decoded.sid, owner: req.user._id, expiresAt: { $gt: new Date() } });
@@ -44,11 +53,23 @@ export const resolvePosSession = async (req, res, next) => {
   } catch (failure) { res.status(failure.status || 401).json({ success: false, message: failure.status ? failure.message : "POS session expired" }); }
 };
 
-export const createPosSession = async (owner) => {
-  const row = await PosSession.create({ owner: owner._id, actor: owner._id, actorSessionVersion: Number(owner.sessionVersion || 0), expiresAt: new Date(Date.now() + 12 * 60 * 60_000) });
+export const createPosSession = async (owner) => runInventoryTransaction(async session => {
+  if (!session) throw error("POS session recovery requires MongoDB transaction support", 503);
+  // Serialize concurrent bootstrap/reopen requests for the same authenticated owner.
+  const recovery = await Counter.findOneAndUpdate({ _id: `pos-session-owner:${owner._id}` }, { $inc: { seq: 1 } }, { upsert: true, new: true, session });
+  let row = await PosSession.findOne({ owner: owner._id, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1, _id: -1 }).session(session);
+  let actor = row ? await User.findById(row.actor).select("+sessionVersion").session(session) : owner;
+  if (row && (!actor || actor.isActive === false || !hasCapability(actor.role, CAPABILITIES.POS_OPERATE) || Number(actor.sessionVersion || 0) !== row.actorSessionVersion)) {
+    actor = owner; row.actor = owner._id; row.actorSessionVersion = Number(owner.sessionVersion || 0); row.locked = true;
+    await row.save({ session });
+  }
+  if (!row) {
+    const previous = await PosSession.exists({ owner: owner._id }).session(session);
+    [row] = await PosSession.create([{ owner: owner._id, actor: owner._id, actorSessionVersion: Number(owner.sessionVersion || 0), locked: Boolean(previous) || recovery.seq > 1, expiresAt: new Date(Date.now() + 12 * 60 * 60_000) }], { session });
+  }
   const token = jwt.sign({ purpose: "pos-session", sid: String(row._id), owner: String(owner._id), sv: Number(owner.sessionVersion || 0) }, process.env.JWT_SECRET, { expiresIn: "12h" });
-  return { token, actor: publicPosActor(owner), locked: row.locked };
-};
+  return { token, actor: publicPosActor(actor), locked: row.locked };
+});
 
 export const unlockPosSession = async ({ session, actorId, pin, password, switching, owner }) => {
   if (!session) throw error("Start a POS session first", 401);

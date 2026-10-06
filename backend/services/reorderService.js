@@ -53,7 +53,7 @@ export const collectReorderInputs = async (item, { now = new Date(), settings, s
   const [stock, inboundOrders, usage] = await Promise.all([
     getSaleableInventory(item, { now, session }),
     PurchaseOrder.find({ status: { $in: ["ordered", "partially_received"] }, "items.item": item._id }).select("items status").session(session || null).lean(),
-    StockTransaction.aggregate([{ $match: { item: item._id, movementType: "STOCK_OUT", order: { $ne: null }, occurredAt: { $gte: lookbackStart, $lte: now } } }, { $group: { _id: null, quantity: { $sum: "$quantity" }, days: { $addToSet: { $dateToString: { date: "$occurredAt", format: "%Y-%m-%d" } } } } }]).session(session || null),
+    StockTransaction.aggregate([{ $match: { item: item._id, movementType: "STOCK_OUT", order: { $ne: null }, occurredAt: { $gte: lookbackStart, $lte: now } } }, { $group: { _id: null, quantity: { $sum: "$quantity" }, days: { $addToSet: { $dateToString: { date: "$occurredAt", format: "%Y-%m-%d", timezone: "Asia/Riyadh" } } } } }]).session(session || null),
   ]);
   const usableOnHand = stock.saleableStock;
   const confirmedInbound = inboundOrders.reduce((sum, po) => sum + po.items.filter((line) => String(line.item) === String(item._id)).reduce((lineSum, line) => lineSum + Math.max(0, Number(line.quantity) - Number(line.receivedQuantity || 0)) * Number(line.conversionFactor || 1), 0), 0);

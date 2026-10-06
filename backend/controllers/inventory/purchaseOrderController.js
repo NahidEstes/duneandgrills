@@ -1,11 +1,8 @@
 import PurchaseOrder from "../../models/PurchaseOrder.js";
 import { createPurchaseOrder, receivePurchaseOrder, transitionPurchaseOrder, updatePurchaseOrder } from "../../services/purchaseOrderService.js";
 import { escapeRegex, parsePagination, validatePurchaseOrderPayload } from "../../utils/inventoryValidation.js";
-import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
 import { getEffectiveRestaurantSettings } from "../../services/restaurantSettingsService.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
-
-const AUDIT_FIELDS = ["supplier", "items", "status", "subtotal", "tax", "discount", "additionalCharges", "total", "notes", "revision", "priceWarnings", "orderedAt", "expectedAt", "receivedAt"];
 
 const populate = [
   { path: "supplier", select: "name code contactName email phone" },
@@ -41,8 +38,7 @@ export const createPurchaseOrderController = async (req, res, next) => {
   try {
     const payload = validatePurchaseOrderPayload(req.body);
     const settings = await getEffectiveRestaurantSettings();
-    const row = await createPurchaseOrder(payload, req.user, settings.procurement);
-    await recordAuditLog({ actor: req.user, action: "PURCHASE_ORDER_CREATED", entityType: "PurchaseOrder", entityId: row._id, entityLabel: row.orderNumber, correlationId: req.correlationId, after: pickAuditFields(row, AUDIT_FIELDS) });
+    const row = await createPurchaseOrder(payload, req.user, settings.procurement, { correlationId: req.correlationId });
     await row.populate(populate);
     res.status(201).json({ success: true, data: row });
   } catch (error) { next(error); }
@@ -53,10 +49,8 @@ export const updatePurchaseOrderController = async (req, res, next) => {
     const row = await PurchaseOrder.findById(req.params.id);
     if (!row) return res.status(404).json({ success: false, message: "Purchase order not found" });
     const payload = validatePurchaseOrderPayload(req.body, { partial: true });
-    const before = pickAuditFields(row, AUDIT_FIELDS);
     const settings = await getEffectiveRestaurantSettings();
-    const updated = await updatePurchaseOrder(row, payload, req.user, settings.procurement);
-    await recordAuditLog({ actor: req.user, action: "PURCHASE_ORDER_UPDATED", entityType: "PurchaseOrder", entityId: updated._id, entityLabel: updated.orderNumber, correlationId: req.correlationId, before, after: pickAuditFields(updated, AUDIT_FIELDS), reason: String(req.body.reason || "").trim() });
+    const updated = await updatePurchaseOrder(row, payload, req.user, settings.procurement, { correlationId: req.correlationId, reason: String(req.body.reason || "").trim() });
     await updated.populate(populate);
     res.json({ success: true, data: updated });
   } catch (error) { next(error); }

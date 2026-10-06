@@ -43,11 +43,11 @@ const serializeMetrics = (row = {}) => ({
   revenue: round(row.netSales), totalRevenue: round(row.netSales), refundTotal: round(row.completedRefunds),
 });
 
-export async function buildSalesReport({ query = {}, range = null } = {}) {
+export async function buildSalesReport({ query = {}, range = null, orderFilter = {} } = {}) {
   const cohortMatch = range ? [{ $match: { reportOrderAt: { $gte: range.start, $lt: range.end } } }] : [];
   const breakdown = (field) => [...cohortMatch, { $group: { _id: field, orders: { $sum: 1 }, ...metrics } }, { $sort: { netSales: -1 } }];
   const [result] = await Order.aggregate([
-    { $match: salesSourceFilter(query) },
+    { $match: { $and: [salesSourceFilter(query), orderFilter] } },
     { $lookup: {
       from: Refund.collection.name, let: { orderId: "$_id" }, as: "reportRefunds",
       pipeline: [

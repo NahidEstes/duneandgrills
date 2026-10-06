@@ -26,3 +26,12 @@ export const parseRiyadhDate = (value, label = "date") => {
   }
   return date;
 };
+
+// Date-only filters include both selected Riyadh days, without changing stored timestamps.
+export const riyadhDateRange = ({ from, to } = {}) => {
+  const range = {};
+  if (from) range.$gte = parseRiyadhDate(from, "From date");
+  if (to) range.$lt = new Date(parseRiyadhDate(to, "To date").getTime() + ADMIN_DAY_MS);
+  if (range.$gte && range.$lt && range.$gte >= range.$lt) throw new ValidationError("From date must not be after To date");
+  return range;
+};

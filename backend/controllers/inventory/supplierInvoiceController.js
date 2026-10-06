@@ -6,6 +6,7 @@ import { billableLineAvailability, committedInvoiceQuantities, BILLABLE_RESERVAT
 import { getEffectiveRestaurantSettings } from "../../services/restaurantSettingsService.js";
 import { createSupplierInvoice, decorateInvoice, getPayablesAging, recordSupplierPayment, reverseSupplierPayment, transitionSupplierInvoice, updateSupplierInvoice } from "../../services/supplierInvoiceService.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
+import { riyadhDateRange } from "../../utils/adminDate.js";
 
 const populate = [
   { path: "supplier", select: "name code paymentTerms" },
@@ -24,7 +25,7 @@ export const listSupplierInvoices = async (req, res, next) => {
     if (req.query.supplier) filter.supplier = req.query.supplier; if (req.query.status) filter.status = req.query.status;
     if (req.query.paymentStatus) filter.paymentStatus = String(req.query.paymentStatus).trim().toLowerCase().replaceAll(" ", "_");
     if (req.query.overdue === "true") filter.dueDate = { $lt: new Date() }, filter.paymentStatus = { $ne: "paid" }, filter.status = "posted";
-    if (req.query.from || req.query.to) filter.invoiceDate = { ...(req.query.from ? { $gte: new Date(req.query.from) } : {}), ...(req.query.to ? { $lte: new Date(`${req.query.to}T23:59:59.999Z`) } : {}) };
+    if (req.query.from || req.query.to) filter.invoiceDate = riyadhDateRange(req.query);
     const [rows, total, aging] = await Promise.all([SupplierInvoice.find(filter).populate(populate).sort({ invoiceDate: -1, createdAt: -1 }).skip(skip).limit(limit).lean(), SupplierInvoice.countDocuments(filter), getPayablesAging()]);
     res.json({ success: true, data: rows.map((row) => decorateInvoice(row)), aging, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) { next(error); }

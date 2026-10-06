@@ -65,7 +65,8 @@ test("POS Phase 2 transaction and API integration", { timeout: 180000 }, async t
     const makeUser = (name, role) => User.create({ name, role, email: `${name.toLowerCase().replaceAll(" ", "")}@pos.test`, password: "TestPassword123!", posPinHash: bcrypt.hashSync("654321", 12) });
     const admin = await makeUser("Admin", "admin"); const cashier = await makeUser("Cashier", "cashier"); const second = await makeUser("Cashier Two", "cashier"); const customer = await makeUser("Customer", "customer");
     const bearer = actor => jwt.sign({ id: String(actor._id), sv: Number(actor.sessionVersion || 0) }, process.env.JWT_SECRET);
-    const api = async (actor, route, body, token) => { const response = await fetch(origin + route, { method: body === undefined ? "GET" : "POST", headers: { Authorization: `Bearer ${bearer(actor)}`, "Content-Type": "application/json", ...(token ? { "X-POS-Session": token } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); return { status: response.status, body: await response.json() }; };
+    const sessionTokens = new Map();
+    const api = async (actor, route, body, token = sessionTokens.get(String(actor._id))) => { const response = await fetch(origin + route, { method: body === undefined ? "GET" : "POST", headers: { Authorization: `Bearer ${bearer(actor)}`, "Content-Type": "application/json", ...(token ? { "X-POS-Session": token } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); const data = await response.json(); if (route === "/session" && data.data?.token) sessionTokens.set(String(actor._id), data.data.token); return { status: response.status, body: data }; };
     const terminal = await savePosTerminal({ payload: { code: "COUNTER-1", name: "Counter One" }, actor: admin });
     const otherTerminal = await savePosTerminal({ payload: { code: "COUNTER-2", name: "Counter Two" }, actor: admin });
     const menu = await MenuItem.create({ name: "Test Burger", description: "Test", image: "/burger.jpg", category: "Food", price: 20, customization: { enabled: true } });
@@ -106,7 +107,8 @@ test("POS Phase 2 transaction and API integration", { timeout: 180000 }, async t
       const session = await api(cashier, "/session"); token = session.body.data.token;
       assert.ok(token); assert.equal(session.body.data.actor.name, cashier.name);
       await api(cashier, "/session/lock", {}, token);
-      assert.equal((await sale(cashier)).status, 201); // Legacy authenticated API remains supported.
+      assert.equal((await api(cashier, "/sales", undefined, null)).status, 401);
+      const reopened = await api(cashier, "/session", undefined, null); assert.equal(reopened.body.data.locked, true);
       assert.equal((await api(cashier, "/sales", undefined, token)).status, 423);
       assert.equal((await api(cashier, "/session/unlock", { pin: "000000" }, token)).status, 401);
       assert.equal((await api(cashier, "/session/unlock", { pin: "654321" }, token)).status, 200);
@@ -119,6 +121,7 @@ test("POS Phase 2 transaction and API integration", { timeout: 180000 }, async t
       await User.updateOne({ _id: second._id }, { $set: { isActive: true } });
     });
     await t.test("PIN failures cause a persistent temporary lockout and rate limiter rejects abuse", async () => {
+      await PosSession.updateMany({ owner: cashier._id }, { $set: { actor: cashier._id, actorSessionVersion: cashier.sessionVersion || 0 } });
       const session = await api(cashier, "/session"); const pinToken = session.body.data.token;
       for (let index = 0; index < 5; index++) assert.equal((await api(cashier, "/session/unlock", { pin: "000000" }, pinToken)).status, 401);
       assert.equal((await api(cashier, "/session/unlock", { pin: "654321" }, pinToken)).status, 429);
@@ -126,6 +129,7 @@ test("POS Phase 2 transaction and API integration", { timeout: 180000 }, async t
       const limiter = rateLimit({ max: 1, keyPrefix: "phase2-unit" }); let denied = false;
       const response = { set() {}, status(code) { denied = code === 429; return this; }, json() {} };
       await limiter({ ip: "isolated-test", user: cashier }, response, () => {}); await limiter({ ip: "isolated-test", user: cashier }, response, () => {}); assert.equal(denied, true);
+      await PosSession.updateMany({ owner: cashier._id }, { $set: { failedAttempts: 0, blockedUntil: null, locked: false } });
     });
     await RestaurantSettings.create({ key: "default", posShifts: { enabled: true, requireOpenShift: true, blindClose: true, varianceThreshold: 1, singleShiftPerTerminal: true } });
     const shift = await openPosShift({ actor: cashier, terminal: terminal.code, openingCash: 50, openingNote: "Morning" });

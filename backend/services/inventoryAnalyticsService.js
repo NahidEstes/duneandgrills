@@ -4,6 +4,8 @@ import PurchaseOrder from "../models/PurchaseOrder.js";
 import StockTransaction from "../models/StockTransaction.js";
 import { getBatchSnapshots } from "./inventoryBatchService.js";
 import { buildInventoryValuation } from "./inventoryValuationService.js";
+import { ADMIN_DAY_MS, ADMIN_TIMEZONE, startOfRiyadhDay, toRiyadhDateKey } from "../utils/adminDate.js";
+import { isExpiredInventory } from "./inventoryEligibilityService.js";
 
 export const getInventorySettings = async () =>
   InventorySettings.findOneAndUpdate(
@@ -17,8 +19,8 @@ export const buildInventoryDashboard = async () => {
   const now = new Date();
   const expiryEnd = new Date(now);
   expiryEnd.setUTCDate(expiryEnd.getUTCDate() + settings.expiryAlertDays);
-  const valueStart = new Date(now);
-  valueStart.setUTCDate(valueStart.getUTCDate() - 29);
+  const todayStart = startOfRiyadhDay(now);
+  const valueStart = new Date(todayStart.getTime() - 29 * ADMIN_DAY_MS);
 
   const [summaryRows, lowStock, expiring, recentActivity, poRows, supplierRows, valueMovementRows, valuation] =
     await Promise.all([
@@ -63,10 +65,10 @@ export const buildInventoryDashboard = async () => {
         { $unwind: "$supplier" },
       ]),
       StockTransaction.aggregate([
-        { $match: { occurredAt: { $gte: valueStart } } },
+        { $match: { occurredAt: { $gte: valueStart, $lt: new Date(todayStart.getTime() + ADMIN_DAY_MS) } } },
         {
           $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt", timezone: ADMIN_TIMEZONE } },
             netValue: { $sum: { $multiply: [{ $subtract: ["$stockAfter", "$stockBefore"] }, { $ifNull: ["$unitCost", 0] }] } },
           },
         },
@@ -80,9 +82,7 @@ export const buildInventoryDashboard = async () => {
   const dailyChanges = new Map(valueMovementRows.map((row) => [row._id, row.netValue]));
   let rollingValue = summary.inventoryValue - valueMovementRows.reduce((sum, row) => sum + row.netValue, 0);
   const inventoryValueOverTime = Array.from({ length: 30 }, (_, index) => {
-    const date = new Date(valueStart);
-    date.setUTCDate(valueStart.getUTCDate() + index);
-    const key = date.toISOString().slice(0, 10);
+    const key = toRiyadhDateKey(new Date(valueStart.getTime() + index * ADMIN_DAY_MS));
     rollingValue += dailyChanges.get(key) || 0;
     return { date: key, value: Number(rollingValue.toFixed(2)) };
   });
@@ -92,8 +92,8 @@ export const buildInventoryDashboard = async () => {
     currency: "SAR",
     summary: {
       ...summary,
-      expiringSoon: expiring.filter((item) => new Date(item.expiryDate) >= now).length,
-      expired: expiring.filter((item) => new Date(item.expiryDate) < now).length,
+      expiringSoon: expiring.filter((item) => !isExpiredInventory(item.expiryDate, now)).length,
+      expired: expiring.filter((item) => isExpiredInventory(item.expiryDate, now)).length,
     },
     lowStock,
     expiring,

@@ -33,14 +33,14 @@ import { deductOrderInventory, restoreOrderInventory } from "../services/orderIn
 import { runInventoryTransaction } from "../services/inventoryStockService.js";
 import { PAYMENT_METHODS, SALES_SOURCES } from "../config/sales.js";
 import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
-import { ADMIN_DAY_MS, parseRiyadhDate } from "../utils/adminDate.js";
+import { ADMIN_DAY_MS, parseRiyadhDate, startOfRiyadhDay } from "../utils/adminDate.js";
+import { buildSalesReport } from "../services/salesReportingService.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
 import { NON_REVENUE_ORDER_STATUSES, ORDER_STATUSES as ORDER_STATUS_VALUES } from "../config/orderStatuses.js";
 import { nextOrderNumber } from "../services/orderNumberService.js";
 import { serializeCustomerOrder, serializeGuestTrackingOrder } from "../services/orderSerializer.js";
 import { hasCapability, CAPABILITIES } from "../config/permissions.js";
-import Refund from "../models/Refund.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
 const loyaltyReversalStatuses = new Set(nonRevenueStatuses);
@@ -426,47 +426,27 @@ export const getOrders = async (req, res) => {
 // @access  Admin/Manager
 export const getOrderStats = async (req, res) => {
   try {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const startOfToday = startOfRiyadhDay();
 
     const filter = buildOrderFilter(req.query, { includeStatus: false });
-    const allOrders = await Order.find(filter);
-
-    const countsAsGrossRevenue = (order) =>
-      !nonRevenueStatuses.includes(order.status) ||
-      (order.status === "cancelled" && ["paid", "partially_refunded", "refunded"].includes(order.paymentStatus));
-
-    const grossRevenue = allOrders
-      .filter(countsAsGrossRevenue)
-      .reduce((sum, o) => sum + o.totalAmount, 0);
-
-    const todayOrders = allOrders.filter((o) => new Date(o.orderOccurredAt || o.createdAt) >= startOfToday);
-    const todayGrossRevenue = todayOrders
-      .filter(countsAsGrossRevenue)
-      .reduce((sum, o) => sum + o.totalAmount, 0);
-    const orderIds = allOrders.map((order) => order._id);
-    const completedRefunds = orderIds.length ? await Refund.find({ order: { $in: orderIds }, status: "completed" }).select("order amountHalala completedAt").lean() : [];
-    const totalRefunds = completedRefunds.reduce((sum, refund) => sum + Number(refund.amountHalala || 0) / 100, 0);
-    const todayRefunds = completedRefunds.filter((refund) => refund.completedAt >= startOfToday).reduce((sum, refund) => sum + Number(refund.amountHalala || 0) / 100, 0);
-    const totalRevenue = Number((grossRevenue - totalRefunds).toFixed(2));
-    const todayRevenue = Number((todayGrossRevenue - todayRefunds).toFixed(2));
-
-    const statusCounts = allOrders.reduce((acc, o) => {
-      acc[o.status] = (acc[o.status] || 0) + 1;
-      return acc;
-    }, {});
+    const [report, today] = await Promise.all([
+      buildSalesReport({ query: req.query, orderFilter: filter }),
+      buildSalesReport({ query: req.query, orderFilter: filter, range: { start: startOfToday, end: new Date(startOfToday.getTime() + ADMIN_DAY_MS), days: 1 } }),
+    ]);
+    const statusCounts = Object.fromEntries(report.statusBreakdown.map(row => [row.status, row.count]));
 
     res.status(200).json({
       success: true,
       data: {
-        totalOrders: allOrders.length,
-        totalRevenue,
-        grossRevenue,
-        totalRefunds: Number(totalRefunds.toFixed(2)),
-        todayOrders: todayOrders.length,
-        todayRevenue,
-        todayGrossRevenue,
-        todayRefunds: Number(todayRefunds.toFixed(2)),
+        ...report.summary,
+        grossRevenue: report.summary.grossSales,
+        totalRefunds: report.summary.completedRefunds,
+        todayOrders: today.summary.totalOrders,
+        todayRevenue: today.summary.netSales,
+        todayGrossRevenue: today.summary.grossSales,
+        todayRefunds: today.summary.completedRefunds,
+        definitions: report.definitions,
+        cashActivity: report.cashActivity,
         statusCounts,
       },
     });

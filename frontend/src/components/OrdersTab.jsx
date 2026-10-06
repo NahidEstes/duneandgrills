@@ -416,14 +416,14 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <StatCard
-            label="Total Revenue"
+            label="Net Sales (order-date)"
             value={formatAdminCurrency(stats.totalRevenue)}
           />
           <StatCard label="Total Orders" value={stats.totalOrders} />
           <StatCard
-            label="Today's Revenue"
+            label="Today's Net Sales"
             value={formatAdminCurrency(stats.todayRevenue)}
-            sub={`${stats.todayOrders} orders today`}
+            sub={`${stats.todayOrders} orders · Asia/Riyadh · order-date basis`}
           />
           <StatCard
             label="Pending"

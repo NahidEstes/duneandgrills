@@ -103,11 +103,14 @@ export const createExpenseRecord = async (payload, {
   attempts = 4,
   reserve = reserveNextExpenseNumber,
   ExpenseModel = Expense,
+  session = null,
 } = {}) => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const { expenseNumber } = await reserve({ date: createdAt });
     try {
-      return await ExpenseModel.create({ ...payload, expenseNumber });
+      if (!session) return await ExpenseModel.create({ ...payload, expenseNumber });
+      const [expense] = await ExpenseModel.create([{ ...payload, expenseNumber }], { session });
+      return expense;
     } catch (error) {
       if (!isExpenseNumberDuplicate(error) || attempt === attempts - 1) throw error;
     }

@@ -5,12 +5,13 @@ import { useRef, useState } from "react";
 import { LoaderCircle, PackageCheck } from "lucide-react";
 import { Button, Field, inputClass, textareaClass } from "./InventoryUI.jsx";
 import { apiErrorMessage, formatQuantity } from "./inventoryUtils.js";
-import { receiptCanBeCorrected, receiptStorageKey, receiptSubmission } from "./purchaseReceiptSubmission.js";
+import { receiptStorageKey, receiptSubmission } from "./purchaseReceiptSubmission.js";
+import { pendingSubmission, submitPersisted } from "@/src/utils/persistedSubmission.js";
 
 export default function PurchaseReceiptForm({ order, actor, policy = {}, onSubmit, submitting }) {
   const storageKey = receiptStorageKey(order._id, actor?._id);
   const [attempt, setAttempt] = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem(storageKey) || "null"); } catch { return null; }
+    try { return pendingSubmission(localStorage, storageKey); } catch { return null; }
   });
   const receivable = order.items.filter(line => Number(line.receivedQuantity) < Number(line.quantity) || attempt?.items.some(row => String(row.lineId) === String(line._id)));
   const [lines, setLines] = useState(() => Object.fromEntries(receivable.map(line => {
@@ -28,16 +29,13 @@ export default function PurchaseReceiptForm({ order, actor, policy = {}, onSubmi
     if (busy.current) return;
     busy.current = true; setError("");
     try {
-      const payload = attempt || receiptSubmission(lines, notes, crypto.randomUUID());
-      // Persist before sending: reopening after an ambiguous timeout retries the SAME payload/key.
-      sessionStorage.setItem(storageKey, JSON.stringify(payload));
+      const payload = pendingSubmission(localStorage, storageKey) || receiptSubmission(lines, notes, crypto.randomUUID());
       setAttempt(payload);
-      await onSubmit(payload);
-      sessionStorage.removeItem(storageKey);
+      await submitPersisted({ storage: localStorage, key: storageKey, payload, send: onSubmit });
       setAttempt(null);
     } catch (failure) {
       setError(apiErrorMessage(failure, failure.message || "Unable to receive stock."));
-      if (receiptCanBeCorrected(failure)) { sessionStorage.removeItem(storageKey); setAttempt(null); }
+      try { setAttempt(pendingSubmission(localStorage, storageKey)); } catch { /* Fail closed; keep the visible storage error. */ }
     } finally { busy.current = false; }
   };
   return <form onSubmit={submit} className="space-y-4">

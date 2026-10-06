@@ -7,13 +7,16 @@ import { assertObjectId, normalizeOptionalBrand, ValidationError } from "../util
 import { performStockMovement, runInventoryTransaction } from "./inventoryStockService.js";
 import { getPurchaseConfiguration, toBaseQuantity, toBaseUnitCost } from "./inventoryUnitService.js";
 import { recordPurchasePrices } from "./purchasePriceService.js";
-import { recordAuditLog } from "./auditLogService.js";
+import { pickAuditFields, recordAuditLog } from "./auditLogService.js";
 import PurchasePriceHistory from "../models/PurchasePriceHistory.js";
 import StockTransaction from "../models/StockTransaction.js";
 import { purchaseQuantity, purchasingManager, receiptKey, requirePurchasingTransaction } from "./purchasingSafetyService.js";
+import { toRiyadhDateKey } from "../utils/adminDate.js";
+
+const AUDIT_FIELDS = ["supplier", "items", "status", "subtotal", "tax", "discount", "additionalCharges", "total", "notes", "revision", "priceWarnings", "orderedAt", "expectedAt", "receivedAt"];
 
 const nextNumber = async (session = null) => {
-  const year = new Date().getUTCFullYear();
+  const year = toRiyadhDateKey().slice(0, 4);
   const counter = await Counter.findOneAndUpdate({ _id: `inventory-po-${year}` }, { $inc: { seq: 1 } }, { upsert: true, new: true, session });
   return `PO-${year}-${String(counter.seq).padStart(4, "0")}`;
 };
@@ -57,14 +60,21 @@ export const createPurchaseOrderInSession = async (payload, actor, settings = {}
   await recordPurchasePrices({ purchaseOrder: po, type: "proposed", actorId, session }); return po;
 };
 
-export const createPurchaseOrder = async (payload, actor, settings = {}) =>
-  runInventoryTransaction((session) => createPurchaseOrderInSession(payload, actor, settings, session));
+export const createPurchaseOrder = async (payload, actor, settings = {}, audit = {}) =>
+  runInventoryTransaction(async (session) => {
+    requirePurchasingTransaction(session);
+    const row = await createPurchaseOrderInSession(payload, actor, settings, session);
+    await recordAuditLog({ actor, action: "PURCHASE_ORDER_CREATED", entityType: "PurchaseOrder", entityId: row._id, entityLabel: row.orderNumber, correlationId: audit.correlationId, after: pickAuditFields(row, AUDIT_FIELDS) }, { session });
+    return row;
+  });
 
-export const updatePurchaseOrder = async (purchaseOrder, payload, actor, settings = {}) => runInventoryTransaction(async (session) => {
+export const updatePurchaseOrder = async (purchaseOrder, payload, actor, settings = {}, audit = {}) => runInventoryTransaction(async (session) => {
+  requirePurchasingTransaction(session);
   const actorId = actor?._id || actor;
   const row = await PurchaseOrder.findById(purchaseOrder._id).session(session || null);
   if (!row || ["ordered", "partially_received", "received", "closed_short", "cancelled"].includes(row.status)) throw new ValidationError("This purchase order can no longer be edited");
   const before = snapshot(row);
+  const auditBefore = pickAuditFields(row, AUDIT_FIELDS);
   if (payload.supplier) { const supplier = await Supplier.findOne({ _id: payload.supplier, isActive: true }).session(session || null); if (!supplier) throw new ValidationError("Supplier was not found or is inactive"); row.supplier = supplier._id; }
   if (payload.items) {
     const snapshotLines = payload.items.map((line) => {
@@ -77,7 +87,9 @@ export const updatePurchaseOrder = async (purchaseOrder, payload, actor, setting
   for (const field of ["tax", "discount", "additionalCharges", "notes", "expectedAt"]) if (field in payload) row[field] = payload[field];
   Object.assign(row, calculatePurchaseTotals(row.items, row)); row.priceWarnings = await priceWarnings(row.items, settings, session); if (row.priceWarnings.length && settings.blockPriceIncrease && !payload.priceOverrideReason) throw new ValidationError("Purchase price increase exceeds policy. An override reason is required"); const after = snapshot(row); const material = JSON.stringify(before) !== JSON.stringify(after);
   if (material) { row.revision += 1; row.revisionHistory.push({ revision: row.revision, action: "material_edit", actor: actorId, at: new Date(), before, after }); if (["submitted", "approved", "rejected"].includes(row.status)) { row.status = "draft"; row.approvedAt = null; } await recordPurchasePrices({ purchaseOrder: row, type: "proposed", actorId, session }); }
-  row.updatedBy = actorId; return row.save({ session: session || undefined });
+  row.updatedBy = actorId; await row.save({ session });
+  await recordAuditLog({ actor, action: "PURCHASE_ORDER_UPDATED", entityType: "PurchaseOrder", entityId: row._id, entityLabel: row.orderNumber, correlationId: audit.correlationId, before: auditBefore, after: pickAuditFields(row, AUDIT_FIELDS), reason: audit.reason || "" }, { session });
+  return row;
 });
 
 const allowed = { draft: ["submitted", "cancelled"], rejected: ["cancelled"], submitted: ["approved", "rejected", "cancelled"], approved: ["ordered", "cancelled"], ordered: ["cancelled", "closed_short"], partially_received: ["received", "closed_short"] };

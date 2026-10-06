@@ -7,6 +7,7 @@ import { getBatchSnapshots } from "../../services/inventoryBatchService.js";
 import { parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
 import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
 import { buildInventoryValuation } from "../../services/inventoryValuationService.js";
+import { riyadhDateRange } from "../../utils/adminDate.js";
 
 export const getDashboard = async (req, res, next) => {
   try { res.json({ success: true, data: await buildInventoryDashboard() }); } catch (error) { next(error); }
@@ -43,10 +44,7 @@ export const getAlerts = async (req, res, next) => {
 
 const dateFilter = (query, field = "occurredAt") => {
   if (!query.from && !query.to) return {};
-  const range = {};
-  if (query.from) range.$gte = new Date(query.from);
-  if (query.to) { const to = new Date(query.to); to.setUTCHours(23, 59, 59, 999); range.$lte = to; }
-  return { [field]: range };
+  return { [field]: riyadhDateRange(query) };
 };
 
 export const getReport = async (req, res, next) => {

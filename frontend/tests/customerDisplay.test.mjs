@@ -22,7 +22,7 @@ test("POS totals are shared and customer snapshot only contains allowed data", (
   assert.equal(calculatePosBill(sale, 99).total, 0);
   assert.equal(calculatePosBill(sale, -1).discount, 0);
   const safe = customerSafeBill({ ...bill, customer: "PRIVATE", token: "PRIVATE", tax: 3, profit: 5, items: [{ ...bill.items[0], addons: ["PRIVATE"], address: "PRIVATE" }] });
-  assert.deepEqual(safe, bill);
+  assert.deepEqual(safe, { ...bill, pickupName: "", pickupToken: "" });
   assert.ok(!JSON.stringify(safe).includes("PRIVATE"));
   assert.equal(customerSafeBill({ ...bill, total: NaN }), null);
   assert.equal(customerSafeBill({ ...bill, items: [] }), null);

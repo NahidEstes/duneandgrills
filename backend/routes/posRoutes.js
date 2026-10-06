@@ -15,7 +15,7 @@ import { searchPosCustomers } from "../controllers/posCustomerController.js";
 
 const router = express.Router();
 router.use(rejectClientRecordNumbers);
-router.use(protect, resolvePosSession, requireCapability(CAPABILITIES.POS_OPERATE));
+router.use(protect, requireCapability(CAPABILITIES.POS_OPERATE), resolvePosSession, requireCapability(CAPABILITIES.POS_OPERATE));
 router.get("/customers", rateLimit({ windowMs: 60_000, max: 90, keyPrefix: "pos-customer-search" }), searchPosCustomers);
 router.get("/session", posSession);
 router.post("/session/lock", lockSession);

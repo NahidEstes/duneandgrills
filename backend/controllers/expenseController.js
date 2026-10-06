@@ -1,4 +1,5 @@
 import Expense from "../models/Expense.js";
+import crypto from "node:crypto";
 import { expenseFinancialRow, expenseFinancialStages, EXPENSE_REPORT_BOUNDARY } from "../services/expenseReportingService.js";
 import { runInventoryTransaction } from "../services/inventoryStockService.js";
 import { CAPABILITIES, hasCapability } from "../config/permissions.js";
@@ -150,24 +151,53 @@ export const getExpense = async (req, res, next) => {
 export const createExpense = async (req, res, next) => {
   try {
     const payload = await validateExpensePayload(req.body);
-    const expense = await createExpenseRecord({ ...payload, createdBy: req.user._id, updatedBy: req.user._id });
-    await recordAuditLog({ actor: req.user, action: "EXPENSE_CREATED", entityType: "Expense", entityId: expense._id, entityLabel: expenseAuditLabel(expense), after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS) });
+    const key = req.body.idempotencyKey;
+    if (key !== undefined && (typeof key !== "string" || !key.trim() || key.trim().length > 128)) throw new ValidationError("Expense idempotency key must contain 1–128 characters");
+    const creationKey = key?.trim();
+    const creationHash = creationKey ? crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex") : undefined;
+    let duplicate = false;
+    const original = async (session = null) => {
+      const prior = creationKey ? await Expense.findOne({ createdBy: req.user._id, creationKey }).session(session) : null;
+      if (prior && prior.creationHash !== creationHash) throw Object.assign(new ValidationError("This expense key belongs to a different submission; retry its original details"), { status: 409 });
+      return prior;
+    };
+    let expense;
+    try {
+      expense = await runInventoryTransaction(async (session) => {
+        if (!session) throw Object.assign(new Error("Expense writes require MongoDB transaction support"), { status: 503 });
+        const prior = await original(session);
+        if (prior) { duplicate = true; return prior; }
+        const row = await createExpenseRecord({ ...payload, creationKey, creationHash, createdBy: req.user._id, updatedBy: req.user._id }, { session });
+        await recordAuditLog({ actor: req.user, action: "EXPENSE_CREATED", entityType: "Expense", entityId: row._id, entityLabel: expenseAuditLabel(row), after: pickAuditFields(row, EXPENSE_AUDIT_FIELDS) }, { session });
+        return row;
+      });
+    } catch (error) {
+      // A concurrent identical submission may win the unique index race.
+      if (error.code !== 11000 || !creationKey) throw error;
+      expense = await original();
+      if (!expense) throw error;
+      duplicate = true;
+    }
     await expense.populate(expensePopulate);
-    res.status(201).json({ success: true, data: expense });
+    res.status(duplicate ? 200 : 201).json({ success: true, data: expense, duplicate });
   } catch (error) { next(error); }
 };
 
 export const updateExpense = async (req, res, next) => {
   try {
-    const expense = await Expense.findById(req.params.id);
-    if (!expense) return res.status(404).json({ success: false, message: "Expense not found" });
-    if (expense.recordStatus !== "active") throw new ValidationError("Archived or cancelled expenses cannot be edited");
-    const before = pickAuditFields(expense, EXPENSE_AUDIT_FIELDS);
-    const payload = await validateExpensePayload(req.body, { partial: true, existing: expense });
-    expense.set({ ...payload, updatedBy: req.user._id });
-    await expense.save();
-    const paymentChanged = before.paymentStatus !== expense.paymentStatus || Number(before.amountPaid) !== Number(expense.amountPaid);
-    await recordAuditLog({ actor: req.user, action: paymentChanged ? "EXPENSE_PAYMENT_UPDATED" : "EXPENSE_UPDATED", entityType: "Expense", entityId: expense._id, entityLabel: expenseAuditLabel(expense), before, after: pickAuditFields(expense, EXPENSE_AUDIT_FIELDS) });
+    const expense = await runInventoryTransaction(async (session) => {
+      if (!session) throw Object.assign(new Error("Expense writes require MongoDB transaction support"), { status: 503 });
+      const row = await Expense.findById(req.params.id).session(session);
+      if (!row) throw Object.assign(new ValidationError("Expense not found"), { status: 404 });
+      if (row.recordStatus !== "active") throw new ValidationError("Archived or cancelled expenses cannot be edited");
+      const before = pickAuditFields(row, EXPENSE_AUDIT_FIELDS);
+      const payload = await validateExpensePayload(req.body, { partial: true, existing: row });
+      row.set({ ...payload, updatedBy: req.user._id });
+      await row.save({ session });
+      const paymentChanged = before.paymentStatus !== row.paymentStatus || Number(before.amountPaid) !== Number(row.amountPaid);
+      await recordAuditLog({ actor: req.user, action: paymentChanged ? "EXPENSE_PAYMENT_UPDATED" : "EXPENSE_UPDATED", entityType: "Expense", entityId: row._id, entityLabel: expenseAuditLabel(row), before, after: pickAuditFields(row, EXPENSE_AUDIT_FIELDS) }, { session });
+      return row;
+    });
     await expense.populate(expensePopulate);
     res.json({ success: true, data: expense });
   } catch (error) { next(error); }
