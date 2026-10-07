@@ -15,7 +15,7 @@ export const listPurchaseOrders = async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query, 20);
     const filter = {};
-    if (req.query.status) filter.status = req.query.status;
+    if (req.query.status) filter.status = req.query.status === "pending" ? { $in: ["ordered", "partially_received"] } : req.query.status;
     if (req.query.supplier) filter.supplier = req.query.supplier;
     if (req.query.search?.trim()) filter.orderNumber = new RegExp(escapeRegex(req.query.search.trim().slice(0, 120)), "i");
     const [rows, total] = await Promise.all([

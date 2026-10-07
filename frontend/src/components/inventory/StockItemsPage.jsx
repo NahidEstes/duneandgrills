@@ -15,13 +15,30 @@ import { Badge, Button, DataTable, EmptyState, LoadingState, Modal, Money, PageH
 import StockItemForm from "./StockItemForm.jsx";
 import { apiErrorMessage, formatDate, formatQuantity, getStockStatus } from "./inventoryUtils.js";
 import useInventoryResource from "./useInventoryResource.js";
+import { initialInventoryStatus, inventoryHealthOptions, inventoryHealthReasonLabels } from "./inventoryHealthFilters.js";
 
-export default function StockItemsPage() {
+function StockHealthStatus({ item }) {
+  let status = getStockStatus(item);
+  if (item.isActive !== false && item.stockHealth) {
+    if (item.stockHealth.out) status = { tone: "danger", label: "Out of saleable stock" };
+    else if (item.stockHealth.low) status = { tone: "warning", label: "Low saleable stock" };
+    else status = { tone: "success", label: "Saleable stock available" };
+  }
+  const reasons = item.blockedReasons?.map(reason => inventoryHealthReasonLabels[reason] || reason) || [];
+  const expiringDates = [...new Set(item.expiringDates?.map(date => formatDate(date)) || [])];
+  return <div className="max-w-52 whitespace-normal">
+    <Badge tone={status.tone}>{status.label}</Badge>
+    {reasons.length > 0 && <p className="mt-1 text-xs text-amber-400">{reasons.join(" · ")}</p>}
+    {expiringDates.length > 0 && <p className="mt-1 text-xs text-neutral-400">Expiring: {expiringDates.join(", ")}</p>}
+  </div>;
+}
+
+export default function StockItemsPage({ initialStatus = "" }) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [category, setCategory] = useState("");
   const [supplier, setSupplier] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(() => initialInventoryStatus(initialStatus));
   const [sortBy, setSortBy] = useState("updatedAt");
   const [sortOrder, setSortOrder] = useState("desc");
   const [page, setPage] = useState(1);
@@ -61,12 +78,12 @@ export default function StockItemsPage() {
     { key: "brand", label: "Preferred brand", render: (item) => item.preferredBrand || "—" },
     { key: "unit", label: "Usage unit" },
     { key: "purchaseUnit", label: "Purchase conversion", render: (item) => <div><p>{item.purchaseUnit || item.unit}</p><p className="text-[0.65rem] text-neutral-600">1 {item.purchaseUnit || item.unit} = {item.purchaseConversionFactor || 1} {item.unit}</p></div> },
-    { key: "stock", label: "Current stock", render: (item) => <span className="tabular-nums">{formatQuantity(item.currentStock, item.unit)}</span> },
+    { key: "stock", label: "Physical / saleable stock", render: (item) => <div className="tabular-nums"><p>Physical: {formatQuantity(item.currentStock, item.unit)}</p><p className="mt-1 text-xs text-dune-amber">Saleable: {formatQuantity(item.saleableStock, item.unit)}</p></div> },
     { key: "reorder", label: "Reorder level", render: (item) => formatQuantity(item.reorderLevel, item.unit) },
     { key: "cost", label: "Unit cost", render: (item) => <Money value={item.unitCost} /> },
     { key: "supplier", label: "Supplier", render: (item) => item.supplier?.name || "—" },
     { key: "updated", label: "Updated", render: (item) => formatDate(item.updatedAt, true) },
-    { key: "status", label: "Status", render: (item) => { const row = getStockStatus(item); return <Badge tone={row.tone}>{row.label}</Badge>; } },
+    { key: "status", label: "Status", render: (item) => <StockHealthStatus item={item} /> },
     { key: "actions", label: "", render: (item) => <div className="flex justify-end gap-1"><button type="button" onClick={() => { setEditing(item); setModalOpen(true); }} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white" aria-label={`Edit ${item.name}`}><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => archive(item)} className="rounded-lg p-2 text-neutral-500 hover:bg-red-500/10 hover:text-red-300" aria-label={`Archive ${item.name}`}><Archive className="h-4 w-4" /></button></div> },
   ];
 
@@ -77,7 +94,7 @@ export default function StockItemsPage() {
         <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by item, SKU, brand or location…" /></label>
         <DarkSelect className={inputClass} value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}><option value="">All categories</option>{metadata.categories.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
         <DarkSelect className={inputClass} value={supplier} onChange={(event) => { setSupplier(event.target.value); setPage(1); }}><option value="">All suppliers</option>{metadata.suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
-        <DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">Active items</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="inactive">Inactive</option></DarkSelect>
+        <DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">Active items</option>{inventoryHealthOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}<option value="inactive">Inactive</option></DarkSelect>
         <div className="flex gap-2"><DarkSelect className={inputClass} value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="updatedAt">Recently updated</option><option value="name">Name</option><option value="currentStock">Stock</option><option value="unitCost">Unit cost</option></DarkSelect><button type="button" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 text-neutral-500 hover:text-white" onClick={() => setSortOrder((value) => value === "asc" ? "desc" : "asc")} aria-label="Toggle sort direction"><SlidersHorizontal className="h-4 w-4" /></button></div>
       </div>
       {loading ? <LoadingState /> : <DataTable columns={columns} rows={data?.data} empty={<EmptyState title="No stock items found" description="Add an item or change the current filters." action={<Button onClick={openCreate}><Plus className="h-4 w-4" />Add first item</Button>} />} />}

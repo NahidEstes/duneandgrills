@@ -5,11 +5,9 @@ import Order from "../models/Order.js";
 import Review from "../models/Review.js";
 import User from "../models/User.js";
 import Combo from "../models/Combo.js";
-import InventoryItem from "../models/InventoryItem.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import PurchasingAction from "../models/PurchasingAction.js";
-import { getBatchSnapshots } from "../services/inventoryBatchService.js";
-import { getInventorySettings } from "../services/inventoryAnalyticsService.js";
+import { getInventoryHealth } from "../services/inventoryHealthService.js";
 import { NON_REVENUE_ORDER_STATUSES } from "../config/orderStatuses.js";
 import { STAFF_ROLES } from "../config/permissions.js";
 import { buildSalesReport } from "../services/salesReportingService.js";
@@ -141,24 +139,12 @@ export const getDashboard = async (req, res) => {
         $expr: { $and: [{ $gte: [effectiveOrderDateExpression, previousPeriodStart] }, { $lt: [effectiveOrderDateExpression, currentPeriodStart] }] },
       }),
       (async () => {
-        const settings = await getInventorySettings();
-        const expiryEnd = new Date(now);
-        expiryEnd.setUTCDate(expiryEnd.getUTCDate() + settings.expiryAlertDays);
-        const [lowStock, outOfStock, pendingPurchaseOrders, openPurchasingActions, batches] = await Promise.all([
-          InventoryItem.countDocuments({ isActive: true, currentStock: { $gt: 0 }, $expr: { $lte: ["$currentStock", "$reorderLevel"] } }),
-          InventoryItem.countDocuments({ isActive: true, currentStock: { $lte: 0 } }),
+        const [health, pendingPurchaseOrders, openPurchasingActions] = await Promise.all([
+          getInventoryHealth({ now }),
           PurchaseOrder.countDocuments({ status: { $in: ["ordered", "partially_received"] } }),
           PurchasingAction.countDocuments({ state: { $in: ["open", "acknowledged"] } }),
-          getBatchSnapshots({ includeDepleted: false }),
         ]);
-        const expiringItems = new Set(batches.filter((batch) =>
-          batch.item?.isActive !== false &&
-          Number(batch.remainingQuantity) > 0 &&
-          batch.expiryDate &&
-          new Date(batch.expiryDate) >= now &&
-          new Date(batch.expiryDate) <= expiryEnd
-        ).map((batch) => String(batch.item?._id || batch.item))).size;
-        return { lowStock, outOfStock, expiringItems, pendingPurchaseOrders, openPurchasingActions, expiryAlertDays: settings.expiryAlertDays };
+        return { ...health.summary, pendingPurchaseOrders, openPurchasingActions };
       })(),
     ]);
 

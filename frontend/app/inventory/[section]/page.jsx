@@ -29,8 +29,9 @@ export async function generateMetadata({ params }) {
   return { title: `${title} · Inventory`, robots: { index: false, follow: false } };
 }
 
-export default async function InventorySectionRoute({ params }) {
+export default async function InventorySectionRoute({ params, searchParams }) {
   const { section } = await params;
+  const query = await searchParams;
   if (!sections.has(section)) notFound();
-  return <InventorySectionPage section={section} />;
+  return <InventorySectionPage section={section} initialStatus={typeof query?.status === "string" ? query.status : ""} initialState={typeof query?.state === "string" ? query.state : ""} />;
 }

@@ -17,6 +17,7 @@ import {
 import { pickAuditFields, recordAuditLog } from "../../services/auditLogService.js";
 import { buildInventoryValuation } from "../../services/inventoryValuationService.js";
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
+import { getInventoryHealth, INVENTORY_HEALTH_FILTERS } from "../../services/inventoryHealthService.js";
 
 const AUDIT_FIELDS = ["name", "sku", "category", "unit", "purchaseUnit", "purchaseConversionFactor", "reorderLevel", "reorderEnabled", "targetStock", "safetyStock", "leadTimeDays", "minimumOrderQuantity", "orderMultiple", "supplierItemCode", "preferredBrand", "unitCost", "supplier", "tracksExpiry", "storageLocation", "isActive", "allowNegativeStock"];
 
@@ -49,18 +50,27 @@ export const listItems = async (req, res, next) => {
     if (req.query.supplier) filter.supplier = req.query.supplier;
     if (req.query.status === "active") filter.isActive = true;
     if (req.query.status === "inactive") filter.isActive = false;
-    if (req.query.status === "out") Object.assign(filter, { isActive: true, currentStock: { $lte: 0 } });
-    if (req.query.status === "low") Object.assign(filter, { isActive: true, currentStock: { $gt: 0 }, $expr: { $lte: ["$currentStock", "$reorderLevel"] } });
+    const healthFilter = INVENTORY_HEALTH_FILTERS.includes(req.query.status) ? req.query.status : null;
+    if (healthFilter) filter.isActive = true;
     if (!req.query.status) filter.isActive = true;
 
     const allowedSorts = new Set(["name", "sku", "currentStock", "reorderLevel", "unitCost", "updatedAt"]);
     const sortBy = allowedSorts.has(req.query.sortBy) ? req.query.sortBy : "updatedAt";
     const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
-    const [items, total] = await Promise.all([
-      InventoryItem.find(filter).populate(itemPopulate).sort({ [sortBy]: sortOrder }).skip(skip).limit(limit).lean(),
-      InventoryItem.countDocuments(filter),
-    ]);
-    const valuation = await buildInventoryValuation({ itemIds: items.map((item) => item._id) });
+    let items, total;
+    if (healthFilter) {
+      const matching = await InventoryItem.find(filter).populate(itemPopulate).sort({ [sortBy]: sortOrder }).lean();
+      const health = await getInventoryHealth({ items: matching });
+      const filtered = health.rows.filter(item => item.stockHealth[healthFilter]);
+      total = filtered.length; items = filtered.slice(skip, skip + limit);
+    } else {
+      const result = await Promise.all([
+        InventoryItem.find(filter).populate(itemPopulate).sort({ [sortBy]: sortOrder }).skip(skip).limit(limit).lean(),
+        InventoryItem.countDocuments(filter),
+      ]);
+      total = result[1]; items = (await getInventoryHealth({ items: result[0] })).rows;
+    }
+    const valuation = items.length ? await buildInventoryValuation({ itemIds: items.map((item) => item._id) }) : { rows: [] };
     const valueById = new Map(valuation.rows.map((item) => [String(item._id), item]));
     res.json({ success: true, data: items.map((item) => ({ ...item, ...valueById.get(String(item._id)) })), pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) {
@@ -72,7 +82,7 @@ export const getItem = async (req, res, next) => {
   try {
     const item = await InventoryItem.findById(req.params.id).populate(itemPopulate).lean();
     if (!item) return res.status(404).json({ success: false, message: "Inventory item not found" });
-    res.json({ success: true, data: item });
+    res.json({ success: true, data: (await getInventoryHealth({ items: [item] })).rows[0] });
   } catch (error) {
     next(error);
   }

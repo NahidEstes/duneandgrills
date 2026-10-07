@@ -18,16 +18,16 @@ import PurchasePriceHistoryPage from "./PurchasePriceHistoryPage.jsx";
 import ReorderSuggestionsPage from "./ReorderSuggestionsPage.jsx";
 import PurchasingActionCenterPage from "./PurchasingActionCenterPage.jsx";
 
-export default function InventorySectionPage({ section }) {
-  if (section === "stock-items") return <StockItemsPage />;
+export default function InventorySectionPage({ section, initialStatus = "", initialState = "" }) {
+  if (section === "stock-items") return <StockItemsPage key={initialStatus} initialStatus={initialStatus} />;
   if (section === "batches") return <BatchesPage />;
   if (section === "categories") return <CategoriesPage />;
   if (section === "suppliers") return <SuppliersPage />;
-  if (section === "purchase-orders") return <PurchaseOrdersPage />;
+  if (section === "purchase-orders") return <PurchaseOrdersPage key={initialStatus} initialStatus={initialStatus} />;
   if (section === "supplier-invoices") return <SupplierInvoicesPage />;
   if (section === "purchase-prices") return <PurchasePriceHistoryPage />;
   if (section === "reorder-suggestions") return <ReorderSuggestionsPage />;
-  if (section === "purchasing-actions") return <PurchasingActionCenterPage />;
+  if (section === "purchasing-actions") return <PurchasingActionCenterPage key={initialState} initialState={initialState} />;
   if (section === "stock-in" || section === "stock-out") return <StockMovementPage pageType={section} />;
   if (section === "stock-movements") return <StockMovementsPage />;
   if (section === "recipes") return <RecipesPage />;
