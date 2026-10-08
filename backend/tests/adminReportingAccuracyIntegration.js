@@ -110,7 +110,7 @@ test("Phase 3 reporting and cashier safety (owned isolated replica set only)", {
     });
     await check("Dashboard/Analytics/series/source/type breakdowns share identical net calculations", async () => {
       const row = await sale({ refundedAmount: 25 }); await refund(row, 25); await sale({ paymentStatus: "pending" });
-      const analytics = await buildAdminAnalytics(query), dashboard = (await invoke(getDashboard)).data;
+      const analytics = await buildAdminAnalytics(query), dashboard = (await invoke(getDashboard, { query: { period: "all" } })).data;
       assert.equal(analytics.summary.netSales, dashboard.stats.netSales); assert.equal(analytics.summary.completedRefunds, dashboard.stats.completedRefunds);
       assert.equal(analytics.series.reduce((n, x) => n + x.netSales, 0), 75); assert.equal(analytics.sourceBreakdown[0].netSales, 75); assert.equal(analytics.orderTypeBreakdown[0].netSales, 75);
     });

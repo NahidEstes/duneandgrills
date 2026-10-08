@@ -27,6 +27,7 @@ import {
   formatAdminDate,
   formatRelativeTime,
   labelStatus,
+  statusStyles,
 } from "./adminUi.js";
 
 const PANEL_CLASS =
@@ -42,7 +43,7 @@ const Panel = ({ title, action, children, className = "" }) => (
   </section>
 );
 
-const Trend = ({ value, suffix = "vs previous 7 days" }) => {
+const Trend = ({ value, suffix = "vs comparison period" }) => {
   const positive = value >= 0;
   const Icon = positive ? ArrowUpRight : ArrowDownRight;
   return (
@@ -68,10 +69,10 @@ const StatCard = ({ icon: Icon, label, value, trend, tone = "amber", note }) => 
       </span>
       <div className="min-w-0">
         <p className="text-xs text-neutral-400 sm:text-sm">{label}</p>
-        <p className="mt-1 truncate text-xl font-semibold tracking-tight text-white sm:text-2xl">
+        <p className="mt-1 break-words text-xl font-semibold tabular-nums tracking-tight text-white sm:text-2xl">
           {value}
         </p>
-        {availableNumber(trend) ? <Trend value={trend} /> : note && <p className="mt-1 text-[0.68rem] text-neutral-500">{note}</p>}
+        {availableNumber(trend?.percent) ? <Trend value={trend.percent} /> : (trend?.note || note) && <p className="mt-1 text-[0.68rem] text-neutral-400">{trend?.note || note}</p>}
       </div>
     </article>
   );
@@ -108,7 +109,8 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate, recentResourc
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <h2 className="text-sm font-semibold text-neutral-300">{data.reportingPeriod?.label || "Selected period"} · order-date summary</h2>
+      <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           icon={ClipboardList}
           label="Total Orders"
@@ -117,44 +119,46 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate, recentResourc
         />
         <StatCard
           icon={CircleDollarSign}
-          label="Net Sales · all time"
+          label="Net Sales · not profit"
           value={dashboardMoney(stats.totalRevenue)}
           trend={stats.trends?.revenue}
         />
         <StatCard
           icon={PackageCheck}
-          label="Completed Orders"
+          label="Completed Orders · delivered"
           value={dashboardNumber(stats.completedOrders)}
           trend={stats.trends?.completed}
           tone="green"
-        />
-        <StatCard
-          icon={Clock3}
-          label="Pending Orders"
-          value={dashboardNumber(stats.pendingOrders)}
-          note={`${dashboardNumber(stats.openOrders)} open across the workflow`}
-          tone="red"
-        />
-        <StatCard
-          icon={Star}
-          label="Customer Reviews"
-          value={availableNumber(stats.averageRating) ? `${stats.averageRating.toFixed(1)} / 5` : "—"}
-          note={`${dashboardNumber(stats.reviewCount)} verified reviews`}
-          tone="blue"
+          note="Delivered orders in the selected period"
         />
       </div>
 
-      <SalesReportSummary summary={stats} activity={data?.cashActivity} definitions={data?.reportingDefinitions} activityPeriod="last 7 Riyadh days" />
+      <dl className="grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-4 xl:grid-cols-4">{[
+        ["Gross sales · after discounts", stats.grossSales], ["Recorded collections · before reversals", stats.collectedAmount],
+        ["Completed refunds · order cohort", stats.completedRefunds], ["Captured-payment voids", stats.voidAmount],
+      ].map(([label, value]) => <div key={label}><dt className="text-xs text-neutral-400">{label}</dt><dd className="mt-1 break-words text-base font-semibold text-dune-amber">{dashboardMoney(value)}</dd></div>)}</dl>
+
+      <section aria-label="Live operations" className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
+        <h2 className="text-sm font-semibold text-white">Live operations · all unresolved orders, regardless of date</h2>
+        <button type="button" onClick={() => onNavigate("orders")} className="mt-2 flex flex-wrap items-center gap-3 rounded-lg py-2 text-sm text-neutral-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dune-amber">
+          <Clock3 aria-hidden="true" className="h-4 w-4 text-dune-amber" /> Pending: {dashboardNumber(stats.pendingOrders)} · Open across the workflow: {dashboardNumber(stats.openOrders)} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </button>
+        <p className="text-xs text-neutral-400">Inventory Health below is also a live stock snapshot, not a reporting-period total.</p>
+      </section>
 
       <InventoryHealthSummary summary={data?.inventorySummary} panelClass={PANEL_CLASS} />
 
-      <div className="grid gap-3 sm:gap-4 xl:grid-cols-[1.18fr_1fr]">
+      <div>
         <RecentOrdersPanel
           resource={recentResource || { status: "success", data: { data: data.recentOrders, pagination: data.recentOrdersMeta } }}
           status={recentStatus} onStatusChange={onRecentStatusChange} onRefresh={onRecentRefresh}
           viewAllHref={viewAllHref} orderHref={orderHref}
         />
 
+      </div>
+      <SalesReportSummary summary={stats} activity={data.cashActivity} definitions={data.reportingDefinitions} activityPeriod={data.reportingPeriod?.label || "selected period"} collapsible compact />
+
+      <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">
         <Panel
           title="Menu Items Management"
           action={<SmallAction onClick={() => onNavigate("menu")}>View All Menu Items</SmallAction>}
@@ -196,6 +200,10 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate, recentResourc
           >
             Manage pricing &amp; availability <ArrowRight className="h-3.5 w-3.5" />
           </button>
+        </Panel>
+        <Panel title="Customer Reviews · lifetime" action={<SmallAction onClick={() => onNavigate("reviews")}>View Reviews</SmallAction>}>
+          <div className="flex items-center gap-3 p-4"><Star aria-hidden="true" className="h-5 w-5 text-dune-amber" /><p className="text-sm text-neutral-300">{availableNumber(stats.averageRating) ? `${stats.averageRating.toFixed(1)} / 5` : "—"} · {dashboardNumber(stats.reviewCount)} lifetime reviews</p></div>
+          {data.recentReviews?.length ? <ul className="divide-y divide-white/5 px-4">{data.recentReviews.slice(0, 3).map(review => <li key={review._id} className="py-3 text-xs text-neutral-400"><p className="font-medium text-neutral-200">{review.user?.name || "Customer"} · {review.rating} / 5</p><p className="mt-1 line-clamp-2 break-words">{review.comment}</p></li>)}</ul> : <EmptyRow>{Array.isArray(data.recentReviews) ? "No reviews yet." : "Reviews unavailable."}</EmptyRow>}
         </Panel>
       </div>
 

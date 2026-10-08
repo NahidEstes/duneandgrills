@@ -12,17 +12,12 @@ import { getInventoryHealth } from "../services/inventoryHealthService.js";
 import { NON_REVENUE_ORDER_STATUSES } from "../config/orderStatuses.js";
 import { STAFF_ROLES } from "../config/permissions.js";
 import { buildSalesReport } from "../services/salesReportingService.js";
-import { ADMIN_DAY_MS, startOfRiyadhDay } from "../utils/adminDate.js";
+import { resolveDashboardPeriod, dashboardComparison } from "../services/dashboardPeriodService.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
 
 const escapeRegex = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const percentageChange = (current, previous) => {
-  if (!previous) return current ? 100 : 0;
-  return Number((((current - previous) / previous) * 100).toFixed(1));
-};
 
 const offerStatus = (offer, now) => {
   if (!offer.isActive) return "inactive";
@@ -35,12 +30,7 @@ export const getDashboard = async (req, res) => {
   try {
     res.setHeader?.("Cache-Control", "private, no-store");
     const now = new Date();
-    const today = startOfRiyadhDay(now);
-
-    const currentPeriodStart = new Date(today);
-    currentPeriodStart.setUTCDate(currentPeriodStart.getUTCDate() - 6);
-    const previousPeriodStart = new Date(currentPeriodStart);
-    previousPeriodStart.setUTCDate(previousPeriodStart.getUTCDate() - 7);
+    const selection = resolveDashboardPeriod(req.query?.period ?? "today", now);
 
     const openStatuses = [
       "pending",
@@ -50,17 +40,14 @@ export const getDashboard = async (req, res) => {
       "out-for-delivery",
     ];
 
-    const periodEnd = new Date(today.getTime() + ADMIN_DAY_MS);
-    const allSales = await buildSalesReport({ dashboardPeriods: {
-      current: { start: currentPeriodStart, end: periodEnd, days: 7 },
-      previous: { start: previousPeriodStart, end: currentPeriodStart, days: 7 },
-    } });
+    const allSales = await buildSalesReport({ range: selection.range, dashboardMode: true,
+      dashboardPeriods: selection.previous ? { current: selection.range, previous: selection.previous } : null,
+    });
     const totalOrders = allSales.summary.totalOrders;
     const statusRows = allSales.statusBreakdown.map(row => ({ _id: row.status, count: row.count }));
     const counts = new Map(statusRows.map(row => [row._id, row.count]));
-    const completedOrders = counts.get("delivered") || 0, pendingOrders = counts.get("pending") || 0;
-    const openOrders = openStatuses.reduce((sum, status) => sum + (counts.get(status) || 0), 0);
-    const { currentOrders = 0, previousOrders = 0, currentCompleted = 0, previousCompleted = 0 } = allSales.dashboard.orderCounts;
+    const completedOrders = counts.get("delivered") || 0;
+    const { currentOrders = 0, previousOrders = 0, currentCompleted = 0, previousCompleted = 0 } = allSales.dashboard?.orderCounts || {};
 
     const [
       reviewRows,
@@ -76,6 +63,8 @@ export const getDashboard = async (req, res) => {
       recentReviews,
       categoryRows,
       inventorySummary,
+      liveStatusRows,
+      lifetimeOrderCount,
     ] = await Promise.all([
       Review.aggregate([
         {
@@ -123,11 +112,16 @@ export const getDashboard = async (req, res) => {
         ]);
         return { ...health.summary, pendingPurchaseOrders, openPurchasingActions };
       })(),
+      Order.aggregate([{ $match: { status: { $in: openStatuses } } }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
+      Order.countDocuments(),
     ]);
 
     const totalRevenue = allSales.summary.netSales;
-    const currentRevenue = allSales.dashboard.currentSummary.netSales;
-    const previousRevenue = allSales.dashboard.previousSummary.netSales;
+    const currentRevenue = allSales.dashboard?.currentSummary.netSales;
+    const previousRevenue = allSales.dashboard?.previousSummary.netSales;
+    const liveCounts = new Map(liveStatusRows.map(row => [row._id, row.count]));
+    const pendingOrders = liveCounts.get("pending") || 0;
+    const openOrders = openStatuses.reduce((sum, status) => sum + (liveCounts.get(status) || 0), 0);
 
     const activities = [
       ...recentOrders.slice(0, 4).map((order) => ({
@@ -170,6 +164,7 @@ export const getDashboard = async (req, res) => {
       success: true,
       data: {
         generatedAt: now,
+        reportingPeriod: selection.metadata,
         stats: {
           totalOrders,
           totalRevenue,
@@ -185,13 +180,13 @@ export const getDashboard = async (req, res) => {
           reviewCount: reviewRows[0]?.count || 0,
           averageRating: Number((reviewRows[0]?.average || 0).toFixed(1)),
           trends: {
-            orders: percentageChange(currentOrders, previousOrders),
-            revenue: percentageChange(currentRevenue, previousRevenue),
-            completed: percentageChange(currentCompleted, previousCompleted),
+            orders: dashboardComparison(currentOrders, previousOrders, Boolean(selection.previous)),
+            revenue: dashboardComparison(currentRevenue, previousRevenue, Boolean(selection.previous)),
+            completed: dashboardComparison(currentCompleted, previousCompleted, Boolean(selection.previous)),
           },
         },
         recentOrders: recentOrders.map(order => serializeAdminOrder(order, now)),
-        recentOrdersMeta: { total: totalOrders, limit: 7, hasMore: totalOrders > 7 },
+        recentOrdersMeta: { total: lifetimeOrderCount, limit: 7, hasMore: lifetimeOrderCount > 7 },
         recentMenuItems,
         recentPosts,
         recentOffers: recentOffers.map((offer) => ({
@@ -219,9 +214,9 @@ export const getDashboard = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({
+    res.status(err.status || 500).json({
       success: false,
-      message: "Failed to load admin dashboard",
+      message: err.status === 400 ? err.message : "Failed to load admin dashboard",
       error: err.message,
     });
   }

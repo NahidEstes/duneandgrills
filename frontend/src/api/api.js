@@ -432,9 +432,10 @@ export const deleteReward = async (id) => {
 };
 
 // ---- Admin dashboard ----
-export const fetchAdminDashboard = async ({ signal } = {}) => {
-  const { data } = await api.get("/admin/dashboard", { signal, timeout: 20_000 });
+export const fetchAdminDashboard = async ({ signal, period = "today" } = {}) => {
+  const { data } = await api.get("/admin/dashboard", { signal, params: { period }, timeout: 20_000 });
   if (!data.success || !data.data || typeof data.data !== "object" || Array.isArray(data.data)) throw new Error("Dashboard response is unavailable");
+  if (data.data.reportingPeriod?.period !== period) throw new Error("Dashboard period response does not match the selection");
   return data.data;
 };
 

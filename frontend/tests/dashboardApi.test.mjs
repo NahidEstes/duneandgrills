@@ -14,11 +14,24 @@ new Function("require", "module", "exports", transformed.code)(localRequire, com
 const { fetchAdminDashboard, fetchOrders, fetchOrdersPage, fetchOrderById, fetchRestaurantSettings } = compiledModule.exports;
 
 test("dashboard API preserves cancellation/timeouts and rejects unavailable envelopes instead of zero success", async () => {
-  const signal = new AbortController().signal; response = { success: true, data: { stats: { totalOrders: 0 } } };
+  const signal = new AbortController().signal; response = { success: true, data: { stats: { totalOrders: 0 }, reportingPeriod: { period: "today" } } };
   assert.deepEqual(await fetchAdminDashboard({ signal }), response.data);
   assert.equal(lastRequest.options.signal, signal); assert.equal(lastRequest.options.timeout, 20_000);
+  assert.deepEqual(lastRequest.options.params, { period: "today" });
   for (const data of [undefined, null, [], "wrong"]) { response = { success: true, data }; await assert.rejects(fetchAdminDashboard(), /unavailable/); }
   response = { success: false, data: {} }; await assert.rejects(fetchAdminDashboard(), /unavailable/);
+});
+
+test("dashboard API sends selected period on each refresh and rejects mismatched responses", async () => {
+  for (const period of ["today", "week", "month", "all"]) {
+    response = { success: true, data: { reportingPeriod: { period } } };
+    await fetchAdminDashboard({ period });
+    assert.deepEqual(lastRequest.options.params, { period });
+  }
+  response = { success: true, data: { reportingPeriod: { period: "today" } } };
+  await assert.rejects(fetchAdminDashboard({ period: "month" }), /does not match/);
+  response = { success: true, data: { stats: { totalOrders: 100 } } };
+  await assert.rejects(fetchAdminDashboard(), /does not match/); // Legacy All-Time envelopes must not masquerade as Today.
 });
 
 test("pending API distinguishes genuine empty results from malformed/failure responses without losing filters", async () => {

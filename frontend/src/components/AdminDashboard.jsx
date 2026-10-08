@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { adminOrdersHref, normalizeOrderStatus } from "../utils/adminOrders.js";
 import { useFreshResource } from "../hooks/useFreshResource.js";
 import DashboardDataStatus from "./admin/DashboardDataStatus.jsx";
+import DashboardPeriodControls from "./admin/DashboardPeriodControls.jsx";
+import { normalizeDashboardPeriod } from "../utils/dashboardPeriods.js";
 import { fetchAdminDashboard, fetchOrdersPage, searchAdmin } from "../api/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useAdminOrderAlerts } from "../hooks/useAdminOrderAlerts.js";
@@ -91,6 +93,7 @@ const AdminDashboard = () => {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const activeTab = TAB_CONTENT[requestedTab] ? requestedTab : "overview";
+  const period = normalizeDashboardPeriod(searchParams.get("period"));
   const recentStatus = normalizeOrderStatus(searchParams.get("recentStatus"));
   const orderStatus = normalizeOrderStatus(searchParams.get("status"));
   const selectedOrderId = searchParams.get("order") || "";
@@ -101,7 +104,7 @@ const AdminDashboard = () => {
   const [settingsDirty, setSettingsDirty] = useState(false);
   const { user, logout, setUser } = useAuth();
   const onUnauthorized = useCallback(error => { if (error.response?.status === 401) setUser(null); }, [setUser]);
-  const summary = useFreshResource({ identity: user ? `${user._id}:${user.role}` : "", fetcher: fetchAdminDashboard, onUnauthorized });
+  const summary = useFreshResource({ identity: user ? `${user._id}:${user.role}:${period}` : "", fetcher: options => fetchAdminDashboard({ ...options, period }), onUnauthorized });
   const dashboard = summary.data;
   const filteredRecent = useFreshResource({
     identity: user && activeTab === "overview" && recentStatus !== "all" ? `${user._id}:${user.role}:recent:${recentStatus}` : "",
@@ -220,6 +223,7 @@ const AdminDashboard = () => {
       onEnableOrderAlerts={requestBrowserPermission}
       onToggleOrderAlerts={toggleAlerts}
     >
+      {activeTab === "overview" && <DashboardPeriodControls period={period} onChange={value => navigate({ period: value })} resource={summary} />}
       <DashboardDataStatus summary={summary} monitoring={monitoring} settingsHealth={settingsHealth} onRefresh={() => loadDashboard("manual")} onRetryMonitoring={() => pollPendingOrders("manual")} />
       {activeTab === "overview" && (
         <DashboardOverview

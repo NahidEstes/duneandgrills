@@ -50,6 +50,25 @@ test("successful empty results show real zeros while missing metrics and collect
   assert.doesNotMatch(missing, /SAR 0\.00|refreshed now|Live data/);
 });
 
+test("hierarchy separates selected-period cards, live operations and lower lifetime/content panels", () => {
+  const html = render("DashboardOverview", { data: {
+    reportingPeriod: { period: "today", label: "Today" },
+    stats: { totalOrders: 4, completedOrders: 2, totalRevenue: 75, grossSales: 100, collectedAmount: 90, completedRefunds: 25, voidAmount: 0, pendingOrders: 9, openOrders: 12, averageRating: 4.5, reviewCount: 30, trends: { revenue: { percent: null, note: "Previous period was zero" } } },
+    recentOrders: [], recentMenuItems: [], recentReviews: [], recentPosts: [], activities: [],
+    recentOffers: [{ _id: "offer", title: "Fixture offer", dashboardStatus: "active", expiresAt: "2028-03-31" }],
+    cashActivity: { unknownPaymentDateAmount: 90, unknownDateScope: "Selected order-date cohort" },
+  } });
+  assert.match(html, /Today · order-date summary/);
+  assert.match(html, /Completed Orders · delivered/); assert.match(html, /Previous period was zero/);
+  assert.match(html, /Pending: 9 · Open across the workflow: 12/);
+  assert.match(html, /Customer Reviews · lifetime/); assert.match(html, /30 lifetime reviews/);
+  assert.match(html, /Fixture offer/); assert.match(html, /Active/);
+  const labels = ["Today · order-date summary", "Live operations", "Recent Orders", "Detailed sales", "Menu Items Management", "Offers &amp; Promotions"];
+  for (let index = 1; index < labels.length; index++) assert.ok(html.indexOf(labels[index]) > html.indexOf(labels[index - 1]), labels[index]);
+  assert.doesNotMatch(html, /Net Sales · all time|vs previous 7 days|100%|Infinity/);
+  assert.match(html, /sm:grid-cols-3/); assert.match(html, /grid-cols-2/);
+});
+
 test("order monitoring and offline warnings remain independent of successful summary", () => {
   const html = render("DashboardDataStatus", { summary: { ...initial, status: "success", lastSuccessAt: Date.now() }, monitoring: { ...initial, status: "error", error: "Browser offline.", offline: true }, settingsHealth: initial });
   assert.match(html, /Summary updated/); assert.match(html, /Order monitoring failed/); assert.match(html, /does not mean there are no pending orders/); assert.match(html, /Retry order monitoring/);

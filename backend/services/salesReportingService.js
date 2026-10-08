@@ -43,13 +43,38 @@ const serializeMetrics = (row = {}) => ({
   revenue: round(row.netSales), totalRevenue: round(row.netSales), refundTotal: round(row.completedRefunds),
 });
 
-export async function buildSalesReport({ query = {}, range = null, orderFilter = {}, dashboardPeriods = null } = {}) {
+// Restrict dashboard enrichment to the selected/comparison order cohorts and
+// current dated cash events. The union retains refunds of much older orders.
+// Deduplication happens before refund lookup, so a cohort + event order counts once.
+function dashboardCandidates(range, previous) {
+  const dateMatch = period => ({ $gte: period.start, $lt: period.end });
+  const cohorts = [range, previous].filter(Boolean);
+  const orderDates = cohorts.flatMap(period => [
+    { orderOccurredAt: dateMatch(period) },
+    { orderOccurredAt: null, createdAt: dateMatch(period) },
+  ]);
+  return [
+    { $match: { $or: [...orderDates, { source: "pos", createdAt: dateMatch(range) }, { voidedAt: dateMatch(range) }] } },
+    { $unionWith: { coll: Refund.collection.name, pipeline: [
+      { $match: { status: "completed", completedAt: dateMatch(range) } },
+      { $group: { _id: "$order" } },
+      { $lookup: { from: Order.collection.name, localField: "_id", foreignField: "_id", as: "order" } },
+      { $unwind: "$order" }, { $replaceRoot: { newRoot: "$order" } },
+    ] } },
+    { $group: { _id: "$_id", order: { $first: "$$ROOT" } } },
+    { $replaceRoot: { newRoot: "$order" } },
+  ];
+}
+
+export async function buildSalesReport({ query = {}, range = null, orderFilter = {}, dashboardPeriods = null, dashboardMode = false } = {}) {
   const seriesRange = dashboardPeriods?.current || range;
   const activityRange = seriesRange;
   const periodMatch = period => [{ $match: { reportOrderAt: { $gte: period.start, $lt: period.end } } }];
   const cohortMatch = range ? [{ $match: { reportOrderAt: { $gte: range.start, $lt: range.end } } }] : [];
   const breakdown = (field) => [...cohortMatch, { $group: { _id: field, orders: { $sum: 1 }, ...metrics } }, { $sort: { netSales: -1 } }];
+  const candidates = dashboardMode && range ? dashboardCandidates(range, dashboardPeriods?.previous) : [];
   const [result] = await Order.aggregate([
+    ...candidates,
     { $match: { $and: [salesSourceFilter(query), orderFilter] } },
     { $project: { source: 1, orderType: 1, status: 1, createdAt: 1, orderOccurredAt: 1, totalAmount: 1, paymentStatus: 1, deliveryPaymentType: 1, voidedAt: 1, paymentMethod: 1, refundedAmountHalala: 1, refundedAmount: 1, discountAmount: 1, "items.productType": 1, "items.menuItem": 1, "items.combo": 1, "items.name": 1, "items.quantity": 1, "items.price": 1 } },
     { $lookup: {
@@ -93,14 +118,14 @@ export async function buildSalesReport({ query = {}, range = null, orderFilter =
         currentSummary: [...periodMatch(dashboardPeriods.current), { $group: { _id: null, ...metrics } }],
         previousSummary: [...periodMatch(dashboardPeriods.previous), { $group: { _id: null, ...metrics } }],
         orderCounts: [{ $group: { _id: null,
-          currentOrders: { $sum: { $cond: [{ $gte: ["$reportOrderAt", dashboardPeriods.current.start] }, 1, 0] } },
+          currentOrders: { $sum: { $cond: [inRange("$reportOrderAt", dashboardPeriods.current), 1, 0] } },
           previousOrders: { $sum: { $cond: [inRange("$reportOrderAt", dashboardPeriods.previous), 1, 0] } },
-          currentCompleted: { $sum: { $cond: [{ $and: [{ $gte: ["$reportOrderAt", dashboardPeriods.current.start] }, { $eq: ["$status", "delivered"] }] }, 1, 0] } },
+          currentCompleted: { $sum: { $cond: [{ $and: [inRange("$reportOrderAt", dashboardPeriods.current), { $eq: ["$status", "delivered"] }] }, 1, 0] } },
           previousCompleted: { $sum: { $cond: [{ $and: [inRange("$reportOrderAt", dashboardPeriods.previous), { $eq: ["$status", "delivered"] }] }, 1, 0] } },
         } }],
-      } : { sources: breakdown({ $ifNull: ["$source", "website"] }), orderTypes: breakdown("$orderType") }),
+      } : dashboardMode ? {} : { sources: breakdown({ $ifNull: ["$source", "website"] }), orderTypes: breakdown("$orderType") }),
       statuses: [...cohortMatch, { $group: { _id: "$status", count: { $sum: 1 } } }, { $sort: { count: -1 } }],
-      items: [...cohortMatch, { $match: { reportCaptured: true, reportIsVoid: false } }, { $unwind: "$items" },
+      items: dashboardMode ? [{ $match: { _id: null } }] : [...cohortMatch, { $match: { reportCaptured: true, reportIsVoid: false } }, { $unwind: "$items" },
         { $group: {
           _id: { type: "$items.productType", product: { $ifNull: ["$items.menuItem", "$items.combo"] }, name: "$items.name" },
           quantity: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.price", "$items.quantity"] } },
@@ -113,11 +138,11 @@ export async function buildSalesReport({ query = {}, range = null, orderFilter =
         cashRefunds: { $sum: { $divide: [{ $ifNull: [{ $first: "$reportRefunds.cashAmount" }, 0] }, 100] } },
         voidAmount: { $sum: { $cond: [inRange("$voidedAt", activityRange), "$reportVoid", 0] } },
         cashVoids: { $sum: { $cond: [{ $and: [inRange("$voidedAt", activityRange), { $eq: ["$paymentMethod", "cash"] }] }, "$reportVoid", 0] } },
-        unknownPaymentDateAmount: { $sum: { $cond: [{ $eq: ["$reportPaymentAt", null] }, "$reportCollected", 0] } },
-        unknownRefundDateAmount: { $sum: { $add: [
+        unknownPaymentDateAmount: { $sum: { $cond: [{ $and: [{ $eq: ["$reportPaymentAt", null] }, ...(dashboardMode ? [inRange("$reportOrderAt", range)] : [])] }, "$reportCollected", 0] } },
+        unknownRefundDateAmount: { $sum: { $cond: [dashboardMode ? inRange("$reportOrderAt", range) : true, { $add: [
           { $max: [{ $subtract: ["$reportRefund", { $divide: [{ $ifNull: [{ $first: "$reportRefunds.amount" }, 0] }, 100] }] }, 0] },
           { $divide: [{ $ifNull: [{ $first: "$reportRefunds.undatedAmount" }, 0] }, 100] },
-        ] } },
+        ] }, 0] } },
       } }],
     } },
   ]);
@@ -127,6 +152,7 @@ export async function buildSalesReport({ query = {}, range = null, orderFilter =
     "unknownPaymentDateAmount", "unknownRefundDateAmount",
   ].map(key => [key, 0]));
   const cashActivity = Object.fromEntries(Object.entries(activity).filter(([k]) => k !== "_id").map(([k, v]) => [k, round(v)]));
+  if (dashboardMode) cashActivity.unknownDateScope = "Selected order-date cohort";
   cashActivity.netCollected = round(cashActivity.collectedAmount - cashActivity.completedRefunds - cashActivity.voidAmount);
   cashActivity.netCash = round(cashActivity.cashCollected - cashActivity.cashRefunds - cashActivity.cashVoids);
   const rows = new Map(result.series.map(row => [row._id, row]));
