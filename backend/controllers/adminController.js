@@ -14,7 +14,6 @@ import { buildSalesReport } from "../services/salesReportingService.js";
 import { ADMIN_DAY_MS, startOfRiyadhDay } from "../utils/adminDate.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
-const effectiveOrderDateExpression = { $ifNull: ["$orderOccurredAt", "$createdAt"] };
 
 const escapeRegex = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -33,6 +32,7 @@ const offerStatus = (offer, now) => {
 
 export const getDashboard = async (req, res) => {
   try {
+    res.setHeader?.("Cache-Control", "private, no-store");
     const now = new Date();
     const today = startOfRiyadhDay(now);
 
@@ -50,17 +50,18 @@ export const getDashboard = async (req, res) => {
     ];
 
     const periodEnd = new Date(today.getTime() + ADMIN_DAY_MS);
-    const [allSales, currentSales, previousSales] = await Promise.all([
-      buildSalesReport(),
-      buildSalesReport({ range: { start: currentPeriodStart, end: periodEnd, days: 7 } }),
-      buildSalesReport({ range: { start: previousPeriodStart, end: currentPeriodStart, days: 7 } }),
-    ]);
+    const allSales = await buildSalesReport({ dashboardPeriods: {
+      current: { start: currentPeriodStart, end: periodEnd, days: 7 },
+      previous: { start: previousPeriodStart, end: currentPeriodStart, days: 7 },
+    } });
+    const totalOrders = allSales.summary.totalOrders;
+    const statusRows = allSales.statusBreakdown.map(row => ({ _id: row.status, count: row.count }));
+    const counts = new Map(statusRows.map(row => [row._id, row.count]));
+    const completedOrders = counts.get("delivered") || 0, pendingOrders = counts.get("pending") || 0;
+    const openOrders = openStatuses.reduce((sum, status) => sum + (counts.get(status) || 0), 0);
+    const { currentOrders = 0, previousOrders = 0, currentCompleted = 0, previousCompleted = 0 } = allSales.dashboard.orderCounts;
 
     const [
-      totalOrders,
-      completedOrders,
-      pendingOrders,
-      openOrders,
       reviewRows,
       customerCount,
       staffCount,
@@ -72,18 +73,9 @@ export const getDashboard = async (req, res) => {
       recentPosts,
       recentOffers,
       recentReviews,
-      statusRows,
       categoryRows,
-      currentOrders,
-      previousOrders,
-      currentCompleted,
-      previousCompleted,
       inventorySummary,
     ] = await Promise.all([
-      Order.countDocuments(),
-      Order.countDocuments({ status: "delivered" }),
-      Order.countDocuments({ status: "pending" }),
-      Order.countDocuments({ status: { $in: openStatuses } }),
       Review.aggregate([
         {
           $group: {
@@ -102,20 +94,16 @@ export const getDashboard = async (req, res) => {
         startDate: { $lte: now },
         expiresAt: { $gt: now },
       }),
-      Order.find().sort({ createdAt: -1 }).limit(7).lean(),
-      MenuItem.find().sort({ updatedAt: -1 }).limit(6).lean(),
-      BlogPost.find().sort({ updatedAt: -1 }).limit(4).lean(),
-      Offer.find().sort({ updatedAt: -1 }).limit(4).lean(),
-      Review.find()
+      Order.find().select("orderNumber customer.name items.quantity totalAmount status createdAt updatedAt source orderType").sort({ createdAt: -1 }).limit(7).lean(),
+      MenuItem.find().select("name image category price isAvailable updatedAt").sort({ updatedAt: -1 }).limit(6).lean(),
+      BlogPost.find().select("title coverImage author isPublished updatedAt").sort({ updatedAt: -1 }).limit(4).lean(),
+      Offer.find().select("title isActive startDate expiresAt updatedAt").sort({ updatedAt: -1 }).limit(4).lean(),
+      Review.find().select("user menuItem rating comment createdAt")
         .sort({ createdAt: -1 })
         .limit(5)
         .populate("user", "name avatar")
         .populate("menuItem", "name image")
         .lean(),
-      Order.aggregate([
-        { $group: { _id: "$status", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
       MenuItem.aggregate([
         {
           $group: {
@@ -126,18 +114,6 @@ export const getDashboard = async (req, res) => {
         },
         { $sort: { count: -1 } },
       ]),
-      Order.countDocuments({ $expr: { $gte: [effectiveOrderDateExpression, currentPeriodStart] } }),
-      Order.countDocuments({
-        $expr: { $and: [{ $gte: [effectiveOrderDateExpression, previousPeriodStart] }, { $lt: [effectiveOrderDateExpression, currentPeriodStart] }] },
-      }),
-      Order.countDocuments({
-        status: "delivered",
-        $expr: { $gte: [effectiveOrderDateExpression, currentPeriodStart] },
-      }),
-      Order.countDocuments({
-        status: "delivered",
-        $expr: { $and: [{ $gte: [effectiveOrderDateExpression, previousPeriodStart] }, { $lt: [effectiveOrderDateExpression, currentPeriodStart] }] },
-      }),
       (async () => {
         const [health, pendingPurchaseOrders, openPurchasingActions] = await Promise.all([
           getInventoryHealth({ now }),
@@ -149,8 +125,8 @@ export const getDashboard = async (req, res) => {
     ]);
 
     const totalRevenue = allSales.summary.netSales;
-    const currentRevenue = currentSales.summary.netSales;
-    const previousRevenue = previousSales.summary.netSales;
+    const currentRevenue = allSales.dashboard.currentSummary.netSales;
+    const previousRevenue = allSales.dashboard.previousSummary.netSales;
 
     const activities = [
       ...recentOrders.slice(0, 4).map((order) => ({
@@ -224,13 +200,13 @@ export const getDashboard = async (req, res) => {
         activities,
         inventorySummary,
         reportingDefinitions: allSales.definitions,
-        cashActivity: currentSales.cashActivity,
+        cashActivity: allSales.cashActivity,
         analytics: {
           statusBreakdown: statusRows.map((row) => ({
             status: row._id,
             count: row.count,
           })),
-          dailyRevenue: currentSales.series,
+          dailyRevenue: allSales.series,
           popularItems: allSales.bestSelling.slice(0, 5),
           categories: categoryRows.map((row) => ({
             category: row._id,

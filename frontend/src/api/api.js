@@ -30,8 +30,9 @@ export const fetchPublicRestaurantSettings = async () => {
   return data.data;
 };
 
-export const fetchRestaurantSettings = async () => {
-  const { data } = await api.get("/settings");
+export const fetchRestaurantSettings = async (options = {}) => {
+  const { data } = await api.get("/settings", options);
+  if (!data.success || !data.data || typeof data.data !== "object" || Array.isArray(data.data)) throw new Error("Notification settings unavailable.");
   return data.data;
 };
 
@@ -224,11 +225,12 @@ export const fetchMyOrders = async () => {
   return data.data;
 };
 
-export const fetchOrders = async (filters = {}) => {
+export const fetchOrders = async (filters = {}, options = {}) => {
   const params = typeof filters === "string"
     ? (filters && filters !== "all" ? { status: filters } : {})
     : Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
-  const { data } = await api.get("/orders", { params });
+  const { data } = await api.get("/orders", { ...options, params });
+  if (!data.success || !Array.isArray(data.data) || data.data.some(order => !order || typeof order._id !== "string")) throw new Error("Pending-order response is unavailable");
   return data.data;
 };
 
@@ -422,8 +424,9 @@ export const deleteReward = async (id) => {
 };
 
 // ---- Admin dashboard ----
-export const fetchAdminDashboard = async () => {
-  const { data } = await api.get("/admin/dashboard");
+export const fetchAdminDashboard = async ({ signal } = {}) => {
+  const { data } = await api.get("/admin/dashboard", { signal, timeout: 20_000 });
+  if (!data.success || !data.data || typeof data.data !== "object" || Array.isArray(data.data)) throw new Error("Dashboard response is unavailable");
   return data.data;
 };
 

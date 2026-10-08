@@ -201,11 +201,12 @@ const AdminShell = ({
   user,
   onLogout,
   dashboard,
+  dataStatus,
   searchQuery,
   onSearchChange,
   searchResults,
   searching,
-  pendingOrderCount = 0,
+  pendingOrderCount = null,
   orderAlertsEnabled = true,
   onEnableOrderAlerts,
   onToggleOrderAlerts,
@@ -238,7 +239,7 @@ const AdminShell = ({
         <Sidebar
           activeTab={activeTab}
           onTabChange={onTabChange}
-          orderBadge={dashboard?.stats?.openOrders || 0}
+          orderBadge={dashboard?.stats?.openOrders}
           onNavigateAway={onNavigateAway}
           userRole={user?.role}
           user={user}
@@ -259,7 +260,7 @@ const AdminShell = ({
             <Sidebar
               activeTab={activeTab}
               onTabChange={onTabChange}
-              orderBadge={dashboard?.stats?.openOrders || 0}
+              orderBadge={dashboard?.stats?.openOrders}
               onClose={() => setMobileOpen(false)}
               onNavigateAway={onNavigateAway}
               userRole={user?.role}
@@ -304,7 +305,7 @@ const AdminShell = ({
             <div className="ml-auto flex items-center gap-1 sm:gap-2">
               <Link href="/admin/record-search" onClick={event => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); }} className="flex h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-neutral-300 hover:text-dune-amber" aria-label="Search by ID"><Search className="h-4 w-4" /><span className="hidden sm:inline">Search by ID</span></Link>
               {showOrderControls && <><div className="hidden rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-400 xl:block">
-                Live data · {new Date().toLocaleDateString("en-SA", { month: "short", day: "numeric", year: "numeric" })}
+                {dataStatus === "stale" ? "Summary may be outdated" : dataStatus === "error" ? "Summary unavailable" : dashboard ? "Summary available" : "Awaiting summary"}
               </div>
               <button
                 type="button"
@@ -315,7 +316,7 @@ const AdminShell = ({
                 className={`relative flex h-10 w-10 items-center justify-center rounded-lg hover:bg-white/5 hover:text-white ${
                   pendingOrderCount > 0 ? "text-dune-amber" : "text-neutral-400"
                 }`}
-                aria-label="Open orders needing attention"
+                aria-label={pendingOrderCount == null ? "Pending-order count unavailable; open orders" : `Open orders needing attention; last known pending count ${pendingOrderCount}`}
                 title="Open pending orders and enable browser notifications"
               >
                 <Bell className={`h-5 w-5 ${pendingOrderCount > 0 ? "animate-pulse" : ""}`} />

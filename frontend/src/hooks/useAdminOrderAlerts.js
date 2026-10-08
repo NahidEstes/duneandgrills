@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { fetchOrders, fetchRestaurantSettings } from "../api/api.js";
+import { useFreshResource } from "./useFreshResource.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import { formatPrice } from "../utils/currency.js";
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -18,8 +20,11 @@ const pendingSignature = (orders) =>
     .sort()
     .join("|");
 
-export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
+export const useAdminOrderAlerts = ({ onPendingOrdersChange, onUnauthorized } = {}) => {
+  const { user } = useAuth();
+  const identity = user ? `${user._id}:${user.role}` : "";
   const [pendingOrders, setPendingOrders] = useState([]);
+  const [hasSuccessfulPoll, setHasSuccessfulPoll] = useState(false);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [notificationSettings, setNotificationSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
   const knownOrderIds = useRef(new Set());
@@ -33,22 +38,21 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
     if (stored === "false") setAlertsEnabled(false);
   }, []);
 
+  const settingsHealth = useFreshResource({
+    identity, fetcher: ({ signal }) => fetchRestaurantSettings({ signal, timeout: 20_000 }),
+    intervalMs: 300_000, onUnauthorized,
+    onData: settings => setNotificationSettings(normalizeNotificationSettings(settings?.notifications)),
+  });
+  const refreshSettings = settingsHealth.refresh;
+  const stopSettings = settingsHealth.stop;
   useEffect(() => {
-    let active = true;
-    const applySettings = (settings) => {
-      if (active) setNotificationSettings(normalizeNotificationSettings(settings?.notifications));
+    const apply = event => {
+      setNotificationSettings(normalizeNotificationSettings(event.detail?.notifications));
+      refreshSettings("mutation");
     };
-    const loadSettings = () => fetchRestaurantSettings().then(applySettings).catch(() => undefined);
-    const handleSettingsUpdate = (event) => applySettings(event.detail);
-    loadSettings();
-    window.addEventListener(RESTAURANT_SETTINGS_UPDATED_EVENT, handleSettingsUpdate);
-    window.addEventListener("focus", loadSettings);
-    return () => {
-      active = false;
-      window.removeEventListener(RESTAURANT_SETTINGS_UPDATED_EVENT, handleSettingsUpdate);
-      window.removeEventListener("focus", loadSettings);
-    };
-  }, []);
+    window.addEventListener(RESTAURANT_SETTINGS_UPDATED_EVENT, apply);
+    return () => window.removeEventListener(RESTAURANT_SETTINGS_UPDATED_EVENT, apply);
+  }, [refreshSettings]);
 
   useEffect(() => {
     pendingCountRef.current = pendingOrders.length;
@@ -99,71 +103,65 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
       (total, item) => total + Number(item.quantity || 0),
       0
     );
-    const notification = new window.Notification(
-      `New order #${order.orderNumber}`,
-      {
-        body: `${order.customer?.name || "Customer"} · ${itemCount} item${
-          itemCount === 1 ? "" : "s"
-        } · ${formatPrice(order.totalAmount)}`,
-        tag: `dune-order-${order._id}`,
-        renotify: true,
-      }
-    );
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
+    // Browser notification support can fail independently of a successful API poll.
+    try {
+      const notification = new window.Notification(
+        `New order #${order.orderNumber}`,
+        {
+          body: `${order.customer?.name || "Customer"} · ${itemCount} item${
+            itemCount === 1 ? "" : "s"
+          } · ${formatPrice(order.totalAmount)}`,
+          tag: `dune-order-${order._id}`,
+          renotify: true,
+        }
+      );
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    } catch { /* Unsupported browser/device notification; polling remains healthy. */ }
   }, []);
 
-  const pollPendingOrders = useCallback(async () => {
-    try {
-      const orders = await fetchOrders("pending");
-      const nextSignature = pendingSignature(orders);
-      const newOrders = orders.filter(
-        (order) => !knownOrderIds.current.has(order._id)
-      );
+  const applyPendingOrders = useCallback((orders) => {
+    const nextSignature = pendingSignature(orders);
+    const newOrders = orders.filter(order => !knownOrderIds.current.has(order._id));
 
-      if (nextSignature !== signatureRef.current) {
-        signatureRef.current = nextSignature;
-        setPendingOrders(orders);
-        onPendingOrdersChange?.(orders);
-      }
-
-      if (newOrders.length > 0) {
-        if (initializedRef.current) {
-          newOrders.forEach((order) => {
-            toast.warning(`New order #${order.orderNumber}`, {
-              description: `${order.customer?.name || "Customer"} placed a new order.`,
-              duration: 8_000,
-            });
-            showBrowserNotification(order);
-          });
-        } else {
-          toast.info(
-            `${newOrders.length} pending order${newOrders.length === 1 ? "" : "s"} need attention.`,
-            { duration: 6_000 }
-          );
-        }
-      }
-
-      knownOrderIds.current = new Set(orders.map((order) => order._id));
-      initializedRef.current = true;
-    } catch {
-      // The normal dashboard error handling remains responsible for visible
-      // connection errors. A failed background poll retries automatically.
+    if (nextSignature !== signatureRef.current) {
+      signatureRef.current = nextSignature;
+      setPendingOrders(orders);
+      onPendingOrdersChange?.(orders, { initial: !initializedRef.current });
     }
+
+    if (newOrders.length > 0) {
+      if (initializedRef.current) {
+        newOrders.forEach(order => {
+          toast.warning(`New order #${order.orderNumber}`, {
+            description: `${order.customer?.name || "Customer"} placed a new order.`,
+            duration: 8_000,
+          });
+          showBrowserNotification(order);
+        });
+      } else {
+        toast.info(
+          `${newOrders.length} pending order${newOrders.length === 1 ? "" : "s"} need attention.`,
+          { duration: 6_000 }
+        );
+      }
+    }
+
+    newOrders.forEach(order => knownOrderIds.current.add(order._id));
+    // Keep IDs for this mounted/authenticated session; retries and reappearing pending orders must not re-notify.
+    initializedRef.current = true;
+    setHasSuccessfulPoll(true);
   }, [onPendingOrdersChange, showBrowserNotification]);
 
-  useEffect(() => {
-    pollPendingOrders();
-    const timer = window.setInterval(pollPendingOrders, notificationSettings.pollingIntervalSeconds * 1000);
-    const refreshOnFocus = () => pollPendingOrders();
-    window.addEventListener("focus", refreshOnFocus);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refreshOnFocus);
-    };
-  }, [notificationSettings.pollingIntervalSeconds, pollPendingOrders]);
+  const monitoring = useFreshResource({
+    identity, fetcher: ({ signal }) => fetchOrders("pending", { signal, timeout: 20_000 }),
+    onData: applyPendingOrders, onUnauthorized, pauseWhenHidden: false,
+    intervalMs: notificationSettings.pollingIntervalSeconds * 1000,
+    retryBaseMs: notificationSettings.pollingIntervalSeconds * 1000, retryMaxMs: 60_000,
+  });
+  const pollPendingOrders = monitoring.refresh;
 
   useEffect(() => {
     if (!alertsEnabled || !notificationSettings.adminSoundEnabled || pendingOrders.length === 0) return undefined;
@@ -239,10 +237,24 @@ export const useAdminOrderAlerts = ({ onPendingOrdersChange } = {}) => {
     );
   }, []);
 
+  const stopOrderPolling = monitoring.stop;
+  const stopMonitoring = useCallback(() => {
+    stopOrderPolling();
+    stopSettings();
+    knownOrderIds.current.clear();
+    signatureRef.current = "";
+    initializedRef.current = false;
+    setPendingOrders([]);
+    setHasSuccessfulPoll(false);
+  }, [stopOrderPolling, stopSettings]);
+
   return {
     alertsEnabled: alertsEnabled && notificationSettings.adminSoundEnabled,
     dismissPendingOrder,
-    pendingCount: pendingOrders.length,
+    pendingCount: hasSuccessfulPoll ? pendingOrders.length : null,
+    monitoring,
+    settingsHealth,
+    stopMonitoring,
     pollPendingOrders,
     requestBrowserPermission,
     toggleAlerts,

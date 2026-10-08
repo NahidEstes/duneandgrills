@@ -1,5 +1,6 @@
 "use client";
 
+import { availableNumber, dashboardMoney, dashboardNumber } from "./dashboardFreshness.js";
 import InventoryHealthSummary from "./InventoryHealthSummary.jsx";
 import SalesReportSummary from "./SalesReportSummary.jsx";
 
@@ -13,7 +14,6 @@ import {
   CircleDollarSign,
   ClipboardList,
   Clock3,
-  Flame,
   PackageCheck,
   RefreshCw,
   Star,
@@ -23,7 +23,6 @@ import {
 import { useMemo, useState } from "react";
 import SmartImage from "../SmartImage.jsx";
 import {
-  formatAdminCurrency,
   formatAdminDate,
   formatRelativeTime,
   labelStatus,
@@ -48,7 +47,7 @@ const Trend = ({ value, suffix = "vs previous 7 days" }) => {
   const Icon = positive ? ArrowUpRight : ArrowDownRight;
   return (
     <p className={`mt-1 flex items-center gap-1 text-[0.68rem] ${positive ? "text-emerald-400" : "text-red-400"}`}>
-      <Icon className="h-3 w-3" /> {Math.abs(value || 0)}%
+      <Icon className="h-3 w-3" /> {Math.abs(value)}%
       <span className="text-neutral-600">{suffix}</span>
     </p>
   );
@@ -72,7 +71,7 @@ const StatCard = ({ icon: Icon, label, value, trend, tone = "amber", note }) => 
         <p className="mt-1 truncate text-xl font-semibold tracking-tight text-white sm:text-2xl">
           {value}
         </p>
-        {trend !== undefined ? <Trend value={trend} /> : note && <p className="mt-1 text-[0.68rem] text-neutral-500">{note}</p>}
+        {availableNumber(trend) ? <Trend value={trend} /> : note && <p className="mt-1 text-[0.68rem] text-neutral-500">{note}</p>}
       </div>
     </article>
   );
@@ -106,13 +105,14 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
       <div className="grid min-h-[55vh] place-items-center rounded-xl border border-white/[0.08] bg-white/[0.02]">
         <div className="text-center text-neutral-500">
           <RefreshCw className="mx-auto mb-3 h-6 w-6 animate-spin text-dune-amber" />
-          Loading live restaurant data…
+          Loading restaurant summary…
         </div>
       </div>
     );
   }
 
-  const stats = data?.stats || {};
+  if (!data) return <div className="rounded-xl border border-white/10 bg-white/[0.025] p-8 text-center text-neutral-400">Dashboard summary unavailable. Use Retry summary above.</div>;
+  const stats = data.stats || {};
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -120,34 +120,34 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
         <StatCard
           icon={ClipboardList}
           label="Total Orders"
-          value={(stats.totalOrders || 0).toLocaleString()}
+          value={dashboardNumber(stats.totalOrders)}
           trend={stats.trends?.orders}
         />
         <StatCard
           icon={CircleDollarSign}
           label="Net Sales · all time"
-          value={formatAdminCurrency(stats.totalRevenue)}
+          value={dashboardMoney(stats.totalRevenue)}
           trend={stats.trends?.revenue}
         />
         <StatCard
           icon={PackageCheck}
           label="Completed Orders"
-          value={(stats.completedOrders || 0).toLocaleString()}
+          value={dashboardNumber(stats.completedOrders)}
           trend={stats.trends?.completed}
           tone="green"
         />
         <StatCard
           icon={Clock3}
           label="Pending Orders"
-          value={(stats.pendingOrders || 0).toLocaleString()}
-          note={`${stats.openOrders || 0} open across the workflow`}
+          value={dashboardNumber(stats.pendingOrders)}
+          note={`${dashboardNumber(stats.openOrders)} open across the workflow`}
           tone="red"
         />
         <StatCard
           icon={Star}
           label="Customer Reviews"
-          value={`${Number(stats.averageRating || 0).toFixed(1)} / 5`}
-          note={`${stats.reviewCount || 0} verified reviews`}
+          value={availableNumber(stats.averageRating) ? `${stats.averageRating.toFixed(1)} / 5` : "—"}
+          note={`${dashboardNumber(stats.reviewCount)} verified reviews`}
           tone="blue"
         />
       </div>
@@ -199,8 +199,8 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
                     >
                       <td className="px-4 py-3 font-medium text-white">#{order.orderNumber}</td>
                       <td className="px-3 py-3 text-neutral-300">{order.customer?.name || "Guest"}</td>
-                      <td className="px-3 py-3 text-neutral-400">{order.items?.reduce((sum, item) => sum + item.quantity, 0) || 0}</td>
-                      <td className="px-3 py-3 font-medium text-white">{formatAdminCurrency(order.totalAmount)}</td>
+                      <td className="px-3 py-3 text-neutral-400">{Array.isArray(order.items) && order.items.every(item => availableNumber(item.quantity)) ? dashboardNumber(order.items.reduce((sum, item) => sum + item.quantity, 0)) : "—"}</td>
+                      <td className="px-3 py-3 font-medium text-white">{dashboardMoney(order.totalAmount)}</td>
                       <td className="px-3 py-3">
                         <span className={`inline-flex rounded-md border px-2 py-1 text-[0.65rem] ${statusStyles[order.status] || statusStyles.inactive}`}>
                           {labelStatus(order.status)}
@@ -212,7 +212,7 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
                 </tbody>
               </table>
             ) : (
-              <EmptyRow>No recent orders match this status.</EmptyRow>
+              <EmptyRow>{Array.isArray(data.recentOrders) ? "No recent orders match this status." : "Recent orders unavailable."}</EmptyRow>
             )}
           </div>
         </Panel>
@@ -240,7 +240,7 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
                   />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-white">{item.name}</span>
-                    <span className="block truncate text-[0.68rem] text-neutral-500">{item.category} · {formatAdminCurrency(item.price)}</span>
+                    <span className="block truncate text-[0.68rem] text-neutral-500">{item.category} · {dashboardMoney(item.price)}</span>
                   </span>
                   <span className={`rounded-md px-2 py-1 text-[0.65rem] ${item.isAvailable ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
                     {item.isAvailable ? "Available" : "Hidden"}
@@ -249,7 +249,7 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
               ))}
             </div>
           ) : (
-            <EmptyRow>No menu items found.</EmptyRow>
+            <EmptyRow>{Array.isArray(data.recentMenuItems) ? "No menu items found." : "Menu items unavailable."}</EmptyRow>
           )}
           <button
             type="button"
@@ -281,7 +281,7 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
                 </button>
               ))}
             </div>
-          ) : <EmptyRow>No blog posts found.</EmptyRow>}
+          ) : <EmptyRow>{Array.isArray(data.recentPosts) ? "No blog posts found." : "Blog posts unavailable."}</EmptyRow>}
         </Panel>
 
         <Panel
@@ -303,7 +303,7 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
                 </button>
               ))}
             </div>
-          ) : <EmptyRow>No offers found.</EmptyRow>}
+          ) : <EmptyRow>{Array.isArray(data.recentOffers) ? "No offers found." : "Offers unavailable."}</EmptyRow>}
         </Panel>
 
         <Panel
@@ -331,13 +331,11 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
                 );
               })}
             </div>
-          ) : <EmptyRow>No recent activity.</EmptyRow>}
+          ) : <EmptyRow>{Array.isArray(data.activities) ? "No recent activity." : "Recent activity unavailable."}</EmptyRow>}
         </Panel>
       </div>
 
-      <div className="flex items-center justify-center gap-2 py-2 text-xs text-neutral-600">
-        <Flame className="h-4 w-4 text-dune-amber" /> Live from MongoDB · refreshed {data?.generatedAt ? formatRelativeTime(data.generatedAt) : "now"}
-      </div>
+
     </div>
   );
 };

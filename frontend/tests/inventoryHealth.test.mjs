@@ -9,8 +9,9 @@ import { inventoryHealthOptions, initialInventoryStatus } from "../src/component
 const require = createRequire(import.meta.url);
 const { transformSync } = require("next/dist/build/swc");
 const componentPath = new URL("../src/components/admin/InventoryHealthSummary.jsx", import.meta.url);
+const localRequire = name => name === "./dashboardFreshness.js" ? { dashboardNumber: value => typeof value === "number" ? value.toLocaleString() : "—" } : require(name);
 const transformed = transformSync(readFileSync(componentPath, "utf8"), { filename: componentPath.pathname, jsc: { parser: { syntax: "ecmascript", jsx: true }, transform: { react: { runtime: "automatic" } } }, module: { type: "commonjs" } });
-const compiledModule = { exports: {} }; new Function("require", "module", "exports", transformed.code)(require, compiledModule, compiledModule.exports);
+const compiledModule = { exports: {} }; new Function("require", "module", "exports", transformed.code)(localRequire, compiledModule, compiledModule.exports);
 const InventoryHealthSummary = compiledModule.exports.default;
 // Read the server-owned destinations so this test cannot pass using a different set of links.
 const backend = readFileSync(new URL("../../backend/services/inventoryHealthService.js", import.meta.url), "utf8");
@@ -23,7 +24,7 @@ test("summary renders server-provided counts, metric units, inclusive expiry and
   assert.match(html, /Expired \/ Blocked Stock · 4 items/); assert.match(html, /unique active items/);
   assert.match(html, /today through \+7 Riyadh days/); assert.match(html, /categories can overlap/);
   assert.match(html, /physical versus saleable/); assert.match(html, /Orders · ordered or partially received/);
-  assert.equal(renderToStaticMarkup(React.createElement(InventoryHealthSummary, {})), "");
+  assert.match(renderToStaticMarkup(React.createElement(InventoryHealthSummary, {})), /Inventory Health unavailable/);
 });
 
 test("all stock warning destinations are supported by the shared filter options", () => {

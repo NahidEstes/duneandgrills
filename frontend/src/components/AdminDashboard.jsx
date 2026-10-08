@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useFreshResource } from "../hooks/useFreshResource.js";
+import DashboardDataStatus from "./admin/DashboardDataStatus.jsx";
 import { fetchAdminDashboard, searchAdmin } from "../api/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useAdminOrderAlerts } from "../hooks/useAdminOrderAlerts.js";
+import { RESTAURANT_SETTINGS_UPDATED_EVENT } from "../utils/notificationSettings.js";
 import AdminShell from "./admin/AdminShell.jsx";
 import DashboardOverview from "./admin/DashboardOverview.jsx";
 import MenuItemsTab from "./admin/MenuItemsTab.jsx";
@@ -26,7 +28,7 @@ import OrdersTab from "./OrdersTab.jsx";
 const TAB_CONTENT = {
   overview: {
     title: "Restaurant Dashboard",
-    subtitle: "A live overview of orders, content and restaurant performance.",
+    subtitle: "Orders, content and restaurant performance with explicit update status.",
   },
   orders: {
     title: "Order Management",
@@ -66,7 +68,7 @@ const TAB_CONTENT = {
   },
   analytics: {
     title: "Restaurant Analytics",
-    subtitle: "Revenue, order status and menu performance from live records.",
+    subtitle: "Revenue, order status and menu performance from recorded orders.",
   },
   audit: {
     title: "Admin Audit Log",
@@ -84,40 +86,31 @@ const TAB_CONTENT = {
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
-  const [dashboard, setDashboard] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [orderRefreshKey, setOrderRefreshKey] = useState(0);
   const [settingsDirty, setSettingsDirty] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, setUser } = useAuth();
+  const onUnauthorized = useCallback(error => { if (error.response?.status === 401) setUser(null); }, [setUser]);
+  const summary = useFreshResource({ identity: user ? `${user._id}:${user.role}` : "", fetcher: fetchAdminDashboard, onUnauthorized });
+  const dashboard = summary.data;
+  const loadDashboard = summary.refresh;
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
     if (requestedTab && TAB_CONTENT[requestedTab]) setActiveTab(requestedTab);
   }, []);
 
-  const loadDashboard = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      setDashboard(await fetchAdminDashboard());
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Unable to load the admin dashboard."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadDashboard();
+    const refreshSettingsSummary = () => loadDashboard("mutation");
+    window.addEventListener(RESTAURANT_SETTINGS_UPDATED_EVENT, refreshSettingsSummary);
+    return () => window.removeEventListener(RESTAURANT_SETTINGS_UPDATED_EVENT, refreshSettingsSummary);
   }, [loadDashboard]);
 
-  const handlePendingOrdersChange = useCallback(() => {
+  const handlePendingOrdersChange = useCallback((_orders, { initial = false } = {}) => {
     setOrderRefreshKey((current) => current + 1);
-    loadDashboard(true);
+    if (!initial) loadDashboard("mutation");
   }, [loadDashboard]);
 
   const {
@@ -127,8 +120,12 @@ const AdminDashboard = () => {
     pollPendingOrders,
     requestBrowserPermission,
     toggleAlerts,
+    monitoring,
+    settingsHealth,
+    stopMonitoring,
   } = useAdminOrderAlerts({
     onPendingOrdersChange: handlePendingOrdersChange,
+    onUnauthorized,
   });
 
   useEffect(() => {
@@ -162,11 +159,14 @@ const AdminDashboard = () => {
   const handleTabChange = (nextTab) => {
     if (!confirmSettingsExit()) return false;
     setActiveTab(nextTab);
+    if (nextTab === "overview") loadDashboard("focus");
     return true;
   };
 
   const handleLogout = () => {
     if (!confirmSettingsExit()) return;
+    summary.stop();
+    stopMonitoring();
     logout();
   };
 
@@ -177,10 +177,11 @@ const AdminDashboard = () => {
       dismissPendingOrder(orderId);
     }
     setOrderRefreshKey((current) => current + 1);
+    loadDashboard("mutation");
   };
 
   const content = TAB_CONTENT[activeTab] || TAB_CONTENT.overview;
-  const refreshAfterMutation = () => loadDashboard(true);
+  const refreshAfterMutation = () => loadDashboard("mutation");
 
   return (
     <AdminShell
@@ -192,6 +193,7 @@ const AdminDashboard = () => {
       user={user}
       onLogout={handleLogout}
       dashboard={dashboard}
+      dataStatus={summary.status}
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
       searchResults={searchResults}
@@ -201,11 +203,12 @@ const AdminDashboard = () => {
       onEnableOrderAlerts={requestBrowserPermission}
       onToggleOrderAlerts={toggleAlerts}
     >
+      <DashboardDataStatus summary={summary} monitoring={monitoring} settingsHealth={settingsHealth} onRefresh={() => loadDashboard("manual")} onRetryMonitoring={() => pollPendingOrders("manual")} />
       {activeTab === "overview" && (
         <DashboardOverview
           data={dashboard}
-          loading={loading}
-          onRefresh={() => loadDashboard()}
+          loading={summary.status === "loading"}
+          onRefresh={() => loadDashboard("manual")}
           onNavigate={handleTabChange}
         />
       )}
