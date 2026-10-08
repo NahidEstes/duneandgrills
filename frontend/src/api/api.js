@@ -239,15 +239,23 @@ export const trackGuestOrder = async (orderNumber, trackingToken) => {
   return data.data;
 };
 
-export const fetchOrdersPage = async (filters = {}) => {
+export const fetchOrdersPage = async (filters = {}, options = {}) => {
   const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== "" && value !== undefined && value !== null && value !== "all"));
-  const { data } = await api.get("/orders", { params });
+  const { data } = await api.get("/orders", { timeout: 20000, ...options, params });
+  if (!data.success || !Array.isArray(data.data) || data.data.some(order => !order || typeof order._id !== "string")) throw new Error("Order list is unavailable");
   return { data: data.data, pagination: data.pagination };
 };
 
-export const fetchOrderStats = async (filters = {}) => {
+export const fetchOrderById = async (id, options = {}) => {
+  if (!/^[a-f0-9]{24}$/i.test(id)) throw new Error("Invalid order link");
+  const { data } = await api.get(`/orders/${encodeURIComponent(id)}`, { timeout: 20000, ...options });
+  if (!data.success || typeof data.data?._id !== "string" || data.data._id.toLowerCase() !== id.toLowerCase()) throw new Error("Order details are unavailable");
+  return data.data;
+};
+
+export const fetchOrderStats = async (filters = {}, options = {}) => {
   const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
-  const { data } = await api.get("/orders/stats", { params });
+  const { data } = await api.get("/orders/stats", { timeout: 20000, ...options, params });
   return data.data;
 };
 

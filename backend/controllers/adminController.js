@@ -2,6 +2,7 @@ import BlogPost from "../models/BlogPost.js";
 import MenuItem from "../models/MenuItem.js";
 import Offer from "../models/Offer.js";
 import Order from "../models/Order.js";
+import { RECENT_ORDER_FIELDS, serializeAdminOrder } from "../services/orderSerializer.js";
 import Review from "../models/Review.js";
 import User from "../models/User.js";
 import Combo from "../models/Combo.js";
@@ -94,7 +95,7 @@ export const getDashboard = async (req, res) => {
         startDate: { $lte: now },
         expiresAt: { $gt: now },
       }),
-      Order.find().select("orderNumber customer.name items.quantity totalAmount status createdAt updatedAt source orderType").sort({ createdAt: -1 }).limit(7).lean(),
+      Order.find().select(RECENT_ORDER_FIELDS).sort({ createdAt: -1, _id: -1 }).limit(7).lean(),
       MenuItem.find().select("name image category price isAvailable updatedAt").sort({ updatedAt: -1 }).limit(6).lean(),
       BlogPost.find().select("title coverImage author isPublished updatedAt").sort({ updatedAt: -1 }).limit(4).lean(),
       Offer.find().select("title isActive startDate expiresAt updatedAt").sort({ updatedAt: -1 }).limit(4).lean(),
@@ -189,7 +190,8 @@ export const getDashboard = async (req, res) => {
             completed: percentageChange(currentCompleted, previousCompleted),
           },
         },
-        recentOrders,
+        recentOrders: recentOrders.map(order => serializeAdminOrder(order, now)),
+        recentOrdersMeta: { total: totalOrders, limit: 7, hasMore: totalOrders > 7 },
         recentMenuItems,
         recentPosts,
         recentOffers: recentOffers.map((offer) => ({

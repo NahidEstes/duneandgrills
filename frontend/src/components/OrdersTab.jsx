@@ -4,10 +4,13 @@ import RecordId from "@/src/components/ui/RecordId.jsx";
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Clock, Eye, MapPin, Phone, Printer, RefreshCw, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import { bulkUpdateOrderStatus, createOrderRefund, fetchOrderRefunds, fetchOrdersPage, fetchOrderStats, fetchPublicRestaurantSettings, transitionOrderRefund, updateOrderStatus } from "../api/api.js";
+import { fetchOrderById, bulkUpdateOrderStatus, createOrderRefund, fetchOrderRefunds, fetchOrdersPage, fetchOrderStats, fetchPublicRestaurantSettings, transitionOrderRefund, updateOrderStatus } from "../api/api.js";
+import { useOrderDetails } from "../hooks/useOrderDetails.js";
+import { useOrderDialog } from "../hooks/useOrderDialog.js";
+import { ORDER_STATUS_LABELS, orderSourceLabel, orderDateLabel, orderPaymentLabel, orderPreparationLabel } from "../utils/adminOrders.js";
 import { formatAdminCurrency } from "./admin/adminUi.js";
 import { printOrderInvoice } from "../utils/adminExports.js";
 import { formatOrderType, getOrderSubtotal } from "../utils/order.js";
@@ -25,17 +28,7 @@ const STATUS_STYLES = {
   failed: "bg-red-500/10 text-red-400 border-red-500/40",
 };
 
-const STATUS_LABELS = {
-  pending: "Pending",
-  confirmed: "Order Accepted",
-  preparing: "Preparing",
-  ready: "Ready",
-  "out-for-delivery": "Out for Delivery",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  refunded: "Refunded",
-  failed: "Failed",
-};
+const STATUS_LABELS = ORDER_STATUS_LABELS;
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const EDITABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter((status) => status !== "refunded");
@@ -46,7 +39,7 @@ const PAYMENT_OPTIONS = ["all", "cash", "card", "other", "unrecorded"];
 
 const needsReason = (status) => status === "cancelled";
 
-const labelSource = (value = "website") => value === "pos" ? "POS / Counter" : value === "hungerstation" ? "HungerStation" : value.charAt(0).toUpperCase() + value.slice(1);
+const labelSource = orderSourceLabel;
 
 const StatusBadge = ({ status }) => (
   <span
@@ -66,6 +59,17 @@ const StatCard = ({ label, value, sub }) => (
     {sub && <p className="text-dune-amber text-xs mt-1">{sub}</p>}
   </div>
 );
+
+const OrderDetailsState = ({ details, onClose }) => {
+  const dialog = useOrderDialog(onClose);
+  return <div className="fixed inset-0 z-[80] grid place-items-center bg-black/80 p-4">
+    <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="order-detail-state" tabIndex={-1} className="w-full max-w-lg rounded-2xl border border-dune-border bg-dune-surface p-6">
+      <div className="flex items-center justify-between gap-4"><h2 id="order-detail-state" className="text-lg font-semibold text-white">Order details</h2><button type="button" aria-label="Close order details" onClick={onClose}><X className="h-5 w-5" /></button></div>
+      <p role={details.loading ? "status" : "alert"} className="mt-4 text-sm text-neutral-300">{details.loading ? "Loading selected order…" : details.error}</p>
+      {details.retryable && <button type="button" onClick={details.reload} className="mt-4 rounded-lg border border-dune-border px-4 py-2 text-dune-amber">Retry order details</button>}
+    </div>
+  </div>;
+};
 
 const RefundPanel = ({ order, onChanged }) => {
   const [data, setData] = useState(null);
@@ -90,7 +94,7 @@ const RefundPanel = ({ order, onChanged }) => {
       toast.success("Refund request recorded for approval.");
       setForm((current) => ({ ...current, reason: "", externalReference: "", amount: "" }));
       await load();
-      onChanged?.();
+      await onChanged?.();
     } catch (error) { toast.error(error.response?.data?.message || "Unable to request refund."); }
     finally { setSaving(false); }
   };
@@ -102,7 +106,7 @@ const RefundPanel = ({ order, onChanged }) => {
       await transitionOrderRefund(refund._id, action, { note, externalReference: form.externalReference });
       toast.success(`Refund ${action} action saved.`);
       await load();
-      onChanged?.();
+      await onChanged?.();
     } catch (error) { toast.error(error.response?.data?.message || "Unable to update refund."); }
     finally { setSaving(false); }
   };
@@ -116,6 +120,8 @@ const RefundPanel = ({ order, onChanged }) => {
 
 // ---- Order details modal with inline status control ----
 export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
+  const dialog = useOrderDialog(onClose);
+  const prep = orderPreparationLabel(order);
   const [status, setStatus] = useState(order.status);
   const [reason, setReason] = useState(order.cancellationReason || order.refundReason || "");
   const [estimatedPreparationMinutes, setEstimatedPreparationMinutes] = useState(order.estimatedPreparationMinutes || "");
@@ -133,7 +139,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
         reason: reason.trim(),
         estimatedPreparationMinutes,
       });
-      onSaved(updated);
+      await onSaved(updated);
       toast.success(`Order #${order.orderNumber} updated.`);
     } catch (error) {
       toast.error(error.response?.data?.message || "Unable to update order status.");
@@ -148,31 +154,23 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
       className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
     >
       <div
+        ref={dialog} role="dialog" aria-modal="true" aria-labelledby="order-dialog-title" tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl border border-dune-border bg-dune-surface p-6 my-8"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-dune-border bg-dune-surface p-6"
       >
         <div className="flex items-start justify-between mb-5">
           <div>
-            <h2 className="font-display text-2xl tracking-wide text-white">
+            <h2 id="order-dialog-title" className="font-display text-2xl tracking-wide text-white">
               ORDER #<RecordId value={order.orderNumber} />
             </h2>
             <p className="text-xs text-neutral-500 mt-1">
               {order.manualEntry ? "Original order: " : ""}
-              {new Date(order.orderOccurredAt || order.createdAt).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })}{" "}
-              at{" "}
-              {new Date(order.orderOccurredAt || order.createdAt).toLocaleTimeString(undefined, {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-              {order.manualEntry && <span className="mt-1 block">Entered in system: {new Date(order.createdAt).toLocaleString()}</span>}
+              {orderDateLabel(order.orderOccurredAt || order.createdAt)}
+              {order.manualEntry && <span className="mt-1 block">Entered in system: {orderDateLabel(order.createdAt)}</span>}
             </p>
           </div>
           <button
-            onClick={onClose}
+            type="button" aria-label="Close order details" onClick={onClose}
             className="text-neutral-400 hover:text-white"
           >
             <X className="w-5 h-5" />
@@ -211,7 +209,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
           </label>
         )}
 
-        {order.isOverdue && <p className="mt-3 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"><AlertTriangle className="h-4 w-4" />Preparation estimate is overdue.</p>}
+        {prep?.overdue && <p className="mt-3 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"><AlertTriangle className="h-4 w-4" />{prep.text}.</p>}
 
         <div className="mt-4 rounded-lg border border-dune-border bg-black/30 px-4 py-3">
           <p className="text-xs uppercase tracking-wide text-neutral-500">
@@ -221,7 +219,8 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
             {formatOrderType(order.orderType)}
           </p>
           <p className="mt-1 text-xs text-neutral-500">
-            {labelSource(order.source)} · {order.paymentMethod === "unrecorded" || !order.paymentMethod ? "Payment not recorded" : `${order.deliveryPaymentType === "aggregator_prepaid" ? "Aggregator prepaid" : formatOrderType(order.paymentMethod)} · ${formatOrderType(order.paymentStatus)}`}
+            {labelSource(order.source)} · {orderPaymentLabel(order)}
+            {order.deliveryPaymentType !== "aggregator_prepaid" && order.paymentMethod && order.paymentMethod !== "unrecorded" && ` · ${formatOrderType(order.paymentMethod)}`}
             {order.externalOrderId && <span className="mt-1 block text-dune-amber">{order.manualEntry ? "Manual delivery entry · " : ""}External ID <RecordId value={order.externalOrderId} /></span>}
           </p>
         </div>
@@ -287,13 +286,13 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
           </div>
         </div>
 
-        <RefundPanel order={order} onChanged={onSaved} />
+        <RefundPanel order={order} onChanged={async () => onSaved(await fetchOrderById(order._id))} />
 
         {order.statusHistory?.length > 0 && (
           <div className="mt-5 border-t border-dune-border pt-4">
             <p className="eyebrow mb-2">Status history</p>
             <div className="max-h-28 space-y-2 overflow-y-auto text-xs text-neutral-400">
-              {[...order.statusHistory].reverse().map((entry, index) => <p key={`${entry.changedAt}-${index}`}><span className="text-white">{STATUS_LABELS[entry.status] || entry.status}</span> · {new Date(entry.changedAt).toLocaleString()}{entry.reason ? ` · ${entry.reason}` : ""}</p>)}
+              {[...order.statusHistory].reverse().map((entry, index) => <p key={`${entry.changedAt}-${index}`}><span className="text-white">{STATUS_LABELS[entry.status] || entry.status}</span> · {orderDateLabel(entry.changedAt)}{entry.reason ? ` · ${entry.reason}` : ""}</p>)}
             </div>
           </div>
         )}
@@ -307,12 +306,13 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
   );
 };
 
-const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
+const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, statusFilter = "all", selectedOrderId = "", onStatusFilterChange, onOpenOrder, onCloseOrder, onUnauthorized }) => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
-  const [activeFilter, setActiveFilter] = useState("all");
+  const activeFilter = statusFilter;
   const [loading, setLoading] = useState(true);
-  const [viewOrder, setViewOrder] = useState(null);
+  const details = useOrderDetails(selectedOrderId, onUnauthorized);
+  const viewOrder = details.data;
   const [receiptSettings, setReceiptSettings] = useState(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -321,7 +321,13 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [page, setPage] = useState(1);
+  const [paging, setPaging] = useState({ status: statusFilter, page: 1 });
+  const page = paging.status === statusFilter ? paging.page : 1;
+  const setPage = useCallback(next => setPaging(current => ({
+    status: statusFilter,
+    page: typeof next === "function" ? next(current.status === statusFilter ? current.page : 1) : next,
+  })), [statusFilter]);
+  const listRequest = useRef(null);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [selected, setSelected] = useState(() => new Set());
   const [bulkStatus, setBulkStatus] = useState("confirmed");
@@ -332,7 +338,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
   useEffect(() => {
     const timer = setTimeout(() => { setDebouncedQuery(query); setPage(1); }, 300);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, setPage]);
 
   const requestFilters = useMemo(() => ({
     status: activeFilter,
@@ -346,28 +352,40 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
     limit: 20,
   }), [activeFilter, sourceFilter, orderTypeFilter, paymentFilter, debouncedQuery, from, to, page]);
 
-  const load = async () => {
+  const latestFilters = useRef(requestFilters);
+  const listMounted = useRef(false);
+  const load = useCallback(async () => {
+    if (!listMounted.current) return;
+    const filters = latestFilters.current;
+    listRequest.current?.abort();
+    const controller = new AbortController();
+    listRequest.current = controller;
     setLoading(true);
     try {
       const [orderResult, statData] = await Promise.all([
-        fetchOrdersPage(requestFilters),
-        fetchOrderStats(requestFilters),
+        fetchOrdersPage(filters, { signal: controller.signal }),
+        fetchOrderStats(filters, { signal: controller.signal }),
       ]);
+      if (controller.signal.aborted || listRequest.current !== controller) return;
       setOrders(orderResult.data);
       setPagination(orderResult.pagination || { page: 1, pages: 1, total: orderResult.data.length });
       setStats(statData);
       setSelected(new Set());
     } catch (err) {
+      if (controller.signal.aborted || listRequest.current !== controller) return;
+      if (err.response?.status === 401) onUnauthorized?.(err);
       toast.error(err.response?.data?.message || "Unable to load orders.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && listRequest.current === controller) setLoading(false);
     }
-  };
+  }, [onUnauthorized]);
 
   useEffect(() => {
+    latestFilters.current = requestFilters;
+    listMounted.current = true;
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestFilters, refreshKey]);
+    return () => { listMounted.current = false; listRequest.current?.abort(); };
+  }, [load, requestFilters, refreshKey]);
 
   useEffect(() => {
     fetchPublicRestaurantSettings().then(setReceiptSettings).catch(() => undefined);
@@ -439,7 +457,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
           {FILTER_TABS.map((tab) => (
             <button
               key={tab}
-              onClick={() => { setActiveFilter(tab); setPage(1); }}
+              onClick={() => { onStatusFilterChange?.(tab); setPage(1); }}
               className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 activeFilter === tab
                   ? "bg-dune-amber text-black border-dune-amber"
@@ -502,7 +520,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
               {orders.map((order) => (
                 <tr
                   key={order._id}
-                  onClick={() => setViewOrder(order)}
+                  onClick={() => onOpenOrder?.(order._id)}
                   className="border-b border-dune-border last:border-0 cursor-pointer hover:bg-black/40 transition-colors"
                 >
                   <td className="p-4" onClick={(event) => event.stopPropagation()}><input aria-label={`Select order ${order.orderNumber}`} type="checkbox" checked={selected.has(order._id)} onChange={() => toggleSelected(order._id)} className="accent-orange-500" /></td>
@@ -511,15 +529,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                   </td>
                   <td className="p-4">{order.customer?.name}</td>
                   <td className="p-4 text-neutral-400 text-xs">
-                    {new Date(order.orderOccurredAt || order.createdAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })}{" "}
-                    ·{" "}
-                    {new Date(order.orderOccurredAt || order.createdAt).toLocaleTimeString(undefined, {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {orderDateLabel(order.orderOccurredAt || order.createdAt)}
                   </td>
                   <td className="p-4">{order.items.length}</td>
                   <td className="p-4 text-xs text-neutral-300">
@@ -545,7 +555,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
                       <Printer className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => setViewOrder(order)}
+                      aria-label={`Open order ${order.orderNumber}`} onClick={() => onOpenOrder?.(order._id)}
                       className="w-8 h-8 inline-flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -575,16 +585,17 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0 }) => {
         </div>
       )}
 
+      {selectedOrderId && !viewOrder && <OrderDetailsState details={details} onClose={onCloseOrder} />}
       {viewOrder && (
         <OrderRowModal
+          key={viewOrder._id}
           order={viewOrder}
           receiptSettings={receiptSettings}
-          onClose={() => {
-            setViewOrder(null);
-          }}
-          onSaved={(updated) => {
-            setViewOrder(updated);
-            handleStatusChange(updated._id, updated.status);
+          onClose={onCloseOrder}
+          onSaved={async (updated) => {
+            const current = updated || await fetchOrderById(selectedOrderId);
+            details.update(current);
+            handleStatusChange(current._id, current.status);
             onDataChanged?.();
             load();
           }}

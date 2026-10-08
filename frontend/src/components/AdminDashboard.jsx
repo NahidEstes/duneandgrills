@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { adminOrdersHref, normalizeOrderStatus } from "../utils/adminOrders.js";
 import { useFreshResource } from "../hooks/useFreshResource.js";
 import DashboardDataStatus from "./admin/DashboardDataStatus.jsx";
-import { fetchAdminDashboard, searchAdmin } from "../api/api.js";
+import { fetchAdminDashboard, fetchOrdersPage, searchAdmin } from "../api/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useAdminOrderAlerts } from "../hooks/useAdminOrderAlerts.js";
 import { RESTAURANT_SETTINGS_UPDATED_EVENT } from "../utils/notificationSettings.js";
@@ -85,7 +87,13 @@ const TAB_CONTENT = {
 };
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState("overview");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab = TAB_CONTENT[requestedTab] ? requestedTab : "overview";
+  const recentStatus = normalizeOrderStatus(searchParams.get("recentStatus"));
+  const orderStatus = normalizeOrderStatus(searchParams.get("status"));
+  const selectedOrderId = searchParams.get("order") || "";
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -95,12 +103,20 @@ const AdminDashboard = () => {
   const onUnauthorized = useCallback(error => { if (error.response?.status === 401) setUser(null); }, [setUser]);
   const summary = useFreshResource({ identity: user ? `${user._id}:${user.role}` : "", fetcher: fetchAdminDashboard, onUnauthorized });
   const dashboard = summary.data;
-  const loadDashboard = summary.refresh;
-
-  useEffect(() => {
-    const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    if (requestedTab && TAB_CONTENT[requestedTab]) setActiveTab(requestedTab);
-  }, []);
+  const filteredRecent = useFreshResource({
+    identity: user && activeTab === "overview" && recentStatus !== "all" ? `${user._id}:${user.role}:recent:${recentStatus}` : "",
+    fetcher: options => fetchOrdersPage({ status: recentStatus, view: "recent" }, options), onUnauthorized,
+  });
+  const { refresh: refreshSummary } = summary;
+  const { refresh: refreshRecent } = filteredRecent;
+  const loadDashboard = useCallback(reason => {
+    refreshSummary(reason);
+    refreshRecent(reason);
+  }, [refreshSummary, refreshRecent]);
+  const recentResource = recentStatus === "all" ? {
+    ...summary, data: dashboard ? { data: dashboard.recentOrders, pagination: dashboard.recentOrdersMeta } : null,
+  } : filteredRecent;
+  const navigate = changes => router.push(adminOrdersHref(searchParams, changes), { scroll: false });
 
   useEffect(() => {
     const refreshSettingsSummary = () => loadDashboard("mutation");
@@ -158,7 +174,7 @@ const AdminDashboard = () => {
   const confirmSettingsExit = () => activeTab !== "settings" || !settingsDirty || window.confirm("Discard unsaved Restaurant Settings changes?");
   const handleTabChange = (nextTab) => {
     if (!confirmSettingsExit()) return false;
-    setActiveTab(nextTab);
+    navigate({ tab: nextTab, order: null });
     if (nextTab === "overview") loadDashboard("focus");
     return true;
   };
@@ -166,6 +182,7 @@ const AdminDashboard = () => {
   const handleLogout = () => {
     if (!confirmSettingsExit()) return;
     summary.stop();
+    filteredRecent.stop();
     stopMonitoring();
     logout();
   };
@@ -210,13 +227,26 @@ const AdminDashboard = () => {
           loading={summary.status === "loading"}
           onRefresh={() => loadDashboard("manual")}
           onNavigate={handleTabChange}
+          recentResource={recentResource}
+          recentStatus={recentStatus}
+          onRecentStatusChange={status => navigate({ recentStatus: status })}
+          onRecentRefresh={() => recentStatus === "all" ? summary.refresh("manual") : filteredRecent.refresh("manual")}
+          viewAllHref={adminOrdersHref(searchParams, { tab: "orders", status: recentStatus, order: null })}
+          orderHref={id => adminOrdersHref(searchParams, { tab: "orders", status: recentStatus, order: id })}
         />
       )}
       {activeTab === "orders" && (
         <OrdersTab
+          key={user?._id}
           onDataChanged={refreshAfterMutation}
           onOrderStatusChanged={handleOrderStatusChanged}
           refreshKey={orderRefreshKey}
+          statusFilter={orderStatus}
+          selectedOrderId={selectedOrderId}
+          onStatusFilterChange={status => navigate({ status, order: null })}
+          onOpenOrder={id => navigate({ tab: "orders", order: id })}
+          onCloseOrder={() => navigate({ order: null })}
+          onUnauthorized={onUnauthorized}
         />
       )}
       {activeTab === "menu" && (

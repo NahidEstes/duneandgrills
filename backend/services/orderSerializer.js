@@ -1,3 +1,17 @@
+// Shared dashboard/list/detail projection; never include private customer fields here.
+export const RECENT_ORDER_FIELDS = "orderNumber customer.name items.quantity totalAmount status paymentStatus paymentMethod deliveryPaymentType createdAt updatedAt source orderType manualEntry orderOccurredAt preparationDueAt estimatedPreparationMinutes";
+export const ACTIVE_PREPARATION_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery"]);
+
+export const serializeAdminOrder = (order, now = new Date()) => {
+  const value = typeof order.toObject === "function" ? order.toObject() : order;
+  const preparationActive = value.manualEntry !== true && ACTIVE_PREPARATION_STATUSES.has(value.status);
+  return {
+    ...value,
+    preparationActive,
+    isOverdue: Boolean(preparationActive && value.preparationDueAt && new Date(value.preparationDueAt) < now),
+  };
+};
+
 const serializeItem = (item) => ({
   name: item.name,
   image: item.image || "",

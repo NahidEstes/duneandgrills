@@ -11,7 +11,7 @@ const api = { get: async (resource, options) => { lastRequest = { resource, opti
 const compiledModule = { exports: {} };
 const localRequire = id => id === "axios" ? { create: () => api } : id.includes("selectionOptions") ? {} : id.startsWith("@/") ? {} : require(id);
 new Function("require", "module", "exports", transformed.code)(localRequire, compiledModule, compiledModule.exports);
-const { fetchAdminDashboard, fetchOrders, fetchRestaurantSettings } = compiledModule.exports;
+const { fetchAdminDashboard, fetchOrders, fetchOrdersPage, fetchOrderById, fetchRestaurantSettings } = compiledModule.exports;
 
 test("dashboard API preserves cancellation/timeouts and rejects unavailable envelopes instead of zero success", async () => {
   const signal = new AbortController().signal; response = { success: true, data: { stats: { totalOrders: 0 } } };
@@ -33,4 +33,17 @@ test("pending API distinguishes genuine empty results from malformed/failure res
 test("settings API never silently treats malformed data as a successful settings refresh", async () => {
   response = { success: true, data: { notifications: {} } }; assert.deepEqual(await fetchRestaurantSettings(), response.data);
   response = { success: true, data: [] }; await assert.rejects(fetchRestaurantSettings(), /unavailable/);
+});
+
+test("recent list uses server filter and bounded view with abort support; exact detail is independently fetched", async () => {
+  const signal = new AbortController().signal, id = "111111111111111111111111";
+  response = { success: true, data: [], pagination: { total: 0, hasMore: false } };
+  assert.deepEqual(await fetchOrdersPage({ view: "recent", status: "pending" }, { signal }), { data: [], pagination: response.pagination });
+  assert.deepEqual(lastRequest.options.params, { view: "recent", status: "pending" }); assert.equal(lastRequest.options.signal, signal);
+  assert.equal(lastRequest.options.timeout, 20000);
+  response = { success: false, data: [] }; await assert.rejects(fetchOrdersPage({ view: "recent" }), /unavailable/);
+  response = { success: true, data: { _id: id } }; assert.equal((await fetchOrderById(id, { signal }))._id, id);
+  assert.equal(lastRequest.resource, `/orders/${id}`); assert.equal(lastRequest.options.signal, signal);
+  await assert.rejects(fetchOrderById("bad-link"), /Invalid order link/);
+  response = { success: true, data: { _id: "222222222222222222222222" } }; await assert.rejects(fetchOrderById(id), /unavailable/);
 });

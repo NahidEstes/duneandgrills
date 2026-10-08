@@ -6,6 +6,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as freshness from "../src/components/admin/dashboardFreshness.js";
 import * as adminUi from "../src/components/admin/adminUi.js";
+import * as adminOrders from "../src/utils/adminOrders.js";
 
 const require = createRequire(import.meta.url);
 const { transformSync } = require("next/dist/build/swc");
@@ -15,7 +16,7 @@ function component(name) {
   const path = new URL(`../src/components/admin/${name}.jsx`, import.meta.url);
   const transformed = transformSync(readFileSync(path, "utf8"), { filename: path.pathname, jsc: { parser: { syntax: "ecmascript", jsx: true }, transform: { react: { runtime: "automatic" } } }, module: { type: "commonjs" } });
   const compiledModule = { exports: {} };
-  const localRequire = id => id === "./dashboardFreshness.js" ? freshness : id === "./adminUi.js" ? adminUi : id === "../SmartImage.jsx" ? () => null : id.endsWith(".jsx") ? component(id.replace("./", "").replace(".jsx", "")) : require(id);
+  const localRequire = id => id === "./dashboardFreshness.js" ? freshness : id === "./adminUi.js" ? adminUi : id === "../../utils/adminOrders.js" ? adminOrders : id === "../SmartImage.jsx" ? () => null : id.endsWith(".jsx") ? component(id.replace("./", "").replace(".jsx", "")) : require(id);
   new Function("require", "module", "exports", transformed.code)(localRequire, compiledModule, compiledModule.exports);
   components.set(name, compiledModule.exports.default); return compiledModule.exports.default;
 }

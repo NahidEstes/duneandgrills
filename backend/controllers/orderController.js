@@ -39,13 +39,12 @@ import { ValidationError } from "../utils/inventoryValidation.js";
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
 import { NON_REVENUE_ORDER_STATUSES, ORDER_STATUSES as ORDER_STATUS_VALUES } from "../config/orderStatuses.js";
 import { nextOrderNumber } from "../services/orderNumberService.js";
-import { serializeCustomerOrder, serializeGuestTrackingOrder } from "../services/orderSerializer.js";
+import { RECENT_ORDER_FIELDS, serializeAdminOrder, serializeCustomerOrder, serializeGuestTrackingOrder } from "../services/orderSerializer.js";
 import { hasCapability, CAPABILITIES } from "../config/permissions.js";
 
 const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
 const loyaltyReversalStatuses = new Set(nonRevenueStatuses);
 const ORDER_STATUSES = new Set(ORDER_STATUS_VALUES);
-const OPEN_ORDER_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery"]);
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -68,7 +67,10 @@ const addDateFilter = (filter, query) => {
 
 const buildOrderFilter = (query, { includeStatus = true } = {}) => {
   const filter = {};
-  if (includeStatus && query.status && query.status !== "all") filter.status = query.status;
+  if (includeStatus && query.status && query.status !== "all") {
+    if (!ORDER_STATUSES.has(query.status)) throw new ValidationError("Unsupported order status");
+    filter.status = query.status;
+  }
   if (query.source && SALES_SOURCES.includes(query.source)) {
     if (query.source === "website") filter.$or = [{ source: "website" }, { source: { $exists: false } }];
     else filter.source = query.source;
@@ -87,13 +89,6 @@ const buildOrderFilter = (query, { includeStatus = true } = {}) => {
   return filter;
 };
 
-const serializeAdminOrder = (order) => {
-  const value = typeof order.toObject === "function" ? order.toObject() : order;
-  return {
-    ...value,
-    isOverdue: Boolean(value.preparationDueAt && OPEN_ORDER_STATUSES.has(value.status) && new Date(value.preparationDueAt) < new Date()),
-  };
-};
 
 // @desc    Get server-authoritative order types and delivery pricing
 // @route   GET /api/orders/config
@@ -398,17 +393,22 @@ export const createOrder = async (req, res) => {
 export const getOrders = async (req, res) => {
   try {
     const filter = buildOrderFilter(req.query);
-    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || (req.query.page ? 20 : 100)));
+    res.setHeader("Cache-Control", "private, no-store");
+    const recent = req.query.view === "recent";
+    const page = recent ? 1 : Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = recent ? 7 : Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || (req.query.page ? 20 : 100)));
+    const query = Order.find(filter);
+    if (recent) query.select(RECENT_ORDER_FIELDS);
+    else query.populate("createdBy", "name role");
     const [orders, total] = await Promise.all([
-      Order.find(filter).populate("createdBy", "name role").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      query.sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       Order.countDocuments(filter),
     ]);
     res.status(200).json({
       success: true,
       count: total,
-      data: orders.map(serializeAdminOrder),
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      data: orders.map(order => serializeAdminOrder(order)),
+      pagination: { page, limit, total, pages: Math.ceil(total / limit), hasMore: page * limit < total },
     });
   } catch (err) {
     res
@@ -466,13 +466,15 @@ export const getOrderStats = async (req, res) => {
 // @access  Private (owner or authorized staff)
 export const getOrderById = async (req, res) => {
   try {
+    res.setHeader("Cache-Control", "private, no-store");
     const order = await Order.findById(req.params.id);
     const canReadAll = hasCapability(req.user.role, CAPABILITIES.ORDERS_READ_ALL);
     const ownsOrder = order?.user && String(order.user) === String(req.user._id);
     if (!order || (!canReadAll && !ownsOrder)) return res.status(404).json({ success: false, message: "Order not found" });
     res.status(200).json({ success: true, data: canReadAll ? serializeAdminOrder(order) : serializeCustomerOrder(order) });
   } catch (err) {
-    res.status(404).json({ success: false, message: "Order not found" });
+    const invalidId = err.name === "CastError";
+    res.status(invalidId ? 404 : 500).json({ success: false, message: invalidId ? "Order not found" : "Failed to fetch order" });
   }
 };
 
@@ -635,7 +637,7 @@ export const bulkUpdateOrderStatus = async (req, res) => {
         actor: req.user,
       }));
     }
-    res.json({ success: true, count: updated.length, data: updated.map(serializeAdminOrder) });
+    res.json({ success: true, count: updated.length, data: updated.map(order => serializeAdminOrder(order)) });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message || "Failed to update orders" });
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { availableNumber, dashboardMoney, dashboardNumber } from "./dashboardFreshness.js";
+import RecentOrdersPanel from "./RecentOrdersPanel.jsx";
 import InventoryHealthSummary from "./InventoryHealthSummary.jsx";
 import SalesReportSummary from "./SalesReportSummary.jsx";
 
@@ -20,13 +21,12 @@ import {
   Tag,
   UtensilsCrossed,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+
 import SmartImage from "../SmartImage.jsx";
 import {
   formatAdminDate,
   formatRelativeTime,
   labelStatus,
-  statusStyles,
 } from "./adminUi.js";
 
 const PANEL_CLASS =
@@ -91,15 +91,7 @@ const EmptyRow = ({ children }) => (
   <div className="px-5 py-10 text-center text-sm text-neutral-500">{children}</div>
 );
 
-const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
-  const [orderFilter, setOrderFilter] = useState("all");
-  const filteredOrders = useMemo(() => {
-    const orders = data?.recentOrders || [];
-    return orderFilter === "all"
-      ? orders
-      : orders.filter((order) => order.status === orderFilter);
-  }, [data?.recentOrders, orderFilter]);
-
+const DashboardOverview = ({ data, loading, onRefresh, onNavigate, recentResource, recentStatus, onRecentStatusChange, onRecentRefresh, viewAllHref, orderHref }) => {
   if (loading && !data) {
     return (
       <div className="grid min-h-[55vh] place-items-center rounded-xl border border-white/[0.08] bg-white/[0.02]">
@@ -157,65 +149,11 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate }) => {
       <InventoryHealthSummary summary={data?.inventorySummary} panelClass={PANEL_CLASS} />
 
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-[1.18fr_1fr]">
-        <Panel
-          title="Recent Orders"
-          action={<SmallAction onClick={() => onNavigate("orders")}>View All Orders</SmallAction>}
-        >
-          <div className="flex gap-1 overflow-x-auto border-b border-white/[0.07] px-4 pt-2">
-            {["all", "pending", "preparing", "ready", "delivered"].map((status) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() => setOrderFilter(status)}
-                className={`border-b-2 px-3 py-2 text-xs capitalize transition-colors ${
-                  orderFilter === status
-                    ? "border-dune-amber text-dune-amber"
-                    : "border-transparent text-neutral-500 hover:text-white"
-                }`}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
-          <div className="overflow-x-auto">
-            {filteredOrders.length ? (
-              <table className="w-full min-w-[660px] text-left text-xs">
-                <thead className="text-neutral-500">
-                  <tr className="border-b border-white/[0.06]">
-                    <th className="px-4 py-3 font-medium">Order ID</th>
-                    <th className="px-3 py-3 font-medium">Customer</th>
-                    <th className="px-3 py-3 font-medium">Items</th>
-                    <th className="px-3 py-3 font-medium">Amount</th>
-                    <th className="px-3 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((order) => (
-                    <tr
-                      key={order._id}
-                      onClick={() => onNavigate("orders")}
-                      className="cursor-pointer border-b border-white/[0.055] last:border-0 hover:bg-white/[0.025]"
-                    >
-                      <td className="px-4 py-3 font-medium text-white">#{order.orderNumber}</td>
-                      <td className="px-3 py-3 text-neutral-300">{order.customer?.name || "Guest"}</td>
-                      <td className="px-3 py-3 text-neutral-400">{Array.isArray(order.items) && order.items.every(item => availableNumber(item.quantity)) ? dashboardNumber(order.items.reduce((sum, item) => sum + item.quantity, 0)) : "—"}</td>
-                      <td className="px-3 py-3 font-medium text-white">{dashboardMoney(order.totalAmount)}</td>
-                      <td className="px-3 py-3">
-                        <span className={`inline-flex rounded-md border px-2 py-1 text-[0.65rem] ${statusStyles[order.status] || statusStyles.inactive}`}>
-                          {labelStatus(order.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right text-neutral-500">{formatRelativeTime(order.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <EmptyRow>{Array.isArray(data.recentOrders) ? "No recent orders match this status." : "Recent orders unavailable."}</EmptyRow>
-            )}
-          </div>
-        </Panel>
+        <RecentOrdersPanel
+          resource={recentResource || { status: "success", data: { data: data.recentOrders, pagination: data.recentOrdersMeta } }}
+          status={recentStatus} onStatusChange={onRecentStatusChange} onRefresh={onRecentRefresh}
+          viewAllHref={viewAllHref} orderHref={orderHref}
+        />
 
         <Panel
           title="Menu Items Management"
