@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { orderAttentionFilter } from "../services/operationalAttentionService.js";
 import Order from "../models/Order.js";
 import crypto from "crypto";
 import MenuItem from "../models/MenuItem.js";
@@ -392,7 +393,8 @@ export const createOrder = async (req, res) => {
 // @access  Admin/Manager
 export const getOrders = async (req, res) => {
   try {
-    const filter = buildOrderFilter(req.query);
+    let filter = buildOrderFilter(req.query);
+    if (req.query.attention) filter = { $and: [filter, orderAttentionFilter(req.query.attention, await getEffectiveRestaurantSettings())] };
     res.setHeader("Cache-Control", "private, no-store");
     const recent = req.query.view === "recent";
     const page = recent ? 1 : Math.max(1, Number.parseInt(req.query.page, 10) || 1);
@@ -428,7 +430,8 @@ export const getOrderStats = async (req, res) => {
   try {
     const startOfToday = startOfRiyadhDay();
 
-    const filter = buildOrderFilter(req.query, { includeStatus: false });
+    let filter = buildOrderFilter(req.query, { includeStatus: false });
+    if (req.query.attention) filter = { $and: [filter, orderAttentionFilter(req.query.attention, await getEffectiveRestaurantSettings())] };
     const [report, today] = await Promise.all([
       buildSalesReport({ query: req.query, orderFilter: filter }),
       buildSalesReport({ query: req.query, orderFilter: filter, range: { start: startOfToday, end: new Date(startOfToday.getTime() + ADMIN_DAY_MS), days: 1 } }),

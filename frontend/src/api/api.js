@@ -439,6 +439,12 @@ export const fetchAdminDashboard = async ({ signal, period = "today" } = {}) => 
   return data.data;
 };
 
+export const fetchAdminOperations = async ({ signal } = {}) => {
+  const { data } = await api.get("/admin/operations-overview", { signal, timeout: 20_000 });
+  if (!data.success || !data.data?.categories || !data.data?.shifts || !data.data.generatedAt) throw new Error("Operations overview is unavailable");
+  return data.data;
+};
+
 export const fetchAdminAnalytics = async (params = {}) => {
   const { data } = await api.get("/admin/analytics", { params });
   return data.data;

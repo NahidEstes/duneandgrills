@@ -11,7 +11,7 @@ import PosLockScreen from "./PosLockScreen.jsx";
 import { usePosCustomerDisplay } from "@/src/hooks/usePosCustomerDisplay.js";
 import PosShiftControl from "./PosShiftControl.jsx";
 
-export default function PosWorkspace() {
+export default function PosWorkspace({ shiftLink }) {
   const { user, logout } = useAuth();
   const { displayUrl, publishBill } = usePosCustomerDisplay();
   const [actor, setActor] = useState(user);
@@ -79,7 +79,7 @@ export default function PosWorkspace() {
     <div hidden={locked || switching}>
       <PosTopBar user={actor} onLock={changeLock} onSwitch={switchCashier} onLogout={() => { if (window.confirm("Log out? Your unfinished sale remains recoverable.")) { sessionStorage.removeItem("dg_pos_session"); logout(); } }} clock24={clock24} onClockChange={value => { setClock24(value); localStorage.setItem("dg_pos_clock24", String(value)); }} displayUrl={displayUrl}
         terminalControl={<label className="text-xs text-neutral-400"><span className="sr-only">POS terminal</span><DarkSelect value={terminal} onChange={event => changeTerminal(event.target.value)} className="min-h-11 min-w-40 rounded-xl border border-white/10 bg-[#0d1214] px-3 text-sm"><option value="">Select terminal</option>{terminals.map(row => <option key={row._id} value={row.code}>{row.name} · {row.code}</option>)}</DarkSelect></label>}
-        shiftControl={terminal && everUnlocked ? <PosShiftControl key={actor._id + ":" + terminal} user={actor} terminal={terminal} locked={locked || switching} onShiftChange={setShiftOpen} /> : null} />
+        shiftControl={terminal && everUnlocked ? <PosShiftControl key={actor._id + ":" + terminal} user={actor} shiftLink={shiftLink} terminal={terminal} locked={locked || switching} onShiftChange={setShiftOpen} /> : null} />
       <main className="p-4 sm:p-6" aria-label="POS / New Sale">{terminal && everUnlocked ? <PosTab key={actor._id + ":" + terminal} user={actor} terminal={terminal} locked={locked || switching} onSaleState={onSaleState} onLock={changeLock} onDisplayChange={publishBill} /> : <div className="rounded-2xl border border-dune-amber/20 p-8 text-center">Select the terminal for this cashier device.</div>}</main>
     </div>
     {(locked || switching) && <PosLockScreen key={switching ? "switch" : "unlock"} user={actor} cashiers={cashiers} switching={switching} onCancel={() => setSwitching(false)} onUnlock={next => { setActor(next); setLocked(false); setEverUnlocked(true); setSwitching(false); sessionStorage.removeItem("dg_pos_locked:" + user._id); lastActivity.current = Date.now(); }} />}

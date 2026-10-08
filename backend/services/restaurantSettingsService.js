@@ -52,6 +52,7 @@ export const getRestaurantSettingsDefaults = () => ({
   },
   preparation: {
     defaultMinutes: envNumber("KITCHEN_DEFAULT_PREP_MINUTES", 20, 1, 240),
+    pendingAttentionMinutes: 5,
   },
   posShifts: {
     enabled: false,
@@ -216,6 +217,7 @@ export const normalizeRestaurantSettings = (payload = {}, current = getRestauran
     },
     preparation: {
       defaultMinutes: number(payload.preparation?.defaultMinutes, "Default preparation time", 1, 240, current.preparation.defaultMinutes, true),
+      pendingAttentionMinutes: number(payload.preparation?.pendingAttentionMinutes, "Pending attention threshold", 1, 240, current.preparation.pendingAttentionMinutes, true),
     },
     posShifts: {
       enabled: bool(payload.posShifts?.enabled, current.posShifts.enabled),

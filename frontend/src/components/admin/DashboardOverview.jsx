@@ -92,19 +92,19 @@ const EmptyRow = ({ children }) => (
   <div className="px-5 py-10 text-center text-sm text-neutral-500">{children}</div>
 );
 
-const DashboardOverview = ({ data, loading, onRefresh, onNavigate, recentResource, recentStatus, onRecentStatusChange, onRecentRefresh, viewAllHref, orderHref }) => {
+const DashboardOverview = ({ data, loading, onRefresh, onNavigate, recentResource, recentStatus, onRecentStatusChange, onRecentRefresh, viewAllHref, orderHref, operationalPanel }) => {
   if (loading && !data) {
     return (
-      <div className="grid min-h-[55vh] place-items-center rounded-xl border border-white/[0.08] bg-white/[0.02]">
+      <><div className="grid min-h-[55vh] place-items-center rounded-xl border border-white/[0.08] bg-white/[0.02]">
         <div className="text-center text-neutral-500">
           <RefreshCw className="mx-auto mb-3 h-6 w-6 animate-spin text-dune-amber" />
           Loading restaurant summary…
         </div>
-      </div>
+      </div>{operationalPanel}</>
     );
   }
 
-  if (!data) return <div className="rounded-xl border border-white/10 bg-white/[0.025] p-8 text-center text-neutral-400">Dashboard summary unavailable. Use Retry summary above.</div>;
+  if (!data) return <><div className="rounded-xl border border-white/10 bg-white/[0.025] p-8 text-center text-neutral-400">Dashboard summary unavailable. Use Retry summary above.</div>{operationalPanel}</>;
   const stats = data.stats || {};
 
   return (
@@ -147,6 +147,7 @@ const DashboardOverview = ({ data, loading, onRefresh, onNavigate, recentResourc
       </section>
 
       <InventoryHealthSummary summary={data?.inventorySummary} panelClass={PANEL_CLASS} />
+      {operationalPanel}
 
       <div>
         <RecentOrdersPanel

@@ -11,7 +11,15 @@ const api = { get: async (resource, options) => { lastRequest = { resource, opti
 const compiledModule = { exports: {} };
 const localRequire = id => id === "axios" ? { create: () => api } : id.includes("selectionOptions") ? {} : id.startsWith("@/") ? {} : require(id);
 new Function("require", "module", "exports", transformed.code)(localRequire, compiledModule, compiledModule.exports);
-const { fetchAdminDashboard, fetchOrders, fetchOrdersPage, fetchOrderById, fetchRestaurantSettings } = compiledModule.exports;
+const { fetchAdminDashboard, fetchAdminOperations, fetchOrders, fetchOrdersPage, fetchOrderById, fetchRestaurantSettings } = compiledModule.exports;
+
+test("operations API supports cancellation and partial failures without confusing unavailable with zero", async () => {
+  const signal = new AbortController().signal;
+  response = { success: true, data: { generatedAt: "2028-01-01", categories: { invoice_review: { status: "unavailable" } }, shifts: { status: "restricted" } } };
+  assert.deepEqual(await fetchAdminOperations({ signal }), response.data);
+  assert.equal(lastRequest.resource, "/admin/operations-overview"); assert.equal(lastRequest.options.signal, signal); assert.equal(lastRequest.options.timeout, 20_000);
+  for (const body of [{ success: false }, { success: true, data: {} }, { success: true, data: null }]) { response = body; await assert.rejects(fetchAdminOperations(), /unavailable/); }
+});
 
 test("dashboard API preserves cancellation/timeouts and rejects unavailable envelopes instead of zero success", async () => {
   const signal = new AbortController().signal; response = { success: true, data: { stats: { totalOrders: 0 }, reportingPeriod: { period: "today" } } };

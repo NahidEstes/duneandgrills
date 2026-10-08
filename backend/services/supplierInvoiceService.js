@@ -1,4 +1,5 @@
 import Counter from "../models/Counter.js";
+import { invoiceOutstandingAmount, invoiceIsOverdue } from "./supplierInvoiceHealth.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import Supplier from "../models/Supplier.js";
 import SupplierInvoice from "../models/SupplierInvoice.js";
@@ -177,7 +178,7 @@ export const reverseSupplierPayment = async ({ paymentId, actor, reason }) => ru
   return { payment, invoice };
 });
 
-export const decorateInvoice = (invoice, now = new Date()) => ({ ...invoice, paidAmount: Number(invoice.paidAmountHalala || 0) / 100, outstandingAmount: Math.max(0, round(Number(invoice.total) - Number(invoice.paidAmountHalala || 0) / 100)), displayPaymentStatus: invoice.paymentStatus !== "paid" && invoice.status === "posted" && invoice.dueDate && new Date(invoice.dueDate) < now ? "overdue" : invoice.paymentStatus });
+export const decorateInvoice = (invoice, now = new Date()) => ({ ...invoice, paidAmount: Number(invoice.paidAmountHalala || 0) / 100, outstandingAmount: invoiceOutstandingAmount(invoice), displayPaymentStatus: invoiceIsOverdue(invoice, now) ? "overdue" : invoice.paymentStatus });
 
 export const getPayablesAging = async () => {
   const now = new Date(); const rows = await SupplierInvoice.find({ status: "posted", paymentStatus: { $ne: "paid" } }).lean();

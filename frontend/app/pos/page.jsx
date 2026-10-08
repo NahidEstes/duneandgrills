@@ -6,10 +6,12 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function PosPage() {
+export default async function PosPage({ searchParams }) {
+  const query = await searchParams;
+  const shiftLink = { history: ["open", "closed", "all"].includes(query?.shiftHistory) ? query.shiftHistory : "", id: typeof query?.shift === "string" && /^[a-f0-9]{24}$/i.test(query.shift) ? query.shift : "" };
   return (
     <ProtectedRoute roles={["admin", "manager", "cashier"]}>
-      <PosWorkspace />
+      <PosWorkspace shiftLink={shiftLink} />
     </ProtectedRoute>
   );
 }

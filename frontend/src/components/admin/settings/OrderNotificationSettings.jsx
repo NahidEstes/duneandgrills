@@ -35,6 +35,7 @@ export function NotificationSettings({ value, onChange }) {
 export function PreparationSettings({ value, onChange }) {
   return <SettingsCard icon={ChefHat} title="Preparation" description="Default estimate for new orders; individual orders can still override it.">
     <Field label="Default preparation time (minutes)" hint="Existing order-specific estimates are never overwritten."><input type="number" min="1" max="240" value={value.defaultMinutes} onChange={(event) => onChange({ ...value, defaultMinutes: event.target.value })} className={`${settingsInputClass} mt-2 max-w-xs`} /></Field>
+    <Field label="Pending attention after (minutes)" hint="Live pending orders waiting longer than this threshold appear on the dashboard. No automatic status changes."><input type="number" min="1" max="240" value={value.pendingAttentionMinutes ?? ""} onChange={event => onChange({ ...value, pendingAttentionMinutes: event.target.value })} className={`${settingsInputClass} mt-2 max-w-xs`} /></Field>
   </SettingsCard>;
 }
 

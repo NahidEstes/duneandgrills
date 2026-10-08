@@ -13,7 +13,7 @@ import usePosDialog from "@/src/hooks/usePosDialog.js";
 const amount = (value) => `SAR ${Number(value || 0).toFixed(2)}`;
 const message = (error) => error.response?.data?.message || "Unable to update POS shift.";
 
-export default function PosShiftControl({ user, terminal, locked = false, onShiftChange }) {
+export default function PosShiftControl({ user, terminal, locked = false, onShiftChange, shiftLink }) {
   const [state, setState] = useState({ loading: true, config: { enabled: false }, data: null });
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -29,13 +29,49 @@ export default function PosShiftControl({ user, terminal, locked = false, onShif
   const [movement, setMovement] = useState({ type: "cash_in", amount: "", reason: "" });
   const [closing, setClosing] = useState({ countedCash: "", note: "" });
   const [history, setHistory] = useState([]);
+  const [historyPage, setHistoryPage] = useState({ page: 1, pages: 1, total: null });
+  const [historyState, setHistoryState] = useState(shiftLink?.history || "all");
+  const [historyError, setHistoryError] = useState("");
+  const [detailError, setDetailError] = useState("");
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const linkLoaded = useRef("");
+  const historyRequest = useRef(0);
+  const detailRequest = useRef(0);
+  const loadHistory = useCallback(async (page = 1, scope = "all") => {
+    const request = ++historyRequest.current;
+    setHistoryBusy(true); setHistoryError("");
+    try { const result = await fetchPosShifts({ limit: 10, page, state: scope === "all" ? undefined : scope });
+      if (request !== historyRequest.current) return;
+      setHistory(result.data || []); setHistoryPage(result.pagination); setHistoryState(scope);
+    } catch (error) { if (request === historyRequest.current) setHistoryError(message(error)); }
+    finally { if (request === historyRequest.current) setHistoryBusy(false); }
+  }, []);
+  useEffect(() => () => { ++historyRequest.current; ++detailRequest.current; }, []);
   const [selectedHistory, setSelectedHistory] = useState(null);
   const [reopenReason, setReopenReason] = useState("");
+  const loadShiftDetail = useCallback(async id => {
+    const request = ++detailRequest.current;
+    setDetailError(""); setDetailBusy(true); setSelectedHistory(null);
+    try { const result = await fetchPosShift(id); if (request === detailRequest.current) setSelectedHistory(result); }
+    catch (error) { if (request === detailRequest.current) setDetailError(message(error)); }
+    finally { if (request === detailRequest.current) setDetailBusy(false); }
+  }, []);
   const load = useCallback(async () => {
     try { const response = await fetchCurrentPosShift(terminal); setState({ loading: false, config: response.config || { enabled: false }, data: response.data }); onShiftChange?.(Boolean(response.data?.shift)); }
     catch (error) { setState((current) => ({ ...current, loading: false })); toast.error(message(error)); }
   }, [terminal, onShiftChange]);
   useEffect(() => { load(); fetchPosCashiers().then(rows => setManagers(rows.filter(row => ["manager", "admin"].includes(row.role)))).catch(() => undefined); }, [load]);
+  useEffect(() => {
+    if (state.loading || !state.config.enabled || locked || !["admin", "manager"].includes(user.role) || !shiftLink?.history) return undefined;
+    const identity = `${user._id}:${shiftLink.history}:${shiftLink.id || ""}`;
+    if (linkLoaded.current === identity) return undefined;
+    linkLoaded.current = identity;
+    const detailGeneration = detailRequest;
+    setOpen(true); loadHistory(1, shiftLink.history);
+    if (shiftLink.id) loadShiftDetail(shiftLink.id);
+    return () => { ++detailGeneration.current; linkLoaded.current = ""; };
+  }, [state.loading, state.config.enabled, locked, user._id, user.role, shiftLink?.history, shiftLink?.id, loadHistory, loadShiftDetail]);
   const act = async (operation, success) => {
     setBusy(true);
     try { await operation(); toast.success(success); await load(); }
@@ -72,8 +108,15 @@ export default function PosShiftControl({ user, terminal, locked = false, onShif
       </>}
       {state.data?.movements?.length > 0 && <details className="mt-4 rounded-xl border border-white/10 p-3 text-xs"><summary className="cursor-pointer text-dune-amber">Cash movement history</summary><div className="mt-2 max-h-48 overflow-y-auto">{state.data.movements.map(row => <div key={row._id} className="flex flex-wrap justify-between gap-2 py-2"><RecordId value={row.movementNumber} /><span>{row.type} · {amount(row.amountHalala / 100)}</span></div>)}</div></details>}
       {!["admin", "manager"].includes(user.role) && <PosShiftPrintSummary data={selectedHistory} canReopen={false} />}{["admin", "manager"].includes(user.role) && <div className="mt-4 border-t border-white/10 pt-4">
-        <button type="button" onClick={async () => { try { const result = await fetchPosShifts({ limit: 10 }); setHistory(result.data || []); } catch (error) { toast.error(message(error)); } }} className="inline-flex items-center gap-2 text-xs text-neutral-300"><History className="h-4 w-4" />Load recent shifts</button>
-        {history.length > 0 && <div className="mt-3 space-y-2">{history.map((row) => <button type="button" onClick={async () => { try { setSelectedHistory(await fetchPosShift(row._id)); } catch (error) { toast.error(message(error)); } }} key={row._id} className="flex w-full items-center justify-between rounded-lg bg-black/20 p-3 text-left text-xs hover:bg-white/[0.05]"><span>{row.shiftNumber} · {row.cashier?.name} · {row.terminal}<br /><span className="text-neutral-600">{new Date(row.openedAt).toLocaleString()}</span></span><span className="capitalize text-neutral-300">{row.status}{row.differenceHalala != null ? ` · ${amount(row.differenceHalala / 100)}` : ""}</span></button>)}</div>}
+        <button type="button" disabled={historyBusy} onClick={() => loadHistory(1, historyState)} className="inline-flex items-center gap-2 text-xs text-neutral-300"><History className="h-4 w-4" />Load recent shifts</button>
+        <label className="mt-3 block text-xs text-neutral-400">Shift history filter<DarkSelect value={historyState} onChange={event => loadHistory(1, event.target.value)} className="mt-1 min-h-10 rounded-lg border border-white/10 bg-black/30 px-3"><option value="all">All shifts</option><option value="open">Open shifts</option><option value="closed">Closed shifts</option></DarkSelect></label>
+        {historyError && <p role="alert" className="mt-2 text-xs text-red-300">{historyError} Retained history may be outdated.</p>}
+        {historyBusy && <p role="status" className="mt-2 text-xs text-neutral-400">Loading shift history...</p>}
+        {!historyBusy && !historyError && historyPage.total === 0 && <p className="mt-2 text-xs text-neutral-400">No matching shifts.</p>}
+        {history.length > 0 && <div className="mt-3 space-y-2">{history.map((row) => <button type="button" onClick={() => loadShiftDetail(row._id)} key={row._id} className="flex w-full items-center justify-between rounded-lg bg-black/20 p-3 text-left text-xs hover:bg-white/[0.05]"><span>{row.shiftNumber} · {row.cashier?.name} · {row.terminal}<br /><span className="text-neutral-600">{new Date(row.openedAt).toLocaleString("en-GB", { timeZone: "Asia/Riyadh" })} · Asia/Riyadh</span></span><span className="capitalize text-neutral-300">{row.status}{row.differenceHalala != null ? ` · ${amount(row.differenceHalala / 100)}` : ""}</span></button>)}</div>}
+        <div className="mt-3 flex items-center justify-between gap-3 text-xs"><button type="button" disabled={historyBusy || historyPage.page <= 1} onClick={() => loadHistory(historyPage.page - 1, historyState)} className="min-h-10 rounded-lg border border-white/10 px-3 disabled:opacity-40">Previous</button><span>{historyPage.total == null ? "History not loaded" : `${historyPage.total} matching shifts · page ${historyPage.page} of ${Math.max(1, historyPage.pages)}`}</span><button type="button" disabled={historyBusy || historyPage.page >= historyPage.pages} onClick={() => loadHistory(historyPage.page + 1, historyState)} className="min-h-10 rounded-lg border border-white/10 px-3 disabled:opacity-40">Next</button></div>
+        {detailBusy && <p role="status" className="mt-3 text-xs text-neutral-400">Loading selected shift...</p>}
+        {detailError && <p role="alert" className="mt-3 text-xs text-red-300">{detailError}</p>}
         <PosShiftPrintSummary data={selectedHistory} busy={busy} reopenReason={reopenReason} onReasonChange={setReopenReason} onReopen={() => act(async () => { await reopenPosShift(selectedHistory.shift._id, reopenReason); setSelectedHistory(null); setReopenReason(""); }, "Shift reopened.")} />
       </div>}
       <button type="button" onClick={load} className="mt-4 inline-flex items-center gap-2 text-xs text-neutral-500"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>

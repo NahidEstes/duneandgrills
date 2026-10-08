@@ -6,8 +6,9 @@ import { adminOrdersHref, normalizeOrderStatus } from "../utils/adminOrders.js";
 import { useFreshResource } from "../hooks/useFreshResource.js";
 import DashboardDataStatus from "./admin/DashboardDataStatus.jsx";
 import DashboardPeriodControls from "./admin/DashboardPeriodControls.jsx";
+import OperationsOverview from "./admin/OperationsOverview.jsx";
 import { normalizeDashboardPeriod } from "../utils/dashboardPeriods.js";
-import { fetchAdminDashboard, fetchOrdersPage, searchAdmin } from "../api/api.js";
+import { fetchAdminDashboard, fetchAdminOperations, fetchOrdersPage, searchAdmin } from "../api/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useAdminOrderAlerts } from "../hooks/useAdminOrderAlerts.js";
 import { RESTAURANT_SETTINGS_UPDATED_EVENT } from "../utils/notificationSettings.js";
@@ -106,16 +107,19 @@ const AdminDashboard = () => {
   const onUnauthorized = useCallback(error => { if (error.response?.status === 401) setUser(null); }, [setUser]);
   const summary = useFreshResource({ identity: user ? `${user._id}:${user.role}:${period}` : "", fetcher: options => fetchAdminDashboard({ ...options, period }), onUnauthorized });
   const dashboard = summary.data;
+  const operations = useFreshResource({ identity: user && activeTab === "overview" ? `${user._id}:${user.role}:operations` : "", fetcher: fetchAdminOperations, onUnauthorized });
   const filteredRecent = useFreshResource({
     identity: user && activeTab === "overview" && recentStatus !== "all" ? `${user._id}:${user.role}:recent:${recentStatus}` : "",
     fetcher: options => fetchOrdersPage({ status: recentStatus, view: "recent" }, options), onUnauthorized,
   });
   const { refresh: refreshSummary } = summary;
   const { refresh: refreshRecent } = filteredRecent;
+  const { refresh: refreshOperations } = operations;
   const loadDashboard = useCallback(reason => {
     refreshSummary(reason);
     refreshRecent(reason);
-  }, [refreshSummary, refreshRecent]);
+    refreshOperations(reason);
+  }, [refreshSummary, refreshRecent, refreshOperations]);
   const recentResource = recentStatus === "all" ? {
     ...summary, data: dashboard ? { data: dashboard.recentOrders, pagination: dashboard.recentOrdersMeta } : null,
   } : filteredRecent;
@@ -186,6 +190,7 @@ const AdminDashboard = () => {
     if (!confirmSettingsExit()) return;
     summary.stop();
     filteredRecent.stop();
+    operations.stop();
     stopMonitoring();
     logout();
   };
@@ -227,6 +232,7 @@ const AdminDashboard = () => {
       <DashboardDataStatus summary={summary} monitoring={monitoring} settingsHealth={settingsHealth} onRefresh={() => loadDashboard("manual")} onRetryMonitoring={() => pollPendingOrders("manual")} />
       {activeTab === "overview" && (
         <DashboardOverview
+          operationalPanel={<OperationsOverview resource={operations} orderHref={(id, attention) => adminOrdersHref(searchParams, { tab: "orders", order: id, ...(attention ? { attention, status: null } : {}) })} />}
           data={dashboard}
           loading={summary.status === "loading"}
           onRefresh={() => loadDashboard("manual")}
@@ -241,13 +247,15 @@ const AdminDashboard = () => {
       )}
       {activeTab === "orders" && (
         <OrdersTab
-          key={user?._id}
+          key={`${user?._id}:${searchParams.get("attention") || ""}`}
           onDataChanged={refreshAfterMutation}
           onOrderStatusChanged={handleOrderStatusChanged}
           refreshKey={orderRefreshKey}
+          attentionFilter={["pending_age", "preparation_overdue"].includes(searchParams.get("attention")) ? searchParams.get("attention") : ""}
+          onClearAttention={() => navigate({ attention: null })}
           statusFilter={orderStatus}
           selectedOrderId={selectedOrderId}
-          onStatusFilterChange={status => navigate({ status, order: null })}
+          onStatusFilterChange={status => navigate({ status, order: null, attention: null })}
           onOpenOrder={id => navigate({ tab: "orders", order: id })}
           onCloseOrder={() => navigate({ order: null })}
           onUnauthorized={onUnauthorized}

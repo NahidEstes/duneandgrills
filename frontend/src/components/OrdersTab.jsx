@@ -306,7 +306,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
   );
 };
 
-const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, statusFilter = "all", selectedOrderId = "", onStatusFilterChange, onOpenOrder, onCloseOrder, onUnauthorized }) => {
+const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, statusFilter = "all", attentionFilter = "", onClearAttention, selectedOrderId = "", onStatusFilterChange, onOpenOrder, onCloseOrder, onUnauthorized }) => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const activeFilter = statusFilter;
@@ -341,6 +341,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
   }, [query, setPage]);
 
   const requestFilters = useMemo(() => ({
+    attention: attentionFilter || undefined,
     status: activeFilter,
     source: sourceFilter,
     orderType: orderTypeFilter,
@@ -350,7 +351,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
     to,
     page,
     limit: 20,
-  }), [activeFilter, sourceFilter, orderTypeFilter, paymentFilter, debouncedQuery, from, to, page]);
+  }), [activeFilter, attentionFilter, sourceFilter, orderTypeFilter, paymentFilter, debouncedQuery, from, to, page]);
 
   const latestFilters = useRef(requestFilters);
   const listMounted = useRef(false);
@@ -430,6 +431,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
 
   return (
     <div>
+      {attentionFilter && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 p-3 text-sm text-amber-200"><span>Live attention filter: {attentionFilter === "pending_age" ? "Pending beyond configured threshold" : "Recorded preparation deadline passed"}</span><button type="button" onClick={onClearAttention} className="rounded-lg border border-white/10 px-3 py-2 focus-visible:outline focus-visible:outline-dune-amber">Clear attention filter</button></div>}
       {/* Stats overview for bookkeeping */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

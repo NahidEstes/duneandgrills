@@ -19,9 +19,9 @@ const statuses = ["draft", "submitted", "approved", "rejected", "ordered", "part
 const tones = { draft: "info", submitted: "warning", approved: "success", rejected: "danger", ordered: "warning", partially_received: "violet", received: "success", closed_short: "neutral", cancelled: "danger" };
 const transitionLabel = { submitted: "Submit for approval", approved: "Approve", rejected: "Reject", draft: "Return to draft", ordered: "Mark ordered", closed_short: "Close short", cancelled: "Cancel" };
 
-export default function PurchaseOrdersPage({ initialStatus = "" }) {
+export default function PurchaseOrdersPage({ initialStatus = "", initialSearch = "" }) {
   const { user } = useAuth();
-  const [status, setStatus] = useState(initialStatus === "pending" || statuses.includes(initialStatus) ? initialStatus : ""); const [page, setPage] = useState(1); const [search, setSearch] = useState("");
+  const [status, setStatus] = useState(initialStatus === "pending" || statuses.includes(initialStatus) ? initialStatus : ""); const [page, setPage] = useState(1); const [search, setSearch] = useState(initialSearch);
   const [metadata, setMetadata] = useState({ suppliers: [], items: [], policy: {} });
   const [formOpen, setFormOpen] = useState(false); const [editing, setEditing] = useState(null);
   const [receiptOrder, setReceiptOrder] = useState(null); const [detail, setDetail] = useState(null);

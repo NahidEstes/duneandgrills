@@ -23,6 +23,23 @@ export const calculateExpectedCashHalala = (movements = []) => movements.reduce(
   return total + (movement.direction === "out" ? -amount : amount);
 }, 0);
 
+// The same signed cash-ledger definition as calculateExpectedCashHalala, batched
+// for bounded dashboard rows. No order totals or card/prepaid amounts enter it.
+export async function expectedCashForShifts(shifts) {
+  if (!shifts.length) return new Map();
+  const rows = await CashMovement.aggregate([
+    { $match: { shift: { $in: shifts.map(shift => shift._id) } } },
+    { $group: { _id: "$shift", expected: { $sum: { $cond: [{ $eq: ["$direction", "out"] }, { $multiply: ["$amountHalala", -1] }, "$amountHalala"] } }, opening: { $sum: { $cond: [{ $eq: ["$type", "opening_cash"] }, 1, 0] } } } },
+  ]);
+  const ledger = new Map(rows.map(row => [String(row._id), row]));
+  return new Map(shifts.map(shift => {
+    const row = ledger.get(String(shift._id));
+    // Do not fabricate drawer balances for incomplete legacy opening records.
+    const known = shift.openingCashHalala != null && (shift.openingCashHalala === 0 || row?.opening > 0);
+    return [String(shift._id), known ? (row?.expected ?? 0) : null];
+  }));
+}
+
 export const createMovement = async ({ shift, type, amountHalala, reason, actor, order = null, refund = null, idempotencyKey = undefined, direction = null }, session) => {
   const prior = idempotencyKey ? await CashMovement.findOne({ idempotencyKey }).session(session || null) : null;
   if (prior) {

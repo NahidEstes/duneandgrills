@@ -51,15 +51,18 @@ export const closeShift = async (req, res, next) => {
 };
 
 export const listShifts = async (req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store");
   try {
     const { page, limit, skip } = parsePagination(req.query, 25);
     const filter = {};
     if (req.query.search?.trim()) filter.shiftNumber = new RegExp(escapeRegex(req.query.search.trim().slice(0, 120)), "i");
     if (req.query.status) filter.status = req.query.status;
+    if (req.query.state === "open") { filter.isOpen = true; filter.status = { $in: ["open", "closing", "reopened"] }; }
+    if (req.query.state === "closed") { filter.isOpen = false; filter.status = "closed"; }
     if (req.query.cashier) filter.cashier = req.query.cashier;
     if (req.query.terminal) filter.terminal = String(req.query.terminal).trim().toUpperCase();
     const [rows, total] = await Promise.all([
-      populateShift(PosShift.find(filter).sort({ openedAt: -1 }).skip(skip).limit(limit)).lean(),
+      populateShift(PosShift.find(filter).sort(req.query.state === "closed" ? { closedAt: -1, _id: -1 } : { openedAt: -1, _id: -1 }).skip(skip).limit(limit)).lean(),
       PosShift.countDocuments(filter),
     ]);
     res.json({ success: true, data: rows, pagination: { page, limit, total, pages: Math.ceil(total / limit) }, currency: "SAR" });
@@ -67,6 +70,7 @@ export const listShifts = async (req, res, next) => {
 };
 
 export const getShift = async (req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store");
   try {
     const shift = await populateShift(PosShift.findById(req.params.shiftId));
     if (!shift) return res.status(404).json({ success: false, message: "Shift not found" });

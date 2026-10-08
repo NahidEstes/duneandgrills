@@ -74,6 +74,7 @@ const restaurantSettingsSchema = new mongoose.Schema(
     },
     preparation: {
       defaultMinutes: { type: Number, default: 20, min: 1, max: 240 },
+      pendingAttentionMinutes: { type: Number, default: 5, min: 1, max: 240 },
     },
     posShifts: {
       enabled: { type: Boolean, default: false },

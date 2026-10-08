@@ -1,4 +1,5 @@
 import SupplierInvoice from "../../models/SupplierInvoice.js";
+import { overdueInvoiceFilter } from "../../services/supplierInvoiceHealth.js";
 import SupplierPayment from "../../models/SupplierPayment.js";
 import PurchaseOrder from "../../models/PurchaseOrder.js";
 import { assertObjectId, escapeRegex, parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
@@ -24,7 +25,7 @@ export const listSupplierInvoices = async (req, res, next) => {
     }
     if (req.query.supplier) filter.supplier = req.query.supplier; if (req.query.status) filter.status = req.query.status;
     if (req.query.paymentStatus) filter.paymentStatus = String(req.query.paymentStatus).trim().toLowerCase().replaceAll(" ", "_");
-    if (req.query.overdue === "true") filter.dueDate = { $lt: new Date() }, filter.paymentStatus = { $ne: "paid" }, filter.status = "posted";
+    if (req.query.overdue === "true") Object.assign(filter, overdueInvoiceFilter());
     if (req.query.from || req.query.to) filter.invoiceDate = riyadhDateRange(req.query);
     const [rows, total, aging] = await Promise.all([SupplierInvoice.find(filter).populate(populate).sort({ invoiceDate: -1, createdAt: -1 }).skip(skip).limit(limit).lean(), SupplierInvoice.countDocuments(filter), getPayablesAging()]);
     res.json({ success: true, data: rows.map((row) => decorateInvoice(row)), aging, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });

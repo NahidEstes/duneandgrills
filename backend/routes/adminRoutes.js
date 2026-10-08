@@ -1,4 +1,5 @@
 import express from "express";
+import { getOperationsOverview } from "../controllers/adminOperationsController.js";
 import { rejectClientRecordNumbers } from "../services/recordNumberService.js";
 import {
   getAdminUsers,
@@ -34,6 +35,7 @@ router.post("/staff/:id/reset-password", requireCapability(CAPABILITIES.STAFF_MA
 router.post("/staff/:id/reset-pin", requireCapability(CAPABILITIES.STAFF_MANAGE), resetStaffPin);
 router.use(requireCapability(CAPABILITIES.ADMIN_DASHBOARD));
 router.get("/dashboard", getDashboard);
+router.get("/operations-overview", getOperationsOverview);
 router.get("/analytics", getAdminAnalytics);
 router.get("/audit-logs", requireCapability(CAPABILITIES.AUDIT_READ), listAuditLogs);
 router.get("/users", getAdminUsers);

@@ -42,5 +42,5 @@ test("route awaits query parameters and passes filters to keyed destination comp
   assert.match(route, /await searchParams/); assert.match(route, /initialStatus=/); assert.match(route, /initialState=/);
   const dispatch = readFileSync(new URL("../src/components/inventory/InventorySectionPage.jsx", import.meta.url), "utf8");
   assert.match(dispatch, /StockItemsPage key=\{initialStatus\} initialStatus=\{initialStatus\}/);
-  assert.match(dispatch, /PurchaseOrdersPage key=\{initialStatus\}/); assert.match(dispatch, /PurchasingActionCenterPage key=\{initialState\}/);
+  assert.match(dispatch, /PurchaseOrdersPage key=\{`\$\{initialStatus\}:\$\{initialSearch\}`\} initialStatus=\{initialStatus\} initialSearch=\{initialSearch\}/); assert.match(dispatch, /PurchasingActionCenterPage key=\{initialState\}/);
 });
