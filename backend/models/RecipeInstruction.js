@@ -16,7 +16,7 @@ const schema = new mongoose.Schema({
   name: { type: String, required: true, maxlength: 180 },
   category: { type: String, required: true, enum: RECIPE_CATEGORIES },
   description: { type: String, maxlength: 1500 },
-  status: { type: String, enum: ["draft", "trial_required"], default: "trial_required" },
+  status: { type: String, enum: ["draft", "trial_required", "approved", "published"], default: "trial_required" },
   recipeVersion: { type: String, required: true },
   source: { manualVersion: String, manualDate: String, pages: [Number] },
   presets: [{ _id: false, key: String, label: String }],
@@ -29,6 +29,8 @@ const schema = new mongoose.Schema({
   // No public image URL or upload pretending to be an approved serving reference.
   servingPhoto: { type: String, default: null },
   revision: { type: Number, min: 1, default: 1 },
+  publishedRevision: { type: Number, default: null },
+  workflowVersion: { type: Number, default: 0 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true, optimisticConcurrency: true });

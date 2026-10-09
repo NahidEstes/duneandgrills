@@ -25,7 +25,7 @@ export function RecipeIngredients({ recipe, presetIndex }) {
 export function RecipeReferences({ recipe, onNavigate, inventoryLabel }) {
   return <div className="grid gap-3 sm:grid-cols-2">
     <section className="recipe-card p-5"><h3 className="mb-3 flex items-center gap-2 font-semibold"><Link2 className="h-4 w-4 text-dune-amber" />Preparation links</h3>
-      {recipe.linkedPreparationCodes.length ? <div className="flex flex-wrap gap-2">{recipe.linkedPreparationCodes.map(code => <button key={code} onClick={() => onNavigate(code)} className="recipe-button text-sm">{code === "HB01" ? "S1 / HB01 · House Burger Sauce" : "T1 · Caramelized Onion"} →</button>)}</div> : <p className="text-sm text-neutral-400">No linked preparation recipe.</p>}
+      {recipe.linkedPreparationCodes.length ? <div className="flex flex-wrap gap-2">{recipe.linkedPreparationCodes.map(code => <button key={code} onClick={() => onNavigate(code, recipe.dependencyPins?.find(pin => pin.code === code)?.revision)} className="recipe-button text-sm">{code === "HB01" ? "S1 / HB01 · House Burger Sauce" : "T1 · Caramelized Onion"} →</button>)}</div> : <p className="text-sm text-neutral-400">No linked preparation recipe.</p>}
       {recipe.linkedPreparationCodes.length > 0 && <p className="recipe-print-only text-sm">{recipe.linkedPreparationCodes.map(code => code === "HB01" ? "S1 / HB01 · House Burger Sauce" : "T1 · Caramelized Onion").join("; ")}</p>}
       <p className="mt-4 text-xs text-neutral-400">Inventory recipe: {recipe.inventoryRecipe ? inventoryLabel || `Linked ID ${recipe.inventoryRecipe} (label unavailable)` : "Unmapped — select explicitly; no automatic ingredient matching."}</p>
     </section>
@@ -35,7 +35,8 @@ export function RecipeReferences({ recipe, onNavigate, inventoryLabel }) {
 
 export function RecipeWarnings({ recipe }) {
   return <aside className="recipe-warning space-y-2" aria-label="Recipe review warnings">
-    <p className="font-semibold">{recipe.status === "draft" ? "DRAFT" : "TRIAL REQUIRED"} — NOT APPROVED FOR REGULAR SERVICE</p>
+    <p className="font-semibold">{recipe.status.replaceAll("_", " ").toUpperCase()} — {recipe.status === "published" ? recipe.currentPublished === false ? "HISTORICAL VERSION — verify current service card" : "INTERNALLY APPROVED SERVICE INSTRUCTIONS" : "NOT PUBLISHED FOR REGULAR SERVICE"}</p>
+    {recipe.status === "published" && <p>Source manual warnings below describe its original, untested status. This revision has an internal trial/approval record; this is not regulatory certification or shelf-life validation.</p>}
     {recipe.warnings.map((text, i) => <p key={i}>{text}</p>)}
     <p>Presets change listed ingredient quantities only. Cooking times, temperatures, storage limits and equipment loads are NOT multiplied.</p>
     {recipe.yieldNotes.map((text, i) => <p key={i}>{text}</p>)}

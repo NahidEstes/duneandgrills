@@ -47,7 +47,8 @@ test("Recipe Instructions Phase 1 + 2 (isolated replica set)", { timeout: 180000
         assert.equal((await request("", null)).status, 401);
         for (const role of ["customer", "cashier", "inventory", "accountant"]) assert.equal((await request("", role)).status, 403);
         assert.deepEqual((await request("", "kitchen")).body.data, []);
-        for (const path of ["/B01", "/S1", "/manual", "/inventory-options"]) assert.equal((await request(path, "kitchen")).status, 403);
+        for (const path of ["/B01", "/S1"]) assert.equal((await request(path, "kitchen")).status, 404);
+        for (const path of ["/manual", "/inventory-options"]) assert.equal((await request(path, "kitchen")).status, 403);
         assert.equal((await request("/B01", "kitchen", draft())).status, 403);
       });
       await t.test("Admin/Manager can review; reading preview never seeds database; no-store", async () => {

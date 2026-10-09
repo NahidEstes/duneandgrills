@@ -14,6 +14,7 @@
 .recipe-warning { border: 1px solid #eda52360; border-radius: 12px; padding: 15px 18px; background: #eda5230d; color: #e9c994; font-size: 12px; line-height: 1.7; }
 .recipe-tabs { display: flex; overflow-x: auto; white-space: nowrap; border-bottom: 1px solid #ffffff18; }
 .recipe-print-only { display: none; }
+.recipe-diff { white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px; background: #ffffff05; border-radius: 8px; font-size: 11px; max-height: 300px; overflow: auto; }
 .recipe-workspace button:focus-visible, .recipe-workspace a:focus-visible, .recipe-workspace input:focus-visible, .recipe-workspace textarea:focus-visible, .recipe-workspace summary:focus-visible { outline: 2px solid #eda523; outline-offset: 3px; }
 @media (max-width: 1279px) { .recipe-workspace { grid-template-columns: 1fr; } .recipe-sidebar { padding: 18px 24px; border-right: none; border-bottom: 1px solid #ffffff12; } .recipe-sidebar > a { margin-bottom: 12px; } .recipe-sidebar > p { display: none; } .recipe-reading-grid { grid-template-columns: 240px minmax(0, 1fr); } }
 @media (max-width: 767px) { .recipe-main { padding: 18px 12px; } .recipe-sidebar { padding: 16px 12px; } .recipe-reading-grid { grid-template-columns: 1fr; } .recipe-list > div:last-of-type { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .recipe-list-item { margin: 0 !important; padding: 10px; } .recipe-list-item > span:first-child { display: none; } }
@@ -22,8 +23,18 @@
     size: A4; margin: 14mm;
     @bottom-center { content: "DUNE & GRILLS · DRAFT / TRIAL · NOT APPROVED FOR REGULAR SERVICE"; font: 8pt sans-serif; color: #111; }
   }
+  @page recipe-published {
+    size: A4; margin: 14mm;
+    @bottom-center { content: "DUNE & GRILLS · PUBLISHED · VERIFY EXACT REVISION / CURRENT SERVICE CARD"; font: 8pt sans-serif; color: #111; }
+  }
+  @page recipe-approved {
+    size: A4; margin: 14mm;
+    @bottom-center { content: "DUNE & GRILLS · APPROVED · NOT YET PUBLISHED FOR REGULAR SERVICE"; font: 8pt sans-serif; color: #111; }
+  }
   body, .recipe-workspace { background: white !important; color: #111 !important; }
   body:has(.recipe-workspace) { page: recipe-instructions; }
+  body:has(.recipe-workspace[data-recipe-status="published"]) { page: recipe-published; }
+  body:has(.recipe-workspace[data-recipe-status="approved"]) { page: recipe-approved; }
   .recipe-workspace { display: block; font-size: 10pt; }
   .recipe-main { padding: 0; max-width: none; }
   .recipe-reading-grid { display: block; }
@@ -35,6 +46,7 @@
   .recipe-workspace p, .recipe-workspace span, .recipe-workspace td, .recipe-workspace th { color: #111 !important; }
   .recipe-workspace tr, .recipe-workspace li { break-inside: avoid; }
   .recipe-workspace .recipe-card, .recipe-workspace .recipe-warning { break-inside: avoid; }
+  .recipe-workspace .recipe-card:has(table) { break-inside: auto; }
   .recipe-workspace td, .recipe-workspace th { padding: 7px; }
   .recipe-workspace p { line-height: 1.5; }
   .recipe-workspace button { display: none; }

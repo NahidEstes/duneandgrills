@@ -4,3 +4,8 @@ export const fetchRecipeInstructions = options => data(api.get("/kitchen/recipes
 export const fetchRecipeInstructionManual = options => data(api.get("/kitchen/recipes/manual", options));
 export const fetchInstructionInventoryOptions = (search = "", options = {}) => data(api.get("/kitchen/recipes/inventory-options", { ...options, params: { search } }));
 export const saveRecipeInstructionDraft = (code, payload) => data(api.put(`/kitchen/recipes/${encodeURIComponent(code)}`, payload));
+export const fetchRecipeInstruction = (code, options) => data(api.get(`/kitchen/recipes/${encodeURIComponent(code)}`, options));
+export const fetchRecipeHistory = (code, options) => data(api.get(`/kitchen/recipes/${encodeURIComponent(code)}/history`, options));
+export const fetchRecipeTrials = (code, options) => data(api.get(`/kitchen/recipes/${encodeURIComponent(code)}/trials`, options));
+export const recordRecipeTrial = (code, payload) => data(api.post(`/kitchen/recipes/${encodeURIComponent(code)}/trials`, payload));
+export const transitionRecipe = (code, action, payload) => data(api.post(`/kitchen/recipes/${encodeURIComponent(code)}/workflow/${action}`, payload));
