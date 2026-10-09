@@ -1,6 +1,7 @@
 "use client";
 
 import DarkSelect from "../ui/DarkSelect.jsx";
+import Link from "next/link";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { BellRing, ChefHat, Flame, LogOut, RefreshCw, Search, Volume2, VolumeX, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -135,6 +136,7 @@ export default function KitchenDisplay() {
         </div>
 
         <footer className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] pt-4 text-[0.65rem] text-neutral-600">
+          <Link href="/kitchen/recipes" className="text-dune-amber underline underline-offset-4">Recipe Instructions</Link>
           <span>Server timestamps drive kitchen timers and status validation.</span>
           <span>{queue.lastUpdatedAt ? `Last synchronized ${new Date(queue.lastUpdatedAt).toLocaleTimeString("en-SA")}` : "Waiting for first synchronization…"}</span>
         </footer>
