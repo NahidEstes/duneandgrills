@@ -77,8 +77,7 @@ export const register = async (req, res) => {
       role: "customer",
       pointsBalance: 0,
     });
-    issueSessionCookies(res, signToken(user));
-    res.status(201).json({ success: true, user: sanitize(user) });
+    sendAuthResponse(req, res, user, user, 201);
   } catch (err) {
     res
       .status(err.status === 503 ? 503 : 500)
@@ -100,7 +99,7 @@ export const login = async (req, res) => {
     }
 
     const user = await User.findOne({ email }).select("+password +sessionVersion");
-    if (!user || user.isActive === false || !(await user.comparePassword(password))) {
+    if (!user || user.isActive === false || (req.mobileAuth && user.role !== "customer") || !(await user.comparePassword(password))) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid email or password" });
@@ -108,8 +107,7 @@ export const login = async (req, res) => {
 
     await ensurePointsBalance(user._id);
     const currentUser = await User.findById(user._id);
-    issueSessionCookies(res, signToken(user));
-    res.status(200).json({ success: true, user: sanitize(currentUser) });
+    sendAuthResponse(req, res, user, currentUser, 200);
   } catch (err) {
     res
       .status(500)
@@ -136,6 +134,21 @@ export const getMe = async (req, res) => {
 
 // Read-only session validation for server-rendered staff route guards.
 export const getSession = (req, res) => res.json({ success: true, user: sanitize(req.user) });
+
+// Native clients deliberately do not establish browser cookies. Use the same
+// credentials, signing, sanitization and middleware sessionVersion contract.
+const sendAuthResponse = (req, res, signingUser, publicUser, status) => {
+  const token = signToken(signingUser);
+  res.set("Cache-Control", "private, no-store");
+  if (!req.mobileAuth) issueSessionCookies(res, token);
+  res.status(status).json({ success: true, user: sanitize(publicUser),
+    ...(req.mobileAuth ? { token, expiresAt: jwt.decode(token).exp * 1000 } : {}) });
+};
+
+export const mobileAuth = handler => (req, res) => {
+  req.mobileAuth = true;
+  return handler(req, res);
+};
 
 // @route PATCH /api/auth/me
 export const updateMe = async (req, res) => {

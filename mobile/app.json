@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Dune & Grills",
+    "slug": "dune-and-grills",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/brand.png",
+    "scheme": "duneandgrills",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.duneandgrills.customer",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.duneandgrills.customer",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/brand.png",
+        "backgroundColor": "#e89425"
+      },
+      "predictiveBackGestureEnabled": true,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/brand.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#faf7f0",
+          "image": "./assets/images/brand.png",
+          "imageWidth": 76
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

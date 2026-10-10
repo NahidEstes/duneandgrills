@@ -1,0 +1,28 @@
+export type AddOn = { _id: string; name: string; price: number; image?: string };
+export type Product = {
+  _id: string; productType: 'menuItem' | 'combo'; name: string; description: string;
+  image: string; price: number; category: string; isAvailable: boolean;
+  items?: { name: string; quantity: number }[];
+  addOns?: AddOn[];
+  customization?: { enabled: boolean; spice?: { enabled: boolean; options: string[]; default: string };
+    groups?: { name: string; selectionType: string; minSelections: number; maxSelections: number; addOns: AddOn[] }[] };
+};
+export type Selection = { selectedAddOns: { id: string; quantity: number }[]; spiceLevel: string; note: string };
+export type CartLine = { key: string; product: Product; selection: Selection; quantity: number; unitPrice: number };
+export type User = { _id: string; name: string; email: string; phone: string; role: string };
+export type Session = { token: string; user: User; expiresAt: number };
+export type Address = { _id: string; label: string; fullAddress: string; phone: string; isDefault: boolean };
+export type OrderConfig = { websiteOrderingEnabled: boolean; minimumDeliveryOrder: number;
+  paymentOptions: { code: string; enabled: boolean }[]; orderTypes: { value: string; label: string; deliveryFee: number }[] };
+export type Customer = { name: string; phone: string; email: string; address: string };
+export type OrderPayload = { idempotencyKey?: string; fulfillmentType: 'delivery' | 'pickup'; paymentOption: 'cod';
+  customer: Customer; kitchenNotes: string; couponCode: string;
+  items: { productId: string; productType: string; quantity: number; customization: Selection }[] };
+export type Order = { _id?: string; orderNumber: string; totalAmount: number; subtotal: number; deliveryFee: number;
+  discountAmount: number; status: string; paymentStatus: string; fulfillmentType: string;
+  createdAt: string; estimatedPreparationMinutes?: number; kitchenNotes?: string;
+  items: { name: string; image: string; quantity: number; price: number; spiceLevel: string; itemNote: string;
+    selectedAddOns: { name: string; quantity: number }[] }[] };
+export type OrderResult = { data?: Order; trackingToken?: string; cancelled?: boolean };
+export type Tracking = { orderNumber: string; token: string; actor: string; baseUrl?: string; order: Order };
+export type Pending = { version: 1; actor: string; token: string | null; baseUrl: string; payload: OrderPayload; createdAt: string };
