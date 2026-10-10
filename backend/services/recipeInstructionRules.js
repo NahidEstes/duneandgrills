@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { canonicalRecipeCode } from "../data/recipeInstructionPilot.js";
+import { canonicalRecipeCode, pilotByCode } from "../data/recipeInstructionPilot.js";
 export const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 export const actorSnapshot = actor => ({ id: String(actor._id), name: actor.name, role: actor.role });
 export const CHECKS = ["ingredientsUnits", "usableYield", "preparation", "assembly", "servingDelivery", "allergens", "storage", "linkedPreparations", "qualifiedLocalSafetyReview"];
@@ -34,15 +34,16 @@ export function validateContent(patch, current) {
   if (!Array.isArray(next.presets) || !next.presets.length || next.presets.length > 2) fail("Provide one or two explicit quantity presets.");
   next.presets = next.presets.map(row => { objectOnly(row, ["key", "label"], "preset"); return { key: text(row.key, "Preset key", true, 80), label: text(row.label, "Preset label", true, 180) }; });
   if (new Set(next.presets.map(row => row.key)).size !== next.presets.length) fail("Preset keys must be unique.");
-  if (!Array.isArray(next.ingredients) || !next.ingredients.length || next.ingredients.length > 100) fail("Provide valid ingredients.");
+  if (!Array.isArray(next.ingredients) || (!next.ingredients.length && next.category !== "Kitchen Guides") || next.ingredients.length > 100) fail("Provide valid ingredients.");
+  if (next.category === "Kitchen Guides" && next.ingredients.length) fail("Shared guides must not invent production ingredients.");
   next.ingredients = next.ingredients.map(row => {
     objectOnly(row, ["name", "quantities", "unit", "basis", "specification", "counts"], "ingredient");
     if (row.unit !== "g" || !Array.isArray(row.quantities) || row.quantities.length !== next.presets.length || row.quantities.some(n => !Number.isFinite(n) || n <= 0)) fail("Each ingredient needs positive gram quantities for every preset.");
     if (!Array.isArray(row.counts || []) || (row.counts || []).length > next.presets.length) fail("Invalid ingredient counts.");
     return { name: text(row.name, "Ingredient", true, 180), quantities: row.quantities, unit: "g", basis: text(row.basis, "Weight basis", true, 120), specification: text(row.specification || "", "Specification", false, 1500), counts: (row.counts || []).map(n => text(n, "Count", false, 180)) };
   });
-  if (!Array.isArray(next.linkedPreparationCodes) || next.linkedPreparationCodes.length > 3) fail("Invalid preparation references.");
-  next.linkedPreparationCodes = next.linkedPreparationCodes.map(code => { const canonical = typeof code === "string" && canonicalRecipeCode(code); if (!canonical || canonical === "B01") fail("Missing/invalid preparation reference; only HB01/S1 and T1 are imported preparations, not HB02/HB03 substitutes."); return canonical; });
+  if (!Array.isArray(next.linkedPreparationCodes) || next.linkedPreparationCodes.length > 20) fail("Invalid preparation references.");
+  next.linkedPreparationCodes = next.linkedPreparationCodes.map(code => { const canonical = typeof code === "string" && canonicalRecipeCode(code); if (!canonical || pilotByCode(canonical).category !== "Preparation Recipes") fail("Missing/invalid preparation reference. Select an existing preparation; optional variants require explicit review."); return canonical; });
   if (next.linkedPreparationCodes.includes(next.code) || new Set(next.linkedPreparationCodes).size !== next.linkedPreparationCodes.length) fail("Duplicate/self preparation reference.");
   return next;
 }
@@ -52,6 +53,14 @@ const measure = (value, label, positive = false) => {
   return value;
 };
 export function validateTrial(payload, recipe) {
+  if (recipe.category === "Kitchen Guides") {
+    objectOnly(payload, ["revision", "requestKey", "trialAt", "preparation", "reviewerComments", "safety", "outcome", "guideChecks"], "guide rehearsal");
+    const date = new Date(payload.trialAt);
+    if (typeof payload.trialAt !== "string" || !Number.isFinite(date.getTime()) || date.getTime() > Date.now() + 60000) fail("Provide a valid rehearsal timestamp.");
+    objectOnly(payload.guideChecks, ["sourceReviewed", "staffRehearsal", "localSafetyReviewed"], "guide rehearsal checks");
+    if (Object.values(payload.guideChecks).some(value => typeof value !== "boolean") || !["passed", "failed", "untested"].includes(payload.safety) || !["passed", "needs_changes", "failed"].includes(payload.outcome)) fail("Invalid guide rehearsal outcomes.");
+    return { kind: "guide_rehearsal", trialAt: date.toISOString(), preparation: text(payload.preparation, "Actual staff rehearsal observations", true), reviewerComments: text(payload.reviewerComments || "", "Reviewer comments"), guideChecks: payload.guideChecks, safety: payload.safety, outcome: payload.outcome };
+  }
   objectOnly(payload, ["revision", "requestKey", "trialAt", "batch", "ingredients", "usableYield", "waste", "preparation", "cooking", "deviations", "taste", "texture", "portionConsistency", "presentation", "delivery", "safety", "outcome", "reviewerComments"], "trial");
   const date = new Date(payload.trialAt);
   if (typeof payload.trialAt !== "string" || !Number.isFinite(date.getTime()) || date.getTime() > Date.now() + 60000) fail("Provide a valid trial timestamp, not a future date.");
@@ -80,5 +89,6 @@ export function validateTrial(payload, recipe) {
   return record;
 }
 export function qualifyingTrial(record, recipe) {
+  if (recipe.category === "Kitchen Guides") return record.kind === "guide_rehearsal" && record.outcome === "passed" && record.safety === "passed" && record.preparation && ["sourceReviewed", "staffRehearsal", "localSafetyReviewed"].every(key => record.guideChecks?.[key] === true);
   return record.outcome === "passed" && record.safety === "passed" && record.ingredients.every(row => row.basis === "measured") && record.usableYield?.basis === "measured" && record.preparation && (recipe.cooking.length === 0 || record.cooking) && ["taste", "texture", "portionConsistency", "presentation"].every(key => record[key].tested) && (record.taste.score + record.texture.score) / 2 >= 4 && (recipe.category !== "Main Recipes" || (record.batch.unit === "servings" && record.batch.value >= 10));
 }

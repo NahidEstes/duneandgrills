@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { fetchInstructionInventoryOptions, saveRecipeInstructionDraft } from "../../../api/recipeInstructionsApi.js";
 import RecipeRevisionEditor, { editableRecipeContent } from "./RecipeRevisionEditor.jsx";
 
-export default function RecipeDraftManager({ recipe, onSaved, onSessionExpired }) {
+export default function RecipeDraftManager({ recipe, preparationOptions, onSaved, onSessionExpired }) {
   const [status, setStatus] = useState(["draft", "trial_required"].includes(recipe.status) ? recipe.status : "draft");
   const [content, setContent] = useState(() => editableRecipeContent(recipe));
   const [reason, setReason] = useState("");
@@ -44,10 +44,10 @@ export default function RecipeDraftManager({ recipe, onSaved, onSessionExpired }
     } finally { setSaving(false); }
   };
   return <details className="recipe-card recipe-no-print p-5">
-    <summary className="cursor-pointer font-semibold text-dune-amber">Manage pilot draft · Admin / Manager</summary>
+    <summary className="cursor-pointer font-semibold text-dune-amber">Manage instruction draft · Admin / Manager</summary>
     <form onSubmit={submit} className="mt-4 space-y-4">
       <p className="text-xs leading-6 text-neutral-400">Save creates a new working revision. Approval/trials never transfer. Current published instructions remain available. No stock or financial changes.</p>
-      <RecipeRevisionEditor content={content} setContent={setContent} recipeCode={recipe.code} />
+      <RecipeRevisionEditor content={content} setContent={setContent} recipeCode={recipe.code} preparationOptions={preparationOptions} guide={recipe.category === "Kitchen Guides"} />
       <label className="block text-sm">Change reason<input className="recipe-input mt-2" value={reason} onChange={e => setReason(e.target.value)} required maxLength={3000} /></label>
       <label className="block text-sm">Draft status<DarkSelect value={status} onChange={e => setStatus(e.target.value)} aria-label="Draft status" className="recipe-input mt-2"><option value="trial_required">Trial required</option><option value="draft">Draft</option></DarkSelect></label>
       <label className="block text-sm">Find existing inventory recipe<input className="recipe-input mt-2" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search menu item name…" maxLength={100} /></label>
@@ -60,7 +60,7 @@ export default function RecipeDraftManager({ recipe, onSaved, onSessionExpired }
       <label className="block text-sm">Owner / chef review notes<textarea className="recipe-input mt-2 min-h-28" maxLength={3000} value={notes} onChange={e => setNotes(e.target.value)} /></label>
       {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
       {saved && <p role="status" className="text-sm text-emerald-300">New revision saved. Unpublished; available only for authorized trial/review.</p>}
-      <button disabled={saving} className="recipe-button bg-dune-amber/10">{saving ? "Saving…" : recipe.persisted ? "Save draft review" : "Save pilot draft to database"}</button>
+      <button disabled={saving} className="recipe-button bg-dune-amber/10">{saving ? "Saving…" : recipe.persisted ? "Save draft review" : "Save instruction draft to database"}</button>
     </form>
   </details>;
 }

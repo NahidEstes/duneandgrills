@@ -72,9 +72,9 @@ try {
     assert.equal(await page.locator(".recipe-list-item").count(), 1);
     await page.getByRole("textbox", { name: "Search recipes", exact: true }).fill("");
     await page.getByRole("button", { name: "Kitchen Guides", exact: true }).click();
-    await page.getByText(/No matching pilot recipes/).waitFor();
+    await page.getByText(/No matching recipes or guides/).waitFor();
     await page.getByRole("button", { name: "All", exact: true }).click();
-    await page.getByText("Manage pilot draft · Admin / Manager", { exact: true }).click();
+    await page.getByText("Manage instruction draft · Admin / Manager", { exact: true }).click();
     await page.getByText("Edit instructions / create new revision", { exact: true }).click();
     const preparation = page.locator("label").filter({ hasText: /^preparation · one instruction per line/i }).locator("textarea");
     const originalPreparation = await preparation.inputValue(); await preparation.focus(); await preparation.press("Control+End"); await preparation.press("Enter");
@@ -84,9 +84,9 @@ try {
     await page.getByRole("option", { name: "Explicit Test Burger · Active", exact: true }).click();
     await page.getByRole("textbox", { name: "Owner / chef review notes", exact: true }).fill("Dummy owner review only");
     await page.getByRole("textbox", { name: "Change reason", exact: true }).fill("Isolated first review");
-    await page.getByRole("button", { name: "Save pilot draft to database", exact: true }).click();
+    await page.getByRole("button", { name: "Save instruction draft to database", exact: true }).click();
     await page.getByText("Exact revision 1", { exact: true }).waitFor();
-    await page.getByText("Manage pilot draft · Admin / Manager", { exact: true }).click();
+    await page.getByText("Manage instruction draft · Admin / Manager", { exact: true }).click();
     saveConflict = true;
     await page.getByRole("textbox", { name: "Change reason", exact: true }).fill("Isolated second review");
     await page.getByRole("button", { name: "Save draft review", exact: true }).click();
@@ -100,7 +100,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     await page.emulateMedia({ media: "print" });
     for (const title of ["Ingredients", "Preparation", "Cooking", "Assembly", "Serving", "Delivery", "Storage controls", "Allergens"]) assert.equal(await page.getByRole("heading", { name: title, exact: true }).isVisible(), true);
-    assert.equal(await page.getByText("Manage pilot draft · Admin / Manager", { exact: true }).isVisible(), false);
+    assert.equal(await page.getByText("Manage instruction draft · Admin / Manager", { exact: true }).isVisible(), false);
     if (viewport.width === 1536) {
       await page.pdf({ path: path.join(output, "B01-print.pdf"), format: "A4", printBackground: true });
       await page.screenshot({ path: path.join(output, "recipe-print.png"), fullPage: true });

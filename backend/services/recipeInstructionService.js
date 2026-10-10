@@ -4,20 +4,20 @@ import RecipeInstructionRevision from "../models/RecipeInstructionRevision.js";
 import { actorSnapshot, requestIdentity, retryMatches, text, validateContent } from "./recipeInstructionRules.js";
 import InventoryRecipe from "../models/InventoryRecipe.js";
 import MenuItem from "../models/MenuItem.js";
-import { canonicalRecipeCode, pilotByCode, RECIPE_PILOT } from "../data/recipeInstructionPilot.js";
+import { canonicalRecipeCode, pilotByCode, RECIPE_LIBRARY } from "../data/recipeInstructionPilot.js";
 import { recordAuditLog } from "./auditLogService.js";
 
 export const canManageRecipeInstructions = actor => ["admin", "manager"].includes(actor?.role);
 const forAudience = (row, actor) => {
   if (canManageRecipeInstructions(actor)) return row;
-  const { reviewNotes, ...instruction } = row; return instruction;
+  const { reviewNotes, importProvenance, ...instruction } = row; return instruction;
 };
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
-export const requireRecipeManager = actor => { if (!canManageRecipeInstructions(actor)) fail("Only Admin/Manager can review unapproved pilot drafts.", 403); };
+export const requireRecipeManager = actor => { if (!canManageRecipeInstructions(actor)) fail("Only Admin/Manager can review unapproved instruction drafts.", 403); };
 // Kitchen normal view is published only; unapproved content requires an explicit trial view.
 export async function listRecipeInstructions(actor, view) {
   if (view != null && !["published", "trial"].includes(view)) fail("Invalid recipe view.");
-  const saved = await RecipeInstruction.find({ code: { $in: RECIPE_PILOT.map(row => row.code) } }).lean();
+  const saved = await RecipeInstruction.find({ code: { $in: RECIPE_LIBRARY.map(row => row.code) } }).lean();
   const enrich = row => ({ ...row, dependencyPins: (row.dependencyPins || []).map(pin => ({ ...pin, updateAvailable: saved.find(a => a.code === pin.code)?.publishedRevision !== pin.revision })) });
   if (view === "published" || (!canManageRecipeInstructions(actor) && view !== "trial")) {
     const versions = await RecipeInstructionRevision.find({ $or: saved.filter(row => row.publishedRevision).map(row => ({ code: row.code, revision: row.publishedRevision })) .concat([{ code: "__none__" }]) }).lean();
@@ -26,7 +26,7 @@ export async function listRecipeInstructions(actor, view) {
   const versions = await RecipeInstructionRevision.find({ $or: saved.map(row => ({ code: row.code, revision: row.revision })).concat([{ code: "__none__" }]) }).lean();
   const latest = anchor => { const version = versions.find(row => row.code === anchor.code && row.revision === anchor.revision); return enrich(version ? serializeVersion(version, anchor) : serializeInstruction(anchor)); };
   if (!canManageRecipeInstructions(actor)) return saved.filter(row => ["trial_required", "approved"].includes(row.status)).map(row => forAudience(latest(row), actor));
-  return RECIPE_PILOT.map(pilot => saved.some(row => row.code === pilot.code) ? latest(saved.find(row => row.code === pilot.code)) : serializeInstruction(pilot));
+  return RECIPE_LIBRARY.map(pilot => saved.some(row => row.code === pilot.code) ? latest(saved.find(row => row.code === pilot.code)) : serializeInstruction(pilot));
 }
 export function serializeInstruction(row) {
   // Allowlist prevents financial trial fields, actor details or incidental model fields leaking.
@@ -35,7 +35,7 @@ export function serializeInstruction(row) {
 }
 export function serializeVersion(row, anchor) {
   const event = value => value ? { actor: value.actor, at: value.at, reason: value.reason } : null;
-  return { ...serializeInstruction({ ...row.content, _id: row._id, revision: row.revision, status: row.status }), workflowVersion: anchor?.workflowVersion || 0, publishedRevision: anchor?.publishedRevision || null, approval: event(row.approval), qualifyingTrialId: row.qualifyingTrial ? String(row.qualifyingTrial) : null, publication: event(row.publication), dependencyPins: row.dependencyPins || [], currentPublished: anchor?.publishedRevision === row.revision, currentWorking: anchor?.revision === row.revision };
+  return { ...serializeInstruction({ ...row.content, _id: row._id, revision: row.revision, status: row.status }), importProvenance: row.importProvenance || null, workflowVersion: anchor?.workflowVersion || 0, publishedRevision: anchor?.publishedRevision || null, approval: event(row.approval), qualifyingTrialId: row.qualifyingTrial ? String(row.qualifyingTrial) : null, publication: event(row.publication), dependencyPins: row.dependencyPins || [], currentPublished: anchor?.publishedRevision === row.revision, currentWorking: anchor?.revision === row.revision };
 }
 async function versionWithUpdates(row, anchor) {
   const result = serializeVersion(row, anchor);
@@ -78,7 +78,7 @@ export async function inventoryInstructionOptions(actor, search = "") {
   const rows = await InventoryRecipe.find({ menuItem: { $in: menuItems.map(row => row._id) } }).select("menuItem isActive doNotTrack").sort({ _id: 1 }).limit(100).lean();
   return rows.map(row => ({ _id: row._id, name: names.get(String(row.menuItem)), isActive: row.isActive, doNotTrack: row.doNotTrack }));
 }
-export async function saveRecipeInstruction(code, payload, actor) {
+export async function saveRecipeInstruction(code, payload, actor, importContext = null) {
   requireRecipeManager(actor);
   const canonical = canonicalRecipeCode(code), pilot = pilotByCode(canonical);
   if (!pilot) fail("Recipe instruction not found.", 404);
@@ -119,10 +119,15 @@ export async function saveRecipeInstruction(code, payload, actor) {
         if (!restored) fail("Restore revision not found.", 404);
         content = restored.content;
       }
+      // Internal importer only; HTTP payload cannot set source/aliases/warnings/provenance.
+      if (importContext) {
+        content = { ...content, ...importContext.record };
+        row.source = importContext.record.source; row.recipeVersion = importContext.record.recipeVersion; row.warnings = importContext.record.warnings;
+      }
       content = validateContent(payload.content || {}, content);
       for (const key of ["name", "description", "presets", "ingredients", "preparation", "cooking", "assembly", "serving", "delivery", "storage", "allergens", "yieldNotes", "linkedPreparationCodes"]) row[key] = content[key];
-      // Graph validation uses all three pilot recipes; aliases never create separate records.
-      const graph = new Map(RECIPE_PILOT.map(p => [p.code, p.linkedPreparationCodes]));
+      // Whole manual graph; aliases never create separate records.
+      const graph = new Map(RECIPE_LIBRARY.map(p => [p.code, p.linkedPreparationCodes]));
       for (const saved of await RecipeInstruction.find().select("code linkedPreparationCodes").session(session).lean()) graph.set(saved.code, saved.linkedPreparationCodes);
       graph.set(canonical, row.linkedPreparationCodes);
       const visit = (key, path = []) => { if (path.includes(key)) fail("Circular preparation dependency."); for (const next of graph.get(key) || []) visit(next, [...path, key]); }; visit(canonical);
@@ -130,8 +135,8 @@ export async function saveRecipeInstruction(code, payload, actor) {
       if (payload.restoreRevision != null) row.status = "draft";
       row.revision = payload.revision + 1; row.updatedBy = actor._id;
       await row.save({ session });
-      await RecipeInstructionRevision.create([{ code: canonical, revision: row.revision, content: serializeInstruction(row.toObject()), status: row.status, createdActor: actorSnapshot(actor), reason: payload.reason || "Draft review saved", restoredFrom: payload.restoreRevision, ...(identity ? { requestKey: identity.key, requestHash: identity.hash } : {}) }], { session });
-      await recordAuditLog({ actor, action: payload.restoreRevision ? "RECIPE_INSTRUCTION_REVISION_RESTORED" : existing ? "RECIPE_INSTRUCTION_DRAFT_UPDATED" : "RECIPE_INSTRUCTION_DRAFT_CREATED", entityType: "RecipeInstruction", entityId: row._id, entityLabel: `${row.code} · ${row.name}`, reason: payload.reason || "", before, after: serializeInstruction(row.toObject()), metadata: { code: row.code, revision: row.revision, restoredFrom: payload.restoreRevision || null, sourceManualVersion: pilot.source.manualVersion } }, { session });
+      await RecipeInstructionRevision.create([{ code: canonical, revision: row.revision, content: serializeInstruction(row.toObject()), status: row.status, createdActor: actorSnapshot(actor), reason: payload.reason || "Draft review saved", restoredFrom: payload.restoreRevision, ...(importContext ? { importProvenance: importContext.provenance } : {}), ...(identity ? { requestKey: identity.key, requestHash: identity.hash } : {}) }], { session });
+      await recordAuditLog({ actor, action: payload.restoreRevision ? "RECIPE_INSTRUCTION_REVISION_RESTORED" : existing ? "RECIPE_INSTRUCTION_DRAFT_UPDATED" : "RECIPE_INSTRUCTION_DRAFT_CREATED", entityType: "RecipeInstruction", entityId: row._id, entityLabel: `${row.code} · ${row.name}`, reason: payload.reason || "", before, after: serializeInstruction(row.toObject()), metadata: { code: row.code, revision: row.revision, restoredFrom: payload.restoreRevision || null, sourceManualVersion: row.source.manualVersion, ...(importContext ? { importProvenance: importContext.provenance } : {}) } }, { session });
       result = serializeInstruction(row.toObject());
     });
     return result;

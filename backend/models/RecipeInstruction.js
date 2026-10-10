@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { RECIPE_CATEGORIES } from "../data/recipeInstructionPilot.js";
+import { RECIPE_CATEGORIES, RECIPE_LIBRARY } from "../data/recipeInstructionPilot.js";
 
 const texts = { type: [String], default: [], validate: value => value.length <= 30 && value.every(text => text.length <= 3000) };
 const ingredient = new mongoose.Schema({
@@ -11,7 +11,7 @@ const ingredient = new mongoose.Schema({
   counts: { type: [String], default: [] },
 }, { _id: false });
 const schema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, immutable: true, enum: ["B01", "HB01", "T1"] },
+  code: { type: String, required: true, unique: true, immutable: true, enum: RECIPE_LIBRARY.map(row => row.code) },
   aliases: { type: [String], default: [], immutable: true },
   name: { type: String, required: true, maxlength: 180 },
   category: { type: String, required: true, enum: RECIPE_CATEGORIES },

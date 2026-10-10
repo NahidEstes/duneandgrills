@@ -109,7 +109,7 @@ test("Recipe Instructions Phase 3 isolated lifecycle", { timeout: 180000 }, asyn
       assert.equal((await getRecipeInstruction("S1", admin, { view: "published" })).revision, 2);
     });
     await t.test("missing dependencies/cycles rejected; published dependencies mandatory", async () => {
-      await rejected(() => save("T1", { content: { linkedPreparationCodes: ["HB02"] }, reason: "Invalid substitution", requestKey: randomUUID() }), 400);
+      await rejected(() => save("T1", { content: { linkedPreparationCodes: ["UNKNOWN-PREP"] }, reason: "Missing preparation", requestKey: randomUUID() }), 400);
       await rejected(() => save("T1", { content: { linkedPreparationCodes: ["B01"] }, reason: "Cycle", requestKey: randomUUID() }), 400);
       // Remove current published pointer only in isolated data, then verify approval block and restore fixture.
       await RecipeInstruction.updateOne({ code: "T1" }, { $set: { publishedRevision: null } });

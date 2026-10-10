@@ -10,6 +10,7 @@ const schema = new mongoose.Schema({
   createdActor: { type: actor, immutable: true },
   reason: { type: String, immutable: true },
   restoredFrom: { type: Number, immutable: true },
+  importProvenance: { type: mongoose.Schema.Types.Mixed, immutable: true },
   approval: { type: event, default: null },
   submission: { type: event, default: null },
   qualifyingTrial: { type: mongoose.Schema.Types.ObjectId, ref: "RecipeInstructionTrial", default: null },

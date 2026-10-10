@@ -112,7 +112,7 @@ export async function recipeLifecycle(code, action, payload, actor) {
       if (!CHECKS.every(key => payload.checklist[key] === true)) fail("Complete every review check, including qualified/local safety review.");
       if (!mongoose.isObjectIdOrHexString(payload.trialId)) fail("Select a qualifying passed trial.");
       const trial = await Trial.findOne({ _id: payload.trialId, code: canonical, revision }).session(session);
-      if (!trial || !qualifyingTrial(trial.record, row.content)) fail("A qualifying passed trial for this exact revision is required: measured ingredients/yield, tested quality, safety passed, core taste/texture average >=4, and a 10-serving dish trial.");
+      if (!trial || !qualifyingTrial(trial.record, row.content)) fail(row.content.category === "Kitchen Guides" ? "A passed actual staff rehearsal for this exact guide revision is required, including source and qualified/local safety review." : "A qualifying passed trial for this exact revision is required: measured ingredients/yield, tested quality, safety passed, core taste/texture average >=4, and a 10-serving dish trial.");
       row.dependencyPins = await dependencyPins(row.content, session);
       row.qualifyingTrial = trial._id; row.checklist = payload.checklist;
       row.approval = { actor: actorSnapshot(actor), at: new Date(), reason, requestKey: identity.key, requestHash: identity.hash };

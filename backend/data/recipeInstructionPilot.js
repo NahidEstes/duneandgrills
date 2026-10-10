@@ -1,5 +1,6 @@
 // Transcribed from the owner's English manual v1.3 (08 October 2026).
 // Read-only source preview: importing this module NEVER inserts database records.
+import { MANUAL_ADDITIONS, MANUAL_GUIDES } from "./recipeInstructionManual.js";
 const safety = "SOURCE GUIDANCE ONLY: owner/chef trial and applicable local food-safety review required. These formulas are NOT approved for regular service; house storage limits are not validated shelf lives.";
 const hygiene = "Separate raw and ready-to-eat boards, tongs and containers. Keep raw meat covered on the lowest refrigerator shelf; follow handwashing and probe cleaning/sanitizing procedures. Check each cooked portion.";
 const cooling = "Cool cooked toppings in shallow pans or an ice bath: 57°C to 21°C within 2 hours; 57°C to 5°C or below within 6 hours total. Record time and temperature; do not use food that misses these limits.";
@@ -71,8 +72,9 @@ export const RECIPE_PILOT = [
     yieldNotes: ["Expected final yield approximately 250–300 g, NOT guaranteed or measured. Record actual yield. The 500 g RAW onion input is not 500 g prepared topping."],
   },
 ];
+export const RECIPE_LIBRARY = [...RECIPE_PILOT, ...MANUAL_ADDITIONS, ...MANUAL_GUIDES];
 export const canonicalRecipeCode = value => {
   const code = String(value || "").trim().toUpperCase();
-  return RECIPE_PILOT.find(row => row.code === code || row.aliases.includes(code))?.code || null;
+  return RECIPE_LIBRARY.find(row => row.code === code || row.aliases.includes(code))?.code || null;
 };
-export const pilotByCode = code => structuredClone(RECIPE_PILOT.find(row => row.code === canonicalRecipeCode(code)) || null);
+export const pilotByCode = code => structuredClone(RECIPE_LIBRARY.find(row => row.code === canonicalRecipeCode(code)) || null);

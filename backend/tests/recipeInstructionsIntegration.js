@@ -15,7 +15,7 @@ import StockTransaction from "../models/StockTransaction.js";
 import Order from "../models/Order.js";
 import AuditLog from "../models/AuditLog.js";
 import RecipeInstruction from "../models/RecipeInstruction.js";
-import { canonicalRecipeCode, pilotByCode, RECIPE_PILOT } from "../data/recipeInstructionPilot.js";
+import { canonicalRecipeCode, pilotByCode, RECIPE_PILOT, RECIPE_LIBRARY } from "../data/recipeInstructionPilot.js";
 import { serializeInstruction } from "../services/recipeInstructionService.js";
 
 // NO dotenv or configured Mongo URI: all records belong to helper-owned disposable replica set.
@@ -53,7 +53,7 @@ test("Recipe Instructions Phase 1 + 2 (isolated replica set)", { timeout: 180000
       });
       await t.test("Admin/Manager can review; reading preview never seeds database; no-store", async () => {
         for (const role of ["admin", "manager"]) {
-          const response = await request("", role); assert.equal(response.status, 200); assert.equal(response.body.data.length, 3);
+          const response = await request("", role); assert.equal(response.status, 200); assert.equal(response.body.data.length, RECIPE_LIBRARY.length);
           assert.match(response.cache, /private, no-store/); assert.equal(response.body.data[0].persisted, false);
         }
         assert.equal(await RecipeInstruction.countDocuments(), 0);
@@ -73,7 +73,7 @@ test("Recipe Instructions Phase 1 + 2 (isolated replica set)", { timeout: 180000
         assert.deepEqual(sauce.ingredients.map(row => row.quantities), [[300, 600], [80, 160], [50, 100], [50, 100], [10, 20], [5, 10], [3, 6], [2, 4]]);
         assert.deepEqual(sauce.source.pages, [3, 4, 11, 15, 16, 19]); assert.match(sauce.yieldNotes[0], /BEFORE bowl and bottle losses/);
         assert.deepEqual((await request("/S1")).body.data, (await request("/HB01")).body.data);
-        assert.equal((await request("/HB02")).status, 404);
+        assert.equal((await request("/HB02")).status, 200); // Phase 4 optional variant, not a default substitution.
       });
       await t.test("T1 original batch only, actual manual estimated—not measured—yield and source controls", () => {
         const onion = pilotByCode("T1");

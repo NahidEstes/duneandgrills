@@ -45,7 +45,7 @@ try {
       await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
     });
     await page.goto(`${origin}/kitchen/recipes`); await page.getByRole("heading", { level: 2, name: "Double Beef Cheeseburger", exact: true }).waitFor();
-    assert.equal(await page.getByText("Manage pilot draft · Admin / Manager").count(), 0);
+    assert.equal(await page.getByText("Manage instruction draft · Admin / Manager").count(), 0);
     await page.getByText(/Update available — review required/).waitFor();
     await page.emulateMedia({ media: "print" }); assert.equal(await page.getByText(/PUBLISHED — INTERNALLY APPROVED SERVICE/).isVisible(), true);
     if (viewport.width === 1536) await page.pdf({ path: path.join(output, "published-B01.pdf"), format: "A4", printBackground: true });

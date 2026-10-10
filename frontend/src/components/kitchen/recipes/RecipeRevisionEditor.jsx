@@ -2,7 +2,7 @@
 import { useState } from "react";
 const sections = ["preparation", "cooking", "assembly", "serving", "delivery", "storage", "allergens", "yieldNotes"];
 export const editableRecipeContent = recipe => Object.fromEntries(["name", "description", "presets", "ingredients", ...sections, "linkedPreparationCodes"].map(key => [key, structuredClone(recipe[key])]));
-export default function RecipeRevisionEditor({ content, setContent, recipeCode }) {
+export default function RecipeRevisionEditor({ content, setContent, recipeCode, preparationOptions = [], guide = false }) {
   const [sectionText, setSectionText] = useState(() => Object.fromEntries(sections.map(key => [key, content[key].join("\n")])));
   const update = (key, value) => setContent(current => ({ ...current, [key]: value }));
   const ingredient = (index, key, value) => update("ingredients", content.ingredients.map((row, i) => i === index ? { ...row, [key]: value } : row));
@@ -19,8 +19,8 @@ export default function RecipeRevisionEditor({ content, setContent, recipeCode }
       {content.presets.map((preset, i) => <label key={`count-${preset.key}`} className="text-xs">Count description · {preset.label}<input className="recipe-input mt-1" value={row.counts?.[i] || ""} maxLength={180} onChange={e => ingredient(index, "counts", content.presets.map((_, j) => j === i ? e.target.value : row.counts?.[j] || ""))} /></label>)}
       <button type="button" className="recipe-button justify-self-start" disabled={content.ingredients.length <= 1} onClick={() => update("ingredients", content.ingredients.filter((_, i) => i !== index))}>Remove ingredient</button>
     </fieldset>)}
-    <button type="button" className="recipe-button" disabled={content.ingredients.length >= 100} onClick={() => update("ingredients", [...content.ingredients, { name: "", basis: "", specification: "", unit: "g", quantities: content.presets.map(() => 1), counts: [] }])}>Add ingredient</button>
+    {!guide && <button type="button" className="recipe-button" disabled={content.ingredients.length >= 100} onClick={() => update("ingredients", [...content.ingredients, { name: "", basis: "", specification: "", unit: "g", quantities: content.presets.map(() => 1), counts: [] }])}>Add ingredient</button>}
     {sections.map(key => <label key={key} className="mt-4 block text-sm capitalize">{key === "yieldNotes" ? "Yield notes (label estimates explicitly)" : key} · one instruction per line<textarea className="recipe-input mt-2 min-h-28" value={sectionText[key]} onChange={e => { setSectionText(current => ({ ...current, [key]: e.target.value })); update(key, e.target.value.split("\n").filter(line => line.trim())); }} /></label>)}
-    <fieldset className="mt-4"><legend className="text-sm">Linked preparations (S1 = HB01)</legend>{["HB01", "T1"].map(code => <label key={code} className="mr-4 inline-flex items-center gap-2 text-sm"><input type="checkbox" disabled={recipeCode === code} checked={content.linkedPreparationCodes.includes(code)} onChange={e => update("linkedPreparationCodes", e.target.checked ? [...content.linkedPreparationCodes, code] : content.linkedPreparationCodes.filter(c => c !== code))} />{code}</label>)}</fieldset>
+    <fieldset className="mt-4"><legend className="text-sm">Linked preparations (S1 = HB01; variants never automatic)</legend>{preparationOptions.map(({ code, name }) => <label key={code} className="mr-4 inline-flex items-center gap-2 text-sm"><input type="checkbox" disabled={recipeCode === code} checked={content.linkedPreparationCodes.includes(code)} onChange={e => update("linkedPreparationCodes", e.target.checked ? [...content.linkedPreparationCodes, code] : content.linkedPreparationCodes.filter(c => c !== code))} />{code} · {name}</label>)}</fieldset>
   </details>;
 }

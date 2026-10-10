@@ -81,15 +81,18 @@ export default function RecipeInstructions() {
           <div className="space-y-3">{visible.map(row => <button key={row.code} onClick={() => navigate(row.code)} aria-pressed={recipe?.code === row.code} className={`recipe-list-item ${recipe?.code === row.code ? "border-dune-amber bg-dune-amber/10" : "border-white/10"}`}>
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white/5 text-dune-amber"><ChefHat className="h-6 w-6" /></span><span className="min-w-0"><span className="block font-semibold">{row.name}</span><span className="mt-1 block text-xs text-neutral-400">{[row.code, ...row.aliases].join(" / ")} · {statusLabel(row.status)}</span></span>
           </button>)}</div>
-          {!visible.length && <p className="py-6 text-sm text-neutral-400">No matching pilot recipes. Only B01, S1/HB01 and T1 are included; Kitchen Guides has no pilot content.</p>}
+          {!visible.length && <p className="py-6 text-sm text-neutral-400">No matching recipes or guides. Try another name, code or category.</p>}
         </section>
-        {!recipe ? <section className="recipe-card p-6"><h2>Recipe unavailable</h2><p className="mt-3 text-sm text-neutral-400">Select a pilot from the list.</p></section> : <article key={recipe.code} className="min-w-0 space-y-4">
+        {!recipe ? <section className="recipe-card p-6"><h2>Recipe unavailable</h2><p className="mt-3 text-sm text-neutral-400">Select an available instruction from the list.</p></section> : <article key={recipe.code} className="min-w-0 space-y-4">
           <header className="recipe-card relative overflow-hidden p-6 sm:p-8">
             <p className="recipe-print-only mb-3 text-xs font-semibold">DUNE &amp; GRILLS · RECIPE INSTRUCTIONS</p>
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-dune-amber">{recipe.category} · {[recipe.code, ...recipe.aliases].join(" / ")}</p>
             <h2 ref={titleRef} tabIndex={-1} className="text-2xl font-bold outline-none sm:text-4xl">{recipe.name}</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300">{recipe.description}</p>
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-neutral-400"><span className="rounded-full border border-dune-amber/30 bg-dune-amber/10 px-3 py-1 text-dune-amber">{statusLabel(recipe.status)}</span><span>Source v{recipe.recipeVersion}</span><span>Manual pages {recipe.source.pages.join(", ")}</span><span>{recipe.persisted ? `Exact revision ${recipe.revision}${recipe.currentPublished === false && recipe.status === "published" ? " · Historical / superseded" : ""}` : "Source preview · not saved to database"}</span></div>
-            {recipe.code !== "B01" && <button onClick={() => navigate("B01")} className="recipe-no-print recipe-button mt-4"><ArrowLeft className="h-4 w-4" />Return to B01</button>}
+            <button onClick={() => router.back()} className="recipe-no-print recipe-button mt-4"><ArrowLeft className="h-4 w-4" />Back to previous instructions</button>
+            {recipe.code !== "B01" && <button onClick={() => navigate("B01")} className="recipe-no-print recipe-button ml-2 mt-4">Return to B01</button>}
+            <p className="mt-3 text-xs text-neutral-400">{recipe.revision > 1 ? "Restaurant revision — compare history against source; original source references retained." : "Source-transcribed content — not proof of kitchen approval."}</p>
+            {manager && recipe.importProvenance && <p className="mt-2 break-all text-xs text-neutral-500">Explicit import: {recipe.importProvenance.importedAt} · source record SHA-256 {recipe.importProvenance.recordHash}</p>}
           </header>
           <RecipeWarnings recipe={recipe} />
           <div className="recipe-no-print flex flex-wrap items-center gap-2"><span className="mr-2 text-xs text-neutral-400">Verified preset</span>{recipe.presets.map((option, i) => <button key={option.key} className={`recipe-filter border ${selectedPreset === i ? "border-dune-amber text-dune-amber" : "border-white/10 text-neutral-400"}`} aria-pressed={selectedPreset === i} onClick={() => setPreset({ code: recipe.code, index: i })}>{option.label}</button>)}</div>
@@ -100,8 +103,8 @@ export default function RecipeInstructions() {
           <div className={tab === "serving" ? "space-y-4" : "recipe-print-only space-y-4"}><InstructionSection title="Serving" rows={recipe.serving} /><InstructionSection title="Delivery" rows={recipe.delivery} /></div>
           <div className={tab === "storage" ? "space-y-4" : "recipe-print-only space-y-4"}><InstructionSection title="Storage controls" rows={recipe.storage} /><InstructionSection title="Allergens" rows={recipe.allergens} /></div>
           <RecipeReferences recipe={recipe} onNavigate={navigate} />
-          {manager && !requestedRevision && view === "manage" && <RecipeDraftManager key={`${recipe.code}-${recipe.revision}-${recipe.workflowVersion}`} recipe={recipe} onSaved={updateSaved} onSessionExpired={onSessionExpired} />}
-          {recipe.persisted && <RecipeWorkflow key={`${recipe.code}-${recipe.revision}-${recipe.workflowVersion}`} recipe={recipe} workingRecipe={view === "manage" || view === "trial" ? workingRecipe : null} manager={manager} view={view} onSaved={updateSaved} onChanged={() => setRefresh(n => n + 1)} onNavigate={navigate} onSessionExpired={onSessionExpired} />}
+          {manager && !requestedRevision && view === "manage" && <RecipeDraftManager key={`draft-${recipe.code}-${recipe.revision}-${recipe.workflowVersion}`} recipe={recipe} preparationOptions={recipes.filter(row => row.category === "Preparation Recipes")} onSaved={updateSaved} onSessionExpired={onSessionExpired} />}
+          {recipe.persisted && <RecipeWorkflow key={`workflow-${recipe.code}-${recipe.revision}-${recipe.workflowVersion}`} recipe={recipe} workingRecipe={view === "manage" || view === "trial" ? workingRecipe : null} manager={manager} view={view} onSaved={updateSaved} onChanged={() => setRefresh(n => n + 1)} onNavigate={navigate} onSessionExpired={onSessionExpired} />}
           <p className="text-xs leading-6 text-neutral-500">Source: Dune &amp; Grills English Kitchen Recipe Manual v{recipe.source.manualVersion}, {recipe.source.manualDate}. Source facts preserved, not independently certified. Reading and printing do not record production or deduct stock.</p>
         </article>}
       </div>}
