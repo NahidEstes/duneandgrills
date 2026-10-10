@@ -3,6 +3,7 @@ import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 import { DEFAULT_ORDER_TYPE, ORDER_TYPES } from "../config/orders.js";
 import { DELIVERY_PROVIDERS, PAYMENT_METHODS, PAYMENT_STATUSES, SALES_SOURCES } from "../config/sales.js";
 import { MAX_ITEM_NOTE_LENGTH, SPICE_LEVELS } from "../config/menuCustomization.js";
+import { orderContract } from "../config/orderContract.js";
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -29,6 +30,8 @@ const orderItemSchema = new mongoose.Schema(
       default: null,
     },
     name: { type: String, required: true },
+    category: { type: String, default: "" },
+    kitchenStation: { type: String, default: "" },
     image: { type: String, default: "" },
     price: { type: Number, required: true },
     basePrice: { type: Number, min: 0, default: null },
@@ -97,6 +100,11 @@ const orderSchema = new mongoose.Schema(
     source: { type: String, enum: SALES_SOURCES, default: "website", index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     idempotencyKey: { type: String, trim: true, default: undefined },
+    creationRequestHash: { type: String, select: false, immutable: true },
+    kitchenNotes: { type: String, trim: true, maxlength: 500, default: "" },
+    orderOrigin: { type: String, enum: ["counter", "phone", "online"], default: undefined },
+    rewardAccrualPolicy: { type: String, enum: ["completion"], default: undefined, immutable: true },
+    paymentRecords: { type: [{ key: String, method: String, amount: Number, reference: String, recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, recordedAt: Date }], default: [] },
     manualEntry: { type: Boolean, default: false, immutable: true, index: true },
     deliveryProvider: { type: String, enum: DELIVERY_PROVIDERS, default: undefined, immutable: true },
     externalOrderId: { type: String, trim: true, uppercase: true, maxlength: 100, default: undefined, immutable: true },
@@ -288,6 +296,12 @@ orderSchema.index(
   }
 );
 
+// Derived aliases avoid a migration and prevent canonical/legacy state drift.
+for (const name of ["sourceChannel", "fulfillmentType", "fulfillmentStatus"]) {
+  orderSchema.virtual(name).get(function () { return orderContract(this)[name]; });
+}
+orderSchema.set("toJSON", { virtuals: true });
+orderSchema.set("toObject", { virtuals: true });
 addRecordSearchIndexes(orderSchema, ["orderNumber","externalOrderId"]);
 const Order = mongoose.model("Order", orderSchema);
 

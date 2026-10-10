@@ -173,6 +173,7 @@ const Navbar = ({
         >
           <Link
             href={user ? "/profile" : "/login"}
+            aria-label={user ? "Open your account" : "Log in"}
             aria-current={accountActive ? "page" : undefined}
             className={`group flex items-center gap-2 rounded-full border px-3 py-2 transition-colors active:border-dune-amber active:text-dune-amber ${
               accountActive

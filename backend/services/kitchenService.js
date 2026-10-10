@@ -1,9 +1,10 @@
-import mongoose from "mongoose";
 import { ORDER_TYPES } from "../config/orders.js";
 import { SALES_SOURCES } from "../config/sales.js";
 import Order from "../models/Order.js";
-import { pickAuditFields, recordAuditLog } from "./auditLogService.js";
+import MenuItem from "../models/MenuItem.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
+import { orderContract } from "../config/orderContract.js";
+import { transitionOrder } from "./orderEngineService.js";
 
 export const KITCHEN_STATUSES = ["pending", "confirmed", "preparing", "ready"];
 export const KITCHEN_TRANSITIONS = Object.freeze({
@@ -36,6 +37,8 @@ const cleanKitchenItem = (item) => ({
   name: item.name,
   quantity: item.quantity,
   productType: item.productType,
+  category: item.category || "",
+  kitchenStation: item.kitchenStation || "Unassigned",
   selectedAddOns: (item.selectedAddOns || []).map((addOn) => ({ name: addOn.name, quantity: addOn.quantity || 1 })),
   spiceLevel: item.spiceLevel || "",
   itemNote: item.itemNote || "",
@@ -52,9 +55,11 @@ export const serializeKitchenOrder = (order, now = new Date()) => {
     _id: value._id,
     orderNumber: value.orderNumber,
     source: value.source || "website",
+    ...orderContract(value),
     orderType: value.orderType,
     status: value.status,
     createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
     acceptedAt: value.acceptedAt || null,
     preparationStartedAt: value.preparationStartedAt || null,
     readyAt: value.readyAt || null,
@@ -64,7 +69,8 @@ export const serializeKitchenOrder = (order, now = new Date()) => {
     customerName: value.customer?.name || "",
     pickupToken: value.pickupToken || "",
     pickupNote: value.pickupNote || "",
-    notes: value.notes || "",
+    notes: [value.notes, value.kitchenNotes].filter(Boolean).join("\n"),
+    kitchenNotes: value.kitchenNotes || "",
     items: (value.items || []).map(cleanKitchenItem),
   };
 };
@@ -86,7 +92,7 @@ export const resolveKitchenTransition = (currentStatus, nextStatus) => {
 };
 
 export const listKitchenOrders = async (
-  { source, orderType, search } = {},
+  { source, orderType, search, category, station } = {},
   now = new Date(),
   { readyRetentionMinutes = KITCHEN_READY_RETENTION_MINUTES } = {}
 ) => {
@@ -96,7 +102,8 @@ export const listKitchenOrders = async (
   const readyCutoff = new Date(now.getTime() - readyRetentionMinutes * 60 * 1000);
   const filters = [{ manualEntry: { $ne: true } }, {
     $or: [
-      { status: { $in: ["pending", "confirmed", "preparing"] } },
+      { status: { $in: ["pending", "confirmed", "preparing", "ready", "out-for-delivery"] } },
+      { status: "delivered", updatedAt: { $gte: readyCutoff } },
       {
         status: "ready",
         $or: [
@@ -117,81 +124,22 @@ export const listKitchenOrders = async (
   }
 
   const orders = await Order.find({ $and: filters })
-    .select("orderNumber source orderType status createdAt updatedAt acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt customer.name pickupToken pickupNote notes items.name items.quantity items.productType items.selectedAddOns.name items.selectedAddOns.quantity items.spiceLevel items.itemNote items.comboItems.name items.comboItems.quantity")
+    .select("orderNumber source orderType status createdAt updatedAt acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt customer.name pickupToken pickupNote notes kitchenNotes items")
     .sort({ createdAt: 1 })
     .lean();
-  return orders.map((order) => serializeKitchenOrder(order, now));
+  const ids = [...new Set(orders.flatMap(order => order.items.map(item => item.menuItem).filter(Boolean)).map(String))];
+  const catalog = await MenuItem.find({ _id: { $in: ids } }).select("category kitchenStation").lean();
+  const byId = new Map(catalog.map(item => [String(item._id), item]));
+  for (const order of orders) for (const item of order.items) {
+    const current = byId.get(String(item.menuItem));
+    item.category ||= current?.category || (item.productType === "combo" ? "Combos" : "Uncategorized");
+    item.kitchenStation ||= current?.kitchenStation || "Unassigned";
+  }
+  return orders.filter(order => (!category || category === "all" || order.items.some(item => item.category === category)) && (!station || station === "all" || order.items.some(item => item.kitchenStation === station))).map(order => serializeKitchenOrder(order, now));
 };
 
-export const transitionKitchenOrder = async ({
-  orderId,
-  nextStatus,
-  actor,
-  estimatedPreparationMinutes,
-  defaultPreparationMinutes = KITCHEN_DEFAULT_PREPARATION_MINUTES,
-}) => {
-  if (!mongoose.isValidObjectId(orderId)) throw new ValidationError("Invalid order id");
-  const current = await Order.findById(orderId)
-    .select("orderNumber status acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt")
-    .lean();
-  if (!current) {
-    const error = new Error("Order not found");
-    error.status = 404;
-    throw error;
-  }
-  const transition = resolveKitchenTransition(current.status, nextStatus);
-  const now = new Date();
-  const set = { status: nextStatus, [transition.timestamp]: now };
-
-  if (nextStatus === "confirmed") {
-    const requested = estimatedPreparationMinutes === undefined || estimatedPreparationMinutes === ""
-      ? null
-      : Number(estimatedPreparationMinutes);
-    if (requested !== null && (!Number.isInteger(requested) || requested < 1 || requested > 240)) {
-      throw new ValidationError("Estimated preparation time must be between 1 and 240 minutes");
-    }
-    const minutes = requested || current.estimatedPreparationMinutes || defaultPreparationMinutes;
-    set.estimatedPreparationMinutes = minutes;
-    set.preparationDueAt = current.preparationDueAt || new Date(now.getTime() + minutes * 60 * 1000);
-  } else if (nextStatus === "preparing" && !current.preparationDueAt) {
-    const minutes = current.estimatedPreparationMinutes || defaultPreparationMinutes;
-    set.estimatedPreparationMinutes = minutes;
-    set.preparationDueAt = new Date(now.getTime() + minutes * 60 * 1000);
-  }
-
-  const updated = await Order.findOneAndUpdate(
-    { _id: orderId, status: transition.from },
-    {
-      $set: set,
-      $push: {
-        statusHistory: {
-          status: nextStatus,
-          reason: "Kitchen workflow",
-          changedBy: actor._id,
-          changedAt: now,
-        },
-      },
-    },
-    { new: true, runValidators: true }
-  ).lean();
-
-  if (!updated) {
-    const latest = await Order.findById(orderId).select("status").lean();
-    const error = new Error(latest ? `Order status already changed to ${latest.status}` : "Order not found");
-    error.status = latest ? 409 : 404;
-    throw error;
-  }
-
-  const auditFields = ["status", "acceptedAt", "preparationStartedAt", "readyAt", "estimatedPreparationMinutes", "preparationDueAt"];
-  await recordAuditLog({
-    actor,
-    action: "KITCHEN_ORDER_STATUS_CHANGED",
-    entityType: "Order",
-    entityId: updated._id,
-    entityLabel: `Order #${updated.orderNumber}`,
-    before: pickAuditFields(current, auditFields),
-    after: pickAuditFields(updated, auditFields),
-    metadata: { workflow: "kitchen", from: current.status, to: nextStatus },
-  });
-  return serializeKitchenOrder(updated, now);
+export const transitionKitchenOrder = async ({ orderId, nextStatus, actor, estimatedPreparationMinutes, expectedStatus,
+  defaultPreparationMinutes = KITCHEN_DEFAULT_PREPARATION_MINUTES, correlationId }) => {
+  const { order } = await transitionOrder({ orderId, nextStatus, actor, estimatedPreparationMinutes, expectedStatus, defaultPreparationMinutes, correlationId, workflow: "kitchen" });
+  return serializeKitchenOrder(order);
 };

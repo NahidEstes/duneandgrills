@@ -1,3 +1,5 @@
+import { siteOrigin } from "@/src/config/site.js";
+const siteUrl = siteOrigin();
 import { notFound } from "next/navigation";
 import BlogPostPage from "@/src/components/BlogPostPage.jsx";
 import BlogArticle from "@/src/components/BlogArticle.jsx";
@@ -61,7 +63,7 @@ export default async function ArticlePage({ params }) {
     getRelatedBlogPosts(slug, 3).catch(() => []),
   ]);
   const readingTime = calculateReadingTime(post.content);
-  const canonicalUrl = `https://duneandgrills.com/blog/${post.slug}`;
+  const canonicalUrl = `${siteUrl}/blog/${post.slug}`;
   const articleData = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -79,7 +81,7 @@ export default async function ArticlePage({ params }) {
       name: "Dune & Grills",
       logo: {
         "@type": "ImageObject",
-        url: "https://duneandgrills.com/logo.jpeg",
+        url: `${siteUrl}/logo.jpeg`,
       },
     },
     mainEntityOfPage: canonicalUrl,
@@ -92,19 +94,19 @@ export default async function ArticlePage({ params }) {
         "@type": "ListItem",
         position: 1,
         name: "Home",
-        item: "https://duneandgrills.com/",
+        item: `${siteUrl}/`,
       },
       {
         "@type": "ListItem",
         position: 2,
         name: "Blog",
-        item: "https://duneandgrills.com/blog",
+        item: `${siteUrl}/blog`,
       },
       {
         "@type": "ListItem",
         position: 3,
         name: post.category,
-        item: `https://duneandgrills.com/blog?category=${encodeURIComponent(post.category)}`,
+        item: `${siteUrl}/blog?category=${encodeURIComponent(post.category)}`,
       },
       {
         "@type": "ListItem",

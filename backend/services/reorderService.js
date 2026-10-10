@@ -120,7 +120,7 @@ export const refreshAffectedSuggestions = async (itemIds = []) => {
   const unique = [...new Set(itemIds.filter(Boolean).map(String))];
   for (const itemId of unique) {
     try { await recalculateItemSuggestion(itemId); }
-    catch (error) { console.error("Reorder focused recalculation failed", { itemId, code: error.code || error.name, message: error.message }); }
+    catch (error) { console.error("Reorder focused recalculation failed", { itemId, code: error.code || error.name }); }
   }
 };
 

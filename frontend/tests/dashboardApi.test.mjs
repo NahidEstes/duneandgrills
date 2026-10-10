@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import * as network from "../src/pwa/network.js";
 
 const require = createRequire(import.meta.url), { transformSync } = require("next/dist/build/swc");
 const path = new URL("../src/api/api.js", import.meta.url);
 const transformed = transformSync(readFileSync(path, "utf8"), { filename: path.pathname, jsc: { parser: { syntax: "ecmascript" } }, module: { type: "commonjs" } });
 let response, lastRequest;
-const api = { get: async (resource, options) => { lastRequest = { resource, options }; return { data: response }; }, interceptors: { request: { use() {} } } };
+const api = { get: async (resource, options) => { lastRequest = { resource, options }; return { data: response }; }, interceptors: { request: { use() {} }, response: { use() {} } } };
 const compiledModule = { exports: {} };
-const localRequire = id => id === "axios" ? { create: () => api } : id.includes("selectionOptions") ? {} : id.startsWith("@/") ? {} : require(id);
+const localRequire = id => id === "axios" ? { create: () => api } : id.includes("pwa/network") ? network : id.includes("selectionOptions") ? {} : id.startsWith("@/") ? {} : require(id);
 new Function("require", "module", "exports", transformed.code)(localRequire, compiledModule, compiledModule.exports);
 const { fetchAdminDashboard, fetchAdminOperations, fetchOrders, fetchOrdersPage, fetchOrderById, fetchRestaurantSettings } = compiledModule.exports;
 

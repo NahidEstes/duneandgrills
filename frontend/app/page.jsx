@@ -1,3 +1,5 @@
+import { siteOrigin } from "@/src/config/site.js";
+const siteUrl = siteOrigin();
 import HomePageClient from "@/src/components/HomePageClient.jsx";
 import JsonLd from "@/src/components/JsonLd.jsx";
 import { getCombos, getMenuItems, getOffers, getPublicRestaurantSettings } from "@/src/api/server.js";
@@ -6,12 +8,12 @@ export const dynamic = "force-dynamic";
 
 const offerUrl = (value) => {
   try {
-    const url = new URL(value || "/menu", "https://duneandgrills.com");
+    const url = new URL(value || "/menu", siteUrl);
     return ["http:", "https:"].includes(url.protocol)
       ? url.href
-      : "https://duneandgrills.com/menu";
+      : `${siteUrl}/menu`;
   } catch {
-    return "https://duneandgrills.com/menu";
+    return `${siteUrl}/menu`;
   }
 };
 
@@ -30,9 +32,9 @@ export default async function HomePage() {
     "@context": "https://schema.org",
     "@type": "Restaurant",
     name: receipt.displayName || "Dune & Grills",
-    url: receipt.websiteUrl || "https://duneandgrills.com",
-    image: "https://duneandgrills.com/logo2.jpeg",
-    logo: "https://duneandgrills.com/logo.jpeg",
+    url: receipt.websiteUrl || siteUrl,
+    image: `${siteUrl}/logo2.jpeg`,
+    logo: `${siteUrl}/logo.jpeg`,
     description:
       "Fire-grilled burgers, shawarma and appetizers inspired by desert flavors.",
     servesCuisine: ["Grill", "Burgers", "Shawarma", "Middle Eastern"],
@@ -46,7 +48,7 @@ export default async function HomePage() {
       postalCode: "18738",
       addressCountry: location.country || "Saudi Arabia",
     },
-    hasMenu: "https://duneandgrills.com/menu",
+    hasMenu: `${siteUrl}/menu`,
     makesOffer: offers.map((offer) => ({
       "@type": "Offer",
       name: offer.title,

@@ -15,6 +15,9 @@ import { formatAdminCurrency } from "./admin/adminUi.js";
 import { printOrderInvoice } from "../utils/adminExports.js";
 import { formatOrderType, getOrderSubtotal } from "../utils/order.js";
 import OrderItemCustomization from "./OrderItemCustomization.jsx";
+import OrderPaymentPanel from "./admin/OrderPaymentPanel.jsx";
+import { fulfillmentActions } from "../utils/orderLifecycle.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const STATUS_STYLES = {
   pending: "bg-amber-500/10 text-amber-400 border-amber-500/40",
@@ -120,6 +123,8 @@ const RefundPanel = ({ order, onChanged }) => {
 
 // ---- Order details modal with inline status control ----
 export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
+  const { user: actor } = useAuth();
+  const canManage = ["admin", "manager"].includes(actor?.role);
   const dialog = useOrderDialog(onClose);
   const prep = orderPreparationLabel(order);
   const [status, setStatus] = useState(order.status);
@@ -136,8 +141,9 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
     setSaving(true);
     try {
       const updated = await updateOrderStatus(order._id, status, {
+        expectedStatus: order.status,
         reason: reason.trim(),
-        estimatedPreparationMinutes,
+        estimatedPreparationMinutes: ["pending", "confirmed", "preparing"].includes(status) ? estimatedPreparationMinutes : undefined,
       });
       await onSaved(updated);
       toast.success(`Order #${order.orderNumber} updated.`);
@@ -182,11 +188,11 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
             <span className="eyebrow mb-2 block">Order Status</span>
           <DarkSelect
             value={status}
-            disabled={saving}
+            disabled={saving || !canManage}
             onChange={(e) => setStatus(e.target.value)}
             className="w-full rounded-lg bg-black border border-dune-border px-4 py-2.5 text-white focus:border-dune-amber outline-none disabled:opacity-60"
           >
-            {EDITABLE_STATUS_OPTIONS.map((s) => (
+            {[order.status, ...fulfillmentActions(order)].map((s) => (
               <option key={s} value={s}>
                 {STATUS_LABELS[s]}
               </option>
@@ -286,6 +292,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
           </div>
         </div>
 
+        {["admin", "manager", "cashier"].includes(actor?.role) && <OrderPaymentPanel order={order} onChanged={onSaved} />}
         <RefundPanel order={order} onChanged={async () => onSaved(await fetchOrderById(order._id))} />
 
         {order.statusHistory?.length > 0 && (
@@ -299,7 +306,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
 
         <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-dune-border pt-4">
           <button type="button" onClick={() => printOrderInvoice(order, receiptSettings)} className="inline-flex items-center gap-2 rounded-lg border border-dune-border px-4 py-2 text-sm text-neutral-300 hover:border-dune-amber hover:text-dune-amber"><Printer className="h-4 w-4" />Print / PDF invoice</button>
-          <button type="button" disabled={saving} onClick={handleSave} className="rounded-lg bg-dune-amber px-5 py-2 text-sm font-semibold text-black disabled:opacity-50">{saving ? "Saving…" : "Save changes"}</button>
+          {canManage && !order.manualEntry && <button type="button" disabled={saving} onClick={handleSave} className="rounded-lg bg-dune-amber px-5 py-2 text-sm font-semibold text-black disabled:opacity-50">{saving ? "Saving…" : "Save changes"}</button>}
         </div>
       </div>
     </div>
@@ -417,7 +424,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
     const selectedIds = [...selected];
     setBulkSaving(true);
     try {
-      await bulkUpdateOrderStatus(selectedIds, bulkStatus, { reason: bulkReason.trim(), estimatedPreparationMinutes: bulkPrep });
+      await bulkUpdateOrderStatus(selectedIds, bulkStatus, { reason: bulkReason.trim(), estimatedPreparationMinutes: ["pending", "confirmed", "preparing"].includes(bulkStatus) ? bulkPrep : undefined, expectedStatuses: Object.fromEntries(orders.filter(order => selected.has(order._id)).map(order => [order._id, order.status])) });
       toast.success(`${selectedIds.length} orders updated.`);
       selectedIds.forEach((id) => onOrderStatusChanged?.(id, bulkStatus));
       onDataChanged?.();
@@ -501,8 +508,8 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
       {loading ? (
         <p className="text-neutral-500">Loading orders...</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-dune-border">
-          <table className="w-full text-sm">
+        <div tabIndex={0} role="region" aria-label="Order list; scroll horizontally to see all columns" className="overflow-x-auto rounded-xl border border-dune-border">
+          <table className="min-w-[1100px] w-full text-sm">
             <thead>
               <tr className="border-b border-dune-border text-left text-neutral-400">
                 <th className="p-4"><input aria-label="Select all orders on this page" type="checkbox" checked={orders.length > 0 && selected.size === orders.length} onChange={togglePage} className="accent-orange-500" /></th>
@@ -526,7 +533,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
                   className="border-b border-dune-border last:border-0 cursor-pointer hover:bg-black/40 transition-colors"
                 >
                   <td className="p-4" onClick={(event) => event.stopPropagation()}><input aria-label={`Select order ${order.orderNumber}`} type="checkbox" checked={selected.has(order._id)} onChange={() => toggleSelected(order._id)} className="accent-orange-500" /></td>
-                  <td className="p-4 text-white font-medium">
+                  <td className="min-w-48 p-4 text-white font-medium">
                     <span className="flex items-center gap-2"><RecordId value={order.orderNumber} />{order.isOverdue && <span title="Preparation overdue" className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[0.65rem] text-red-300"><Clock className="h-3 w-3" />Overdue</span>}</span>
                   </td>
                   <td className="p-4">{order.customer?.name}</td>

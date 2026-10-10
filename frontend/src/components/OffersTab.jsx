@@ -39,6 +39,7 @@ const newOfferForm = () => {
     originalPrice: "",
     offerPrice: "",
     promoCode: "",
+    membersOnly: false, minimumTier: "Bronze",
     orderProduct: "",
     orderQuantity: "1",
     discountType: "fixed",
@@ -143,6 +144,7 @@ const OffersTab = ({ onDataChanged }) => {
       originalPrice: offer.originalPrice ?? "",
       offerPrice: offer.offerPrice ?? "",
       promoCode: offer.promoCode || "",
+      membersOnly: offer.membersOnly || false, minimumTier: offer.minimumTier || "Bronze",
       orderProduct:
         offer.orderProduct?.product?._id
           ? `${offer.orderProduct.productType}:${offer.orderProduct.product._id}`
@@ -580,6 +582,8 @@ const OffersTab = ({ onDataChanged }) => {
                   <option value="category">A category</option>
                 </DarkSelect>
               </label>
+              <label className="text-xs text-neutral-400">Minimum membership tier<DarkSelect value={form.minimumTier} onChange={event => updateField("minimumTier", event.target.value)} className={fieldClass}>{["Bronze", "Silver", "Gold"].map(tier => <option key={tier}>{tier}</option>)}</DarkSelect></label>
+              <label className="text-xs text-neutral-400"><input type="checkbox" checked={form.membersOnly} onChange={event => updateField("membersOnly", event.target.checked)} /> Registered customers only</label>
               {form.couponScope === "category" && (
                 <label className="text-xs text-neutral-400">
                   Applicable category

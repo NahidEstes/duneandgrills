@@ -57,13 +57,13 @@ export default function PosTopBar({ user, onLock, onLogout, onSwitch, clock24, o
       }}>
         <button ref={triggerRef} type="button" aria-expanded={open} aria-controls="pos-cashier-dropdown" onClick={() => setOpen((value) => !value)} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2 text-left hover:border-dune-amber/50 focus-visible:outline focus-visible:outline-dune-amber">
           <span className="grid h-8 w-8 place-items-center rounded-full border border-white/15 text-xs text-neutral-300">{initials}</span>
-          <span className="hidden min-w-0 sm:block"><span className="block max-w-32 truncate text-sm font-medium text-white">{user.name}</span><span className="block text-[0.65rem] capitalize text-neutral-500">{user.role} · Cashier</span></span>
+          <span className="hidden min-w-0 sm:block"><span className="block max-w-32 truncate text-sm font-medium text-white">{user.name}</span><span className="block text-[0.65rem] capitalize text-neutral-400">{user.role} · Cashier</span></span>
           <ChevronDown className="h-4 w-4 text-neutral-400" />
           <span className="sr-only">Cashier options</span>
         </button>
         {open && (
           <div id="pos-cashier-dropdown" className="absolute right-0 top-[calc(100%+0.5rem)] w-60 rounded-xl border border-white/10 bg-[#0e1416] p-2 shadow-2xl shadow-black/60">
-            <div className="mb-1 border-b border-white/10 px-3 py-3"><p className="truncate text-sm font-medium text-white">{user.name}</p><p className="text-xs capitalize text-neutral-500">{user.role} · Cashier</p></div>
+            <div className="mb-1 border-b border-white/10 px-3 py-3"><p className="truncate text-sm font-medium text-white">{user.name}</p><p className="text-xs capitalize text-neutral-400">{user.role} · Cashier</p></div>
             <Link href="/profile" target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} className="flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm text-neutral-300 hover:bg-white/5 hover:text-dune-amber"><UserRound className="h-4 w-4" />Profile<span className="sr-only"> (opens in a new tab)</span></Link>
             <details className="rounded-lg text-sm text-neutral-300">
               <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 rounded-lg px-3 hover:bg-white/5 hover:text-dune-amber"><Settings className="h-4 w-4" />Preferences</summary>

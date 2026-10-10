@@ -12,7 +12,7 @@ const Footer = () => {
           </span>
         </div>
 
-        <p className="text-sm text-neutral-500 text-center">
+        <p className="text-sm text-neutral-400 text-center">
           &copy; {new Date().getFullYear()} Dune &amp; Grills. All rights reserved.
         </p>
 

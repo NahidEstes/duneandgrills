@@ -1,3 +1,5 @@
+import { siteOrigin } from "@/src/config/site.js";
+const siteUrl = siteOrigin();
 import BlogPage from "@/src/components/BlogPage.jsx";
 import JsonLd from "@/src/components/JsonLd.jsx";
 import { getBlogPosts, getSidebarData } from "@/src/api/server.js";
@@ -39,7 +41,7 @@ export default async function BlogListingPage({ searchParams }) {
     "@context": "https://schema.org",
     "@type": "Blog",
     name: "Dune & Grills Journal",
-    url: "https://duneandgrills.com/blog",
+    url: `${siteUrl}/blog`,
     description:
       "Recipes, kitchen stories and lessons about fire-grilled flavor.",
     blogPost: posts.map((post) => ({
@@ -47,7 +49,7 @@ export default async function BlogListingPage({ searchParams }) {
       headline: post.title,
       description: post.excerpt,
       image: post.coverImage,
-      url: `https://duneandgrills.com/blog/${post.slug}`,
+      url: `${siteUrl}/blog/${post.slug}`,
       datePublished: post.createdAt,
       author: { "@type": "Person", name: post.author },
     })),

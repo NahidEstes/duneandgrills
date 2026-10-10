@@ -10,6 +10,7 @@ import { calculateCoupon } from "../services/couponService.js";
 import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
 
 const OFFER_FIELDS = [
+  "membersOnly", "minimumTier",
   "title",
   "subtitle",
   "description",
@@ -249,7 +250,7 @@ export const updateOffer = async (req, res) => {
 export const validateCoupon = async (req, res) => {
   try {
     const lines = await resolveCartLines(req.body.items);
-    const result = await calculateCoupon({ code: req.body.code, lines });
+    const result = await calculateCoupon({ code: req.body.code, lines, userId: req.user?._id });
     return res.status(200).json({
       success: true,
       data: {

@@ -4,6 +4,7 @@ import {
   register,
   login,
   getMe,
+  getSession,
   updateMe,
   logout,
   migrateSession,
@@ -20,6 +21,7 @@ router.post("/login", authLimit, login);
 router.post("/migrate-session", protect, migrateSession);
 router.post("/logout", logout);
 router.get("/me", protect, getMe);
+router.get("/session", protect, getSession);
 router.put("/me", protect, updateMe);
 router.patch("/me", protect, updateMe);
 

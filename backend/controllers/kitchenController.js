@@ -4,6 +4,7 @@ import {
   transitionKitchenOrder,
 } from "../services/kitchenService.js";
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
+import { resolveFulfillmentStatus } from "../config/orderContract.js";
 
 export const getKitchenQueue = async (req, res, next) => {
   try {
@@ -37,7 +38,9 @@ export const updateKitchenOrderStatus = async (req, res, next) => {
     const settings = await getEffectiveRestaurantSettings();
     const order = await transitionKitchenOrder({
       orderId: req.params.id,
-      nextStatus: req.body.status,
+      nextStatus: resolveFulfillmentStatus(req.body),
+      expectedStatus: req.body.expectedStatus,
+      correlationId: req.correlationId,
       estimatedPreparationMinutes: req.body.estimatedPreparationMinutes,
       actor: req.user,
       defaultPreparationMinutes: settings.preparation.defaultMinutes,

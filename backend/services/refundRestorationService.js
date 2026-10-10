@@ -70,7 +70,8 @@ export const reverseRefundRewards = async ({ order, refundedHalala, reference, s
   const reversed = Math.min(Number(user.pointsBalance || 0), entitlement);
   if (entitlement > 0) {
     user.pointsBalance = Math.max(0, Number(user.pointsBalance || 0) - reversed);
-    user.pointTransactions.push({ type: "REVERSAL", points: -reversed, order: order._id, description: `Refund points for Order #${order.orderNumber}`, balanceAfter: user.pointsBalance, sourceKey: key });
+    user.pointsDebt = Number(user.pointsDebt || 0) + entitlement - reversed;
+    user.pointTransactions.push({ type: "REVERSAL", points: -entitlement, order: order._id, description: `Refund points for Order #${order.orderNumber}`, balanceAfter: user.pointsBalance, sourceKey: key });
     await user.save(session ? { session } : {});
   }
   order.rewardRefundPointsReversed = target;
@@ -82,6 +83,7 @@ export const reverseRefundRewards = async ({ order, refundedHalala, reference, s
 // late-earned points unreversed.
 export const creditPosSaleRewards = orderId => runInventoryTransaction(async session => {
   const order = await Order.findById(orderId).session(session);
+  if (order?.rewardAccrualPolicy === "completion" && order.status !== "delivered") return order;
   if (!order?.user || order.source !== "pos" || order.pointsAwardedAt || order.totalAmount <= 0 || !["paid", "partially_refunded"].includes(order.paymentStatus)) return order;
   const points = calculateOrderPoints(order.totalAmount);
   const credited = await creditOrderPoints({ userId: order.user, orderId, orderNumber: order.orderNumber, points, session });

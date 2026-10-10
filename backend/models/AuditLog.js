@@ -27,4 +27,14 @@ auditLogSchema.index({ action: 1, createdAt: -1 });
 auditLogSchema.index({ correlationId: 1 }, { sparse: true });
 auditLogSchema.index({ entityLabel: "text", action: "text", entityType: "text" });
 
+auditLogSchema.pre("save", function () { if (!this.isNew) throw new Error("Audit history is append-only"); });
+auditLogSchema.pre("deleteOne", { document: true, query: false }, function () { throw new Error("Audit history is append-only"); });
+auditLogSchema.pre("updateOne", { document: true, query: false }, function () { throw new Error("Audit history is append-only"); });
+auditLogSchema.pre("bulkWrite", function (next, operations) {
+  if (operations.some(operation => !operation.insertOne)) return next(new Error("Audit history is append-only"));
+  next();
+});
+for (const operation of ["updateOne", "updateMany", "findOneAndUpdate", "replaceOne", "findOneAndReplace", "deleteOne", "deleteMany", "findOneAndDelete"]) {
+  auditLogSchema.pre(operation, function () { throw new Error("Audit history is append-only"); });
+}
 export default mongoose.model("AuditLog", auditLogSchema);

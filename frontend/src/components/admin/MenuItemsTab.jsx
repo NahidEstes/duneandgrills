@@ -34,6 +34,7 @@ const SPICE_OPTIONS = [
 
 const EMPTY_FORM = {
   name: "",
+  kitchenStation: "",
   description: "",
   price: "",
   categoryId: "",
@@ -114,6 +115,7 @@ const MenuItemsTab = ({ onDataChanged }) => {
     setEditingId(item._id);
     setForm({
       name: item.name || "",
+      kitchenStation: item.kitchenStation || "",
       description: item.description || "",
       price: item.price ?? "",
       categoryId:
@@ -146,6 +148,7 @@ const MenuItemsTab = ({ onDataChanged }) => {
     event.preventDefault();
     setSaving(true);
     const payload = {
+      kitchenStation: form.kitchenStation,
       ...form,
       price: Number(form.price),
       calories: Number(form.calories) || 0,
@@ -313,6 +316,7 @@ const MenuItemsTab = ({ onDataChanged }) => {
               <label className="text-xs text-neutral-400">Price (SAR)<input required min="0" step="0.01" type="number" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400">Category<DarkSelect required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className={FIELD_CLASS}><option value="" disabled>Select a category</option>{managedCategories.filter((entry) => entry.isActive || entry._id === form.categoryId).map((entry) => <option key={entry._id} value={entry._id}>{entry.name}{entry.isActive ? "" : " (Inactive)"}</option>)}</DarkSelect></label>
               <label className="text-xs text-neutral-400 sm:col-span-2">Image URL or local path<input required value={form.image} onChange={(event) => setForm({ ...form, image: event.target.value })} className={FIELD_CLASS} /></label>
+              <label className="text-xs text-neutral-400">Kitchen station<input value={form.kitchenStation} maxLength={80} onChange={event => setForm({ ...form, kitchenStation: event.target.value })} placeholder="e.g. Grill, Drinks" className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400">Tags (comma separated)<input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400">Calories<input min="0" type="number" value={form.calories} onChange={(event) => setForm({ ...form, calories: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400 sm:col-span-2">Ingredients (comma separated)<input value={form.ingredients} onChange={(event) => setForm({ ...form, ingredients: event.target.value })} className={FIELD_CLASS} /></label>

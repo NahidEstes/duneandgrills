@@ -96,6 +96,7 @@ const userSchema = new mongoose.Schema(
     bio: { type: String, default: "", trim: true, maxlength: 240 },
     avatar: { type: String, default: "", trim: true },
     pointsBalance: { type: Number, min: 0 },
+    pointsDebt: { type: Number, min: 0, default: 0 },
     pointTransactions: { type: [pointTransactionSchema], default: [] },
     rewardRedemptions: { type: [rewardRedemptionSchema], default: [] },
     favorites: [

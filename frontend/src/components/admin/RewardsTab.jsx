@@ -20,6 +20,7 @@ const emptyForm = () => ({
   description: "",
   image: "",
   pointsRequired: "",
+  minimumTier: "Bronze", expiresAt: "",
   menuItem: "",
   isActive: true,
   sortOrder: "0",
@@ -73,6 +74,7 @@ const RewardsTab = ({ onDataChanged }) => {
       description: reward.description,
       image: reward.image,
       pointsRequired: String(reward.pointsRequired),
+      minimumTier: reward.minimumTier || "Bronze", expiresAt: reward.expiresAt ? new Date(reward.expiresAt).toISOString().slice(0, 10) : "",
       menuItem: reward.menuItem?._id || "",
       isActive: Boolean(reward.isActive),
       sortOrder: String(reward.sortOrder ?? 0),
@@ -87,6 +89,7 @@ const RewardsTab = ({ onDataChanged }) => {
       ...form,
       pointsRequired: Number(form.pointsRequired),
       sortOrder: Number(form.sortOrder) || 0,
+      expiresAt: form.expiresAt ? `${form.expiresAt}T23:59:59.999+03:00` : null,
     };
     try {
       if (editingId) {
@@ -335,6 +338,8 @@ const RewardsTab = ({ onDataChanged }) => {
                   ))}
                 </DarkSelect>
               </label>
+              <label className="text-xs text-neutral-400">Minimum membership tier<DarkSelect value={form.minimumTier} onChange={event => updateField("minimumTier", event.target.value)} className={fieldClass}>{["Bronze", "Silver", "Gold"].map(tier => <option key={tier}>{tier}</option>)}</DarkSelect></label>
+              <label className="text-xs text-neutral-400">Reward expiry (optional)<input type="date" value={form.expiresAt} onChange={event => updateField("expiresAt", event.target.value)} className={fieldClass} /></label>
               <label className="flex items-center gap-2 text-sm text-neutral-300 sm:col-span-2">
                 <input
                   type="checkbox"

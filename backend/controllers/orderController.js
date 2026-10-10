@@ -1,51 +1,23 @@
+import { createCustomerOrder } from "../services/customerOrderService.js";
+import { transitionOrder, transitionOrders } from "../services/orderEngineService.js";
+import { resolveFulfillmentStatus } from "../config/orderContract.js";
+import { repeatOrderLines } from "../services/orderRepeatService.js";
 import mongoose from "mongoose";
 import { orderAttentionFilter } from "../services/operationalAttentionService.js";
 import Order from "../models/Order.js";
 import crypto from "crypto";
-import MenuItem from "../models/MenuItem.js";
-import User from "../models/User.js";
-import {
-  PRODUCT_TYPES,
-  calculateCartSubtotal,
-  cartLineToOrderItem,
-  resolveCartLines,
-} from "../services/catalogService.js";
-import { calculateOrderPoints } from "../config/rewards.js";
-import {
-  DEFAULT_ORDER_TYPE,
-  getDeliveryFee,
-  getPublicOrderConfig,
-  isValidOrderType,
-} from "../config/orders.js";
-import {
-  applyRedemptionToOrder,
-  creditOrderPoints,
-  releaseExpiredRedemptions,
-  reopenRedemption,
-  restoreRedemption,
-  reverseOrderPoints,
-} from "../services/rewardService.js";
-import {
-  calculateCoupon,
-  releaseCouponUsage,
-  reserveCouponUsage,
-} from "../services/couponService.js";
-import { deductOrderInventory, restoreOrderInventory } from "../services/orderInventoryService.js";
-import { runInventoryTransaction } from "../services/inventoryStockService.js";
+import { getPublicOrderConfig } from "../config/orders.js";
 import { PAYMENT_METHODS, SALES_SOURCES } from "../config/sales.js";
-import { pickAuditFields, recordAuditLog } from "../services/auditLogService.js";
 import { ADMIN_DAY_MS, parseRiyadhDate, startOfRiyadhDay } from "../utils/adminDate.js";
 import { buildSalesReport } from "../services/salesReportingService.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
 import { getEffectiveRestaurantSettings } from "../services/restaurantSettingsService.js";
-import { NON_REVENUE_ORDER_STATUSES, ORDER_STATUSES as ORDER_STATUS_VALUES } from "../config/orderStatuses.js";
-import { nextOrderNumber } from "../services/orderNumberService.js";
+import { ORDER_STATUSES as ORDER_STATUS_VALUES } from "../config/orderStatuses.js";
 import { RECENT_ORDER_FIELDS, serializeAdminOrder, serializeCustomerOrder, serializeGuestTrackingOrder } from "../services/orderSerializer.js";
 import { hasCapability, CAPABILITIES } from "../config/permissions.js";
 
-const nonRevenueStatuses = NON_REVENUE_ORDER_STATUSES;
-const loyaltyReversalStatuses = new Set(nonRevenueStatuses);
 const ORDER_STATUSES = new Set(ORDER_STATUS_VALUES);
+const errorStatus = error => error.status || (["ValidationError", "CastError"].includes(error.name) ? 400 : 500);
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -131,245 +103,21 @@ export const getOrderConfig = async (_req, res) => {
 // @route   POST /api/orders
 // @access  Public
 export const createOrder = async (req, res) => {
-  let appliedRedemption = null;
-  let reservedCouponId = null;
-  let orderId = null;
   try {
-    const restaurantSettings = await getEffectiveRestaurantSettings();
-    if (!restaurantSettings.orders.channels.website) {
-      return res.status(503).json({ success: false, message: "Online ordering is currently unavailable. Please contact the restaurant." });
-    }
-    const {
-      customer,
-      items = [],
-      notes,
-      rewardRedemptionId,
-      couponCode,
-      orderType = DEFAULT_ORDER_TYPE,
-    } = req.body;
-
-    if (!isValidOrderType(orderType)) {
-      return res.status(400).json({
-        success: false,
-        message: "Please select a valid order type",
-      });
-    }
-
-    const customerName =
-      typeof customer?.name === "string" ? customer.name.trim() : "";
-    const customerPhone =
-      typeof customer?.phone === "string" ? customer.phone.trim() : "";
-    const customerAddress =
-      typeof customer?.address === "string" ? customer.address.trim() : "";
-
-    if (!customerName || !customerPhone) {
-      return res.status(400).json({
-        success: false,
-        message: "Customer name and phone are required",
-      });
-    }
-    if (orderType === "delivery" && !customerAddress) {
-      return res.status(400).json({
-        success: false,
-        message: "A delivery address is required for delivery orders",
-      });
-    }
-    if (!Array.isArray(items) || (!items.length && !rewardRedemptionId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Order must contain at least one item",
-      });
-    }
-
-    const catalogLines = items.length ? await resolveCartLines(items) : [];
-    const inventoryCatalogLines = [...catalogLines];
-    const verifiedItems = catalogLines.map(cartLineToOrderItem);
-    const subtotal = calculateCartSubtotal(catalogLines);
-    if (
-      orderType === "delivery" &&
-      subtotal < restaurantSettings.orders.minimumDeliveryOrder
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: `Minimum delivery order is SAR ${restaurantSettings.orders.minimumDeliveryOrder.toFixed(2)}`,
-      });
-    }
-    const coupon = couponCode
-      ? await calculateCoupon({ code: couponCode, lines: catalogLines })
-      : null;
-    const discountAmount = coupon?.discountAmount || 0;
-    const discountedSubtotal = Number((subtotal - discountAmount).toFixed(2));
-    const deliveryFee = getDeliveryFee(orderType, restaurantSettings.orders);
-    const totalAmount = Number((discountedSubtotal + deliveryFee).toFixed(2));
-
-    // const order = await Order.create({
-    //   customer,
-    //   items,
-    //   totalAmount,
-    //   notes,
-    // });
-
-    // const order = await Order.create({
-    //   user: req.user ? req.user._id : null,
-    //   customer,
-    //   items,
-    //   totalAmount,
-    //   notes,
-    // });
-    orderId = new mongoose.Types.ObjectId();
-    let rewardSnapshot = undefined;
-    if (rewardRedemptionId) {
-      if (!mongoose.isValidObjectId(rewardRedemptionId)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid reward redemption",
-        });
-      }
-      if (!req.user) return res.status(401).json({ success: false, message: "Sign in to use a reward" });
-      await releaseExpiredRedemptions(req.user._id);
-      const rewardUser = await User.findById(req.user._id)
-        .select("rewardRedemptions")
-        .lean();
-      const redemption = rewardUser?.rewardRedemptions?.find(
-        (entry) => entry._id.toString() === rewardRedemptionId
-      );
-      if (
-        !redemption ||
-        redemption.status !== "reserved" ||
-        new Date(redemption.expiresAt) <= new Date()
-      ) {
-        return res.status(409).json({
-          success: false,
-          message: "This reward reservation is no longer valid",
-        });
-      }
-      const rewardMenuItem = await MenuItem.findOne({
-        _id: redemption.menuItem,
-        isAvailable: true,
-      }).lean();
-      if (!rewardMenuItem) {
-        return res.status(409).json({
-          success: false,
-          message: "The redeemed menu item is no longer available",
-        });
-      }
-
-      const applied = await applyRedemptionToOrder({
-        userId: req.user._id,
-        redemptionId: redemption._id,
-        orderId,
-      });
-      if (!applied) {
-        return res.status(409).json({
-          success: false,
-          message: "This reward has already been used or expired",
-        });
-      }
-      appliedRedemption = redemption;
-      verifiedItems.push({
-        productType: PRODUCT_TYPES.MENU_ITEM,
-        menuItem: rewardMenuItem._id,
-        name: `${redemption.title} (Reward)`,
-        image: rewardMenuItem.image,
-        price: 0,
-        quantity: 1,
-        isReward: true,
-        reward: redemption.reward,
-        redemptionId: redemption._id,
-      });
-      rewardSnapshot = {
-        redemptionId: redemption._id,
-        reward: redemption.reward,
-        menuItem: rewardMenuItem._id,
-        title: redemption.title,
-        pointsSpent: redemption.pointsSpent,
-      };
-      inventoryCatalogLines.push({
-        productType: PRODUCT_TYPES.MENU_ITEM,
-        productId: rewardMenuItem._id,
-        product: rewardMenuItem,
-        quantity: 1,
-        unitPrice: 0,
-      });
-    }
-
-    const orderNumber = await nextOrderNumber();
-    const trackingToken = crypto.randomBytes(32).toString("base64url");
-    const trackingTokenHash = crypto.createHash("sha256").update(trackingToken).digest("hex");
-    if (coupon) {
-      await reserveCouponUsage(coupon.offer._id);
-      reservedCouponId = coupon.offer._id;
-    }
-    const order = await runInventoryTransaction(async (session) => {
-      const [created] = await Order.create([{
-        _id: orderId,
-        orderNumber,
-        trackingTokenHash,
-        source: "website",
-        user: req.user ? req.user._id : null,
-        customer: {
-          ...customer,
-          name: customerName,
-          phone: customerPhone,
-          address: orderType === "delivery" ? customerAddress : "",
-        },
-        items: verifiedItems,
-        orderType,
-        subtotal,
-        originalSubtotal: subtotal,
-        discountAmount,
-        couponCode: coupon?.code || "",
-        offer: coupon?.offer._id || null,
-        couponSnapshot: coupon
-          ? {
-              title: coupon.offer.title,
-              discountType: coupon.offer.discountType,
-              discountValue: coupon.offer.discountValue,
-            }
-          : undefined,
-        deliveryFee,
-        totalAmount,
-        eligiblePointsAmount: discountedSubtotal,
-        rewardRedemption: rewardSnapshot,
-        notes,
-        estimatedPreparationMinutes: restaurantSettings.preparation.defaultMinutes,
-        inventoryStatus: "pending",
-      }], session ? { session } : {});
-      const transactions = await deductOrderInventory({
-        catalogLines: inventoryCatalogLines,
-        orderId,
-        orderNumber,
-        source: "website",
-        actorId: req.user?._id || null,
-        strictRecipes: true,
-        session,
-      });
-      created.inventoryTransactions = transactions.map((transaction) => transaction._id);
-      created.inventoryStatus = transactions.length ? "deducted" : "not_required";
-      created.inventoryDeductedAt = transactions.length ? new Date() : null;
-      await created.save(session ? { session } : {});
-      return created;
-    });
-    reservedCouponId = null;
-
-    res.status(201).json({ success: true, data: serializeCustomerOrder(order), trackingToken });
-  } catch (err) {
-    if (orderId) await Order.deleteOne({ _id: orderId }).catch(() => undefined);
-    if (appliedRedemption && orderId) {
-      await reopenRedemption({
-        userId: req.user._id,
-        redemptionId: appliedRedemption._id,
-        orderId,
-      }).catch(() => undefined);
-    }
-    if (reservedCouponId) {
-      await releaseCouponUsage(reservedCouponId).catch(() => undefined);
-    }
-    res.status(err.status || 400).json({
-      success: false,
-      message: err.status ? err.message : "Failed to create order",
-    });
+    const result = await createCustomerOrder({ payload: req.body, actor: req.user, channel: req.orderChannel || "customer", key: req.body.idempotencyKey ?? req.headers?.["idempotency-key"], correlationId: req.correlationId });
+    res.status(result.duplicate ? 200 : 201).json({ success: true, data: serializeCustomerOrder(result.order), trackingToken: result.trackingToken, ...(result.duplicate ? { duplicate: true } : {}) });
+  } catch (error) {
+    res.status(errorStatus(error)).json({ success: false, message: error.message || "Failed to create order" });
   }
+};
+
+export const repeatCustomerOrder = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: "Order not found" });
+    const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    res.json({ success: true, ...await repeatOrderLines(order) });
+  } catch (error) { res.status(errorStatus(error)).json({ success: false, message: error.message }); }
 };
 
 // @desc    Get all orders
@@ -493,156 +241,26 @@ export const trackGuestOrder = async (req, res) => {
   }
 };
 
-const applyOrderStatusUpdate = async ({ order, status, reason = "", estimatedPreparationMinutes, actor }) => {
-  if (!ORDER_STATUSES.has(status)) throw new Error("Invalid order status");
-  if (status === "refunded") throw new Error("Use the refund workflow to refund a payment; order status and payment refund are separate");
-  if (order.source === "pos" && ["cancelled", "failed"].includes(status) && ["paid", "partially_refunded", "refunded", "voided"].includes(order.paymentStatus)) throw new Error("Use POS History to void/refund a captured POS payment");
-  if (order.source === "pos" && order.paymentStatus === "voided") throw new Error("Voided POS sales cannot change status");
-  const normalizedReason = typeof reason === "string" ? reason.trim() : "";
-  if (status === "cancelled" && !normalizedReason) throw new Error("Cancellation reason is required");
-  if (status === "refunded" && !normalizedReason) throw new Error("Refund reason is required");
-  let prepMinutes = estimatedPreparationMinutes;
-  if (prepMinutes !== undefined && prepMinutes !== null && prepMinutes !== "") {
-    prepMinutes = Number(prepMinutes);
-    if (!Number.isInteger(prepMinutes) || prepMinutes < 1 || prepMinutes > 240) {
-      throw new Error("Estimated preparation time must be between 1 and 240 minutes");
-    }
-  } else prepMinutes = null;
-
-  const auditFields = ["status", "paymentStatus", "inventoryStatus", "cancellationReason", "refundReason", "estimatedPreparationMinutes", "preparationDueAt", "acceptedAt", "preparationStartedAt", "readyAt"];
-  const before = pickAuditFields(order, auditFields);
-  const previousStatus = order.status;
-  order.status = status;
-  if (status === "cancelled") order.cancellationReason = normalizedReason;
-  if (status === "refunded") order.refundReason = normalizedReason;
-  if (prepMinutes && (Number(order.estimatedPreparationMinutes) !== prepMinutes || !order.preparationDueAt)) {
-    order.estimatedPreparationMinutes = prepMinutes;
-    order.preparationDueAt = new Date(Date.now() + prepMinutes * 60 * 1000);
-  }
-  const statusChangedAt = new Date();
-  if (status === "confirmed" && !order.acceptedAt) order.acceptedAt = statusChangedAt;
-  if (status === "preparing" && !order.preparationStartedAt) order.preparationStartedAt = statusChangedAt;
-  if (status === "ready" && !order.readyAt) order.readyAt = statusChangedAt;
-  await order.validate();
-
-  const canRestoreBeforePreparation = ["cancelled", "failed"].includes(status) && !order.preparationStartedAt && !["preparing", "ready", "delivered"].includes(previousStatus);
-  if (canRestoreBeforePreparation && order.inventoryStatus === "deducted" && order.inventoryTransactions?.length) {
-    await runInventoryTransaction(async (session) => {
-      const restorations = await restoreOrderInventory({
-        transactionIds: order.inventoryTransactions,
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        actorId: actor._id,
-        status,
-        session,
-      });
-      order.inventoryRestorationTransactions = restorations.map((transaction) => transaction._id);
-      order.inventoryStatus = "restored";
-      order.inventoryRestoredAt = new Date();
-      await order.save(session ? { session } : {});
-    });
-  }
-  if (order.source === "pos") {
-    if (status === "cancelled" && ["unpaid", "pending"].includes(order.paymentStatus)) order.paymentStatus = "voided";
-    else if (status === "failed" && !["paid", "partially_refunded", "refunded"].includes(order.paymentStatus)) order.paymentStatus = "failed";
-    else if (status === "delivered") order.paymentStatus = "paid";
-  }
-
-  if (status === "delivered" && order.user) {
-    const points = calculateOrderPoints(order.eligiblePointsAmount ?? order.totalAmount);
-    const credited = await creditOrderPoints({ userId: order.user, orderId: order._id, orderNumber: order.orderNumber, points });
-    if (credited || !order.pointsAwardedAt) {
-      order.pointsEarned = points;
-      order.pointsAwardedAt = order.pointsAwardedAt || new Date();
-      order.pointsReversedAt = null;
-    }
-  }
-
-  if (loyaltyReversalStatuses.has(status) && order.user) {
-    const reversed = await reverseOrderPoints({ userId: order.user, orderId: order._id, orderNumber: order.orderNumber });
-    if (reversed) order.pointsReversedAt = order.pointsReversedAt || new Date();
-    if (order.rewardRedemption?.redemptionId) {
-      await restoreRedemption({
-        userId: order.user,
-        redemptionId: order.rewardRedemption.redemptionId,
-        expectedStatuses: ["applied"],
-        status: "restored",
-        description: `${order.rewardRedemption.title} returned after Order #${order.orderNumber} was ${status}`,
-      });
-    }
-  }
-
-  order.statusHistory.push({ status, reason: normalizedReason, changedBy: actor._id, changedAt: statusChangedAt });
-  await order.save();
-  await recordAuditLog({
-    actor,
-    action: "ORDER_STATUS_CHANGED",
-    entityType: "Order",
-    entityId: order._id,
-    entityLabel: `Order #${order.orderNumber}`,
-    before,
-    after: pickAuditFields(order, auditFields),
-    metadata: { reason: normalizedReason },
-  });
-  return order;
-};
-
-// @desc    Update order status, reason and preparation estimate
-// @route   PATCH /api/orders/:id/status
-// @access  Admin/Manager
+// @route PATCH /api/orders/:id/status
 export const updateOrderStatus = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
-    const updated = await applyOrderStatusUpdate({
-      order,
-      status: req.body.status,
-      reason: req.body.reason,
-      estimatedPreparationMinutes: req.body.estimatedPreparationMinutes,
-      actor: req.user,
-    });
-    res.status(200).json({ success: true, data: serializeAdminOrder(updated) });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message || "Failed to update order" });
+    const result = await transitionOrder({ orderId: req.params.id, nextStatus: resolveFulfillmentStatus(req.body), actor: req.user, reason: req.body.reason,
+      estimatedPreparationMinutes: req.body.estimatedPreparationMinutes, expectedStatus: req.body.expectedStatus, correlationId: req.correlationId });
+    res.status(200).json({ success: true, data: serializeAdminOrder(result.order), ...(result.duplicate ? { duplicate: true } : {}) });
+  } catch (error) {
+    res.status(errorStatus(error)).json({ success: false, message: error.message || "Failed to update order" });
   }
 };
 
 export const bulkUpdateOrderStatus = async (req, res) => {
   try {
     const ids = [...new Set(Array.isArray(req.body.orderIds) ? req.body.orderIds.map(String) : [])];
-    if (!ids.length || ids.length > 100 || ids.some((id) => !mongoose.isValidObjectId(id))) {
-      return res.status(400).json({ success: false, message: "Choose between 1 and 100 valid orders" });
-    }
-    if (!ORDER_STATUSES.has(req.body.status)) {
-      return res.status(400).json({ success: false, message: "Invalid order status" });
-    }
-    const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
-    if (req.body.status === "refunded") return res.status(400).json({ success: false, message: "Use the refund workflow to refund payments" });
-    if (req.body.status === "cancelled") {
-      // Kept inline here so no order is changed before a required bulk reason is validated.
-      if (!reason) return res.status(400).json({ success: false, message: `${req.body.status === "cancelled" ? "Cancellation" : "Refund"} reason is required` });
-    }
-    if (req.body.estimatedPreparationMinutes !== undefined && req.body.estimatedPreparationMinutes !== null && req.body.estimatedPreparationMinutes !== "") {
-      const minutes = Number(req.body.estimatedPreparationMinutes);
-      if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) {
-        return res.status(400).json({ success: false, message: "Estimated preparation time must be between 1 and 240 minutes" });
-      }
-    }
-    const orders = await Order.find({ _id: { $in: ids } }).sort({ createdAt: 1 });
-    if (orders.length !== ids.length) return res.status(404).json({ success: false, message: "One or more orders were not found" });
-    const updated = [];
-    for (const order of orders) {
-      updated.push(await applyOrderStatusUpdate({
-        order,
-        status: req.body.status,
-        reason: req.body.reason,
-        estimatedPreparationMinutes: req.body.estimatedPreparationMinutes,
-        actor: req.user,
-      }));
-    }
-    res.json({ success: true, count: updated.length, data: updated.map(order => serializeAdminOrder(order)) });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message || "Failed to update orders" });
+    if (!ids.length || ids.length > 100 || ids.some(id => !mongoose.isValidObjectId(id))) throw new ValidationError("Choose between 1 and 100 valid orders");
+    const results = await transitionOrders({ orderIds: ids, nextStatus: resolveFulfillmentStatus(req.body), actor: req.user, reason: req.body.reason,
+      estimatedPreparationMinutes: req.body.estimatedPreparationMinutes, expectedStatus: req.body.expectedStatus, expectedStatuses: req.body.expectedStatuses, correlationId: req.correlationId });
+    res.json({ success: true, count: results.length, data: results.map(result => serializeAdminOrder(result.order)) });
+  } catch (error) {
+    res.status(errorStatus(error)).json({ success: false, message: error.message || "Failed to update orders" });
   }
 };
 

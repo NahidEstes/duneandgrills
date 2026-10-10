@@ -36,6 +36,8 @@ const duration = (seconds) => {
 };
 
 const timerFor = (order, nowMs) => {
+  if (order.status === "delivered") return { label: "Completed in", value: duration((new Date(order.updatedAt || order.readyAt || order.createdAt).getTime() - new Date(order.createdAt).getTime()) / 1000), tone: "text-emerald-300" };
+  if (order.status === "out-for-delivery") return { label: "Dispatched", value: duration((nowMs - new Date(order.readyAt || order.createdAt).getTime()) / 1000), tone: "text-sky-300" };
   if (order.status === "pending") {
     return { label: "Waiting", value: duration((nowMs - new Date(order.createdAt).getTime()) / 1000), tone: "text-amber-300" };
   }
@@ -56,7 +58,7 @@ const timerFor = (order, nowMs) => {
 export default function KitchenOrderCard({ order, nowMs, defaultPreparationMinutes, updating, onAdvance }) {
   const [estimate, setEstimate] = useState(order.estimatedPreparationMinutes || defaultPreparationMinutes);
   const timer = timerFor(order, nowMs);
-  const action = actionByStatus[order.status];
+  const action = actionByStatus[order.status] || (order.status === "ready" ? { next: order.fulfillmentType === "delivery" ? "out-for-delivery" : "delivered", label: order.fulfillmentType === "delivery" ? "Dispatch order" : "Complete handover", icon: PackageCheck } : order.status === "out-for-delivery" ? { next: "delivered", label: "Confirm delivered", icon: Check } : null);
   const ActionIcon = action?.icon;
 
   useEffect(() => {
@@ -120,7 +122,7 @@ export default function KitchenOrderCard({ order, nowMs, defaultPreparationMinut
             {updating ? <ChefHat className="h-5 w-5 animate-pulse" /> : <ActionIcon className="h-5 w-5" />}
             {updating ? "Updating…" : action.label}
           </button>
-        ) : <div className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-sm font-semibold text-emerald-300"><PackageCheck className="h-5 w-5" />Awaiting handover</div>}
+        ) : <div className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-sm font-semibold text-emerald-300"><PackageCheck className="h-5 w-5" />Completed</div>}
       </div>
     </article>
   );

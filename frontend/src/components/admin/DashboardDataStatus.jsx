@@ -14,8 +14,8 @@ export default function DashboardDataStatus({ summary, monitoring, settingsHealt
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="space-y-1" role="status">
         <p className="text-neutral-300">{summary.status === "loading" || summary.refreshing ? updated ? "Refreshing summary…" : "Loading summary…" : summary.status === "stale" ? "Summary may be outdated" : summary.status === "error" ? "Summary unavailable" : "Summary updated"}</p>
-        {updated ? <p className="text-neutral-400">Last Successful Update: <time dateTime={updated.iso} title={updated.exact} aria-label={`Last successful update: ${updated.exact}`}>{updated.relative}</time></p> : <p className="text-neutral-500">No successful summary update yet.</p>}
-        <p className="text-neutral-500">Summary auto-refresh: every 60 seconds while visible.</p>
+        {updated ? <p className="text-neutral-400">Last Successful Update: <time dateTime={updated.iso} title={updated.exact} aria-label={`Last successful update: ${updated.exact}`}>{updated.relative}</time></p> : <p className="text-neutral-400">No successful summary update yet.</p>}
+        <p className="text-neutral-400">Summary auto-refresh: every 60 seconds while visible.</p>
       </div>
       <button type="button" disabled={disabled} onClick={onRefresh} className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-dune-amber hover:border-dune-amber/40 disabled:opacity-40"><RefreshCw className={`h-4 w-4 ${summary.refreshing ? "animate-spin" : ""}`} />{summary.error ? "Retry summary" : "Refresh summary"}</button>
     </div>

@@ -36,9 +36,9 @@ export const checkDeliveryOrderId = async (req, res, next) => {
 export const createDeliveryOrder = async (req, res, next) => {
   try {
     const settings = await getEffectiveRestaurantSettings();
-    const order = await createHistoricalDeliveryOrder({ payload: { ...req.body, correlationId: req.correlationId }, actor: req.user, restaurantSettings: settings });
+    const order = await createHistoricalDeliveryOrder({ payload: { ...req.body, idempotencyKey: req.body.idempotencyKey ?? req.headers?.["idempotency-key"], correlationId: req.correlationId }, actor: req.user, restaurantSettings: settings });
     const populated = await populateOrder(Order.findById(order._id));
-    res.status(201).json({ success: true, data: populated });
+    res.status(order.$locals.duplicate ? 200 : 201).json({ success: true, data: populated, ...(order.$locals.duplicate ? { duplicate: true } : {}) });
   } catch (error) {
     if (error.existingOrder) return res.status(409).json({ success: false, message: error.message, existingOrder: error.existingOrder, fields: error.fields });
     next(error);

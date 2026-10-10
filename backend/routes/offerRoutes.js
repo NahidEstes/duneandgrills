@@ -8,8 +8,9 @@ import {
   updateOffer,
   validateCoupon,
 } from "../controllers/offerController.js";
-import { protect, requireCapability } from "../middleware/auth.js";
+import { protect, optionalAuth, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
+import { rateLimit } from "../middleware/security.js";
 
 const router = express.Router();
 const manageOffers = [protect, requireCapability(CAPABILITIES.CATALOG_MANAGE)];
@@ -20,7 +21,7 @@ router
   .post(...manageOffers, createOffer);
 
 router.get("/manage", ...manageOffers, getAllOffersForAdmin);
-router.post("/validate-coupon", validateCoupon);
+router.post("/validate-coupon", rateLimit({ windowMs: 60_000, max: 60, keyPrefix: "coupon-validate" }), optionalAuth, validateCoupon);
 
 router
   .route("/:id")

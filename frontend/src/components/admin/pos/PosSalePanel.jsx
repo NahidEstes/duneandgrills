@@ -15,6 +15,7 @@ import {
 import SmartImage from "../../SmartImage.jsx";
 import DarkSelect from "../../ui/DarkSelect.jsx";
 import { formatAdminCurrency } from "../adminUi.js";
+import PosCustomerOptions from "./PosCustomerOptions.jsx";
 
 const Choice = ({ active, onClick, icon: Icon, children }) => (
   <button
@@ -61,6 +62,7 @@ export default function PosSalePanel({
   onComplete,
   submitting,
   channelEnabled = true,
+  checkoutOptions, onCheckoutOptionsChange, onCouponPreview, items,
 }) {
   const { subtotal, total } = bill;
   const change =
@@ -182,6 +184,7 @@ export default function PosSalePanel({
         )}
       </div>
       <div className="space-y-3 overflow-y-auto p-4 xl:flex-1">
+        <PosCustomerOptions selectedCustomer={selectedCustomer} onSelectCustomer={onSelectCustomer} options={checkoutOptions} onChange={onCheckoutOptionsChange} items={items} onCouponPreview={onCouponPreview} />
         <div className="relative">
           <UserRound className="absolute left-3 top-3.5 h-4 w-4 text-neutral-600" />
           {selectedCustomer ? (
@@ -239,6 +242,7 @@ export default function PosSalePanel({
             Order Type
           </p>
           <div className="flex gap-2">
+            <Choice active={orderType === "delivery"} onClick={() => onOrderTypeChange("delivery")} icon={CheckCircle2}>Delivery</Choice>
             <Choice
               active={orderType === "dine-in"}
               onClick={() => onOrderTypeChange("dine-in")}
@@ -255,7 +259,7 @@ export default function PosSalePanel({
             </Choice>
           </div>
         </div>
-        {orderType === "takeaway" && (
+        {(orderType !== "dine-in" || checkoutOptions?.orderOrigin === "phone") && (
           <div className="grid gap-2 rounded-xl border border-white/10 bg-black/20 p-3 sm:grid-cols-2 xl:grid-cols-1">
             <label className="text-xs text-neutral-500">
               Pickup name{policy.takeawayNameRequired && " *"}
@@ -283,6 +287,7 @@ export default function PosSalePanel({
               />
             </label>
             <label className="text-xs text-neutral-500 sm:col-span-2 xl:col-span-1">
+              {orderType === "delivery" && <input aria-label="Delivery address" value={walkIn.address || ""} maxLength={500} onChange={event => onWalkInChange({ ...walkIn, address: event.target.value })} placeholder="Required delivery address" className="mb-2 h-11 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white" />}
               Pickup note
               <input
                 value={walkIn.pickupNote}
@@ -308,6 +313,7 @@ export default function PosSalePanel({
             <span>Subtotal</span>
             <span>{formatAdminCurrency(subtotal)}</span>
           </div>
+          {bill.deliveryFee > 0 && <div className="flex justify-between text-neutral-400"><span>Delivery</span><span>{formatAdminCurrency(bill.deliveryFee)}</span></div>}
           <div className="grid grid-cols-[100px_1fr] items-center gap-2">
             <DarkSelect
               aria-label="Discount type"

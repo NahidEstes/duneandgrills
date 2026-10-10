@@ -183,9 +183,9 @@ const Sidebar = ({ activeTab, onTabChange, orderBadge, onClose, onNavigateAway, 
       </Link>
       {showUserCard ? <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-dune-amber/15 text-sm font-bold text-dune-amber">{user?.name?.charAt(0)?.toUpperCase() || "S"}</span>
-        <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-white">{user?.name || "Staff"}</span><span className="block truncate text-[0.65rem] capitalize text-neutral-500">{user?.role || "Staff"}</span></span>
+        <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-white">{user?.name || "Staff"}</span><span className="block truncate text-[0.65rem] capitalize text-neutral-400">{user?.role || "Staff"}</span></span>
         <button type="button" onClick={onLogout} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-neutral-500 transition-colors hover:bg-red-500/10 hover:text-red-300" aria-label="Log out"><LogOut className="h-4 w-4" /></button>
-      </div> : <p className="mt-4 px-3 text-[0.65rem] leading-5 text-neutral-600">
+      </div> : <p className="mt-4 px-3 text-[0.65rem] leading-5 text-neutral-400">
           © {new Date().getFullYear()} DUNE &amp; GRILLS
           <br />All rights reserved.
         </p>}
@@ -366,7 +366,7 @@ const AdminShell = ({
                   <span className="block max-w-28 truncate text-xs font-semibold text-white">
                     {user?.name || "Admin"}
                   </span>
-                  <span className="block text-[0.65rem] capitalize text-neutral-500">
+                  <span className="block text-[0.65rem] capitalize text-neutral-400">
                     {user?.role || "Administrator"}
                   </span>
                 </span>
@@ -393,7 +393,7 @@ const AdminShell = ({
               <h1 className="font-body text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                 {title}
               </h1>
-              <p className="mt-1 text-sm text-neutral-500">{subtitle}</p>
+              <p className="mt-1 text-sm text-neutral-400">{subtitle}</p>
             </div>}
             {children}
           </div>

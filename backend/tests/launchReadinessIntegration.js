@@ -141,6 +141,7 @@ test("Phase 4 integrated launch rehearsal (owned dummy database)", { timeout: 48
         await ok("manager", `/orders/${before._id}/status`, { status: "cancelled", reason: "Before kitchen work" }, "PATCH");
         assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 16);
         const after = (await website([{ productId: String(dish._id), quantity: 1 }])).data;
+        await ok("manager", `/orders/${after._id}/status`, { status: "confirmed" }, "PATCH");
         await ok("manager", `/orders/${after._id}/status`, { status: "preparing" }, "PATCH");
         await ok("manager", `/orders/${after._id}/status`, { status: "cancelled", reason: "Prepared food" }, "PATCH");
         assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 15.5);

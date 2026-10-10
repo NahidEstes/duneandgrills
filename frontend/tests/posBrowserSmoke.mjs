@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
+import { setFixtureSession } from "./helpers/fixtureSession.mjs";
 
 // Run against a local production/dev server. Every API is intercepted with fixtures.
 // No order, payment or production database request leaves this browser context.
@@ -8,12 +9,12 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 768, height: 1024 }]) {
-    const context = await browser.newContext({ viewport }); const page = await context.newPage();
+    const context = await browser.newContext({ viewport, serviceWorkers: "block" }); const page = await context.newPage();
     const errors = []; page.on("pageerror", error => errors.push(error.message));
     const actor = { _id: "111111111111111111111111", name: "Smoke Cashier", role: "manager" };
     const product = { _id: "222222222222222222222222", name: "Test Burger", description: "Fixture", price: 20, image: "/logo.jpeg", category: "Food", isAvailable: true, customization: { enabled: false } };
     const terminal = { _id: "333333333333333333333333", code: "COUNTER-1", name: "Counter One", isActive: true };
-    let locked = false; let draft; const queries = []; const cashKeys = [];
+    let locked = false; let draft; let captured; let lostCaptureResponse = false; const queries = []; const cashKeys = [];
     let shift; let expectedCash = 50;
     const saleId = "555555555555555555555555";
     let fixtureSale = { _id: saleId, orderNumber: "SMOKE-1001", createdBy: actor, items: [{ ...product, quantity: 2, selectedAddOns: [] }], subtotal: 40, totalAmount: 40, status: "pending", paymentStatus: "paid", paymentMethod: "cash", orderType: "dine-in", terminal: terminal.code, createdAt: new Date().toISOString(), customer: { name: "Walk-in" }, cashReceived: 50, changeDue: 10 };
@@ -25,7 +26,7 @@ try {
       let payload = { success: true, data: [] };
       if (resource === "/auth/me") payload = { user: actor };
       if (resource === "/cart") payload.data = { items: [], coupon: null };
-      if (resource === "/menu/manage") payload.data = [product];
+      if (resource === "/menu/manage" || resource === "/menu") payload.data = [product];
       if (resource === "/pos/session") payload.data = { actor, token: "synthetic-pos-session", locked, autoLockMinutes: 1 };
       if (resource === "/pos/session/lock") locked = true;
       if (resource === "/pos/session/unlock") { locked = false; payload.data = { actor, locked }; }
@@ -37,16 +38,23 @@ try {
       if (resource.endsWith("/cash-movements")) { cashKeys.push(body.idempotencyKey); expectedCash += body.amount; }
       if (resource.endsWith("/close")) { shift = { ...shift, isOpen: false, status: "closed", closedAt: new Date().toISOString(), countedCashHalala: 6000, differenceHalala: 0 }; payload.data = shift; }
       if (/^\/pos\/shifts\/[0-9a-f]{24}$/.test(resource)) payload.data = shiftSummary();
-      if (resource === "/settings/public") payload.data = { orders: { channels: { pos: true } }, posCheckout: { discountsEnabled: true, cashierMaxAmount: 50, cashierMaxPercentage: 10, managerApprovalThreshold: 50 }, receipt: {} };
+      if (resource === "/settings/public") payload.data = { orders: { channels: { pos: true }, deliveryFee: 10 }, posCheckout: { discountsEnabled: true, cashierMaxAmount: 50, cashierMaxPercentage: 10, managerApprovalThreshold: 50 }, receipt: {} };
+      if (resource === "/pos/coupons/validate") payload.data = { discountAmount: 5, code: "SMOKE5" };
       if (resource === "/pos/held-sales" && body) {
         draft = { ...body, _id: "444444444444444444444444", revision: 0, status: "working", items: body.items.map(line => ({ ...line, name: product.name, image: product.image, price: product.price })) };
         payload.data = draft;
       }
       if (resource.startsWith("/pos/held-sales/")) {
-        if (body) draft = { ...draft, ...body, revision: draft.revision + 1 };
+        if (body) draft = { ...draft, ...body, items: (body.items || draft.items).map(line => ({ ...line, name: product.name, image: product.image, price: product.price })), revision: draft.revision + 1 };
         payload.data = draft;
       }
-      if (resource === "/pos/sales") { queries.push(url.searchParams); const empty = url.searchParams.get("search") === "TEST-ORDER"; payload = { success: true, data: empty ? [] : [fixtureSale], pagination: { total: empty ? 0 : 1, page: Number(url.searchParams.get("page") || 1), pages: empty ? 0 : 1 } }; }
+      if (resource === "/pos/sales" && body) {
+        if (captured) assert.deepEqual(body, captured, "Recovery must retry exact saved sale details");
+        captured = body; fixtureSale = { ...fixtureSale, orderType: body.orderType, orderOrigin: body.orderOrigin, totalAmount: 45, subtotal: 40, discountAmount: 5, deliveryFee: 10, couponCode: body.couponCode, customer: body.customer };
+        if (!lostCaptureResponse) { lostCaptureResponse = true; return route.abort("failed"); }
+        payload = { success: true, data: fixtureSale, duplicate: true };
+      }
+      if (resource === "/pos/sales" && !body) { queries.push(url.searchParams); const empty = url.searchParams.get("search") === "TEST-ORDER"; payload = { success: true, data: empty ? [] : [fixtureSale], pagination: { total: empty ? 0 : 1, page: Number(url.searchParams.get("page") || 1), pages: empty ? 0 : 1 } }; }
       if (resource === `/pos/sales/${saleId}`) payload = { success: true, data: fixtureSale, refunds: { completedRefundAmount: refundRows.some(row => row.status === "completed") ? 20 : 0, remainingRefundableAmount: refundRows.length ? 20 : 40, refunds: refundRows } };
       if (resource === `/pos/sales/${saleId}/reprint`) payload.data = { ...fixtureSale, isReprint: true };
       if (resource === `/pos/sales/${saleId}/refunds`) { assert.equal(body.restock, false); refundRows.push({ ...body, _id: "777777777777777777777777", status: "requested", createdAt: new Date().toISOString() }); }
@@ -54,7 +62,9 @@ try {
       if (resource.endsWith("/complete")) { refundRows[0].status = "completed"; fixtureSale = { ...fixtureSale, paymentStatus: "partially_refunded", refundedAmount: 20 }; }
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
     });
-    await page.goto(process.env.POS_SMOKE_URL || "http://localhost:3008/pos");
+    const destination = process.env.POS_SMOKE_URL || "http://localhost:3008/pos";
+    await setFixtureSession(context, new URL(destination).origin, actor.role);
+    await page.goto(destination);
     await page.getByRole("combobox").filter({ hasText: "Select terminal" }).click();
     await page.getByRole("option", { name: "Counter One · COUNTER-1" }).click();
     await page.getByRole("button", { name: "Open Shift", exact: true }).click();
@@ -72,7 +82,9 @@ try {
     await drawer.getByText("Shift closing summary", { exact: true }).waitFor();
     await drawer.getByRole("button", { name: "Close", exact: true }).click();
     await page.getByRole("button", { name: /Test Burger/ }).filter({ has: page.getByRole("heading", { name: "Test Burger" }) }).click();
+    const quantitySaved = page.waitForResponse(response => response.url().includes("/pos/held-sales") && ["POST", "PATCH"].includes(response.request().method()) && response.request().postDataJSON()?.items?.[0]?.quantity === 2);
     await page.getByRole("button", { name: "Increase Test Burger", exact: true }).click();
+    await quantitySaved;
     await page.waitForFunction(() => Boolean(localStorage.getItem("dg_pos_working_sale:111111111111111111111111:COUNTER-1")));
     assert.equal(draft.items[0].quantity, 2);
     await page.clock.install(); await page.clock.fastForward(61_000);
@@ -109,6 +121,22 @@ try {
     await page.getByRole("heading", { name: "POS locked" }).waitFor();
     await page.getByLabel("POS PIN", { exact: true }).fill("654321"); await page.getByRole("button", { name: "Unlock POS", exact: true }).click();
     await page.getByText("2 items", { exact: true }).first().waitFor();
+    const display = await context.newPage(); const displayHref = await page.getByRole("link", { name: /Customer Display/ }).getAttribute("href");
+    await page.clock.resume();
+    await display.goto(new URL(displayHref, page.url()).href);
+    try { await display.getByText("Test Burger", { exact: true }).waitFor(); }
+    catch (error) { console.error("Display diagnostics", await display.locator("body").innerText()); throw error; }
+    await page.getByLabel("Order origin").selectOption("phone"); await page.getByLabel("Phone", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Delivery", exact: true }).click();
+    await page.getByLabel("Pickup name").fill("Phone Fixture"); await page.getByLabel("Phone", { exact: true }).fill("0500000000"); await page.getByLabel("Delivery address").fill("Owned fixture address");
+    await page.getByLabel("POS coupon").fill("SMOKE5"); await page.getByRole("button", { name: "Validate coupon", exact: true }).click();
+    await page.getByText("Coupon validated for this cart", { exact: true }).waitFor();
+    await display.getByText("Delivery charge", { exact: true }).waitFor();
+    await page.getByLabel("Received amount").fill("50"); await page.getByRole("button", { name: "Complete Sale", exact: true }).click();
+    await page.getByRole("button", { name: "Retry original sale / recover receipt", exact: true }).click();
+    const recoveredReceipt = page.getByRole("dialog", { name: "POS receipt" }); await recoveredReceipt.waitFor();
+    assert.equal(captured.orderOrigin, "phone"); assert.equal(captured.orderType, "delivery"); assert.equal(captured.couponCode, "SMOKE5"); assert.equal(captured.customer.address, "Owned fixture address");
+    await recoveredReceipt.getByRole("button", { name: "Close receipt", exact: true }).click(); await display.close();
     assert.equal(errors.length, 0, errors.join("\n"));
     console.log(`PASS ${viewport.width}×${viewport.height}: terminal, shift/cash/close, cart, auto-lock, PIN, refresh recovery, favourites, shortcuts, server history, receipt layering, manual refund, safe restock defaults, responsive overflow`);
     await context.close();

@@ -14,6 +14,7 @@ export default function useKitchenAlerts(orders, configuredNotifications = {}) {
   const [acknowledgedIds, setAcknowledgedIds] = useState([]);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const audioContextRef = useRef(null);
+  const notified = useRef(new Set());
   const settings = useMemo(() => normalizeNotificationSettings({
     kitchenSoundEnabled: configuredNotifications.soundEnabled,
     alertRepeatIntervalSeconds: configuredNotifications.alertRepeatIntervalSeconds,
@@ -41,6 +42,13 @@ export default function useKitchenAlerts(orders, configuredNotifications = {}) {
     [acknowledgedIds, orders]
   );
   const unacknowledgedSignature = unacknowledgedIds.join("|");
+  useEffect(() => {
+    const unseen = pendingIds.filter(id => !notified.current.has(id));
+    pendingIds.forEach(id => notified.current.add(id));
+    if (notified.current.size > 1000) notified.current = new Set(pendingIds);
+    if (!unseen.length || !("Notification" in window) || Notification.permission !== "granted" || document.visibilityState !== "hidden") return;
+    navigator.serviceWorker?.getRegistration().then(registration => registration?.showNotification("New kitchen orders", { body: `${unseen.length} new orders. Open the Kitchen queue to review.`, icon: "/pwa/icon-192.png", tag: "dg-kitchen-orders" })).catch(() => {});
+  }, [pendingIds]);
 
   const playAlert = useCallback(() => {
     const context = audioContextRef.current;

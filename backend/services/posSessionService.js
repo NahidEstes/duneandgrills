@@ -40,7 +40,7 @@ export const resolvePosSession = async (req, res, next) => {
       return next();
     }
     if (typeof token !== "string") throw error("Invalid POS session", 401);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
     if (decoded.purpose !== "pos-session" || decoded.owner !== String(req.user._id) || Number(decoded.sv) !== Number(req.user.sessionVersion || 0)) throw error("Invalid POS session", 401);
     const session = await PosSession.findOne({ _id: decoded.sid, owner: req.user._id, expiresAt: { $gt: new Date() } });
     if (!session) throw error("POS session expired", 401);

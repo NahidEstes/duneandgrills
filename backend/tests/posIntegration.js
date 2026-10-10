@@ -16,6 +16,7 @@ import AuditLog from "../models/AuditLog.js";
 import RestaurantSettings from "../models/RestaurantSettings.js";
 import { getRestaurantSettingsDefaults, updateRestaurantSettings } from "../services/restaurantSettingsService.js";
 import { nextOrderNumber } from "../services/orderNumberService.js";
+import { transitionOrder } from "../services/orderEngineService.js";
 
 process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "true";
 
@@ -62,7 +63,7 @@ const invokeCreateWebsiteOrder = async (user, body) => {
 const invokeJsonController = async (handler, req) => {
   let statusCode = 200;
   let payload;
-  await handler(req, { status(code) { statusCode = code; return this; }, json(value) { payload = value; return value; } });
+  await handler(req, { setHeader() {}, status(code) { statusCode = code; return this; }, json(value) { payload = value; return value; } });
   return { statusCode, payload };
 };
 
@@ -163,7 +164,7 @@ const run = async () => {
     }),
     1
   );
-  assert.equal((await User.findById(customer._id)).pointsBalance, 450);
+  assert.equal((await User.findById(customer._id)).pointsBalance || 0, 0, "Pending POS sale earns points only at completion");
 
   await transitionKitchenOrder({ orderId: created.payload.data._id, nextStatus: "confirmed", actor: admin, estimatedPreparationMinutes: 18 });
   await transitionKitchenOrder({ orderId: created.payload.data._id, nextStatus: "preparing", actor: admin });
@@ -177,10 +178,11 @@ const run = async () => {
   assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 9.6);
   assert.equal(await StockTransaction.countDocuments({ order: created.payload.data._id, movementType: "STOCK_OUT" }), 1);
   assert.equal(await AuditLog.countDocuments({ entityId: created.payload.data._id, action: "KITCHEN_ORDER_STATUS_CHANGED" }), 3);
-  await assert.rejects(
-    transitionKitchenOrder({ orderId: created.payload.data._id, nextStatus: "ready", actor: admin }),
-    /already ready/
-  );
+  const repeatedReady = await transitionKitchenOrder({ orderId: created.payload.data._id, nextStatus: "ready", actor: admin });
+  assert.equal(repeatedReady.status, "ready");
+  assert.equal(await AuditLog.countDocuments({ entityId: created.payload.data._id, action: "KITCHEN_ORDER_STATUS_CHANGED" }), 3);
+  await transitionOrder({ orderId: created.payload.data._id, nextStatus: "delivered", actor: admin });
+  assert.equal((await User.findById(customer._id)).pointsBalance, 450);
 
   const websiteCreated = await invokeCreateWebsiteOrder(customer, {
     customer: { name: customer.name, phone: customer.phone, address: "Private test address" },

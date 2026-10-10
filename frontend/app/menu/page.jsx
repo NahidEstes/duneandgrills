@@ -1,3 +1,5 @@
+import { siteOrigin } from "@/src/config/site.js";
+const siteUrl = siteOrigin();
 import FullMenuPage from "@/src/components/FullMenuPage.jsx";
 import JsonLd from "@/src/components/JsonLd.jsx";
 import { getCategories, getCombos, getMenuItems } from "@/src/api/server.js";
@@ -32,7 +34,7 @@ export default async function MenuPage() {
     "@context": "https://schema.org",
     "@type": "Menu",
     name: "Dune & Grills Menu",
-    url: "https://duneandgrills.com/menu",
+    url: `${siteUrl}/menu`,
     hasMenuSection: Object.entries(groupedItems).map(
       ([category, categoryItems]) => ({
         "@type": "MenuSection",

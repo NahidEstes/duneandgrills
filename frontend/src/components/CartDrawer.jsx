@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { submitCustomerOrder, retryCustomerOrder, pendingCustomerOrder, reconcileCustomerOrder } from "../utils/customerOrderSubmission.js";
+import { rememberTracking, trackingHref } from "../utils/guestTracking.js";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -26,6 +28,7 @@ import {
   cancelRewardRedemption,
   fetchOrderConfig,
   placeOrder,
+  cancelCustomerOrderRequest,
   updateMe,
   validateCoupon,
 } from "../api/api.js";
@@ -100,6 +103,7 @@ const CartDrawer = ({ open, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [placedOrder, setPlacedOrder] = useState(null);
+  const [kitchenNotes, setKitchenNotes] = useState("");
   const [orderConfig, setOrderConfig] = useState(null);
   const [orderType, setOrderType] = useState("");
   const [configLoading, setConfigLoading] = useState(true);
@@ -191,10 +195,6 @@ const CartDrawer = ({ open, onClose }) => {
       setError(`Minimum delivery order is ${formatPrice(minimumDeliveryOrder)}.`);
       return;
     }
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
     setStep("checkout");
   };
 
@@ -281,23 +281,26 @@ const CartDrawer = ({ open, onClose }) => {
     setSubmitting(true);
     setError("");
     try {
-      const order = await placeOrder({
+      const order = await submitCustomerOrder({ storage: window.sessionStorage, actorId: user?._id, send: placeOrder, payload: {
         customer: {
           ...customer,
           address: orderType === "delivery" ? customer.address : "",
         },
         orderType,
+        paymentOption: "cod",
+        kitchenNotes,
         items: checkoutItems(),
         couponCode: appliedCoupon?.code || undefined,
         rewardRedemptionId:
           cart.find((line) => line.isReward)?.rewardRedemptionId || undefined,
-      });
+      } });
       setPlacedOrder(order);
+      try { rememberTracking(window.sessionStorage, order); } catch { /* The confirmation still provides the private code. */ }
       clearCart();
       setStep("success");
     } catch (err) {
       setError(
-        err.response?.data?.message ||
+        err.response?.data?.message || err.message ||
           "Couldn't place your order. Please make sure the API server is running."
       );
     } finally {
@@ -573,8 +576,10 @@ const CartDrawer = ({ open, onClose }) => {
                   Full Name
                 </label>
                 <input
-                  disabled
+                  required maxLength={100} disabled={Boolean(user)}
                   value={customer.name}
+                  aria-label="Customer name"
+                  onChange={event => setCustomer({ ...customer, name: event.target.value })}
                   className="w-full rounded-lg bg-black/60 border border-dune-border px-4 py-3 text-neutral-300 cursor-not-allowed"
                 />
               </div>
@@ -586,8 +591,9 @@ const CartDrawer = ({ open, onClose }) => {
                 </label>
                 <input
                   required
-                  disabled={!editPhone}
+                  disabled={Boolean(user) && !editPhone && Boolean(customer.phone)} maxLength={30}
                   value={customer.phone}
+                  aria-label="Customer phone"
                   onChange={(e) =>
                     setCustomer({ ...customer, phone: e.target.value })
                   }
@@ -597,7 +603,7 @@ const CartDrawer = ({ open, onClose }) => {
                       : "bg-black/60 border-dune-border text-neutral-300 cursor-not-allowed"
                   }`}
                 />
-                <div className="flex justify-end mt-1.5">
+                {user && <div className="flex justify-end mt-1.5">
                   <button
                     type="button"
                     disabled={savingField}
@@ -617,7 +623,7 @@ const CartDrawer = ({ open, onClose }) => {
                       </>
                     )}
                   </button>
-                </div>
+                </div>}
               </div>
 
               {/* Delivery address is only needed for delivery orders. */}
@@ -628,8 +634,9 @@ const CartDrawer = ({ open, onClose }) => {
                 <textarea
                   required
                   rows={3}
-                  disabled={!editAddress}
+                  disabled={Boolean(user) && !editAddress && Boolean(customer.address)} maxLength={500}
                   value={customer.address}
+                  aria-label="Delivery address"
                   onChange={(e) =>
                     setCustomer({ ...customer, address: e.target.value })
                   }
@@ -639,7 +646,7 @@ const CartDrawer = ({ open, onClose }) => {
                       : "bg-black/60 border-dune-border text-neutral-300 cursor-not-allowed"
                   }`}
                 />
-                <div className="flex justify-end mt-1.5">
+                {user && <div className="flex justify-end mt-1.5">
                   <button
                     type="button"
                     disabled={savingField}
@@ -661,9 +668,12 @@ const CartDrawer = ({ open, onClose }) => {
                       </>
                     )}
                   </button>
-                </div>
+                </div>}
               </div>}
 
+              {!user && <p className="text-sm text-neutral-400">Checkout as a guest, or <button type="button" onClick={() => setShowLoginModal(true)} className="text-dune-amber underline">sign in</button> for rewards and order history.</p>}
+              <label className="block text-sm text-neutral-400">Kitchen notes<textarea maxLength={500} value={kitchenNotes} onChange={event => setKitchenNotes(event.target.value)} className="mt-2 w-full rounded-lg border border-dune-border bg-black p-3 text-white" /></label>
+              <section className="rounded-xl border border-dune-border p-4"><h3 className="font-semibold text-white">Cash on delivery / pickup</h3><p className="mt-1 text-sm text-neutral-400">Pay when your order is handed over. Online payment is not available yet.</p></section>
               <section
                 aria-labelledby="coupon-heading"
                 className="rounded-xl border border-dune-border bg-black/35 p-4"
@@ -739,7 +749,15 @@ const CartDrawer = ({ open, onClose }) => {
                 )}
               </section>
 
-              {error && <p className="text-sm text-red-400">{error}</p>}
+              {error && <div role="alert" className="text-sm text-red-400"><p>{error}</p><button type="button" disabled={submitting} className="mt-2 underline" onClick={async () => { setSubmitting(true); try { const saved = pendingCustomerOrder(window.sessionStorage, user?._id); if (!saved) throw new Error("No unresolved order exists; correct the checkout and submit again."); if (!window.confirm(`Retry the original request for ${saved.customer?.name || "Guest"}? Saved items and details will be used. Your current cart stays available.`)) return; const order = await retryCustomerOrder({ storage: window.sessionStorage, actorId: user?._id, send: placeOrder }); setPlacedOrder(order); try { rememberTracking(window.sessionStorage, order); } catch { /* Confirmation contains the tracking code. */ } setStep("success"); } catch (requestError) { setError(requestError.response?.data?.message || requestError.message); } finally { setSubmitting(false); } }}>Reconcile / retry original order request</button><button type="button" disabled={submitting} className="ml-3 mt-2 underline" onClick={async () => {
+                if (!window.confirm("Stop the unresolved request? If an order already exists, its confirmation will be recovered. Otherwise the original request will be blocked and your cart kept.")) return;
+                setSubmitting(true);
+                try {
+                  const result = await reconcileCustomerOrder({ storage: window.sessionStorage, actorId: user?._id, send: cancelCustomerOrderRequest });
+                  if (result.cancelled) { setError(""); toast.success("Original request stopped. Review your checkout and submit again."); }
+                  else { const order = { ...result.data, trackingToken: result.trackingToken }; setPlacedOrder(order); try { rememberTracking(window.sessionStorage, order); } catch { /* The confirmation retains its code. */ } setStep("success"); }
+                } catch (requestError) { setError(requestError.response?.data?.message || requestError.message); } finally { setSubmitting(false); }
+              }}>Stop unresolved request / recover confirmation</button></div>}
             </div>
 
             <div className="mt-5 border-t border-dune-border pt-5">
@@ -802,6 +820,7 @@ const CartDrawer = ({ open, onClose }) => {
               We&apos;re firing up the grill. You&apos;ll get a call to confirm
               details shortly.
             </p>
+            {placedOrder?.trackingToken && <><button type="button" onClick={() => { onClose(); router.push(trackingHref(placedOrder.orderNumber)); }} className="text-dune-amber underline">Track this order</button><label className="w-full text-left text-xs text-neutral-400">Private tracking code — save for another device<input readOnly value={placedOrder.trackingToken} className="mt-2 w-full rounded border border-dune-border bg-black p-2 text-xs text-white" onFocus={event => event.target.select()} /></label></>}
             <button
               onClick={reset}
               className="mt-2 bg-dune-amber hover:bg-dune-amberLight text-black font-semibold px-6 py-3 rounded-full transition-colors"

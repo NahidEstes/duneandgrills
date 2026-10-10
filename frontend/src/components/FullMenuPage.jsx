@@ -9,6 +9,8 @@ import MenuCard from "./MenuCard.jsx";
 import ItemModal from "./ItemModal.jsx";
 import CartDrawer from "./CartDrawer.jsx";
 import { fetchCategories, fetchCombos, fetchMenuItems } from "../api/api.js";
+import { filterMenu } from "../utils/menuFilters.js";
+import GuestOrderTracking from "./GuestOrderTracking.jsx";
 
 const FullMenuPage = ({
   initialItems = [],
@@ -23,6 +25,11 @@ const FullMenuPage = ({
   );
   const [selectedItem, setSelectedItem] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("menu");
+  const [maximumPrice, setMaximumPrice] = useState("");
+  const [retryVersion, setRetryVersion] = useState(0);
+  const visibleItems = filterMenu(items, { search, sort, maximumPrice });
 
   const firstLoad = useRef(true);
 
@@ -76,7 +83,7 @@ const FullMenuPage = ({
     return () => {
       cancelled = true;
     };
-  }, [activeCategory, initialCombos.length, initialItems.length]);
+  }, [activeCategory, initialCombos.length, initialItems.length, retryVersion]);
 
   return (
     <div className="bg-black min-h-screen">
@@ -114,6 +121,12 @@ const FullMenuPage = ({
           ))}
         </div>
 
+        <GuestOrderTracking />
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <input aria-label="Search menu" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search dishes and combos…" className="rounded-lg border border-dune-border bg-black px-4 py-3 text-white" />
+          <select aria-label="Sort menu" value={sort} onChange={event => setSort(event.target.value)} className="rounded-lg border border-dune-border bg-black px-4 py-3 text-white"><option value="menu">Menu order</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name</option></select>
+          <input aria-label="Maximum price SAR" type="number" min="0" value={maximumPrice} onChange={event => setMaximumPrice(event.target.value)} placeholder="Maximum price (SAR)" className="rounded-lg border border-dune-border bg-black px-4 py-3 text-white" />
+        </div>
         <div className="mt-12">
           {status === "loading" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -131,18 +144,19 @@ const FullMenuPage = ({
               <p className="text-neutral-400">
                 We couldn&apos;t load the menu right now.
               </p>
+              <button type="button" onClick={() => setRetryVersion(value => value + 1)} className="mt-3 text-dune-amber underline">Retry</button>
             </div>
           )}
 
-          {status === "success" && items.length === 0 && (
+          {status === "success" && visibleItems.length === 0 && (
             <div className="text-center py-16 border border-dune-border rounded-2xl">
-              <p className="text-neutral-400">No items in this category yet.</p>
+              <p className="text-neutral-400">No items match this category and your filters.</p>
             </div>
           )}
 
-          {status === "success" && items.length > 0 && (
+          {status === "success" && visibleItems.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <MenuCard
                   key={`${item.productType || "menuItem"}-${item._id}`}
                   item={item}

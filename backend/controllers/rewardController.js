@@ -2,6 +2,9 @@ import mongoose from "mongoose";
 import MenuItem from "../models/MenuItem.js";
 import Reward from "../models/Reward.js";
 import User from "../models/User.js";
+import { recordAuditLog } from "../services/auditLogService.js";
+import { releaseExpiredRedemptions } from "../services/rewardService.js";
+import { runInventoryTransaction } from "../services/inventoryStockService.js";
 import {
   getRewardAccount,
   reserveReward,
@@ -18,6 +21,8 @@ const rewardPayload = (body) => ({
   description: body.description?.trim(),
   image: body.image?.trim(),
   pointsRequired: Number(body.pointsRequired),
+  minimumTier: body.minimumTier || "Bronze",
+  expiresAt: body.expiresAt || null,
   menuItem: body.menuItem,
   isActive: body.isActive !== false,
   sortOrder: Number(body.sortOrder) || 0,
@@ -41,7 +46,7 @@ const validateRewardPayload = async (payload) => {
 
 export const getRewards = async (req, res) => {
   try {
-    const rewards = await Reward.find({ isActive: true, isDeleted: { $ne: true } })
+    const rewards = await Reward.find({ isActive: true, isDeleted: { $ne: true }, $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] })
       .sort({ sortOrder: 1, pointsRequired: 1, createdAt: 1 })
       .populate(populateMenuItem)
       .lean();
@@ -110,7 +115,8 @@ export const redeemReward = async (req, res) => {
       });
     }
 
-    const result = await reserveReward(req.user._id, reward);
+    await releaseExpiredRedemptions(req.user._id);
+    const result = await runInventoryTransaction(session => reserveReward(req.user._id, reward, session));
     if (!result) {
       const user = await User.findById(req.user._id)
         .select("pointsBalance rewardRedemptions")
@@ -204,6 +210,7 @@ export const createReward = async (req, res) => {
       return res.status(400).json({ success: false, message: validationError });
     }
     const reward = await Reward.create(payload);
+    await recordAuditLog({ actor: req.user, action: "REWARD_CREATED", entityType: "Reward", entityId: reward._id, entityLabel: reward.title, after: payload });
     await reward.populate(populateMenuItem);
     return res.status(201).json({ success: true, data: reward });
   } catch (error) {
@@ -233,6 +240,7 @@ export const updateReward = async (req, res) => {
     if (!reward) {
       return res.status(404).json({ success: false, message: "Reward not found" });
     }
+    await recordAuditLog({ actor: req.user, action: "REWARD_UPDATED", entityType: "Reward", entityId: reward._id, entityLabel: reward.title, after: payload });
     return res.status(200).json({ success: true, data: reward });
   } catch (error) {
     return res.status(400).json({
@@ -256,6 +264,7 @@ export const deleteReward = async (req, res) => {
     if (!reward) {
       return res.status(404).json({ success: false, message: "Reward not found" });
     }
+    await recordAuditLog({ actor: req.user, action: "REWARD_DELETED", entityType: "Reward", entityId: reward._id, entityLabel: reward.title });
     return res.status(200).json({ success: true, message: "Reward deleted" });
   } catch (error) {
     return res.status(400).json({ success: false, message: "Reward could not be deleted" });

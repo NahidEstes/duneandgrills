@@ -27,11 +27,15 @@ import expenseRoutes from "./routes/expenseRoutes.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
 import deliveryOrderRoutes from "./routes/deliveryOrderRoutes.js";
 import recordSearchRoutes from "./routes/recordSearchRoutes.js";
-import { csrfProtection, requestCorrelation, securityHeaders } from "./middleware/security.js";
+import { csrfProtection, requestCorrelation, securityHeaders, verifyProxyIdentity, validateRequestStructure, safeErrorResponses } from "./middleware/security.js";
+import { validateEnvironment } from "./config/environment.js";
+import { verifyReleaseIndexes } from "./services/releaseReadinessService.js";
 import { verifyTransactionCapability } from "./services/inventoryStockService.js";
 import { rejectClientRecordNumbers } from "./services/recordNumberService.js";
 
 const app = express();
+const environmentErrors = validateEnvironment();
+if (environmentErrors.length) throw new Error(`Invalid production configuration: ${environmentErrors.join("; ")}`);
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI =
@@ -49,7 +53,7 @@ const connectToMongo = () => {
   }
 
   if (!mongoConnectionPromise || mongoose.connection.readyState === 0) {
-    mongoConnectionPromise = mongoose.connect(MONGO_URI).catch((error) => {
+    mongoConnectionPromise = mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000, connectTimeoutMS: 5000, maxPoolSize: 10 }).catch((error) => {
       mongoConnectionPromise = undefined;
       throw error;
     });
@@ -59,19 +63,25 @@ const connectToMongo = () => {
 };
 
 // Middleware
-app.set("trust proxy", 1);
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 0));
 app.use(securityHeaders);
 app.use(requestCorrelation);
+app.use(verifyProxyIdentity);
+app.use(safeErrorResponses);
 app.use(cors({
   credentials: true,
   origin(origin, callback) {
     if (!origin || ALLOWED_ORIGINS.has(origin)) return callback(null, true);
-    return callback(new Error("Origin is not allowed"));
+    const error = new Error("Origin is not allowed"); error.status = 403;
+    return callback(error);
   },
 }));
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
+app.use(validateRequestStructure);
 app.use(rejectClientRecordNumbers);
-app.use(morgan("dev"));
+app.use(morgan((tokens, req, res) => `${tokens.method(req, res)} ${req.path} ${tokens.status(req, res)} ${tokens["response-time"](req, res)}ms request=${req.correlationId}`));
+// Liveness remains available during a database outage; readiness below verifies DB + transactions.
+app.get("/api/health", (_req, res) => res.json({ success: true, message: "Dune & Grills API is running" }));
 app.use(async (req, res, next) => {
   try {
     await connectToMongo();
@@ -104,17 +114,13 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/delivery-orders", deliveryOrderRoutes);
 
-app.get("/api/health", (req, res) => {
-  res
-    .status(200)
-    .json({ success: true, message: "Dune & Grills API is running" });
-});
-
 app.get("/api/readiness", async (_req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) throw new Error("Database is not connected");
     const transaction = await verifyTransactionCapability();
-    res.status(transaction.ready ? 200 : 503).json({ success: transaction.ready, database: "connected", transaction });
+    const indexes = await verifyReleaseIndexes();
+    const ready = transaction.ready && indexes.ready;
+    res.status(ready ? 200 : 503).json({ success: ready, database: "connected", transaction, indexes });
   } catch (error) {
     res.status(503).json({ success: false, message: "Service is not ready", database: "unavailable", transaction: { ready: false } });
   }
@@ -127,7 +133,7 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error("API request failed", { requestId: req.correlationId, code: err.code || err.name || "ERROR", status: err.status || 500 });
   res.status(err.status || 500).json({
     success: false,
     message: err.message || "Server error",
@@ -149,7 +155,7 @@ if (!process.env.VERCEL) {
       });
     })
     .catch((error) => {
-      console.error("Failed to connect to MongoDB:", error.message);
+      console.error("Database startup failed", { code: error.code || error.name || "ERROR" });
       process.exitCode = 1;
     });
 }

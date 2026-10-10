@@ -22,6 +22,7 @@ import {
 } from "../../api/api.js";
 import { useCart } from "../../context/CartContext.jsx";
 import SmartImage from "../SmartImage.jsx";
+import { rewardEligible } from "../../utils/rewardEligibility.js";
 
 const panelClass =
   "overflow-hidden rounded-[10px] border border-[#2b2b2b] bg-[linear-gradient(135deg,#151515_0%,#0c0c0c_100%)]";
@@ -152,7 +153,7 @@ const DuneRewards = ({
     (left, right) => left.pointsRequired - right.pointsRequired
   );
   const unlockedRewards = sortedRewards.filter(
-    (reward) => reward.pointsRequired <= account.pointsBalance
+    (reward) => reward.pointsRequired <= account.pointsBalance && rewardEligible(reward, account)
   );
   const featuredUnlocked = unlockedRewards.find(
     (reward) => reward.menuItem?.isAvailable !== false
@@ -196,11 +197,11 @@ const DuneRewards = ({
 
         <div className="mt-4 grid gap-0 border-y border-white/[0.08] py-5 xl:grid-cols-[175px_minmax(300px,0.9fr)_minmax(390px,1.35fr)]">
           <div className="border-b border-white/[0.08] pb-5 xl:border-b-0 xl:border-r xl:pb-0 xl:pr-6">
-            <p className="text-sm text-neutral-300">Your Points</p>
+            <p className="text-sm text-neutral-300">Your Points · {account.membership?.tier || "Bronze"}</p>
             <p className="mt-1 font-display text-5xl leading-none text-[#f58700]">
               {account.pointsBalance.toLocaleString()}
             </p>
-            <p className="mt-2 text-xs text-neutral-500">Points available</p>
+            <p className="mt-2 text-xs text-neutral-500">Points available{account.pointsDebt > 0 ? ` · ${account.pointsDebt} refunded points will be settled by future credits` : ""}</p>
           </div>
 
           <div className="border-b border-white/[0.08] py-5 xl:border-b-0 xl:border-r xl:px-7 xl:py-0">
@@ -354,6 +355,7 @@ const DuneRewards = ({
               const isReserved =
                 String(account.activeRedemption?.reward || "") === reward._id;
               const canRedeem =
+                rewardEligible(reward, account) &&
                 pointsNeeded === 0 &&
                 reward.menuItem?.isAvailable !== false &&
                 !account.activeRedemption;
@@ -450,7 +452,7 @@ const DuneRewards = ({
             Your Points
           </h2>
           <p className="mt-1 text-sm text-neutral-500">
-            Earn {account.pointsPerSAR} points for every 1 SAR you spend.
+            Earn {account.pointsPerSAR} points per eligible SAR after completion and payment. Points do not expire; unused reservations expire after {account.policy?.reservationMinutes || 30} minutes and return points. Refunds adjust earned points.
           </p>
         </div>
         <div className="min-w-[180px] rounded-xl border border-dune-amber/35 bg-dune-amber/[0.07] px-5 py-4 sm:text-right">
@@ -460,7 +462,7 @@ const DuneRewards = ({
           <p className="mt-1 font-display text-4xl text-dune-amber">
             {account.pointsBalance.toLocaleString()}
           </p>
-          <p className="text-xs text-neutral-400">Points available</p>
+          <p className="text-xs text-neutral-400">{account.membership?.tier || "Bronze"} membership · {account.membership?.lifetimePoints || 0} lifetime eligible points{account.membership?.nextTier ? ` · ${account.membership.nextTier.name} at ${account.membership.nextTier.minimumPoints}` : ""}</p>
         </div>
       </div>
 
@@ -516,6 +518,7 @@ const DuneRewards = ({
               reward.pointsRequired - account.pointsBalance
             );
             const canRedeem =
+              rewardEligible(reward, account) &&
               pointsNeeded === 0 &&
               reward.menuItem?.isAvailable !== false &&
               !account.activeRedemption;

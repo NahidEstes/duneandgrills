@@ -7,7 +7,7 @@ import { SALES_SOURCES } from "../config/sales.js";
 export const SALES_REPORT_DEFINITIONS = Object.freeze({
   timezone: ADMIN_TIMEZONE,
   salesAttribution: "Order date (original orderOccurredAt for historical delivery entries, otherwise createdAt). Refunds/voids adjust the original order cohort, regardless of completion date.",
-  cashAttribution: "Payment/refund/void event date. POS capture is recorded at sale creation; completed refunds use completedAt and voids use voidedAt. Unknown historical payment/refund dates are not inferred from updatedAt or order date.",
+  cashAttribution: "Payment/refund/void event date. POS capture uses sale creation; online/COD collections use the payment record timestamp. Refunds use completedAt and voids use voidedAt. Unknown historical dates are not inferred.",
   orderedAmount: "All order totals, including unpaid, pending and cancelled orders; not collected money.",
   grossSales: "Recorded captured order totals before completed refunds and captured-payment voids, after discounts; aggregator-prepaid sales are included but not restaurant collections.",
   collectedAmount: "Recorded captures before reversals, excluding aggregator-prepaid orders. Cash/Card/Other records are not bank/provider settlement verification.",
@@ -54,7 +54,7 @@ function dashboardCandidates(range, previous) {
     { orderOccurredAt: null, createdAt: dateMatch(period) },
   ]);
   return [
-    { $match: { $or: [...orderDates, { source: "pos", createdAt: dateMatch(range) }, { voidedAt: dateMatch(range) }] } },
+    { $match: { $or: [...orderDates, { source: "pos", createdAt: dateMatch(range) }, { "paymentRecords.recordedAt": dateMatch(range) }, { voidedAt: dateMatch(range) }] } },
     { $unionWith: { coll: Refund.collection.name, pipeline: [
       { $match: { status: "completed", completedAt: dateMatch(range) } },
       { $group: { _id: "$order" } },
@@ -76,7 +76,7 @@ export async function buildSalesReport({ query = {}, range = null, orderFilter =
   const [result] = await Order.aggregate([
     ...candidates,
     { $match: { $and: [salesSourceFilter(query), orderFilter] } },
-    { $project: { source: 1, orderType: 1, status: 1, createdAt: 1, orderOccurredAt: 1, totalAmount: 1, paymentStatus: 1, deliveryPaymentType: 1, voidedAt: 1, paymentMethod: 1, refundedAmountHalala: 1, refundedAmount: 1, discountAmount: 1, "items.productType": 1, "items.menuItem": 1, "items.combo": 1, "items.name": 1, "items.quantity": 1, "items.price": 1 } },
+    { $project: { source: 1, orderType: 1, status: 1, createdAt: 1, orderOccurredAt: 1, totalAmount: 1, paymentStatus: 1, deliveryPaymentType: 1, voidedAt: 1, paymentMethod: 1, paymentRecords: 1, refundedAmountHalala: 1, refundedAmount: 1, discountAmount: 1, "items.productType": 1, "items.menuItem": 1, "items.combo": 1, "items.name": 1, "items.quantity": 1, "items.price": 1 } },
     { $lookup: {
       from: Refund.collection.name, let: { orderId: "$_id" }, as: "reportRefunds",
       pipeline: [
@@ -108,7 +108,7 @@ export async function buildSalesReport({ query = {}, range = null, orderFilter =
       reportVoid: { $cond: ["$reportIsVoid", { $max: [{ $subtract: ["$totalAmount", "$reportRefund"] }, 0] }, 0] },
       reportDiscount: { $cond: ["$reportCaptured", { $ifNull: ["$discountAmount", 0] }, 0] },
       // Existing POS creates paid records atomically. Other channels have no capture timestamp/ledger.
-      reportPaymentAt: { $cond: [{ $and: ["$reportCaptured", { $eq: ["$source", "pos"] }] }, "$createdAt", null] },
+      reportPaymentAt: { $cond: ["$reportCaptured", { $ifNull: [{ $first: "$paymentRecords.recordedAt" }, { $cond: [{ $eq: ["$source", "pos"] }, "$createdAt", null] }] }, null] },
     } },
     { $set: { reportNet: { $subtract: [{ $subtract: ["$reportGross", "$reportRefund"] }, "$reportVoid"] } } },
     { $facet: {

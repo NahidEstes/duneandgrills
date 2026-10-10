@@ -134,6 +134,9 @@ export const getMe = async (req, res) => {
   res.status(200).json({ success: true, user: sanitize(user) });
 };
 
+// Read-only session validation for server-rendered staff route guards.
+export const getSession = (req, res) => res.json({ success: true, user: sanitize(req.user) });
+
 // @route PATCH /api/auth/me
 export const updateMe = async (req, res) => {
   try {

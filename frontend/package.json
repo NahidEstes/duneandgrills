@@ -3,27 +3,35 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build.mjs",
+    "test:pwa": "node --test tests/pwaSecurity.test.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test:pos": "node --test tests/posShortcuts.test.js",
     "preview": "next start"
   },
   "dependencies": {
-    "axios": "^1.7.4",
+    "axios": "1.20.0",
     "lucide-react": "^0.427.0",
-    "next": "16.3.2",
+    "next": "16.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sonner": "^2.0.8"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",
+    "axe-core": "4.14.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "16.3.2",
+    "eslint-config-next": "16.4.0",
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.10"
+  },
+  "overrides": {
+    "postcss-selector-parser": "7.1.6"
   }
 }

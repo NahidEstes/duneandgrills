@@ -33,6 +33,8 @@ export const getPublicOrderConfig = (settings = {}) => ({
   defaultOrderType: DEFAULT_ORDER_TYPE,
   websiteOrderingEnabled: settings.channels?.website ?? true,
   minimumDeliveryOrder: Number(settings.minimumDeliveryOrder || 0),
+  paymentOptions: [{ code: "cod", label: "Cash on delivery / pickup", enabled: true }],
+  onlinePayment: { enabled: false, provider: null },
   orderTypes: ORDER_TYPE_OPTIONS.map((option) => ({
     ...option,
     deliveryFee: getDeliveryFee(option.value, settings),

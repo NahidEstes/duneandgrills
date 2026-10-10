@@ -26,6 +26,7 @@ const connectionPresentation = {
   connected: { label: "Live", color: "text-emerald-400", icon: Wifi },
   reconnecting: { label: "Reconnecting", color: "text-amber-300", icon: RefreshCw },
   disconnected: { label: "Disconnected", color: "text-red-300", icon: WifiOff },
+  unauthorized: { label: "Access expired", color: "text-red-300", icon: WifiOff },
 };
 
 const columnStyle = {
@@ -41,6 +42,8 @@ export default function KitchenDisplay() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [source, setSource] = useState("all");
   const [orderType, setOrderType] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [station, setStation] = useState("all");
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -61,12 +64,12 @@ export default function KitchenDisplay() {
 
   const grouped = useMemo(() => Object.fromEntries(KITCHEN_COLUMNS.map(({ status }) => [
     status,
-    queue.orders.filter((order) => order.status === status),
-  ])), [queue.orders]);
+    queue.orders.filter((order) => order.status === status && (category === "all" || order.items.some(item => item.category === category)) && (station === "all" || order.items.some(item => item.kitchenStation === station))),
+  ])), [queue.orders, category, station]);
 
   const advance = async (order, status, options) => {
     try {
-      await queue.transition(order._id, status, options);
+      await queue.transition(order._id, status, { ...options, expectedStatus: order.status });
       toast.success(`Order #${order.orderNumber} marked ${label(status)}.`);
     } catch (error) {
       toast.error(error.response?.data?.message || "The kitchen status could not be updated.");
@@ -91,8 +94,8 @@ export default function KitchenDisplay() {
             <span className={`inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-xs ${connection.color}`} title={queue.error || undefined}><ConnectionIcon className={`h-4 w-4 ${queue.connection === "connecting" || queue.connection === "reconnecting" ? "animate-spin" : ""}`} />{connection.label}</span>
             <button type="button" onClick={queue.refresh} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-neutral-400 hover:border-dune-amber/40 hover:text-dune-amber" aria-label="Refresh kitchen orders"><RefreshCw className="h-4 w-4" /></button>
             <button type="button" disabled={!alerts.soundAllowed} onClick={alerts.soundEnabled ? alerts.muteSound : async () => { if (!await alerts.enableSound()) toast.error(alerts.soundAllowed ? "The browser blocked kitchen sound. Try again after interacting with the page." : "Kitchen sounds are disabled in Restaurant Settings."); }} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${alerts.soundEnabled ? "border-dune-amber/40 bg-dune-amber/10 text-dune-amber" : "border-white/10 text-neutral-400"}`}>{alerts.soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}{alerts.soundEnabled ? "Sound On" : alerts.soundAllowed ? "Enable Sound" : "Sound Disabled"}</button>
-            <div className="hidden border-l border-white/10 pl-3 text-right md:block"><p className="text-xs font-semibold text-white">{user?.name}</p><p className="text-[0.62rem] capitalize text-neutral-500">{user?.role}</p></div>
-            <button type="button" onClick={handleLogout} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-neutral-500 hover:border-red-500/30 hover:text-red-300" aria-label="Log out"><LogOut className="h-4 w-4" /></button>
+            <div className="hidden border-l border-white/10 pl-3 text-right md:block"><p className="text-xs font-semibold text-white">{user?.name}</p><p className="text-[0.62rem] capitalize text-neutral-400">{user?.role}</p></div>
+            <button type="button" onClick={handleLogout} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-neutral-400 hover:border-red-500/30 hover:text-red-300" aria-label="Log out"><LogOut className="h-4 w-4" /></button>
           </div>
         </div>
 
@@ -106,15 +109,19 @@ export default function KitchenDisplay() {
       </header>
 
       <main className="p-4 sm:p-6 xl:p-8">
+        {queue.connection === "unauthorized" && <p role="alert" className="mb-4 text-red-200">{queue.error} <Link href="/login?returnTo=%2Fkitchen" className="underline">Sign in</Link></p>}
+        {queue.lastUpdatedAt && nowMs - queue.clockOffsetMs - queue.lastUpdatedAt > Math.max(30000, queue.config.notifications.pollingIntervalSeconds * 3000) && <p role="alert" className="mb-4 text-amber-300">Queue data is stale. Reconnect before acting; the server rejects conflicting updates.</p>}
         <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="flex items-center gap-2"><ChefHat className="h-6 w-6 text-dune-amber" /><h1 className="font-display text-3xl tracking-wide text-white">Kitchen Board</h1></div>
-            <p className="mt-1 text-xs text-neutral-500">Updates every {queue.config.notifications.pollingIntervalSeconds} seconds · Ready orders remain for {queue.config.readyRetentionMinutes} minutes</p>
+            <p className="mt-1 text-xs text-neutral-400">{queue.realtime ? "Realtime connected" : "Polling fallback"} · Refresh every {queue.config.notifications.pollingIntervalSeconds}s · Ready orders remain until handover</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="relative min-w-64"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-600" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order number…" className="h-11 w-full rounded-xl border border-white/10 bg-[#111517] pl-10 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-dune-amber/60" /></label>
-            <DarkSelect value={source} onChange={(event) => setSource(event.target.value)} className={selectClass}>{sourceOptions.map((value) => <option key={value} value={value}>{value === "all" ? "All sources" : label(value)}</option>)}</DarkSelect>
-            <DarkSelect value={orderType} onChange={(event) => setOrderType(event.target.value)} className={selectClass}>{typeOptions.map((value) => <option key={value} value={value}>{value === "all" ? "All order types" : label(value)}</option>)}</DarkSelect>
+          <div className="flex flex-wrap gap-2">
+            <label className="relative min-w-64"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input type="search" aria-label="Search kitchen orders" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order number…" className="h-11 w-full rounded-xl border border-white/10 bg-[#111517] pl-10 pr-3 text-sm text-white outline-none placeholder:text-neutral-400 focus:border-dune-amber/60" /></label>
+            <DarkSelect aria-label="Kitchen order source" value={source} onChange={(event) => setSource(event.target.value)} className={selectClass}>{sourceOptions.map((value) => <option key={value} value={value}>{value === "all" ? "All sources" : label(value)}</option>)}</DarkSelect>
+            <DarkSelect aria-label="Kitchen fulfillment type" value={orderType} onChange={(event) => setOrderType(event.target.value)} className={selectClass}>{typeOptions.map((value) => <option key={value} value={value}>{value === "all" ? "All order types" : label(value)}</option>)}</DarkSelect>
+            <DarkSelect aria-label="Kitchen category" value={category} onChange={event => setCategory(event.target.value)} className={selectClass}><option value="all">All categories</option>{[...new Set(queue.orders.flatMap(order => order.items.map(item => item.category)).filter(Boolean))].map(value => <option key={value}>{value}</option>)}</DarkSelect>
+            <DarkSelect aria-label="Kitchen station" value={station} onChange={event => setStation(event.target.value)} className={selectClass}><option value="all">All stations</option>{[...new Set(queue.orders.flatMap(order => order.items.map(item => item.kitchenStation)).filter(Boolean))].map(value => <option key={value}>{value}</option>)}</DarkSelect>
           </div>
         </div>
 
@@ -129,13 +136,13 @@ export default function KitchenDisplay() {
               </header>
               <div className="space-y-3">
                 {grouped[column.status].map((order) => <KitchenOrderCard key={order._id} order={order} nowMs={nowMs} defaultPreparationMinutes={queue.config.defaultPreparationMinutes} updating={queue.updatingIds.has(String(order._id))} onAdvance={advance} />)}
-                {!grouped[column.status].length && <div className="grid min-h-40 place-items-center rounded-xl border border-dashed border-white/10 bg-black/10 px-4 text-center text-xs text-neutral-600">No {column.label.toLowerCase()} orders</div>}
+                {!grouped[column.status].length && <div className="grid min-h-40 place-items-center rounded-xl border border-dashed border-white/10 bg-black/10 px-4 text-center text-xs text-neutral-400">No {column.label.toLowerCase()} orders</div>}
               </div>
             </section>
           ))}
         </div>
 
-        <footer className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] pt-4 text-[0.65rem] text-neutral-600">
+        <footer className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] pt-4 text-[0.65rem] text-neutral-400">
           <Link href="/kitchen/recipes" className="text-dune-amber underline underline-offset-4">Recipe Instructions</Link>
           <span>Server timestamps drive kitchen timers and status validation.</span>
           <span>{queue.lastUpdatedAt ? `Last synchronized ${new Date(queue.lastUpdatedAt).toLocaleTimeString("en-SA")}` : "Waiting for first synchronization…"}</span>

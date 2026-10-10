@@ -50,6 +50,7 @@ import {
   deleteAddress,
   deletePaymentMethod,
   fetchMyOrders,
+  repeatCustomerOrder,
   fetchSavedBlogPosts,
   fetchProfileDashboard,
   removeSavedBlogPost,
@@ -81,7 +82,7 @@ const ACCOUNT_ROUTES = {
   settings: "/profile/settings",
 };
 
-const SHOW_REORDER_ACTIONS = false;
+const SHOW_REORDER_ACTIONS = true;
 const DEFAULT_ORDER_STATUS_POLL_SECONDS = 10;
 const MIN_ORDER_STATUS_POLL_SECONDS = 5;
 const configuredOrderStatusPollSeconds = Number(
@@ -301,45 +302,13 @@ const AccountDashboard = () => {
     );
   }, []);
 
-  const reorder = (order) => {
-    const items = order.items
-      .filter(
-        (item) =>
-          !item.isReward &&
-          (item.menuItem?._id || item.combo?._id) &&
-          (item.productType === "combo"
-            ? item.combo?.isAvailable !== false && item.combo?.status === "published"
-            : item.menuItem?.isAvailable !== false)
-      )
-      .map((item) => {
-        const product = item.productType === "combo" ? item.combo : item.menuItem;
-        return {
-          ...product,
-          _id: product._id,
-          productType: item.productType || "menuItem",
-          name: product.name || item.name,
-          image: product.image || item.image,
-          price:
-            item.productType === "combo"
-              ? product.comboPrice ?? item.price
-              : product.price ?? item.price,
-          quantity: item.quantity,
-          includedItems: item.comboItems,
-          selectedAddOns: item.selectedAddOns || [],
-          spiceLevel: item.spiceLevel || "",
-          note: item.itemNote || "",
-        };
-      });
-
-    if (!items.length) {
-      notify("These items are no longer available on the menu.");
-      return;
-    }
-
-    addItemsToCart(items);
-    setModal(null);
-    setCartOpen(true);
-    notify("Available items from this order were added to your cart.");
+  const reorder = async (order) => {
+    try {
+      const result = await repeatCustomerOrder(order._id);
+      if (!result.data.length) return notify(result.warnings.join(" · ") || "These items are no longer available.");
+      addItemsToCart(result.data); setModal(null); setCartOpen(true);
+      notify(result.warnings.length ? `Available items added at current prices. ${result.warnings.join(" · ")}` : "Items added at current prices.");
+    } catch (error) { notify(error.response?.data?.message || "Unable to reorder. Please retry."); }
   };
 
   const handleLogout = () => {

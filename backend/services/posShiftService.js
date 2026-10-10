@@ -108,12 +108,12 @@ export const openPosShift = async ({ actor, openingCash, openingNote = "", termi
 };
 
 export const recordPosCashSale = async ({ shift, order, actor, session }) => {
-  if (!shift || order.paymentMethod !== "cash") return null;
+  if (!shift || order.paymentMethod !== "cash" || Number(order.totalAmount) <= 0) return null;
   return createMovement({ shift, type: "cash_sale", amountHalala: toHalala(order.totalAmount), reason: `POS sale #${order.orderNumber}`, actor, order: order._id, idempotencyKey: `pos-sale:${order._id}` }, session);
 };
 
 export const recordRefundCashMovement = async ({ refund, order, actor, session }) => {
-  if (order.source !== "pos" || refund.method !== "cash") return null;
+  if ((order.source !== "pos" && !order.posShift) || refund.method !== "cash") return null;
   let shift = await PosShift.findOne({ _id: order.posShift, isOpen: true }).session(session || null);
   // Never mutate a closed shift. A later cash refund belongs to the actor's
   // currently open drawer; reports still retain the original order relation.

@@ -219,6 +219,7 @@ export const cartLineToOrderItem = (line) => {
     return {
       productType: PRODUCT_TYPES.COMBO,
       combo: product._id,
+      category: "Combos", kitchenStation: "",
       name: product.name,
       image: product.image,
       price: line.unitPrice,
@@ -240,6 +241,7 @@ export const cartLineToOrderItem = (line) => {
   return {
     productType: PRODUCT_TYPES.MENU_ITEM,
     menuItem: product._id,
+    category: product.category || "", kitchenStation: product.kitchenStation || "",
     name: product.name,
     image: product.image,
     price: line.unitPrice,

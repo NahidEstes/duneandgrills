@@ -11,7 +11,7 @@ const authenticate = async (req, res, next, { required }) => {
     const cookieToken = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     const token = cookieToken || bearer;
     if (!token) return required ? res.status(401).json({ success: false, message: "Not authenticated" }) : next();
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
 
     const user = await User.findById(decoded.id).select("+sessionVersion");
     if (!user || user.isActive === false || Number(decoded.sv || 0) !== Number(user.sessionVersion || 0)) {
@@ -24,6 +24,7 @@ const authenticate = async (req, res, next, { required }) => {
     req.authStrategy = cookieToken ? "cookie" : "bearer";
     next();
   } catch (err) {
+    if (!["JsonWebTokenError", "TokenExpiredError", "NotBeforeError", "URIError", "CastError"].includes(err.name)) return res.status(503).json({ success: false, message: "Session verification temporarily unavailable. Please reconnect." });
     return res
       .status(401)
       .json({ success: false, message: "Invalid or expired token" });

@@ -385,7 +385,7 @@ export default function DarkDatePicker({
         }}
         className={`relative w-full pr-10 text-left disabled:cursor-not-allowed disabled:opacity-50 ${invalid ? "border-red-500/70" : ""} ${className}`}
       >
-        <span className={`block truncate tabular-nums ${selectedDate ? "text-white" : "text-neutral-600"}`}>
+        <span className={`block truncate tabular-nums ${selectedDate ? "text-white" : "text-neutral-400"}`}>
           {displayValue}
         </span>
         <CalendarDays

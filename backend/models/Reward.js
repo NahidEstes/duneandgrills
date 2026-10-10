@@ -6,6 +6,8 @@ const rewardSchema = new mongoose.Schema(
     description: { type: String, required: true, trim: true, maxlength: 500 },
     image: { type: String, required: true, trim: true },
     pointsRequired: { type: Number, required: true, min: 1 },
+    minimumTier: { type: String, enum: ["Bronze", "Silver", "Gold"], default: "Bronze" },
+    expiresAt: { type: Date, default: null },
     menuItem: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "MenuItem",

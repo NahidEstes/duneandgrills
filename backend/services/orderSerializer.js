@@ -1,3 +1,5 @@
+import { orderContract } from "../config/orderContract.js";
+
 // Shared dashboard/list/detail projection; never include private customer fields here.
 export const RECENT_ORDER_FIELDS = "orderNumber customer.name items.quantity totalAmount status paymentStatus paymentMethod deliveryPaymentType createdAt updatedAt source orderType manualEntry orderOccurredAt preparationDueAt estimatedPreparationMinutes";
 export const ACTIVE_PREPARATION_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery"]);
@@ -7,6 +9,7 @@ export const serializeAdminOrder = (order, now = new Date()) => {
   const preparationActive = value.manualEntry !== true && ACTIVE_PREPARATION_STATUSES.has(value.status);
   return {
     ...value,
+    ...orderContract(value),
     preparationActive,
     isOverdue: Boolean(preparationActive && value.preparationDueAt && new Date(value.preparationDueAt) < now),
   };
@@ -19,6 +22,7 @@ const serializeItem = (item) => ({
   price: item.price,
   selectedAddOns: (item.selectedAddOns || []).map(({ name, image, price, quantity }) => ({ name, image, price, quantity: quantity || 1 })),
   spiceLevel: item.spiceLevel || "",
+  itemNote: item.itemNote || "",
 });
 
 export const serializeCustomerOrder = (order) => {
@@ -27,6 +31,8 @@ export const serializeCustomerOrder = (order) => {
     _id: value._id,
     orderNumber: value.orderNumber,
     source: value.source,
+    ...orderContract(value),
+    kitchenNotes: value.kitchenNotes || "",
     items: (value.items || []).map(serializeItem),
     orderType: value.orderType,
     subtotal: value.subtotal,

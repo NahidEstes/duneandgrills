@@ -1,5 +1,7 @@
 import { Bebas_Neue, Inter } from "next/font/google";
 import Providers from "./providers.jsx";
+import { headers } from "next/headers";
+import { siteOrigin, indexable } from "@/src/config/site.js";
 import "./globals.css";
 
 const inter = Inter({
@@ -16,7 +18,10 @@ const bebasNeue = Bebas_Neue({
 });
 
 export const metadata = {
-  metadataBase: new URL("https://duneandgrills.com"),
+  metadataBase: new URL(siteOrigin()),
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Dune & Grills", statusBarStyle: "black-translucent" },
+  robots: { index: indexable(), follow: indexable() },
   title: {
     default: "Dune & Grills | Fire-Grilled, Desert-Inspired",
     template: "%s | Dune & Grills",
@@ -55,14 +60,18 @@ export const metadata = {
     images: ["/logo2.jpeg"],
   },
   icons: {
+    apple: [{ url: "/pwa/apple-180.png", sizes: "180x180", type: "image/png" }],
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/logo-png.png", type: "image/png", sizes: "32x32" },
+      { url: "/pwa/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/pwa/icon-512.png", type: "image/png", sizes: "512x512" },
     ],
   },
 };
 
-export default function RootLayout({ children }) {
+export const viewport = { width: "device-width", initialScale: 1, themeColor: "#09090b", viewportFit: "cover" };
+
+export default async function RootLayout({ children }) {
+  await headers(); // Per-request rendering is required for nonce-based CSP.
   return (
     <html lang="en" className={`${inter.variable} ${bebasNeue.variable}`}>
       <body>

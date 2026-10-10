@@ -20,6 +20,7 @@ export default function PosReceiptDialog({ sale, onClose, settings }) {
         <div className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between text-neutral-400"><span>Subtotal</span><span>{formatAdminCurrency(sale.subtotal)}</span></div>
           {Number(sale.discountAmount) > 0 && <div className="flex justify-between text-emerald-400"><span>Discount</span><span>-{formatAdminCurrency(sale.discountAmount)}</span></div>}
+          {Number(sale.deliveryFee) > 0 && <div className="flex justify-between text-neutral-400"><span>Delivery fee</span><span>{formatAdminCurrency(sale.deliveryFee)}</span></div>}
           <div className="flex justify-between border-t border-white/10 pt-3 text-lg font-semibold"><span className="text-white">Total</span><span className="text-dune-amber">{formatAdminCurrency(sale.totalAmount)}</span></div>
           {sale.paymentMethod === "cash" && <><div className="flex justify-between text-neutral-400"><span>Cash received</span><span>{formatAdminCurrency(sale.cashReceived)}</span></div><div className="flex justify-between text-emerald-400"><span>Change</span><span>{formatAdminCurrency(sale.changeDue)}</span></div></>}
         </div>

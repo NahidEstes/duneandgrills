@@ -5,15 +5,26 @@ const backendApiUrl = (
 ).replace(/\/$/, "");
 
 const proxyRequest = async (request, { params }) => {
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    const origin = request.headers.get("origin");
+    const allowed = new Set([request.nextUrl.origin, process.env.SITE_URL].filter(Boolean));
+    if (origin && !allowed.has(origin)) return Response.json({ success: false, message: "Request origin is not allowed" }, { status: 403 });
+  }
   const { path } = await params;
   const target = new URL(`${backendApiUrl}/${path.join("/")}`);
   target.search = request.nextUrl.search;
 
   const headers = new Headers();
-  ["accept", "authorization", "content-type", "cookie", "origin", "x-csrf-token", "x-pos-session", "x-order-tracking-token", "x-forwarded-for"].forEach((name) => {
+  ["accept", "authorization", "content-type", "cookie", "origin", "idempotency-key", "x-csrf-token", "x-pos-session", "x-order-tracking-token", "x-request-id"].forEach((name) => {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   });
+  if (process.env.API_PROXY_SECRET) {
+    headers.set("x-dg-proxy-secret", process.env.API_PROXY_SECRET);
+    // Vercel overwrites this platform header; arbitrary x-forwarded-for is never relayed.
+    const address = process.env.VERCEL ? request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() : null;
+    if (address && /^[0-9a-fA-F:.]{3,64}$/.test(address)) headers.set("x-dg-client-ip", address);
+  }
 
   try {
     const response = await fetch(target, {
@@ -26,11 +37,15 @@ const proxyRequest = async (request, { params }) => {
       cache: "no-store",
       redirect: "manual",
       credentials: "include",
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(path.join("/") === "kitchen/events" ? 60000 : 15000)]),
     });
 
     const responseHeaders = new Headers();
     const contentType = response.headers.get("content-type");
     if (contentType) responseHeaders.set("content-type", contentType);
+    for (const name of ["x-request-id", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy", "ratelimit-limit", "ratelimit-remaining", "ratelimit-reset", "retry-after", "date", "x-accel-buffering"]) {
+      const value = response.headers.get(name); if (value) responseHeaders.set(name, value);
+    }
     const setCookies = response.headers.getSetCookie?.() || [];
     if (setCookies.length) setCookies.forEach((cookie) => responseHeaders.append("set-cookie", cookie));
     else if (response.headers.get("set-cookie")) responseHeaders.set("set-cookie", response.headers.get("set-cookie"));
@@ -40,6 +55,10 @@ const proxyRequest = async (request, { params }) => {
     );
     responseHeaders.set("pragma", "no-cache");
     responseHeaders.set("expires", "0");
+    if (request.method === "GET" && path.length === 1 && ["menu", "categories", "combos"].includes(path[0]) && response.ok && !setCookies.length && !response.headers.has("set-cookie")) {
+      responseHeaders.set("X-DG-Public-Catalog", "1");
+      responseHeaders.set("Cache-Control", "public, max-age=0, must-revalidate");
+    }
 
     if (
       response.ok &&

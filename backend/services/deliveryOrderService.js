@@ -2,10 +2,12 @@ import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import { DELIVERY_PROVIDERS } from "../config/sales.js";
 import { calculateCartSubtotal, cartLineToOrderItem, resolveCartLines } from "./catalogService.js";
-import { deductOrderInventory } from "./orderInventoryService.js";
 import { runInventoryTransaction } from "./inventoryStockService.js";
 import { nextOrderNumber } from "./orderNumberService.js";
 import { recordAuditLog } from "./auditLogService.js";
+import { CAPABILITIES, hasCapability } from "../config/permissions.js";
+import { OrderEngineError, resolveOrderInput } from "../config/orderContract.js";
+import { creationIdentity, findCreationReplay, persistOrderWithInventory } from "./orderEngineService.js";
 
 export class DeliveryOrderValidationError extends Error {
   constructor(message, status = 400, fields = undefined) {
@@ -64,7 +66,13 @@ export const findDeliveryOrderDuplicate = ({ provider, externalOrderId }) => Ord
 }).select("_id orderNumber deliveryProvider externalOrderId status orderOccurredAt").lean();
 
 export const createHistoricalDeliveryOrder = async ({ payload, actor, restaurantSettings, now = new Date() }) => {
+  if (!actor || !hasCapability(actor.role, CAPABILITIES.POS_OPERATE)) throw new OrderEngineError("Not authorized to enter delivery orders", 403);
+  const contract = resolveOrderInput(payload, "admin");
+  if (contract.orderType !== "delivery") throw new OrderEngineError("Delivery platform entries require delivery fulfillment");
   const input = validateDeliveryOrderInput(payload, now);
+  const identity = creationIdentity({ payload, key: payload.idempotencyKey, channel: "admin", actor, orderType: "delivery" });
+  const replay = await findCreationReplay(identity);
+  if (replay) { replay.$locals.duplicate = true; return replay; }
   if (restaurantSettings?.orders?.channels?.[input.provider] === false) {
     throw new DeliveryOrderValidationError(`${input.provider} order entry is disabled in Restaurant Settings`, 503);
   }
@@ -85,14 +93,14 @@ export const createHistoricalDeliveryOrder = async ({ payload, actor, restaurant
 
   const orderId = new mongoose.Types.ObjectId();
   const orderNumber = await nextOrderNumber();
-  let committed = false;
   try {
     const order = await runInventoryTransaction(async (session) => {
       const completed = input.entryStatus === "completed";
-      const [created] = await Order.create([{
+      const created = await persistOrderWithInventory({ actor, session, catalogLines, deduct: completed, correlationId: payload.correlationId, fields: {
         _id: orderId,
         orderNumber,
-        idempotencyKey: `delivery-import:${input.provider}:${input.externalOrderId}`,
+        idempotencyKey: identity.idempotencyKey || `delivery-import:${input.provider}:${input.externalOrderId}`,
+        creationRequestHash: identity.creationRequestHash,
         source: input.provider,
         createdBy: actor._id,
         manualEntry: true,
@@ -118,27 +126,12 @@ export const createHistoricalDeliveryOrder = async ({ payload, actor, restaurant
         eligiblePointsAmount: 0,
         pointsEarned: 0,
         notes: input.notes,
+        kitchenNotes: contract.kitchenNotes,
         cancellationReason: completed ? "" : (input.notes || "Cancelled on delivery platform"),
         inventoryStatus: completed ? "pending" : "not_required",
         statusHistory: [{ status: completed ? "delivered" : "cancelled", reason: "Historical delivery platform entry", changedBy: actor._id, changedAt: now }],
-      }], session ? { session } : {});
-
-      let transactions = [];
-      if (completed) {
-        transactions = await deductOrderInventory({
-          catalogLines,
-          orderId,
-          orderNumber,
-          source: input.provider,
-          actorId: actor._id,
-          strictRecipes: true,
-          session,
-        });
-        created.inventoryTransactions = transactions.map((transaction) => transaction._id);
-        created.inventoryStatus = transactions.length ? "deducted" : "not_required";
-        created.inventoryDeductedAt = transactions.length ? now : null;
-        await created.save(session ? { session } : {});
-      }
+      } });
+      const transactions = created.inventoryTransactions;
 
       await recordAuditLog({
         actor,
@@ -158,18 +151,18 @@ export const createHistoricalDeliveryOrder = async ({ payload, actor, restaurant
           totalDifference,
           differenceReason: input.differenceReason,
           inventoryStatus: created.inventoryStatus,
-          inventoryTransactions: transactions.map((transaction) => transaction._id),
+          inventoryTransactions: transactions,
           items: created.items,
         },
         metadata: { manualEntry: true, inventoryDeducted: completed && transactions.length > 0 },
-        related: { order: created._id, inventoryTransactions: transactions.map((transaction) => transaction._id) },
+        related: { order: created._id, inventoryTransactions: transactions },
       }, { session });
       return created;
     });
-    committed = true;
     return order;
   } catch (error) {
-    if (!committed) await Order.deleteOne({ _id: orderId }).catch(() => {});
+    const replay = await findCreationReplay(identity);
+    if (replay) { replay.$locals.duplicate = true; return replay; }
     if (error?.code === 11000) {
       const existing = await findDeliveryOrderDuplicate(input);
       if (existing) {

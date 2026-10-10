@@ -104,6 +104,8 @@ const offerSchema = new mongoose.Schema(
       trim: true,
       maxlength: 80,
     },
+    membersOnly: { type: Boolean, default: false },
+    minimumTier: { type: String, enum: ["Bronze", "Silver", "Gold"], default: "Bronze" },
     minimumOrderAmount: {
       type: Number,
       default: 0,

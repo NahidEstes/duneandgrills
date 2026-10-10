@@ -1,10 +1,12 @@
 import { getBlogPosts } from "@/src/api/server.js";
 
-const baseUrl = "https://duneandgrills.com";
+import { siteOrigin, indexable } from "@/src/config/site.js";
+const baseUrl = siteOrigin();
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap() {
+  if (!indexable()) return [];
   const posts = await getBlogPosts().catch(() => []);
 
   return [

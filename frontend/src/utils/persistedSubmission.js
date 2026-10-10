@@ -9,6 +9,7 @@ export function pendingSubmission(storage, key) {
   return value;
 }
 export async function submitPersisted({ storage, key, payload, send, createKey = () => crypto.randomUUID() }) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) throw new Error("Offline. Reconnect before submitting; no new request has been queued.");
   const request = pendingSubmission(storage, key) || { ...payload, idempotencyKey: createKey() };
   // If persistence fails, do not send a request that cannot be retried safely.
   storage.setItem(key, JSON.stringify(request));

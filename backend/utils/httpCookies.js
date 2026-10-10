@@ -39,7 +39,7 @@ export const parseCookies = (header = "") => Object.fromEntries(
     const separator = entry.indexOf("=");
     const key = separator >= 0 ? entry.slice(0, separator) : entry;
     const value = separator >= 0 ? entry.slice(separator + 1) : "";
-    return [decodeURIComponent(key), decodeURIComponent(value)];
+    try { return [decodeURIComponent(key), decodeURIComponent(value)]; }
+    catch { return [key, ""]; }
   })
 );
-

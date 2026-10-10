@@ -1,4 +1,6 @@
 import Offer from "../models/Offer.js";
+import User from "../models/User.js";
+import { membershipFor, MEMBERSHIP_TIERS } from "../config/membership.js";
 import {
   PRODUCT_TYPES,
   calculateCartSubtotal,
@@ -52,7 +54,7 @@ const activeCouponFilter = (code, now = new Date()) => ({
   expiresAt: { $gt: now },
 });
 
-export const calculateCoupon = async ({ code, lines }) => {
+export const calculateCoupon = async ({ code, lines, userId }) => {
   const normalizedCode = normalizeCouponCode(code);
   if (!normalizedCode) {
     throw new CouponValidationError("Enter a coupon code");
@@ -64,6 +66,11 @@ export const calculateCoupon = async ({ code, lines }) => {
   const now = new Date();
   const offer = await Offer.findOne({ promoCode: normalizedCode });
   if (!offer) throw new CouponValidationError("Coupon code is invalid", 404);
+  if (offer.membersOnly || (offer.minimumTier && offer.minimumTier !== "Bronze")) {
+    const customer = userId ? await User.findOne({ _id: userId, role: "customer", isActive: { $ne: false } }).select("pointTransactions").lean() : null;
+    if (!customer) throw new CouponValidationError("Sign in or select an eligible customer to use this coupon", 403);
+    if (MEMBERSHIP_TIERS.findIndex(row => row.name === membershipFor(customer.pointTransactions).tier) < MEMBERSHIP_TIERS.findIndex(row => row.name === offer.minimumTier)) throw new CouponValidationError("Customer membership is not eligible for this coupon", 403);
+  }
   if (!offer.isActive) {
     throw new CouponValidationError("This coupon is not active", 409);
   }
@@ -127,7 +134,7 @@ export const calculateCoupon = async ({ code, lines }) => {
   };
 };
 
-export const reserveCouponUsage = async (offerId) => {
+export const reserveCouponUsage = async (offerId, { session = null } = {}) => {
   const now = new Date();
   const offer = await Offer.findOneAndUpdate(
     {
@@ -139,7 +146,7 @@ export const reserveCouponUsage = async (offerId) => {
       ],
     },
     { $inc: { usageCount: 1 } },
-    { new: true }
+    { new: true, ...(session ? { session } : {}) }
   );
 
   if (!offer) {

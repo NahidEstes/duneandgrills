@@ -8,7 +8,8 @@ const sessionOptions = (session) => (session ? { session } : {});
 const SENSITIVE_KEY = /(password|pinHash|pinLookup|\bpin\b|token|cookie|secret|credential|authorization|trackingTokenHash)/i;
 
 const sanitizeValue = (value, depth = 0) => {
-  if (depth > 8 || value == null) return value ?? null;
+  if (depth > 8) return null;
+  if (value == null) return null;
   if (value instanceof Date) return value;
   if (Array.isArray(value)) return value.slice(0, 250).map((entry) => sanitizeValue(entry, depth + 1));
   if (typeof value === "object") {

@@ -48,7 +48,8 @@ test("Phase 3 reporting and cashier safety (owned isolated replica set only)", {
     const expense = (options = {}) => createExpenseRecord({ title: `Bill ${++seq}`, category: category._id, totalAmount: 100, expenseDate: range.start, createdBy: admin._id, updatedBy: admin._id, ...options });
     const clean = async () => { // Only collections in the temporary database owned by withIsolatedMongo.
       assert.equal(mongoose.connection.db.databaseName, "dg_record_id_test");
-      await Promise.all([Order.deleteMany({}), Refund.deleteMany({}), Expense.deleteMany({}), AuditLog.deleteMany({})]);
+      // Fixture teardown bypasses append-only application hooks only in this asserted owned DB.
+      await Promise.all([Order.deleteMany({}), Refund.deleteMany({}), Expense.deleteMany({}), AuditLog.collection.deleteMany({})]);
     };
     const check = (name, work) => t.test(name, async () => { await clean(); await work(); });
 

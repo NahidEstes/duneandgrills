@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import { REWARD_CONFIG } from "../config/rewards.js";
+import { membershipFor, MEMBERSHIP_TIERS } from "../config/membership.js";
 
 const legacySourceKey = "MIGRATION:LEGACY_REWARD_BALANCE";
 
@@ -72,6 +73,7 @@ export const restoreRedemption = async ({
   expectedStatuses,
   status,
   description,
+  session = null,
 }) => {
   const _id = toObjectId(userId);
   const embeddedId = toObjectId(redemptionId);
@@ -81,6 +83,7 @@ export const restoreRedemption = async ({
       $elemMatch: { _id: embeddedId, status: { $in: expectedStatuses } },
     },
   })
+    .session(session)
     .select("pointsBalance rewardRedemptions pointTransactions")
     .lean();
 
@@ -103,8 +106,9 @@ export const restoreRedemption = async ({
       {
         $set: {
           pointsBalance: {
-            $add: [{ $ifNull: ["$pointsBalance", 0] }, redemption.pointsSpent],
+            $add: [{ $ifNull: ["$pointsBalance", 0] }, { $max: [{ $subtract: [redemption.pointsSpent, { $ifNull: ["$pointsDebt", 0] }] }, 0] }],
           },
+          pointsDebt: { $max: [{ $subtract: [{ $ifNull: ["$pointsDebt", 0] }, redemption.pointsSpent] }, 0] },
           rewardRedemptions: {
             $map: {
               input: { $ifNull: ["$rewardRedemptions", []] },
@@ -137,7 +141,7 @@ export const restoreRedemption = async ({
                   balanceAfter: {
                     $add: [
                       { $ifNull: ["$pointsBalance", 0] },
-                      redemption.pointsSpent,
+                      { $max: [{ $subtract: [redemption.pointsSpent, { $ifNull: ["$pointsDebt", 0] }] }, 0] },
                     ],
                   },
                   sourceKey,
@@ -149,7 +153,7 @@ export const restoreRedemption = async ({
         },
       },
     ],
-    { new: true }
+    { new: true, ...(session ? { session } : {}) }
   );
 
   return updated;
@@ -178,9 +182,12 @@ export const releaseExpiredRedemptions = async (userId) => {
   );
 };
 
-export const reserveReward = async (userId, reward) => {
-  await ensurePointsBalance(userId);
-  await releaseExpiredRedemptions(userId);
+export const reserveReward = async (userId, reward, session = null) => {
+  await ensurePointsBalance(userId, session);
+  if (!session) await releaseExpiredRedemptions(userId);
+  if (reward.expiresAt && new Date(reward.expiresAt) <= new Date()) throw Object.assign(new Error("This reward has expired"), { status: 409 });
+  const member = await User.findById(userId).select("pointTransactions").session(session).lean();
+  if (MEMBERSHIP_TIERS.findIndex(row => row.name === membershipFor(member?.pointTransactions).tier) < MEMBERSHIP_TIERS.findIndex(row => row.name === (reward.minimumTier || "Bronze"))) throw Object.assign(new Error("Membership tier is not eligible for this reward"), { status: 409 });
 
   const _id = toObjectId(userId);
   const redemptionId = new mongoose.Types.ObjectId();
@@ -248,7 +255,7 @@ export const reserveReward = async (userId, reward) => {
         },
       },
     ],
-    { new: true }
+    { new: true, ...(session ? { session } : {}) }
   );
 
   if (!updated) return null;
@@ -258,7 +265,7 @@ export const reserveReward = async (userId, reward) => {
   };
 };
 
-export const applyRedemptionToOrder = async ({ userId, redemptionId, orderId }) => {
+export const applyRedemptionToOrder = async ({ userId, redemptionId, orderId, session = null }) => {
   const now = new Date();
   return User.findOneAndUpdate(
     {
@@ -278,7 +285,7 @@ export const applyRedemptionToOrder = async ({ userId, redemptionId, orderId }) 
         "rewardRedemptions.$.order": orderId,
       },
     },
-    { new: true }
+    { new: true, ...(session ? { session } : {}) }
   );
 };
 
@@ -316,7 +323,8 @@ export const creditOrderPoints = async ({
     [
       {
         $set: {
-          pointsBalance: { $add: [{ $ifNull: ["$pointsBalance", 0] }, points] },
+          pointsBalance: { $add: [{ $ifNull: ["$pointsBalance", 0] }, { $max: [{ $subtract: [points, { $ifNull: ["$pointsDebt", 0] }] }, 0] }] },
+          pointsDebt: { $max: [{ $subtract: [{ $ifNull: ["$pointsDebt", 0] }, points] }, 0] },
           pointTransactions: {
             $concatArrays: [
               { $ifNull: ["$pointTransactions", []] },
@@ -329,7 +337,7 @@ export const creditOrderPoints = async ({
                   reward: null,
                   description: `Order #${orderNumber}`,
                   balanceAfter: {
-                    $add: [{ $ifNull: ["$pointsBalance", 0] }, points],
+                    $add: [{ $ifNull: ["$pointsBalance", 0] }, { $max: [{ $subtract: [points, { $ifNull: ["$pointsDebt", 0] }] }, 0] }],
                   },
                   sourceKey,
                   createdAt: now,
@@ -344,9 +352,9 @@ export const creditOrderPoints = async ({
   );
 };
 
-export const reverseOrderPoints = async ({ userId, orderId, orderNumber }) => {
+export const reverseOrderPoints = async ({ userId, orderId, orderNumber, session = null }) => {
   if (!userId) return null;
-  await ensurePointsBalance(userId);
+  await ensurePointsBalance(userId, session);
   const earnKey = `ORDER_EARN:${orderId}`;
   const reversalKey = `ORDER_REVERSAL:${orderId}`;
   const user = await User.findOne({
@@ -354,6 +362,7 @@ export const reverseOrderPoints = async ({ userId, orderId, orderNumber }) => {
     pointTransactions: { $elemMatch: { sourceKey: earnKey } },
     "pointTransactions.sourceKey": { $ne: reversalKey },
   })
+    .session(session)
     .select("pointsBalance pointTransactions")
     .lean();
   const earned = user?.pointTransactions?.find(
@@ -362,7 +371,8 @@ export const reverseOrderPoints = async ({ userId, orderId, orderNumber }) => {
   if (!earned) return null;
 
   const now = new Date();
-  const amount = Math.max(0, Number(earned.points) || 0);
+  const alreadyReversed = (user.pointTransactions || []).filter(row => row.type === "REVERSAL" && Number(row.points) < 0 && String(row.order) === String(orderId)).reduce((sum, row) => sum - Number(row.points), 0);
+  const amount = Math.max(0, (Number(earned.points) || 0) - alreadyReversed);
   return User.findOneAndUpdate(
     {
       _id: userId,
@@ -378,6 +388,7 @@ export const reverseOrderPoints = async ({ userId, orderId, orderNumber }) => {
               { $min: [{ $ifNull: ["$pointsBalance", 0] }, amount] },
             ],
           },
+          pointsDebt: { $add: [{ $ifNull: ["$pointsDebt", 0] }, { $subtract: [amount, { $min: [{ $ifNull: ["$pointsBalance", 0] }, amount] }] }] },
           pointTransactions: {
             $concatArrays: [
               { $ifNull: ["$pointTransactions", []] },
@@ -385,12 +396,7 @@ export const reverseOrderPoints = async ({ userId, orderId, orderNumber }) => {
                 {
                   _id: new mongoose.Types.ObjectId(),
                   type: "REVERSAL",
-                  points: {
-                    $multiply: [
-                      -1,
-                      { $min: [{ $ifNull: ["$pointsBalance", 0] }, amount] },
-                    ],
-                  },
+                  points: -amount,
                   order: toObjectId(orderId),
                   reward: null,
                   description: `Points reversed for Order #${orderNumber}`,
@@ -409,7 +415,7 @@ export const reverseOrderPoints = async ({ userId, orderId, orderNumber }) => {
         },
       },
     ],
-    { new: true }
+    { new: true, ...(session ? { session } : {}) }
   );
 };
 
@@ -417,7 +423,7 @@ export const getRewardAccount = async (userId) => {
   await ensurePointsBalance(userId);
   await releaseExpiredRedemptions(userId);
   const user = await User.findById(userId)
-    .select("pointsBalance pointTransactions rewardRedemptions")
+    .select("pointsBalance pointsDebt pointTransactions rewardRedemptions")
     .populate("pointTransactions.order", "orderNumber")
     .populate("pointTransactions.reward", "title")
     .lean();
@@ -431,7 +437,10 @@ export const getRewardAccount = async (userId) => {
 
   return {
     pointsBalance: Math.max(0, Number(user?.pointsBalance) || 0),
+    pointsDebt: Math.max(0, Number(user?.pointsDebt) || 0),
     pointsPerSAR: REWARD_CONFIG.pointsPerSAR,
+    membership: membershipFor(user?.pointTransactions),
+    policy: { earnAfter: "completed_and_paid", pointsExpire: false, reservationMinutes: REWARD_CONFIG.redemptionReservationMinutes },
     history,
     activeRedemption: activeRedemption || null,
   };

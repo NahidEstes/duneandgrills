@@ -1,4 +1,6 @@
 import express from "express";
+import { kitchenEvents } from "../controllers/kitchenEventsController.js";
+import { handoffOrder } from "../controllers/orderHandoffController.js";
 import { getKitchenQueue, updateKitchenOrderStatus } from "../controllers/kitchenController.js";
 import { protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
@@ -18,6 +20,8 @@ router.post("/recipes/:code/workflow/:action", authorize("admin", "manager"), tr
 router.get("/recipes/:code", getInstruction);
 router.put("/recipes/:code", authorize("admin", "manager"), saveInstruction);
 router.get("/orders", getKitchenQueue);
+router.get("/events", kitchenEvents);
 router.patch("/orders/:id/status", updateKitchenOrderStatus);
+router.patch("/orders/:id/handoff", requireCapability(CAPABILITIES.ORDERS_HANDOFF), handoffOrder);
 
 export default router;

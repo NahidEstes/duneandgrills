@@ -42,6 +42,7 @@ const menuItemSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    kitchenStation: { type: String, trim: true, maxlength: 80, default: "" },
     price: {
       type: Number,
       required: true,

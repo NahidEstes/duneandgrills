@@ -254,7 +254,7 @@ test("POS Phase 2 transaction and API integration", { timeout: 180000 }, async t
       assert.ok(await AuditLog.exists({ action: "POS_RECEIPT_REPRINTED", entityId: cashOrder._id }));
     });
     await t.test("late reward award observes refunded state and cannot double-credit", async () => {
-      const before = (await User.findById(customer._id)).pointsBalance;
+      const before = Number((await User.findById(customer._id)).pointsBalance || 0);
       const delayed = await Order.create({ orderNumber: "LATE-REWARD", source: "pos", createdBy: cashier._id, user: customer._id, customer: { name: "Test", phone: "N/A" }, items: [{ menuItem: menu._id, name: menu.name, price: 20, quantity: 1 }], subtotal: 20, originalSubtotal: 20, totalAmount: 20, paymentMethod: "card", paymentStatus: "partially_refunded", refundedAmount: 10, refundedAmountHalala: 1000 });
       await creditPosSaleRewards(delayed._id);
       await creditPosSaleRewards(delayed._id);

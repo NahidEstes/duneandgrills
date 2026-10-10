@@ -11,12 +11,16 @@ import { resolvePosSession } from "../services/posSessionService.js";
 import { listTerminals, writeTerminal, posSession, lockSession, unlockSession, listCashiers, writePin, listQuickMenu, writeQuickItem } from "../controllers/posOperationsController.js";
 import { getPosSale, reprintPosSale, voidSale, requestPosRefund, repeatPosSale } from "../controllers/posSaleHistoryController.js";
 import { changeRefundStatus } from "../controllers/refundController.js";
-import { searchPosCustomers } from "../controllers/posCustomerController.js";
+import { searchPosCustomers, createPosCustomer, getPosCustomerRewards, validatePosCoupon } from "../controllers/posCustomerController.js";
+import { cancelOrderRequest } from "../controllers/orderRequestController.js";
 
 const router = express.Router();
 router.use(rejectClientRecordNumbers);
 router.use(protect, requireCapability(CAPABILITIES.POS_OPERATE), resolvePosSession, requireCapability(CAPABILITIES.POS_OPERATE));
 router.get("/customers", rateLimit({ windowMs: 60_000, max: 90, keyPrefix: "pos-customer-search" }), searchPosCustomers);
+router.post("/customers", rateLimit({ windowMs: 60_000, max: 20, keyPrefix: "pos-customer-create" }), createPosCustomer);
+router.get("/customers/:id/rewards", getPosCustomerRewards);
+router.post("/coupons/validate", validatePosCoupon);
 router.get("/session", posSession);
 router.post("/session/lock", lockSession);
 router.post("/session/unlock", rateLimit({ windowMs: 5 * 60_000, max: 10, keyPrefix: "pos-unlock" }), unlockSession());
@@ -29,6 +33,7 @@ router.patch("/terminals/:id", requireCapability(CAPABILITIES.POS_TERMINAL_MANAG
 router.get("/quick-menu", listQuickMenu);
 router.put("/quick-menu", requireCapability(CAPABILITIES.POS_QUICK_MENU_MANAGE), writeQuickItem);
 router.route("/sales").get(listPosSales).post(createPosSale);
+router.post("/sale-requests/cancel", cancelOrderRequest("pos"));
 router.get("/sales/:id", getPosSale);
 router.post("/sales/:id/reprint", reprintPosSale);
 router.post("/sales/:id/repeat", repeatPosSale);

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { beginWrite, endWrite, networkEvent } from "../pwa/network.js";
 import { collectSelectionOptions } from "./selectionOptions.js";
 import { refreshContentCache } from "@/app/actions/revalidate-content.js";
 
@@ -7,6 +8,7 @@ const API_BASE_URL = "/api";
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
+  timeout: 30000,
   headers: {
     "Content-Type": "application/json",
     "Cache-Control": "no-cache",
@@ -44,6 +46,14 @@ export const updateRestaurantSettings = async (payload) => {
 
 // Attach the JWT (if present) to every request
 api.interceptors.request.use((config) => {
+  const write = !["get", "head", "options"].includes(String(config.method || "get").toLowerCase());
+  if (typeof navigator !== "undefined" && navigator.onLine === false && write) {
+    const error = new Error("Offline. Reconnect before submitting an order, payment or status change.");
+    error.config = config;
+    error.response = { status: 503, data: { success: false, message: error.message } };
+    return Promise.reject(error);
+  }
+  if (write) { config.dgWrite = true; beginWrite(); }
   const token =
     typeof window !== "undefined" ? localStorage.getItem("dg_token") : null;
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -56,6 +66,18 @@ api.interceptors.request.use((config) => {
     if (csrf) config.headers["X-CSRF-Token"] = decodeURIComponent(csrf);
   }
   return config;
+});
+
+api.interceptors.response.use(response => {
+  if (response.config.dgWrite) endWrite();
+  const stale = response.headers["x-dg-stale"] === "1";
+  networkEvent({ recovered: !stale, ...(["/menu", "/combos", "/categories"].includes(response.config.url) ? { stale } : {}) });
+  return response;
+}, error => {
+  if (error.config?.dgWrite) endWrite();
+  if (!error.response || error.response.status >= 500) networkEvent({ unavailable: true });
+  if (!error.response) error.response = { status: 503, data: { success: false, message: "Connection unavailable. Reconcile any saved order before retrying." } };
+  return Promise.reject(error);
 });
 
 // ---- Menu ----
@@ -219,11 +241,13 @@ export const placeOrder = async (orderPayload) => {
   await refreshAfterMutation("orders");
   return { ...data.data, ...(data.trackingToken ? { trackingToken: data.trackingToken } : {}) };
 };
+export const cancelCustomerOrderRequest = async payload => (await api.post("/orders/requests/cancel", payload)).data;
 
 export const fetchMyOrders = async () => {
   const { data } = await api.get("/orders/my");
   return data.data;
 };
+export const repeatCustomerOrder = async id => (await api.post(`/orders/${encodeURIComponent(id)}/repeat`)).data;
 
 export const fetchOrders = async (filters = {}, options = {}) => {
   const params = typeof filters === "string"
@@ -301,6 +325,12 @@ export const updateKitchenOrderStatus = async (id, status, options = {}) => {
 
 // ---- Web POS ----
 export const searchPosCustomers = async (search) => (await api.get("/pos/customers", { params: { search, limit: 8 } })).data.data;
+export const createPosCustomer = async body => (await api.post("/pos/customers", body)).data.data;
+export const fetchPosCustomerRewards = async id => (await api.get(`/pos/customers/${id}/rewards`)).data.data;
+export const previewPosCoupon = async body => (await api.post("/pos/coupons/validate", body)).data.data;
+export const handoffOrder = async (id, body) => (await api.patch(`/orders/${id}/handoff`, body)).data;
+export const collectOrderPayment = async (id, body) => (await api.post(`/orders/${id}/payment`, body)).data;
+export const handoffKitchenOrder = async (id, status, options) => (await api.patch(`/kitchen/orders/${id}/handoff`, { status, ...options })).data;
 
 export const fetchPosSales = async (params = {}) => {
   const { data } = await api.get("/pos/sales", { params });
@@ -312,6 +342,7 @@ export const completePosSale = async (payload) => {
   await refreshAfterMutation("orders");
   return data;
 };
+export const cancelPosOrderRequest = async payload => (await api.post("/pos/sale-requests/cancel", payload)).data;
 
 export const fetchPosHeldSales = async (params = {}) => (await api.get("/pos/held-sales", { params })).data.data;
 export const fetchPosHeldSale = async (id) => (await api.get(`/pos/held-sales/${id}`)).data.data;

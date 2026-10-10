@@ -7,6 +7,7 @@ import {
   approvePosDiscount,
   cancelPosHeldSale,
   completePosSale,
+  cancelPosOrderRequest,
   createPosHeldSale,
   searchPosCustomers,
   fetchMenuItems,
@@ -29,6 +30,7 @@ import PosManagerApprovalDialog from "./PosManagerApprovalDialog.jsx";
 import { calculatePosBill } from "@/src/utils/posBill.js";
 import { resolvePosShortcut } from "@/src/utils/posShortcuts.js";
 import PosShortcutHelp from "./PosShortcutHelp.jsx";
+import { submitPosOrder, retryPosOrder, pendingPosOrder, reconcilePosOrder } from "../../../utils/posOrderSubmission.js";
 
 const RECOVERY_KEY = "dg_pos_working_sale";
 const emptyDiscount = () => ({ type: "fixed", value: "", reason: "" });
@@ -52,6 +54,8 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
   const [notes, setNotes] = useState("");
   const [discount, setDiscount] = useState(emptyDiscount);
   const [orderType, setOrderType] = useState("dine-in");
+  const [checkoutOptions, setCheckoutOptions] = useState({ couponCode: "", rewardId: "", orderOrigin: "counter" });
+  const [couponPreview, setCouponPreview] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
@@ -72,21 +76,28 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [recovered, setRecovered] = useState(false);
   const [recoveryError, setRecoveryError] = useState("");
+  const [pendingPayment, setPendingPayment] = useState(false);
   const [recoveryAttempt, setRecoveryAttempt] = useState(0);
   const requestKey = useRef("");
   const draftRef = useRef({ id: "", revision: 0 });
   const pendingSave = useRef(Promise.resolve());
   const draftActionBusy = useRef(false);
   const bill = useMemo(
-    () => calculatePosBill(sale, discount),
-    [sale, discount],
+    () => {
+      const calculated = calculatePosBill(sale, couponPreview ? { type: "fixed", value: couponPreview.discountAmount } : discount);
+      const deliveryFee = orderType === "delivery" ? Number(restaurantSettings?.orders?.deliveryFee || 0) : 0;
+      return { ...calculated, deliveryFee, total: Number((calculated.total + deliveryFee).toFixed(2)) };
+    },
+    [sale, discount, couponPreview, orderType, restaurantSettings],
   );
   const itemCount = sale.reduce((sum, line) => sum + line.quantity, 0);
-  useEffect(() => { onSaleState?.(sale.length > 0 || submitting); }, [sale.length, submitting, onSaleState]);
+  useEffect(() => { try { setPendingPayment(Boolean(pendingPosOrder(localStorage, user?._id, terminal))); } catch { setPendingPayment(true); } }, [user?._id, terminal]);
+  useEffect(() => { onSaleState?.(sale.length > 0 || submitting || pendingPayment); }, [sale.length, submitting, pendingPayment, onSaleState]);
   useEffect(() => { if (!locked) fetchPosQuickMenu().then(setQuickMenu).catch(() => undefined); }, [locked]);
   const policy = restaurantSettings?.posCheckout || {};
   const discountAmount = bill.discount;
   const approvalRequired =
+    !couponPreview &&
     discountAmount > 0 &&
     !["manager", "admin"].includes(user?.role) &&
     ((discount.type === "percentage" &&
@@ -196,6 +207,8 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
       reason: draft.discount?.reason || "",
     });
     setOrderType(draft.orderType || "dine-in");
+    setCheckoutOptions(draft.checkoutOptions || { couponCode: "", rewardId: "", orderOrigin: "counter" });
+    setCouponPreview(null);
     setPaymentMethod(draft.paymentMethod || "cash");
     setCashReceived(draft.cashReceived ? String(draft.cashReceived) : "");
     setSelectedCustomer(
@@ -257,6 +270,7 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
       customerId: selectedCustomer?._id || null,
       customer: walkIn,
       orderType,
+      checkoutOptions,
       paymentMethod,
       cashReceived: Number(cashReceived) || 0,
       terminal,
@@ -269,6 +283,7 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
       selectedCustomer,
       walkIn,
       orderType,
+      checkoutOptions,
       paymentMethod,
       cashReceived,
       terminal,
@@ -314,7 +329,9 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
 
   useEffect(() => {
     setApproval(null);
+    setCouponPreview(null);
   }, [sale, discount.type, discount.value, discount.reason]);
+  useEffect(() => { setCouponPreview(null); }, [selectedCustomer?._id]);
   const categories = useMemo(
     () => [
       "All",
@@ -401,6 +418,7 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
       current.filter((line) => line.cartLineId !== target.cartLineId),
     );
   const resetSale = () => {
+    setCheckoutOptions({ couponCode: "", rewardId: "", orderOrigin: "counter" }); setCouponPreview(null);
     setSale([]);
     setNotes("");
     setDiscount(emptyDiscount());
@@ -470,6 +488,7 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
         customerId: latest.customerId?._id || latest.customerId,
         customer: latest.customer,
         orderType: latest.orderType,
+        checkoutOptions: latest.checkoutOptions,
         paymentMethod: latest.paymentMethod,
         cashReceived: latest.cashReceived,
         terminal,
@@ -520,7 +539,10 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
   };
   const complete = async () => {
     if (draftActionBusy.current) return;
-    if (discountAmount > 0 && !discount.reason.trim()) {
+    if (checkoutOptions.couponCode && !couponPreview) return toast.error("Validate the coupon again for the current cart and customer.");
+    if (checkoutOptions.couponCode && Number(discount.value)) return toast.error("Remove the manual discount before using a coupon.");
+    try { if (pendingPosOrder(localStorage, user._id, terminal)) { setPendingPayment(true); return toast.error("Reconcile the previous payment request first."); } } catch (error) { return toast.error(error.message); }
+    if (!couponPreview && discountAmount > 0 && !discount.reason.trim()) {
       toast.error("Enter a discount reason.");
       return;
     }
@@ -541,10 +563,11 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
         current = { id: saved._id, revision: saved.revision };
         draftRef.current = current;
       }
-      const response = await completePosSale({
+      const response = await submitPosOrder({ storage: localStorage, actorId: user._id, terminal, send: completePosSale, payload: {
         idempotencyKey: requestKey.current,
         items: sale.map(lineRequest),
         orderType,
+        ...checkoutOptions,
         paymentMethod,
         cashReceived:
           paymentMethod === "cash" ? Number(cashReceived) : undefined,
@@ -552,11 +575,11 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
         discountApprovalToken: approval?.token,
         notes,
         customerId: selectedCustomer?._id,
-        customer: selectedCustomer ? { pickupNote: walkIn.pickupNote } : walkIn,
+        customer: walkIn,
         heldSaleId: current.id || undefined,
         heldSaleRevision: current.id ? current.revision : undefined,
         terminal,
-      });
+      } });
       setReceipt(response.data);
       if (response.warning) toast.warning(response.warning);
       else toast.success(`Sale #${response.data.orderNumber} completed.`);
@@ -564,6 +587,7 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
       setHistoryRevision(value => value + 1);
       onSaleCompleted?.();
     } catch (error) {
+      try { setPendingPayment(Boolean(pendingPosOrder(localStorage, user._id, terminal))); } catch { setPendingPayment(true); }
       toast.error(
         error.response?.data?.message ||
           error.response?.data?.error ||
@@ -604,6 +628,16 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
 
   return (
     <div>
+      {pendingPayment && <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 p-4 text-amber-300">The previous sale outcome is unknown. Retry the saved request to recover its receipt before another payment.<button type="button" disabled={submitting} className="ml-3 min-h-11 underline" onClick={async () => { if (draftActionBusy.current) return; draftActionBusy.current = true; setSubmitting(true); try { const response = await retryPosOrder({ storage: localStorage, actorId: user._id, terminal, send: completePosSale }); setReceipt(response.data); setPendingPayment(false); setRecovered(true); setRecoveryError(""); resetSale(); setHistoryRevision(value => value + 1); onSaleCompleted?.(); } catch (error) { toast.error(error.response?.data?.message || error.message); } finally { draftActionBusy.current = false; setSubmitting(false); } }}>Retry original sale / recover receipt</button><button type="button" disabled={submitting} className="ml-3 min-h-11 underline" onClick={async () => {
+        if (draftActionBusy.current || !window.confirm("Stop the unresolved sale request? An existing sale will be recovered; otherwise this request will be blocked and the draft retained.")) return;
+        draftActionBusy.current = true; setSubmitting(true);
+        try {
+          const result = await reconcilePosOrder({ storage: localStorage, actorId: user._id, terminal, send: cancelPosOrderRequest });
+          setPendingPayment(false); setRecovered(true); setRecoveryError("");
+          if (result.cancelled) toast.success("Original request stopped. Review the draft before completing payment.");
+          else { setReceipt(result.data); resetSale(); setHistoryRevision(value => value + 1); onSaleCompleted?.(); }
+        } catch (error) { toast.error(error.response?.data?.message || error.message); } finally { draftActionBusy.current = false; setSubmitting(false); }
+      }}>Stop unresolved request / recover receipt</button></div>}
       {recoveryError && <p role="alert" className="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-300">{recoveryError}<button type="button" onClick={() => { setRecoveryError(""); setRecoveryAttempt(value => value + 1); }} className="ml-3 underline">Retry recovery</button></p>}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <button type="button" onClick={() => setHelpOpen(true)} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm text-neutral-400">Shortcuts · F1</button>
@@ -632,12 +666,16 @@ export default function PosTab({ user, terminal = "MAIN", locked = false, onSale
           category={category}
           onCategoryChange={setCategory}
           onAdd={addProduct}
-          loading={catalogLoading || !recovered}
+          loading={catalogLoading || !recovered || pendingPayment}
           quickMenu={quickMenu}
           canManageQuickMenu={["admin", "manager"].includes(user?.role)}
           onQuickChange={async (product, position, remove = false) => { try { await updatePosQuickItem({ productId: product._id, productType: product.productType, position, remove }); setQuickMenu(await fetchPosQuickMenu()); } catch (error) { toast.error(error.response?.data?.message || "Unable to update favourites."); } }}
         />
         <PosSalePanel
+          checkoutOptions={checkoutOptions}
+          onCheckoutOptionsChange={value => { setCheckoutOptions(value); setCouponPreview(null); }}
+          onCouponPreview={setCouponPreview}
+          items={sale.map(lineRequest)}
           bill={bill}
           sale={sale}
           itemCount={itemCount}

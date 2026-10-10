@@ -179,7 +179,7 @@ export default function DarkSelect({
         aria-expanded={open}
         aria-controls={listId}
         aria-activedescendant={open && activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined}
-        aria-label={ariaLabel}
+        aria-label={ariaLabel || (!ariaLabelledBy ? selected?.searchLabel || name || "Select an option" : undefined)}
         aria-labelledby={ariaLabelledBy}
         aria-required={required || undefined}
         aria-invalid={invalid || undefined}
