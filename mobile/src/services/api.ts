@@ -1,5 +1,5 @@
 import { createApi } from './api-client';
-import type { Product, OrderConfig } from '../domain/types';
+import type { Product, OrderConfig, Combo, Offer } from '../domain/types';
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://duneandgrills-testing-six.vercel.app/api';
 export function apiFor(base: string) {
   if (process.env.EXPO_PUBLIC_APP_ENV && process.env.EXPO_PUBLIC_APP_ENV !== 'development' && !base.startsWith('https://')) throw new Error('This saved order requires its original app environment. Keep it saved and contact the restaurant for help.');
@@ -22,5 +22,11 @@ export async function loadCatalog(signal?: AbortSignal): Promise<Product[]> {
     api<{ data: Omit<Product, 'productType'>[] }>('/menu', { signal }),
     api<{ data: Omit<Product, 'productType'>[] }>('/combos', { signal }),
   ]);
-  return [...menu.data.map(p => ({ ...p, productType: 'menuItem' as const })), ...combos.data.map(p => ({ ...p, productType: 'combo' as const }))];
+  return [...menu.data.map(p => ({ ...p, productType: 'menuItem' as const })), ...combos.data.map(p => ({ ...p, price: p.comboPrice ?? p.price, productType: 'combo' as const }))];
+}
+export async function loadOffers(signal?: AbortSignal) { return (await api<{ data: Offer[] }>('/offers', { signal })).data; }
+export async function loadOffer(id: string, signal?: AbortSignal) { return (await api<{ data: Offer }>(`/offers/${encodeURIComponent(id)}`, { signal })).data; }
+export async function loadCombo(id: string, signal?: AbortSignal): Promise<Combo> {
+  const combo = (await api<{ data: Combo }>(`/combos/${encodeURIComponent(id)}`, { signal })).data;
+  return { ...combo, productType: 'combo', price: combo.comboPrice };
 }

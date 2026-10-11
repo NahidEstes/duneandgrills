@@ -37,7 +37,7 @@ async function main() {
       const body = req.postDataJSON(); const sub = body.items.reduce((total, line) => total + dish.price * line.quantity, 0);
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: { originalSubtotal: sub, discountAmount: sub * 0.1 } }) });
     }
-    let data = snapshot[key];
+    let data = key === 'offers' ? [] : snapshot[key];
     if (dense && key === 'menu') data = Array.from({length: 15}, (_, i) => ({ ...dish, _id: `layout-${i}`, name: `${dish.name} ${i} with a long descriptive catalog name`, category: i % 2 ? 'Other fixture category' : dish.category }));
     if (key === `menu/${dish._id}`) data = dish;
     if (data === undefined) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ success: false, message: 'Local diagnostic does not provide this data' }) });

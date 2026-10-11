@@ -21,9 +21,9 @@ function CheckoutForm() {
   const setCustomer = (update: (c: Customer) => Customer) => app.setCheckoutDraft(d => ({ ...d, customer: update(d.customer || customer) }));
   const setType = (type: 'delivery' | 'pickup') => app.setCheckoutDraft(d => ({ ...d, type }));
   const setNotes = (notes: string) => app.setCheckoutDraft(d => ({ ...d, notes }));
-  const setCoupon = (coupon: string) => app.setCheckoutDraft(d => ({ ...d, coupon }));
+  const setCoupon = (coupon: string) => app.setCheckoutDraft(d => ({ ...d, coupon, couponOfferId: undefined }));
   const [error, setError] = useState(''); const [working, setWorking] = useState(false); const [savedReview, setSavedReview] = useState<Review | null>(null); const gate = useRef(false);
-  const fingerprint = JSON.stringify([customer, type, notes, coupon, app.cart, actor]);
+  const fingerprint = JSON.stringify([customer, type, notes, coupon, app.cart, actor, app.session?.user || null, app.sessionValidated]);
   const review = savedReview?.fingerprint === fingerprint ? savedReview : null;
   const setReview = (value: Review | null) => setSavedReview(value ? { ...value, fingerprint } : null);
   const showResult = (result: OrderResult) => {

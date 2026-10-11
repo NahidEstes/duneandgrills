@@ -19,9 +19,9 @@ export const styles = StyleSheet.create({
   buttonText: { fontFamily, color: palette.onOrange, fontSize: typography.body, fontWeight: '700' }, error: { fontFamily, color: palette.danger, fontSize: 15, lineHeight: 22 },
   chip: { borderRadius: radius.pill, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 20, paddingVertical: 12, minHeight: 48, justifyContent: 'center', backgroundColor: palette.surface },
 });
-export function Screen({ children, refreshing, onRefresh, top = false }: React.PropsWithChildren<{ refreshing?: boolean; onRefresh?: () => void; top?: boolean }>) {
+export function Screen({ children, refreshing, onRefresh, top = false, footer }: React.PropsWithChildren<{ refreshing?: boolean; onRefresh?: () => void; top?: boolean; footer?: React.ReactNode }>) {
   return <SafeAreaView style={styles.screen} edges={top ? ['top', 'left', 'right'] : ['left', 'right', 'bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={top ? 0 : 90}>
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={palette.orange} /> : undefined}>{children}</ScrollView>
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={palette.orange} /> : undefined}>{children}</ScrollView>{footer}
   </KeyboardAvoidingView></SafeAreaView>;
 }
 export function ListScreen<T>({ children, footer, data, renderItem, keyExtractor, refreshing, onRefresh }: React.PropsWithChildren<{ footer?: React.ReactNode; data: T[]; renderItem: ListRenderItem<T>; keyExtractor: (item: T) => string; refreshing: boolean; onRefresh: () => void }>) {

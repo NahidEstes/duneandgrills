@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { api } from '../../services/api';
 import { useResource } from '../../hooks/useResource';
 import { availableAddOns, emptySelection, lineFor, money, selectionError } from '../../domain/cart';
@@ -8,6 +8,10 @@ import type { Product, Selection } from '../../domain/types';
 import { useApp } from '../../state/AppProvider';
 import { Button, Chip, Field, FoodImage, Loading, Notice, Quantity, Screen, messageOf, styles } from '../../components/ui';
 export default function Item() {
+  const { id, type } = useLocalSearchParams<{ id: string; type?: string }>();
+  return type === 'combo' ? <Redirect href={{ pathname: '/combo/[id]', params: { id } }} /> : <ItemContents key={id} />;
+}
+function ItemContents() {
   const { id, type } = useLocalSearchParams<{ id: string; type?: string }>(); const kind = type === 'combo' ? 'combo' : 'menuItem';
   const { data: product, loading, error, refresh } = useResource<Product>(async signal => ({ ...(await api<{ data: Product }>(`/${kind === 'combo' ? 'combos' : 'menu'}/${encodeURIComponent(id)}`, { signal })).data, productType: kind }), `${kind}:${id}`);
   const [draft, setDraft] = useState<Selection | null>(null);

@@ -1,13 +1,14 @@
 // Do not display arbitrary server text (database, proxy or validation internals).
 export function apiMessage(status: number, path: string, serverMessage: unknown) {
   if (status === 401) return path.startsWith('/auth/mobile/') ? 'Check your email and password, then try again.' : 'Your session expired. Please sign in again.';
-  if (status === 403) return 'This action is not available for your account.';
+  if (status === 403) return path === '/offers/validate-coupon' ? 'Your account does not meet this offer’s membership requirements.' : 'This action is not available for your account.';
   if (status === 429) return 'Please wait a little before trying again.';
   if (status >= 500) return 'The restaurant service is temporarily unavailable. Please try again shortly.';
   if (status === 404) return 'This item or service is currently unavailable.';
   const message = typeof serverMessage === 'string' ? serverMessage : '';
   if (status === 410) return 'This order attempt was already cancelled. Use Check or cancel saved order to clear it safely before placing a new order.';
   if (status === 409) {
+    if (path === '/offers/validate-coupon') return 'This coupon is no longer eligible. Check its dates, minimum order, usage limit and eligible items.';
     if (path === '/auth/me' && /email.*(already|registered|use)/i.test(message)) return 'That email is already in use. Choose another email.';
     if (/configure a recipe|invalid recipe|repair the (recipe|menu)|recipe unit|do not track/i.test(message)) return 'The restaurant cannot currently prepare one or more selected items. Check or cancel your saved order, then contact the restaurant or choose other items.';
     if (/stock|saleable inventory/i.test(message)) return 'Some ingredients are out of stock. Check or cancel your saved order before reviewing your cart.';

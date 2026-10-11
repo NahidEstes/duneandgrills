@@ -19,7 +19,7 @@ type State = {
   request: <T>(path: string, options?: RequestOptions) => Promise<T>;
   authenticate: (mode: 'login' | 'register', fields: Record<string, string>) => Promise<void>;
   validateSession: () => Promise<void>; logout: () => Promise<void>; updateUser: (user: User) => Promise<void>;
-  setCart: (cart: CartLine[], expectedActor?: string) => Promise<void>; add: (line: CartLine) => Promise<void>;
+  setCart: (cart: CartLine[], expectedActor?: string) => Promise<void>; add: (line: CartLine, expectedActor?: string) => Promise<void>;
   submit: (payload: OrderPayload) => Promise<OrderResult>; recover: (cancel: boolean) => Promise<OrderResult>;
   bootstrap: () => Promise<void>;
 };
@@ -86,7 +86,7 @@ export function AppProvider({ children }: React.PropsWithChildren) {
       await AsyncStorage.setItem(cartKey(actorRef.current), JSON.stringify(value)); replaceCart(value);
     } finally { transition.current = false; }
   }, [ready, replaceCart]);
-  const add = useCallback(async (line: CartLine) => { await setCart(addLine(cartRef.current, line)); }, [setCart]);
+  const add = useCallback(async (line: CartLine, expectedActor?: string) => { await setCart(addLine(cartRef.current, line), expectedActor); }, [setCart]);
   const request = useCallback(async <T,>(path: string, options: RequestOptions = {}) => {
     const current = sessionRef.current;
     try { return await api<T>(path, { ...options, token: current?.token }); }

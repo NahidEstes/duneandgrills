@@ -8,13 +8,13 @@ import type { Product } from '../domain/types';
 import { palette } from '../constants/design';
 import { Chip, FoodImage, IconButton, messageOf, styles } from './ui';
 
-export function openProduct(product: Product) { router.push({ pathname: '/item/[id]', params: { id: product._id, type: product.productType } }); }
+export function openProduct(product: Product) { if (product.productType === 'combo') router.push({ pathname: '/combo/[id]', params: { id: product._id } }); else router.push({ pathname: '/item/[id]', params: { id: product._id, type: product.productType } }); }
 export function openMenu(category = 'All', q = '') { router.navigate({ pathname: '/(tabs)', params: { category, q, filter: Date.now().toString() } }); }
 export function useProductAdder() {
   const app = useApp(); const gate = useRef(false); const [working, setWorking] = useState(false); const [error, setError] = useState('');
   const add = async (product: Product) => {
     if (gate.current || app.pending) return;
-    if (product.customization?.enabled || product.addOns?.length) { openProduct(product); return; }
+    if (product.productType === 'combo' || product.customization?.enabled || product.addOns?.length) { openProduct(product); return; }
     gate.current = true; setWorking(true); setError('');
     try { await app.add(lineFor(product, emptySelection(), 1)); } catch (e) { setError(messageOf(e)); } finally { gate.current = false; setWorking(false); }
   };

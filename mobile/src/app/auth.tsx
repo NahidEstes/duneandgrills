@@ -5,7 +5,7 @@ import { useApp } from '../state/AppProvider';
 import { passwordError } from '../domain/cart';
 import { Button, Chip, Field, Notice, Screen, messageOf, styles } from '../components/ui';
 export default function Auth() {
-  const { mode: initialMode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode: initialMode, offer, combo, quantity } = useLocalSearchParams<{ mode?: string; offer?: string; combo?: string; quantity?: string }>();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode === 'register' ? 'register' : 'login');
   const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [phone, setPhone] = useState(''); const [password, setPassword] = useState('');
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const gate = useRef(false); const app = useApp();
@@ -16,7 +16,16 @@ export default function Auth() {
     if (mode === 'register' && (!name.trim() || name.length > 100 || passwordError(password))) return setError(passwordError(password) || 'Enter a name of 1–100 characters');
     if (phone && !/^[+\d][\d\s()-]{5,29}$/.test(phone.trim())) return setError('Enter a valid phone');
     gate.current = true; setBusy(true); setError('');
-    try { await app.authenticate(mode, { name: name.trim(), email: email.trim().toLowerCase(), phone: phone.trim(), password }); setPassword(''); router.replace(app.pending ? '/checkout' : '/(tabs)/profile'); }
+    try {
+      await app.authenticate(mode, { name: name.trim(), email: email.trim().toLowerCase(), phone: phone.trim(), password }); setPassword('');
+      // Return only to fixed app routes. The destination re-fetches the offer ID;
+      // no coupon, price, or arbitrary return URL is trusted from auth params.
+      const safeId = (value?: string) => typeof value === 'string' && /^[A-Za-z0-9-]{1,120}$/.test(value);
+      if (app.pending) router.replace('/checkout');
+      else if (safeId(offer) && safeId(combo)) router.replace({ pathname: '/combo/[id]', params: { id: combo!, offer, quantity: String(Number.isInteger(Number(quantity)) && Number(quantity) >= 1 && Number(quantity) <= 99 ? Number(quantity) : 1) } });
+      else if (safeId(offer)) router.replace({ pathname: '/(tabs)/cart', params: { offer } });
+      else router.replace('/(tabs)/profile');
+    }
     catch (e) { setError(messageOf(e)); } finally { gate.current = false; setBusy(false); }
   };
   return <Screen><Text style={styles.title}>{mode === 'login' ? 'Welcome back' : 'Join the table'}</Text>

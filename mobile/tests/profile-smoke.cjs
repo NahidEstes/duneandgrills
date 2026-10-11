@@ -58,6 +58,7 @@ async function main() {
       return reply({ data: addresses });
     }
     if (key === 'orders/my') return reply({ data: [order] });
+    if (key === 'offers') return reply({ data: [] });
     if (key === 'orders/fixture-order' || key === 'orders/track/' + order.orderNumber) return reply({ data: order });
     if (key === 'orders/fixture-order/repeat') return reply({ data: [], warnings: ['Fixture has no items to reorder.'] });
     if (key === 'settings/public') return reply({ data: missingContact ? { receipt: { restaurantName: 'Dune & Grills' }, location: {} } : snapshot[key] });

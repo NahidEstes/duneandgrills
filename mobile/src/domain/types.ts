@@ -3,10 +3,23 @@ export type Product = {
   _id: string; productType: 'menuItem' | 'combo'; name: string; description: string;
   image: string; price: number; category: string; isAvailable: boolean;
   isFeatured?: boolean; featuredOrder?: number;
-  items?: { name: string; quantity: number }[];
+  comboPrice?: number; regularPrice?: number; status?: string;
+  items?: { name?: string; menuItem?: Omit<Product, 'productType'> | null; quantity: number }[];
   addOns?: AddOn[];
   customization?: { enabled: boolean; spice?: { enabled: boolean; options: string[]; default: string };
     groups?: { name: string; selectionType: string; minSelections: number; maxSelections: number; addOns: AddOn[] }[] };
+};
+export type Combo = Product & { comboPrice: number; regularPrice: number; items: { menuItem: Omit<Product, 'productType'> | null; quantity: number }[] };
+export type Offer = {
+  _id: string; title: string; subtitle: string; description: string; image: string;
+  isActive: boolean; isFeatured: boolean; sortOrder: number; startDate: string; expiresAt: string;
+  promoCode: string; discountType: 'fixed' | 'percentage'; discountValue: number;
+  couponScope: 'order' | 'product' | 'category'; applicableCategory: string;
+  membersOnly: boolean; minimumTier: 'Bronze' | 'Silver' | 'Gold'; minimumOrderAmount: number;
+  maximumDiscount: number | null; usageLimit: number | null; usageCount: number;
+  offerPrice: number | null; originalPrice: number | null; ctaLink: string;
+  orderProductType: 'menuItem' | 'combo';
+  orderProduct: { productType: 'menuItem' | 'combo'; quantity: number; product: Product | Combo } | null;
 };
 export type Selection = { selectedAddOns: { id: string; quantity: number }[]; spiceLevel: string; note: string };
 export type CartLine = { key: string; product: Product; selection: Selection; quantity: number; unitPrice: number };
