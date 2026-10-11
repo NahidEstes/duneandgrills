@@ -18,3 +18,7 @@ export { default as Trash2 } from 'lucide-react-native/icons/trash';
 export { default as Truck } from 'lucide-react-native/icons/truck';
 export { default as UserRound } from 'lucide-react-native/icons/user-round';
 export { default as UtensilsCrossed } from 'lucide-react-native/icons/utensils-crossed';
+export { default as Pencil } from 'lucide-react-native/icons/pencil';
+export { default as Phone } from 'lucide-react-native/icons/phone';
+export { default as ShieldCheck } from 'lucide-react-native/icons/shield-check';
+export { default as LogOut } from 'lucide-react-native/icons/log-out';

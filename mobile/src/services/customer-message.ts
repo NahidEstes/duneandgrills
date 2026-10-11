@@ -8,6 +8,7 @@ export function apiMessage(status: number, path: string, serverMessage: unknown)
   const message = typeof serverMessage === 'string' ? serverMessage : '';
   if (status === 410) return 'This order attempt was already cancelled. Use Check or cancel saved order to clear it safely before placing a new order.';
   if (status === 409) {
+    if (path === '/auth/me' && /email.*(already|registered|use)/i.test(message)) return 'That email is already in use. Choose another email.';
     if (/configure a recipe|invalid recipe|repair the (recipe|menu)|recipe unit|do not track/i.test(message)) return 'The restaurant cannot currently prepare one or more selected items. Check or cancel your saved order, then contact the restaurant or choose other items.';
     if (/stock|saleable inventory/i.test(message)) return 'Some ingredients are out of stock. Check or cancel your saved order before reviewing your cart.';
     if (/no longer available|unavailable|sold out/i.test(message)) return 'Some selected items are no longer available. Check or cancel your saved order before reviewing your cart.';

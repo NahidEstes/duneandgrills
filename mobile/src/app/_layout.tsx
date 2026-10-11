@@ -20,6 +20,8 @@ function Navigation() {
     <Stack.Screen name="order/[id]" options={{ title: 'Order details' }} />
     <Stack.Screen name="address/[id]" options={{ title: 'Saved address' }} />
     <Stack.Screen name="address-select" options={{ title: 'Delivery address' }} />
+    <Stack.Screen name="addresses" options={{ title: 'Saved addresses' }} />
+    <Stack.Screen name="profile-edit" options={{ title: 'Edit profile' }} />
     <Stack.Screen name="explore" options={{ headerShown: false }} />
   </Stack></>;
 }

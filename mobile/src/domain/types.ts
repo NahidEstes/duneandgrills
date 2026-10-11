@@ -10,7 +10,7 @@ export type Product = {
 };
 export type Selection = { selectedAddOns: { id: string; quantity: number }[]; spiceLevel: string; note: string };
 export type CartLine = { key: string; product: Product; selection: Selection; quantity: number; unitPrice: number };
-export type User = { _id: string; name: string; email: string; phone: string; role: string };
+export type User = { _id: string; name: string; email: string; phone: string; role: string; avatar?: string };
 export type Session = { token: string; user: User; expiresAt: number };
 export type Address = { _id: string; label: string; fullAddress: string; phone: string; isDefault: boolean };
 export type OrderConfig = { websiteOrderingEnabled: boolean; minimumDeliveryOrder: number;

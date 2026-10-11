@@ -6,7 +6,7 @@ export function apiFor(base: string) {
   return createApi(base);
 }
 export const api = apiFor(API_URL);
-export type RestaurantInfo = { receipt?: { restaurantName?: string }; location?: { city?: string; address?: string } };
+export type RestaurantInfo = { receipt?: { restaurantName?: string; phone?: string }; location?: { city?: string; address?: string; phone?: string; whatsapp?: string } };
 export async function loadRestaurant(signal?: AbortSignal) { return (await api<{ data: RestaurantInfo }>('/settings/public', { signal })).data; }
 export async function loadOrderConfig(signal?: AbortSignal) { return (await api<{ data: OrderConfig }>('/orders/config', { signal })).data; }
 export const imageUrl = (value: string) => {
