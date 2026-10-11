@@ -1,25 +1,26 @@
 import { useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { loadCatalog } from '../../services/api';
+import { Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { loadCatalog, loadRestaurant } from '../../services/api';
 import { useResource } from '../../hooks/useResource';
-import { money } from '../../domain/cart';
-import { Chip, Field, FoodImage, Loading, Notice, Screen, styles } from '../../components/ui';
+import { CartBar, CategoryChips, ProductCard, useProductAdder } from '../../components/commerce';
+import { ListScreen, Loading, Notice, SearchField, styles } from '../../components/ui';
 export default function Menu() {
+  const params = useLocalSearchParams<{ q?: string; category?: string; filter?: string }>();
+  return <MenuContents key={JSON.stringify([params.q, params.category, params.filter])} query={params.q || ''} category={params.category || 'All'} />;
+}
+function MenuContents({ query: initialQuery, category: initialCategory }: { query: string; category: string }) {
   const { data, error, loading, refresh } = useResource(loadCatalog, 'catalog');
-  const [query, setQuery] = useState(''); const [category, setCategory] = useState('All');
-  const categories = ['All', ...new Set((data || []).map(p => p.category))];
-  const filtered = (data || []).filter(p => (category === 'All' || p.category === category) && `${p.name} ${p.description}`.toLowerCase().includes(query.toLowerCase()));
-  return <Screen refreshing={loading} onRefresh={() => void refresh()}>
-    <View style={[styles.row, { flexWrap: 'nowrap' }]}><Image source={require('../../../assets/images/brand.png')} style={{ width: 66, height: 66, borderRadius: 16 }} /><View style={{ flex: 1 }}><Text style={styles.muted}>FRESH FROM THE GRILL</Text><Text style={styles.title}>Good food. Great days.</Text></View></View>
-    <Text style={styles.muted}>Your favorites, made your way. Delivery or pickup.</Text>
-    <Field label="Search the menu" value={query} onChangeText={setQuery} placeholder="Dishes, drinks, combos…" />
-    <View style={styles.row}>{categories.map(c => <Chip key={c} label={c} selected={c === category} onPress={() => setCategory(c)} />)}</View>
-    <Notice message={error} retry={() => void refresh()} />{loading && !data && <Loading />}
-    {data && !filtered.length && <Text style={styles.text}>No dishes match your search.</Text>}
-    {filtered.map(p => <Pressable accessibilityRole="button" accessibilityLabel={`View ${p.name}`} key={`${p.productType}:${p._id}`} onPress={() => router.push({ pathname: '/item/[id]', params: { id: p._id, type: p.productType } })} style={styles.card}>
-      <FoodImage uri={p.image} /><View style={styles.between}><Text style={[styles.heading, { flex: 1 }]}>{p.name}</Text><Text style={styles.heading}>{money(p.price)}</Text></View>
-      <Text style={styles.muted} numberOfLines={2}>{p.description}</Text><Text style={styles.muted}>{p.isAvailable ? 'View & customize  →' : 'Currently unavailable'}</Text>
-    </Pressable>)}
-  </Screen>;
+  const restaurant = useResource(loadRestaurant, 'restaurant'); const adder = useProductAdder();
+  const [query, setQuery] = useState(initialQuery); const [category, setCategory] = useState(initialCategory);
+  const categories = ['All', ...new Set((data || []).map(product => product.category).filter(Boolean))];
+  const visible = (data || []).filter(product => (category === 'All' || product.category === category) && `${product.name} ${product.description}`.toLowerCase().includes(query.toLowerCase()));
+  const subtitle = [restaurant.data?.receipt?.restaurantName || 'Dune & Grills', restaurant.data?.location?.city].filter(Boolean).join('  ·  ');
+  return <ListScreen data={visible} keyExtractor={product => `${product.productType}:${product._id}`} refreshing={loading} onRefresh={() => { void refresh(); void restaurant.refresh(); }} footer={<CartBar />} renderItem={({ item }) => <ProductCard product={item} add={product => void adder.add(product)} disabled={adder.disabled} />}>
+    <View style={{ gap: 4 }}><Text style={[styles.title, { fontSize: 36 }]}>Our menu</Text><Text style={styles.muted}>{subtitle}</Text></View>
+    <SearchField label="Search the menu" placeholder="Search menu" value={query} onChangeText={setQuery} />
+    <CategoryChips categories={categories} selected={category} change={setCategory} />
+    <Notice message={error} retry={() => void refresh()} /><Notice message={adder.error} />
+    {loading && !data && <Loading />}{data && !visible.length && <View style={styles.card}><Text style={styles.text}>No dishes match your search.</Text></View>}
+  </ListScreen>;
 }

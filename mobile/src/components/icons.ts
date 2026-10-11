@@ -1,0 +1,20 @@
+// Public per-icon entry points avoid loading the entire icon catalog in Metro.
+export type { LucideIcon } from 'lucide-react-native';
+export { default as ArrowLeft } from 'lucide-react-native/icons/arrow-left';
+export { default as ArrowRight } from 'lucide-react-native/icons/arrow-right';
+export { default as Banknote } from 'lucide-react-native/icons/banknote';
+export { default as ChevronRight } from 'lucide-react-native/icons/chevron-right';
+export { default as CirclePlus } from 'lucide-react-native/icons/circle-plus';
+export { default as Home } from 'lucide-react-native/icons/house';
+export { default as MapPin } from 'lucide-react-native/icons/map-pin';
+export { default as Minus } from 'lucide-react-native/icons/minus';
+export { default as Plus } from 'lucide-react-native/icons/plus';
+export { default as ReceiptText } from 'lucide-react-native/icons/receipt-text';
+export { default as Search } from 'lucide-react-native/icons/search';
+export { default as ShoppingBag } from 'lucide-react-native/icons/shopping-bag';
+export { default as Store } from 'lucide-react-native/icons/store';
+export { default as Tag } from 'lucide-react-native/icons/tag';
+export { default as Trash2 } from 'lucide-react-native/icons/trash';
+export { default as Truck } from 'lucide-react-native/icons/truck';
+export { default as UserRound } from 'lucide-react-native/icons/user-round';
+export { default as UtensilsCrossed } from 'lucide-react-native/icons/utensils-crossed';

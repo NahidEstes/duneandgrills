@@ -10,7 +10,7 @@ export default function Orders() {
   const app = useApp(); const actor = app.session?.user._id || 'guest';
   const resource = useResource(async signal => app.session ? (await app.request<{ data: Order[] }>('/orders/my', { signal })).data : [], actor, orders => orders.some(o => !terminal(o)), 30000);
   const guest = actor === 'guest' ? app.tracking.filter(t => t.actor === 'guest') : [];
-  return <Screen refreshing={resource.loading} onRefresh={() => void resource.refresh()}><Text style={styles.title}>Your orders</Text>
+  return <Screen top refreshing={resource.loading} onRefresh={() => void resource.refresh()}><Text style={styles.title}>Your orders</Text>
     {app.pending && <Button title="Resolve unresolved order" onPress={() => router.push('/checkout')} />}
     <Notice message={resource.error} retry={() => void resource.refresh()} />{resource.loading && !resource.data && <Loading />}
     {!app.session && <><Text style={styles.muted}>Guest tracking saved securely on this phone. Sign in to see your account history.</Text><Button title="Sign in" secondary onPress={() => router.push('/auth')} /></>}

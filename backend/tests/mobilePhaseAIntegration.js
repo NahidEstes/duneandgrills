@@ -97,8 +97,28 @@ test('native auth, proxy and shared ordering on owned temporary replica set', { 
       const adminList = await call('/orders', undefined, adminToken); assert.ok(adminList.body.data.some(o => o._id === order.body.data._id));
       assert.equal((await Order.findById(order.body.data._id)).source, 'website'); assert.equal(String((await Order.findById(order.body.data._id)).user), String(customer._id));
       assert.equal((await call('/orders/my', undefined, token)).body.data.length, 1);
-      const repeat = await call(`/orders/${order.body.data._id}/repeat`, {}, token); assert.equal(repeat.status, 200); assert.equal(repeat.body.data[0].price, 20);
+      await MenuItem.updateOne({ _id: dish._id }, { $set: { price: 24 } });
+      const repeat = await call(`/orders/${order.body.data._id}/repeat`, {}, token); assert.equal(repeat.status, 200); assert.equal(repeat.body.data[0].price, 24);
+      assert.equal((await Order.findById(order.body.data._id)).totalAmount, 20, 'reorder does not rewrite the confirmed receipt');
       const recover = await throughProxy('orders/requests/cancel', 'POST', { ...payload, idempotencyKey: key }, { Authorization: `Bearer ${token}` }); assert.equal(recover.body.data._id, order.body.data._id);
+    });
+    await t.test('address default switching, edits and default deletion retain exactly one owner default', async () => {
+      const first = await call('/profile/addresses', { label: 'Home', fullAddress: 'Owned first address' }, token);
+      assert.equal(first.status, 201); const home = first.body.data[0]; assert.equal(home.isDefault, true);
+      const second = await call('/profile/addresses', { label: 'Work', fullAddress: 'Owned second address' }, token);
+      const work = second.body.data.find(a => a.label === 'Work'); assert.equal(work.isDefault, false);
+      const selected = await call(`/profile/addresses/${work._id}/default`, {}, token, 'PATCH');
+      assert.equal(selected.body.data.filter(a => a.isDefault).length, 1); assert.equal(selected.body.data.find(a => a.isDefault)._id, work._id);
+      await call(`/profile/addresses/${work._id}`, { fullAddress: 'Edited default address' }, token, 'PATCH');
+      assert.equal((await User.findById(customer._id)).address, 'Edited default address');
+      const other = await User.findOne({ email: 'other@mobile.test' }); const otherToken = jwt.sign({ id: other._id, sv: 0 }, process.env.JWT_SECRET);
+      assert.equal((await call(`/profile/addresses/${work._id}/default`, {}, otherToken, 'PATCH')).status, 404);
+      assert.equal((await call(`/profile/addresses/${work._id}`, { label: 'Forbidden' }, otherToken, 'PATCH')).status, 404);
+      const deleted = await call(`/profile/addresses/${work._id}`, undefined, token, 'DELETE');
+      assert.equal(deleted.body.data.length, 1); assert.equal(deleted.body.data[0].isDefault, true);
+      assert.equal((await User.findById(customer._id)).address, home.fullAddress);
+      await call(`/profile/addresses/${home._id}`, undefined, token, 'DELETE');
+      assert.equal((await User.findById(customer._id)).address, '');
     });
     await t.test('expired, sessionVersion-revoked and disabled tokens fail; login rate limiting is shared', async () => {
       const expired = jwt.sign({ id: customer._id, sv: 0 }, process.env.JWT_SECRET, { expiresIn: -1 }); assert.equal((await call('/auth/me', undefined, expired)).status, 401);

@@ -45,4 +45,5 @@ example
 .test-build/
 artifacts/
 .env
+credentials.json
 

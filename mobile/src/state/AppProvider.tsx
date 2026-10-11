@@ -1,31 +1,35 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
-import { API_URL, api } from '../services/api';
-import { ApiError, createApi, invalidSession, type RequestOptions } from '../services/api-client';
+import { API_URL, api, apiFor } from '../services/api';
+import { ApiError, invalidSession, type RequestOptions } from '../services/api-client';
 import { vault } from '../services/storage';
 import { OrderRequests, trackingFor } from '../services/order-request';
 import { validateSessionData } from '../services/session';
 import { addLine } from '../domain/cart';
+import { OWNER_KEY, cartKey, emptyCheckoutDraft, restoredActor, type CheckoutDraft } from '../domain/customer-state';
+import { messageOf } from '../services/customer-message';
+import { expireCredential, forgetCustomer, storeCustomer } from '../services/customer-storage';
 import type { CartLine, OrderPayload, OrderResult, Pending, Session, Tracking, User } from '../domain/types';
 
 type State = {
   ready: boolean; error: string; session: Session | null; sessionValidated: boolean;
-  cart: CartLine[]; pending: Pending | null; tracking: Tracking[]; busy: boolean;
+  actor: string; cart: CartLine[]; pending: Pending | null; tracking: Tracking[]; busy: boolean;
+  checkoutDraft: CheckoutDraft; setCheckoutDraft: React.Dispatch<React.SetStateAction<CheckoutDraft>>;
   request: <T>(path: string, options?: RequestOptions) => Promise<T>;
   authenticate: (mode: 'login' | 'register', fields: Record<string, string>) => Promise<void>;
   validateSession: () => Promise<void>; logout: () => Promise<void>; updateUser: (user: User) => Promise<void>;
-  setCart: (cart: CartLine[]) => Promise<void>; add: (line: CartLine) => Promise<void>;
+  setCart: (cart: CartLine[], expectedActor?: string) => Promise<void>; add: (line: CartLine) => Promise<void>;
   submit: (payload: OrderPayload) => Promise<OrderResult>; recover: (cancel: boolean) => Promise<OrderResult>;
   bootstrap: () => Promise<void>;
 };
 const Context = createContext<State | null>(null);
-const cartKey = (actor: string) => `dg.cart.v1.${actor}`;
 export function AppProvider({ children }: React.PropsWithChildren) {
   const [ready, setReady] = useState(false); const [error, setError] = useState('');
   const [session, setSession] = useState<Session | null>(null); const [sessionValidated, setValidated] = useState(false);
   const [cart, setCartState] = useState<CartLine[]>([]); const [pending, setPending] = useState<Pending | null>(null);
   const [tracking, setTracking] = useState<Tracking[]>([]); const [busy, setBusy] = useState(false);
+  const [actor, setActor] = useState('guest'); const [checkoutDraft, setCheckoutDraft] = useState(emptyCheckoutDraft);
   const sessionRef = useRef(session); const cartRef = useRef(cart); const trackingRef = useRef(tracking);
   const actorRef = useRef('guest'); const transition = useRef(false);
   const managerRef = useRef<OrderRequests | null>(null);
@@ -38,7 +42,10 @@ export function AppProvider({ children }: React.PropsWithChildren) {
       if (sessionRef.current !== current || transition.current) return;
       transition.current = true;
       try {
-        if (!result.session) await vault.remove('session');
+        if (!result.session) {
+          replaceSession(null); setValidated(false);
+          try { await expireCredential(vault, AsyncStorage, actorRef.current); } catch (e) { setReady(false); throw e; }
+        }
         else if (result.validated) await vault.write('session', result.session);
         replaceSession(result.session); setValidated(result.validated); setError(result.error);
       } finally { transition.current = false; }
@@ -46,7 +53,7 @@ export function AppProvider({ children }: React.PropsWithChildren) {
       if (invalidSession(e)) {
         await vault.remove('session'); replaceSession(null); setValidated(false);
         setError('Your session expired. Sign in again. Any unresolved order remains saved for its original account.');
-      } else { setValidated(false); setError(e instanceof Error ? e.message : 'Session verification unavailable'); }
+      } else { setValidated(false); setError(messageOf(e)); }
     }
   }, [replaceSession]);
   const bootstrap = useCallback(async () => {
@@ -58,18 +65,21 @@ export function AppProvider({ children }: React.PropsWithChildren) {
       if (savedSession && (!savedSession.token || !savedSession.user?._id || savedSession.user.role !== 'customer')) throw new Error('Saved session is unreadable. Contact support before ordering.');
       if (savedPending && savedSession && savedPending.actor !== savedSession.user._id) throw new Error('Saved request and account identities do not match. Contact support before ordering.');
       if (!Array.isArray(savedTracking)) throw new Error('Saved tracking is unreadable. Contact support before ordering.');
-      const actor = savedPending?.actor || savedSession?.user._id || 'guest';
+      const actor = restoredActor(savedPending, savedSession, await AsyncStorage.getItem(OWNER_KEY));
       const savedCart = await AsyncStorage.getItem(cartKey(actor));
       const parsed: CartLine[] = savedCart ? JSON.parse(savedCart) : [];
       if (!Array.isArray(parsed) || parsed.some(c => !c.product || !c.selection || !Number.isInteger(c.quantity) || c.quantity < 1 || c.quantity > 99)) throw new Error('Saved cart is unreadable. Recovery is required before ordering.');
-      actorRef.current = actor; replaceSession(savedSession); replaceCart(parsed); setPending(savedPending);
+      await AsyncStorage.setItem(OWNER_KEY, actor);
+      if (actorRef.current !== actor) setCheckoutDraft(emptyCheckoutDraft());
+      actorRef.current = actor; setActor(actor); replaceSession(savedSession); replaceCart(parsed); setPending(savedPending);
       trackingRef.current = savedTracking; setTracking(savedTracking); setError(''); setReady(true);
       await validateSession();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Cannot restore saved data'); }
+    } catch (e) { setError(messageOf(e)); }
   }, [replaceCart, replaceSession, validateSession]);
   useEffect(() => { void Promise.resolve().then(bootstrap); }, [bootstrap]);
-  const setCart = useCallback(async (value: CartLine[]) => {
+  const setCart = useCallback(async (value: CartLine[], expectedActor?: string) => {
     if (!ready || transition.current || managerRef.current?.busy) throw new Error('Please wait for the current operation');
+    if (expectedActor && actorRef.current !== expectedActor) throw new Error('Your account changed. Please open this order again.');
     transition.current = true;
     try {
       if (await vault.read('pending')) throw new Error('Resolve the saved order before changing your cart');
@@ -84,7 +94,8 @@ export function AppProvider({ children }: React.PropsWithChildren) {
       if (invalidSession(e) && current === sessionRef.current && !transition.current) {
         transition.current = true;
         try {
-          await vault.remove('session'); replaceSession(null); setValidated(false);
+          replaceSession(null); setValidated(false);
+          try { await expireCredential(vault, AsyncStorage, actorRef.current); } catch (failure) { setReady(false); setError(messageOf(failure)); throw failure; }
           setError('Your session expired. Sign in again to continue.');
         } finally { transition.current = false; }
       }
@@ -100,15 +111,15 @@ export function AppProvider({ children }: React.PropsWithChildren) {
       if (unresolved && mode === 'register') throw new Error('Sign in to the account that placed the unresolved order');
       let result: Session;
       try { result = await api<Session>(`/auth/mobile/${mode}`, { method: 'POST', body: fields }); }
-      catch (e) { if (e instanceof ApiError && e.status === 404) throw new Error('Mobile authentication is not deployed on this API. Deploy the backend additions or use your local backend.'); throw e; }
-      if (!result.token || result.user.role !== 'customer') throw new Error('Deploy the mobile authentication backend before signing in');
+      catch (e) { if (e instanceof ApiError && e.status === 404) throw new Error('Customer sign-in is temporarily unavailable. Please try again later.'); throw e; }
+      if (!result.token || result.user?.role !== 'customer') throw new Error('Customer sign-in is temporarily unavailable. Please try again later.');
       if (unresolved && unresolved.actor !== result.user._id) throw new Error('This request belongs to another account. Sign in to the original account.');
-      await vault.write('session', result);
-      if (!unresolved && actorRef.current !== result.user._id) {
-        await AsyncStorage.removeItem(cartKey(actorRef.current));
-        await AsyncStorage.removeItem(cartKey(result.user._id)); replaceCart([]);
-      }
-      actorRef.current = result.user._id; replaceSession(result); setValidated(true); setError('');
+      let stored;
+      try { stored = await storeCustomer(vault, AsyncStorage, actorRef.current, result, trackingRef.current); }
+      catch (e) { setReady(false); setError(messageOf(e)); throw e; }
+      trackingRef.current = stored.tracking; setTracking(stored.tracking);
+      if (stored.changed) { replaceCart([]); setCheckoutDraft(emptyCheckoutDraft()); }
+      actorRef.current = result.user._id; setActor(result.user._id); replaceSession(result); setValidated(true); setError('');
     } finally { transition.current = false; }
   }, [ready, replaceCart, replaceSession]);
   const logout = useCallback(async () => {
@@ -118,8 +129,11 @@ export function AppProvider({ children }: React.PropsWithChildren) {
       if (await vault.read('pending')) throw new Error('Resolve the saved order before logging out');
       // Mobile auth issues no cookies. Forgetting the bearer credential ends
       // this device's session; existing browser logout behavior is unchanged.
-      await vault.remove('session'); await AsyncStorage.removeItem(cartKey(actorRef.current));
-      actorRef.current = 'guest'; replaceSession(null); replaceCart([]); setValidated(false); setError('');
+      let retained;
+      try { retained = await forgetCustomer(vault, AsyncStorage, actorRef.current, trackingRef.current); }
+      catch (e) { replaceSession(null); setValidated(false); setReady(false); setError(messageOf(e)); throw e; }
+      trackingRef.current = retained; setTracking(retained); replaceSession(null); setValidated(false);
+      actorRef.current = 'guest'; setActor('guest'); replaceCart([]); setCheckoutDraft(emptyCheckoutDraft()); setError('');
     } finally { transition.current = false; }
   }, [ready, replaceCart, replaceSession]);
   const updateUser = useCallback(async (user: User) => {
@@ -130,7 +144,7 @@ export function AppProvider({ children }: React.PropsWithChildren) {
     finally { transition.current = false; }
   }, [replaceSession]);
   useEffect(() => { managerRef.current = new OrderRequests(vault, Crypto.randomUUID,
-    async (saved, cancel) => createApi(saved.baseUrl)<OrderResult>(cancel ? '/orders/requests/cancel' : '/orders', {
+    async (saved, cancel) => apiFor(saved.baseUrl)<OrderResult>(cancel ? '/orders/requests/cancel' : '/orders', {
       method: 'POST', body: saved.payload, token: saved.token, headers: { 'Idempotency-Key': saved.payload.idempotencyKey! },
     }),
     async (result, saved) => {
@@ -138,6 +152,7 @@ export function AppProvider({ children }: React.PropsWithChildren) {
       const next = [confirmation, ...trackingRef.current.filter(t => t.orderNumber !== confirmation.orderNumber)].slice(0, 20);
       await vault.write('tracking', next); trackingRef.current = next; setTracking(next);
       await AsyncStorage.setItem(cartKey(saved.actor), '[]'); replaceCart([]);
+      setCheckoutDraft(emptyCheckoutDraft());
     });
   }, [replaceCart]);
   const run = async (action: 'create' | 'retry' | 'reconcile', payload?: OrderPayload) => {
@@ -148,11 +163,11 @@ export function AppProvider({ children }: React.PropsWithChildren) {
     try { return await managerRef.current!.run(action, actor, payload, sessionRef.current?.token || null, API_URL); }
     catch (e) { if (invalidSession(e)) await validateSession(); throw e; }
     finally {
-      try { setPending(await managerRef.current!.read()); } catch (e) { setReady(false); setError(String(e)); }
+      try { setPending(await managerRef.current!.read()); } catch (e) { setReady(false); setError(messageOf(e)); }
       setBusy(false);
     }
   };
-  return <Context.Provider value={{ ready, error, session, sessionValidated, cart, pending, tracking, busy, request,
+  return <Context.Provider value={{ ready, error, session, sessionValidated, actor, checkoutDraft, setCheckoutDraft, cart, pending, tracking, busy, request,
     authenticate, validateSession, logout, updateUser, setCart, add,
     submit: p => run('create', p), recover: cancel => run(cancel ? 'reconcile' : 'retry'), bootstrap }}>{children}</Context.Provider>;
 }

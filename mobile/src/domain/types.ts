@@ -2,6 +2,7 @@ export type AddOn = { _id: string; name: string; price: number; image?: string }
 export type Product = {
   _id: string; productType: 'menuItem' | 'combo'; name: string; description: string;
   image: string; price: number; category: string; isAvailable: boolean;
+  isFeatured?: boolean; featuredOrder?: number;
   items?: { name: string; quantity: number }[];
   addOns?: AddOn[];
   customization?: { enabled: boolean; spice?: { enabled: boolean; options: string[]; default: string };

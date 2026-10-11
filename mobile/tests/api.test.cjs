@@ -22,4 +22,5 @@ test('network failure, timeout, external cancellation and malformed response rem
   const controller = new AbortController(); controller.abort();
   await assert.rejects(createApi('https://fixture.test', blocking)('/orders', { signal: controller.signal }), e => e.code === 'cancelled');
   await assert.rejects(createApi('https://fixture.test', async () => new Response('<html>'))('/orders'), e => e.code === 'response');
+  await assert.rejects(createApi('https://fixture.test', async () => new Response('null'))('/orders'), e => e.code === 'response');
 });

@@ -21,10 +21,10 @@ function ProfileForm() {
     const result = await app.request<{ user: User }>('/auth/me', { method: 'PATCH', body: { name: name.trim(), email: email.trim().toLowerCase(), phone: phone.trim() } });
     await app.updateUser(result.user); setNotice('Profile updated.');
   };
-  return <Screen refreshing={addresses.loading} onRefresh={() => { void addresses.refresh(); void app.validateSession(); }}><Text style={styles.title}>{app.session ? `Hello, ${app.session.user.name}` : 'A seat at our table'}</Text>
+  return <Screen top refreshing={addresses.loading} onRefresh={() => { void addresses.refresh(); void app.validateSession(); }}><Text style={styles.title}>{app.session ? `Hello, ${app.session.user.name}` : 'A seat at our table'}</Text>
     <Notice message={error || app.error} />{!!notice && <Text style={styles.text}>{notice}</Text>}
     {!app.session ? <><Text style={styles.text}>Sign in to manage your profile, saved addresses and order history.</Text><Button title="Sign in" onPress={() => router.push('/auth')} /><Button title="Create customer account" secondary onPress={() => router.push({ pathname: '/auth', params: { mode: 'register' } })} />
-      {!!app.cart.length && <Button title="Clear cart and continue as guest" secondary disabled={busy || !!app.pending || app.busy} onPress={() => void action(app.logout)} />}
+      {(!!app.cart.length || app.actor !== 'guest') && <Button title="Clear cart and continue as guest" secondary disabled={busy || !!app.pending || app.busy} onPress={() => void action(app.logout)} />}
     </> : <>
       {!app.sessionValidated && <Button title="Validate saved session" secondary onPress={() => void app.validateSession()} />}
       <Field label="Name" value={name} onChangeText={setName} maxLength={100} /><Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" maxLength={160} /><Field label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={30} />

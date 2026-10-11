@@ -2,8 +2,7 @@ import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '../../state/AppProvider';
-import { API_URL, loadCatalog } from '../../services/api';
-import { createApi } from '../../services/api-client';
+import { API_URL, apiFor, loadCatalog } from '../../services/api';
 import { useResource } from '../../hooks/useResource';
 import { addLine, lineFor, money } from '../../domain/cart';
 import { paymentLabel, statusLabel, terminal } from '../../domain/orders';
@@ -11,13 +10,17 @@ import type { Order } from '../../domain/types';
 import { Button, Loading, Notice, Screen, messageOf, styles } from '../../components/ui';
 type Repeated = { _id: string; productType: string; quantity: number; selectedAddOns: { _id: string; quantity: number }[]; spiceLevel: string; note: string };
 export default function OrderDetails() {
+  const app = useApp(); const { id } = useLocalSearchParams<{ id: string }>();
+  return <OrderDetailsContent key={`${app.session?.user._id || 'guest'}:${id}`} />;
+}
+function OrderDetailsContent() {
   const { id, guest, confirmed } = useLocalSearchParams<{ id: string; guest?: string; confirmed?: string }>();
   const app = useApp(); const actor = app.session?.user._id || 'guest';
   const tracking = app.tracking.find(t => t.orderNumber === id && t.actor === actor);
   const resource = useResource(async signal => {
     if (guest === '1') {
       if (!tracking) throw new Error('Private tracking is not saved for this account on this device');
-      return (await createApi(tracking.baseUrl || API_URL)<{ data: Order }>(`/orders/track/${encodeURIComponent(id)}`, { signal, headers: { 'X-Order-Tracking-Token': tracking.token } })).data;
+      return (await apiFor(tracking.baseUrl || API_URL)<{ data: Order }>(`/orders/track/${encodeURIComponent(id)}`, { signal, headers: { 'X-Order-Tracking-Token': tracking.token } })).data;
     }
     if (!app.session) throw new Error('Sign in to view your order');
     return (await app.request<{ data: Order }>(`/orders/${encodeURIComponent(id)}`, { signal })).data;
@@ -35,7 +38,7 @@ export default function OrderDetails() {
           cart = addLine(cart, lineFor(product, { selectedAddOns: item.selectedAddOns.map(a => ({ id: a._id, quantity: a.quantity })), spiceLevel: item.spiceLevel, note: item.note }, item.quantity));
         } catch (e) { skipped.push(messageOf(e)); }
       }
-      await app.setCart(cart); setWarnings(skipped);
+      await app.setCart(cart, actor); setWarnings(skipped);
       if (!skipped.length) router.push('/(tabs)/cart');
     } catch (e) { setError(messageOf(e)); } finally { gate.current = false; setBusy(false); }
   };

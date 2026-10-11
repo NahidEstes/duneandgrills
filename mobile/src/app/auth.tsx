@@ -20,7 +20,7 @@ export default function Auth() {
     catch (e) { setError(messageOf(e)); } finally { gate.current = false; setBusy(false); }
   };
   return <Screen><Text style={styles.title}>{mode === 'login' ? 'Welcome back' : 'Join the table'}</Text>
-    <View style={styles.row}><Chip label="Sign in" selected={mode === 'login'} onPress={() => setMode('login')} /><Chip label="Register" selected={mode === 'register'} onPress={() => setMode('register')} /></View>
+    <View style={styles.row}><Chip label="Sign in" disabled={busy} selected={mode === 'login'} onPress={() => setMode('login')} /><Chip label="Register" disabled={busy} selected={mode === 'register'} onPress={() => setMode('register')} /></View>
     <Text style={styles.muted}>Use your existing Dune & Grills customer account. Switching accounts starts a fresh device cart.</Text>
     {mode === 'register' && <><Field label="Name" value={name} onChangeText={setName} maxLength={100} autoComplete="name" /><Field label="Phone (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={30} /></>}
     <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" maxLength={160} />

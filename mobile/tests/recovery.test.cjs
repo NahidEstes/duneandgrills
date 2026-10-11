@@ -1,6 +1,6 @@
 const { test } = require('node:test'); const assert = require('node:assert/strict');
 const { OrderRequests, trackingFor } = require('../.test-build/services/order-request');
-const { ApiError } = require('../.test-build/services/api-client');
+const { ApiError, createApi } = require('../.test-build/services/api-client');
 const payload = () => ({ fulfillmentType: 'pickup', paymentOption: 'cod', customer: { name: 'Owned', phone: '+966500000000', email: '', address: '' }, kitchenNotes: '', couponCode: '', items: [{ productId: 'dish', productType: 'menuItem', quantity: 1, customization: { selectedAddOns: [], spiceLevel: '', note: '' } }] });
 function storage() { const map = new Map(); return { map, read: async k => map.has(k) ? structuredClone(map.get(k)) : null, write: async (k, v) => { map.set(k, structuredClone(v)); }, remove: async k => { map.delete(k); } }; }
 test('persist-before-send, immutable payload, restart and identical explicit retry', async () => {
@@ -35,6 +35,20 @@ test('409, 400, 410, 503 and timeout preserve request until server reconciliatio
     await assert.rejects(manager.run('create', 'guest', payload())); assert.ok(await manager.read());
     await assert.rejects(manager.run('create', 'guest', payload()), /previous/);
   }
+});
+
+test('recipe rejection shows an actionable message and retains the same request until confirmed cancellation', async () => {
+  const vault = storage(); let cancel = false;
+  const api = createApi('https://fixture.test/api', async () => cancel
+    ? new Response(JSON.stringify({ success: true, cancelled: true }))
+    : new Response(JSON.stringify({ success: false, message: 'Configure a recipe or mark Do Not Track for: Beef Burger (Missing recipe)' }), { status: 409 }));
+  const manager = new OrderRequests(vault, () => 'fixed-key', async (pending, reconcile) => {
+    cancel = reconcile;
+    return api(reconcile ? '/orders/requests/cancel' : '/orders', { method: 'POST', body: pending.payload });
+  }, async () => assert.fail('no confirmed order'));
+  await assert.rejects(manager.run('create', 'guest', payload()), /restaurant cannot currently prepare/);
+  assert.equal((await manager.read()).payload.idempotencyKey, 'fixed-key');
+  await manager.run('reconcile', 'guest'); assert.equal(await manager.read(), null);
 });
 test('wrong account cannot retry; same account refreshes credential but not payload', async () => {
   const vault = storage(); const first = new OrderRequests(vault, () => 'key', async () => { throw Error('offline'); }, async () => {});

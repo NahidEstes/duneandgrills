@@ -1,0 +1,33 @@
+# EAS archives this Git repository. Only the self-contained mobile app is needed.
+/*
+!/mobile
+
+# Mirror mobile/.gitignore; keep generated CNG projects out of cloud builds.
+mobile/node_modules
+mobile/.expo
+mobile/dist
+mobile/web-build
+mobile/expo-env.d.ts
+mobile/.kotlin
+mobile/*.orig.*
+mobile/*.jks
+mobile/*.p8
+mobile/*.p12
+mobile/*.key
+mobile/*.mobileprovision
+mobile/*.pem
+mobile/.metro-health-check*
+mobile/npm-debug.*
+mobile/yarn-debug.*
+mobile/yarn-error.*
+mobile/.DS_Store
+mobile/.env*
+!mobile/.env.example
+mobile/*.tsbuildinfo
+mobile/example
+mobile/ios
+mobile/android
+mobile/.test-build
+mobile/artifacts
+mobile/credentials.json
+

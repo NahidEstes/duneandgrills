@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/brand.png",
     "scheme": "duneandgrills",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.duneandgrills.customer",
@@ -32,7 +32,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#faf7f0",
+          "backgroundColor": "#101010",
           "image": "./assets/images/brand.png",
           "imageWidth": 76
         }
@@ -42,6 +42,15 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "appEnvironment": "development",
+      "apiUrl": "https://duneandgrills-testing-six.vercel.app/api",
+      "router": {},
+      "eas": {
+        "projectId": "b21d6508-3510-4d0d-b04f-a2abb8e3f39c"
+      }
+    },
+    "owner": "nahidestes"
   }
 }

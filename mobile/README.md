@@ -1,52 +1,77 @@
 # Dune & Grills customer mobile
 
-Native customer ordering app built from the existing Expo SDK 57 scaffold. Menu, Cart, Orders and Profile use Expo Router and React Native components. It reuses the existing Express/MongoDB ordering engine, customer accounts, customization, coupons, addresses and private tracking.
+Expo SDK 57 / React Native customer app with native Home, Menu, Orders and Profile tabs and the existing Cart route. It uses the existing restaurant API, customer accounts and unified ordering engine.
 
-## Open on your Android phone
+The source now includes the dark/orange [customer UI redesign](../docs/mobile-redesign.md), implemented and verified locally on 2026-10-11. **The Phase B APK below predates the redesign and does not contain the new screens.** No cloud build or publication was started for the redesign.
+
+**Android preview APK is ready:** [download version 1.0.0 / build 5](https://expo.dev/artifacts/eas/kC9ipPvEHEmM2CrtJaxEALjDx3MGtqSERpZRho7fq9E.apk). The signed APK uses the staging API and runs without Expo Go or Metro. [EAS build](https://expo.dev/accounts/nahidestes/projects/dune-and-grills/builds/2e3edf3f-2e3b-4d51-85cb-505b5349cbd7) · [local APK](<F:/My Projects/duneandgrills/mobile/artifacts/dune-and-grills-preview-1.0.0-build-5.apk>). Signing/content integrity, package/configuration, compiled SecureStore backup exclusions and required permissions were verified. No physical Android/iOS device execution or deployed staging native login has been verified. See [Phase B handoff](../docs/mobile-phase-b.md) for test evidence and remaining acceptance work.
+
+## Build the installable Android APK
+
+Run from `mobile/`:
 
 ```powershell
 Set-Location 'F:\My Projects\duneandgrills\mobile'
 npm ci
+npx eas-cli@latest login
+npx eas-cli@latest whoami
+npx eas-cli@latest project:info
+```
+
+Reuse the linked project and its managed Android signing key. Inspect credentials with `npx eas-cli@latest credentials --platform android` and remaining free build allowance in the EAS dashboard before future builds. Keep keys in EAS's secure credential system; do not buy/upgrade a plan.
+
+```powershell
+$env:EAS_SKIP_AUTO_FINGERPRINT = '1' # Optional local fingerprint stalls on this Windows host
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Open the [final APK download](https://expo.dev/artifacts/eas/kC9ipPvEHEmM2CrtJaxEALjDx3MGtqSERpZRho7fq9E.apk) on an Android 7.0+ phone, download it, allow browser installation when prompted and install. It runs without Metro or Expo Go. Keep the same signing key for later updates; do not uninstall/clear an existing app holding unresolved orders to resolve a signing mismatch.
+
+SHA-256: `f23ff4000d92db6ce5e1ad946f08b058503cf85cb4d58a63d576571411dddff1`. Size: 103,512,871 bytes. Package: `com.duneandgrills.customer`; minimum Android API 24, target 36.
+
+## Profiles and environment
+
+| Profile | Android output | API / behavior |
+| --- | --- | --- |
+| development | Internal development APK | Explicit HTTPS staging; Metro required. Configure an owned local/test API when rehearsing |
+| preview | Internal release APK | Explicit `https://duneandgrills-testing-six.vercel.app/api`; runs independently |
+| production | AAB for future Play submission | Requires the approved HTTPS `EXPO_PUBLIC_API_URL` in the EAS production environment; no production URL is assumed |
+
+`app.config.js` validates environment/URLs and preserves existing project metadata. Release builds reject HTTP and production rejects the known staging host. `eas.json` uses remote build numbers with preview/production auto-increment; marketing version remains `1.0.0`. Android and iOS retain `com.duneandgrills.customer`; all profiles replace the same app, so resolve saved requests before changing environments. No store submission or OTA release command is configured/run. The repository `.easignore` uploads only mobile source and excludes credentials, env secrets, other apps, generated native projects and artifacts.
+
+## Develop on a phone
+
+```powershell
 Copy-Item .env.example .env
 npx expo start --lan
 ```
 
-Install Expo Go compatible with SDK 57. Connect phone and PC to the same Wi-Fi, then scan the terminal QR in Expo Go. The example API is `https://duneandgrills-testing-six.vercel.app/api`. **Staging native login/register require deployment of the new backend `/auth/mobile/login` and `/auth/mobile/register` routes.** Browser auth continues to use its existing cookie contract.
-
-For local development, run `npm run dev` from `backend/` with a development MongoDB replica set and set `.env` to the PC's LAN address, for example:
-
-```dotenv
-EXPO_PUBLIC_API_URL=http://192.168.0.117:5000/api
-```
-
-That Wi-Fi address was observed during implementation; verify it with `Get-NetIPConfiguration`. A phone's localhost is the phone. Android emulator: `http://10.0.2.2:5000/api`. Allow Metro and API ports on the private network. Restart Expo after changing `.env`. A Metro tunnel (`npx expo start --tunnel`) does not expose your local backend. Never put secrets in public Expo variables.
-
-## Features and behavior
-
-- Live dishes/combos, search/category filters, SAR pricing, item details, required customization groups, add-ons/spice/notes and quantities up to 99.
-- Persistent device cart with customization-aware merging. It does not sync with the web cart. Sign-in/account switch/logout starts a fresh cart; unresolved orders block switching.
-- Customer login/register, SecureStore token persistence, `/auth/me` restoration, expired-session handling and outage-safe credential retention.
-- Guest/account delivery or pickup, manual/saved addresses, server delivery minimum/fee/ordering/COD rules, coupon validation and reviewed summary.
-- Protected immutable pending payload/key/actor saved before submission; explicit original-request retry and server reconciliation/cancellation across restart. Unknown outcomes retain the cart and request. No automatic offline queue.
-- Confirmed number/total, cash payment status, private saved guest tracking, authenticated history/details, foreground polling and current-price reorder with skipped-item reports.
-- Profile updates and own-address add/edit/delete/default controls with field limits and refresh.
-
-Only the existing backend auth controller/routes were extended, with an isolated integration test. No new ordering backend, schema migration or frontend proxy change. Mobile auth returns `{success,user,token,expiresAt}` without setting cookies and uses existing password/JWT/sessionVersion/rate-limit rules. Existing browser responses remain compatible. Native logout forgets this device's bearer credential; it does not revoke other sessions.
-
-Protected session/pending/tracking data uses generation-based SecureStore chunks; plain AsyncStorage holds cart/catalog selections. Tracking secrets never enter URLs or logs. Web export is diagnostic only: secure login and order submission require native storage.
-
-## Expo Go and local native builds
-
-SDK 57 includes the added [SecureStore](https://docs.expo.dev/versions/v57.0.0/sdk/securestore/), [Crypto](https://docs.expo.dev/versions/v57.0.0/sdk/crypto/) and [AsyncStorage](https://docs.expo.dev/versions/v57.0.0/sdk/async-storage/) modules in Expo Go; no biometric/custom native module is used. Expo Go is sufficient for initial functional checks with a matching SDK. App icon/splash/identifiers and standalone OS behavior need a development build.
+Use matching SDK-57 Expo Go on the same Wi-Fi and scan its QR. SecureStore, Crypto and AsyncStorage are bundled in matching Go. Standalone branding, permissions, OS settings/signing and future custom native modules require a development/native build:
 
 ```powershell
-# Optional local Android build: requires Android Studio SDK and a device/emulator.
-npx expo run:android
+npx eas-cli@latest build --platform android --profile development
+# Install that development APK, then:
+npx expo start --dev-client --lan
 ```
 
-Local iOS builds use `npx expo run:ios` on macOS with Xcode. No cloud build/store publication/deployment was performed.
+For owned local development data, set `EXPO_PUBLIC_APP_ENV=development` and `EXPO_PUBLIC_API_URL=http://<PC-LAN-IPv4>:5000/api`; use `http://10.0.2.2:5000/api` on an Android emulator. Run the existing backend against a development replica set. Restart Metro after env changes. A phone's localhost is the phone, and a Metro tunnel does not expose the local API. Public Expo variables must never contain credentials.
 
-## Checks
+Staging native account sign-in/register requires deployment of the Phase A backend `/auth/mobile/login` and `/auth/mobile/register` additions. Valid deployed native authentication was not verified, and no deployment or staging/live test customer/order writes occurred. Local owned integration tests exercise the real auth, proxy, addresses and ordering contract. Browser auth remains unchanged.
+
+Local `npm run android` / `npx expo run:android` requires Java/Android Studio SDK and a device/emulator. iOS native compilation requires macOS/Xcode; physical-device EAS preview additionally requires an existing Apple Developer membership, bundle-ID access, registered UDIDs and signing/provisioning. No iOS binary/device test is claimed.
+
+## Customer behavior
+
+- Live menu/combos, customization-aware cart, quantities up to 99, current catalog revalidation and delivery/pickup COD checkout with server fees/minimums/coupons.
+- Secure customer auth/session restoration, profile and owner-only addresses/default selection; history/private tracking and current-price reorder.
+- Immutable pending payload/key/actor/origin persisted before submission. Explicit original-request retry or safe check/cancel across restart; no automatic offline order/payment queue. Cart clears only on confirmed success; cancellation preserves it.
+- Expiry keeps the original account cart through restart; outages retain credentials. Account switching/logout clears account carts/tracking. Unresolved orders block switching; original-account reauthentication preserves recovery.
+- Checkout drafts survive ordinary navigation in memory and clear on confirmation/account switch/logout. Protected contact/credentials/tracking are never written into plain cart storage.
+- Branded image fallback, native virtualized menu, loading/error/retry/empty states, keyboard-aware forms, accessible controls, Android tab back to Menu, recoverable screen boundaries and foreground-only bounded polling.
+
+The web export is a diagnostic preview. Protected auth/checkout writes require native storage; there is no insecure web fallback. Keep app data intact while an order outcome is unresolved.
+
+## Verification
 
 ```powershell
 npm test
@@ -57,15 +82,8 @@ npx expo-doctor
 npx expo export --platform all
 ```
 
-Verified: 23 mobile logic/session/storage tests; TypeScript/lint; SDK dependency check; Expo Doctor 21/21; Android and iOS Hermes/web exports; 43 selected backend tests plus existing auth-security regression. Local browser fixture smoke passed at 390px and 768px without remote API writes. Run `node tests/browser-smoke.cjs` after export with `PLAYWRIGHT_MODULE` pointing to an installed Playwright package and Chrome installed. Screenshots are ignored under `artifacts/`.
+Verified: **37 mobile tests**, **49 selected isolated backend tests**, TypeScript/lint, compatible dependencies, Expo Doctor **21/21**, Android native generation/config inspection and Android/iOS Hermes/web exports. Fixture Chrome smoke passed at **320/390/768px**, including outage/retry, image failure, cart reload, checkout draft navigation, validation/coupons and the native-storage send gate. Run `node tests/browser-smoke.cjs` after export with `PLAYWRIGHT_MODULE` pointing to installed Playwright and Chrome available. The script starts/stops its own server/browser; screenshots/logs/config/audit artifacts are ignored.
 
-Backend tests own temporary loopback MongoDB replica sets and require `mongod`:
+**No physical Android/iOS or emulator runtime testing. No APK/IPA.** Export and browser checks cannot prove native secure storage, lifecycle, keyboard/back or installation. Dependency audit still reports **29 advisories (11 moderate, 18 high)**; incompatible forced fixes were not applied. Resolve compatible remediation before production release.
 
-```powershell
-Set-Location 'F:\My Projects\duneandgrills\backend'
-node --test tests/mobilePhaseAIntegration.js tests/orderEngine.test.js tests/orderEngineIntegration.js tests/stagingSecurity.test.js tests/stagingSecurityIntegration.js
-```
-
-**Not verified on a physical Android/iOS device or emulator.** Bundles and browser previews do not prove native keyboard/back/Keystore/Keychain behavior. Native staging login was not exercised; new backend auth must be deployed first. `npm audit` still reports 29 advisories (11 moderate, 18 high) in the dependency graph; forced SDK changes were not applied. Resolve compatible remediations before release.
-
-See [the full Phase A record](../docs/mobile-phase-a.md) for API contracts, protected request guarantees, proxy evidence, verification boundaries, deployment requirements, file map and Phase B follow-up. Push, loyalty UI, advanced offers, online payments, multilingual work, cross-device cart sync and store submission are outside this phase.
+See [Phase B record and build/install handoff](../docs/mobile-phase-b.md) and [Phase A API/recovery design](../docs/mobile-phase-a.md). Rewards, advanced offers, push, online payment, multilingual work and store publication remain outside this phase.
