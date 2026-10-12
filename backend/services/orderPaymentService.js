@@ -20,7 +20,7 @@ export const awardCompletedOrderPoints = async (order, session) => {
 };
 
 // Records money actually collected at handover; never simulates a gateway charge.
-export const recordOrderPayment = async ({ orderId, actor, payload, correlationId }) => {
+export const recordOrderPaymentInSession = async ({ orderId, actor, payload, correlationId, session }) => {
   if (!actor || !hasCapability(actor.role, CAPABILITIES.ORDERS_HANDOFF) || actor.role === "kitchen") throw new OrderEngineError("Not authorized to collect order payments", 403);
   if (!mongoose.isValidObjectId(orderId)) throw new OrderEngineError("Invalid order id");
   const key = orderText(payload.idempotencyKey, "Payment request identifier", 120);
@@ -29,7 +29,6 @@ export const recordOrderPayment = async ({ orderId, actor, payload, correlationI
   if (!/^[A-Za-z0-9._:-]{16,120}$/.test(key)) throw new OrderEngineError("A unique payment request identifier is required");
   if (!["cash", "card", "other"].includes(payload.method)) throw new OrderEngineError("Invalid collected payment method");
   if (payload.method !== "cash" && !reference) throw new OrderEngineError("A payment terminal or manual payment reference is required");
-  return runInventoryTransaction(async session => {
     if (!session) throw new OrderEngineError("Payment recording requires a replica set", 503);
     const order = await Order.findById(orderId).session(session);
     if (!order || order.manualEntry) throw new OrderEngineError("Live order not found", 404);
@@ -53,5 +52,6 @@ export const recordOrderPayment = async ({ orderId, actor, payload, correlationI
     await order.save({ session });
     await recordAuditLog({ actor, action: "ORDER_PAYMENT_COLLECTED", entityType: "Order", entityId: order._id, entityLabel: order.orderNumber, correlationId, after: { paymentStatus: "paid", amount, method: payload.method, reference } }, { session });
     return { order, duplicate: false };
-  });
 };
+
+export const recordOrderPayment = options => runInventoryTransaction(session => recordOrderPaymentInSession({ ...options, session }));

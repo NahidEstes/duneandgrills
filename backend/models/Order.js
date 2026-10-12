@@ -103,6 +103,7 @@ const orderSchema = new mongoose.Schema(
     creationRequestHash: { type: String, select: false, immutable: true },
     kitchenNotes: { type: String, trim: true, maxlength: 500, default: "" },
     orderOrigin: { type: String, enum: ["counter", "phone", "online"], default: undefined },
+    deliveryMode: { type: String, enum: ["none", "restaurant"], default: "none" },
     rewardAccrualPolicy: { type: String, enum: ["completion"], default: undefined, immutable: true },
     paymentRecords: { type: [{ key: String, method: String, amount: Number, reference: String, recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, recordedAt: Date }], default: [] },
     manualEntry: { type: Boolean, default: false, immutable: true, index: true },

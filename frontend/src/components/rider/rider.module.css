@@ -94,3 +94,38 @@
   .recipient .icon { width: 42px; height: 42px; }
 }
 @media (prefers-reduced-motion: reduce) { .toggle::after { transition: none; } }
+.detailMain { display: grid; gap: 16px; }
+.detailMain .card h2 { font-size: 20px; }
+.detailHeader { position: relative; text-align: center; margin-bottom: 10px; padding: 0 50px; }
+.detailHeader h1 { font-size: 28px; }
+.detailHeader p { letter-spacing: .18em; font-size: 12px; }
+.detailHeader > a { position: absolute; left: 0; top: 0; display: grid; place-items: center; min-height: 48px; min-width: 48px; }
+.progress { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 26px; text-align: center; gap: 10px; }
+.progress li { position: relative; display: grid; gap: 9px; justify-items: center; color: #a7b0bc; font-size: 14px; }
+.progress li:not(:first-child)::before { content: ''; position: absolute; left: calc(-50% + 12px); width: calc(100% - 24px); top: 11px; height: 1px; background: #697586; }
+.progress li > span { height: 22px; width: 22px; border: 2px solid #9ca3af; border-radius: 50%; }
+.progress li[aria-current] { color: #fbbf24; }
+.progress li[aria-current] > span { background: #f59e0b; border-color: #f59e0b; box-shadow: inset 0 0 0 3px #111b1e; }
+.progress li.completedStep { color: #fbbf24; }
+.progress li.completedStep > span { border-color: #f59e0b; background: #f59e0b; }
+.linkActions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.linkActions a, .linkActions button, .workflowActions > button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border: 1px solid #f59e0b99; border-radius: 12px; color: #fbbf24; min-height: 48px; }
+.workflowActions > .action { color: #151009; }
+.linkActions button:disabled, .workflowActions button:disabled { opacity: .5; cursor: not-allowed; }
+.detailTitle { display: flex; align-items: center; gap: 12px; }
+.orderItems { display: grid; gap: 16px; margin: 20px 0; }
+.orderItems > li, .orderTotal { display: flex; justify-content: space-between; gap: 16px; }
+.orderItems li p { font-size: 13px; }
+.orderItems li > span { white-space: nowrap; }
+.orderTotal { padding-top: 18px; border-top: 1px solid #ffffff20; }
+.balance { display: block; font-size: 32px; margin: 12px 0; }
+.privacy { text-align: center; font-size: 13px; padding: 12px; }
+.workflowActions { display: grid; gap: 14px; }
+.workflowActions label { display: grid; gap: 8px; color: #b8c2d0; font-size: 14px; }
+.workflowActions textarea, .workflowActions input { background: #101719; border: 1px solid #ffffff25; color: #fff; padding: 12px; border-radius: 12px; min-height: 48px; }
+.error { color: #fda4af !important; border: 1px solid #fb718555; background: #88133722; border-radius: 12px; padding: 12px; }
+.notice { color: #6ee7b7 !important; padding: 12px; }
+.pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin-top: 20px; color: #b8c2d0; font-size: 13px; }
+.pagination button { min-height: 48px; padding: 8px 16px; border: 1px solid #ffffff25; border-radius: 10px; }
+.pagination button:disabled { opacity: .4; cursor: not-allowed; }
+.detailMain .updated { flex-wrap: wrap; }

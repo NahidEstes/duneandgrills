@@ -1,0 +1,67 @@
+import mongoose from "mongoose";
+import Delivery from "../models/Delivery.js";
+import Order from "../models/Order.js";
+import User from "../models/User.js";
+import { CAPABILITIES, hasCapability } from "../config/permissions.js";
+import { startOfRiyadhDay, ADMIN_DAY_MS } from "../utils/adminDate.js";
+import { escapeRegex } from "../utils/inventoryValidation.js";
+import { assertDeliveryRehearsal } from "./deliveryWorkflowService.js";
+import { deliveryError, serializeDelivery } from "./deliveryContractService.js";
+
+export const DELIVERY_STATES = Object.freeze(["unassigned", "assigned", "picked_up", "delivered", "issue"]);
+export async function listWorkflowDeliveries(actor, query = {}) {
+  assertDeliveryRehearsal();
+  const rider = actor?.role === "rider";
+  if (!actor?._id || !hasCapability(actor.role, rider ? CAPABILITIES.RIDER_DELIVERY_OPERATE : CAPABILITIES.DELIVERY_CASH_CONFIRM)) throw deliveryError("Delivery access denied", 403);
+  if (Object.keys(query).some(key => !["status", "search", "page", "limit", "history"].includes(key))) throw deliveryError("Unsupported delivery filter");
+  const status = query.status || "all";
+  if (status !== "all" && !DELIVERY_STATES.includes(status)) throw deliveryError("Invalid delivery status");
+  const search = query.search || "";
+  if (typeof search !== "string" || search.length > 80) throw deliveryError("Search must be at most 80 characters");
+  const page = Number(query.page || 1), limit = Number(query.limit || 20);
+  if (!Number.isInteger(page) || page < 1 || page > 10000 || !Number.isInteger(limit) || limit < 1 || limit > 50) throw deliveryError("Invalid pagination");
+  const scope = rider ? { rider: new mongoose.Types.ObjectId(String(actor._id)) }
+    : actor.role === "cashier" ? { status: "delivered", "cashReport.status": { $in: ["unconfirmed", "discrepancy", "confirmed"] } } : {};
+  const rowMatch = { ...(rider ? { status: query.history === "true" ? "delivered" : { $ne: "delivered" } } : {}), ...(status === "all" ? {} : { status }),
+    ...(search.trim() ? { "orderRecord.orderNumber": { $regex: escapeRegex(search.trim()), $options: "i" } } : {}) };
+  const today = startOfRiyadhDay(), tomorrow = new Date(today.getTime() + ADMIN_DAY_MS);
+  const [facet] = await Delivery.aggregate([
+    { $match: scope },
+    { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderRecord", pipeline: [{ $project: { orderNumber: 1, customer: { name: 1 }, status: 1, totalAmount: 1, paymentStatus: 1, paymentRecords: 1, refundReservedHalala: 1, deliveryMode: 1, orderType: 1, source: 1, manualEntry: 1, deliveryProvider: 1, deliveryPaymentType: 1, inventoryStatus: 1, restoredItemQuantities: 1 } }] } },
+    { $unwind: "$orderRecord" },
+    { $facet: {
+      counts: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
+      deliveredToday: [{ $match: { status: "delivered", deliveredAt: { $gte: today, $lt: tomorrow } } }, { $count: "count" }],
+      rows: [{ $match: rowMatch }, { $sort: { updatedAt: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit },
+        { $lookup: { from: "users", localField: "rider", foreignField: "_id", as: "riderRecord", pipeline: [{ $project: { name: 1 } }] } }],
+      total: [{ $match: rowMatch }, { $count: "count" }],
+    } },
+  ]);
+  const counts = Object.fromEntries(DELIVERY_STATES.map(status => [status, facet.counts.find(row => row._id === status)?.count || 0]));
+  counts.active = counts.assigned + counts.picked_up + counts.issue;
+  counts.deliveredToday = facet.deliveredToday[0]?.count || 0;
+  const profile = rider ? await User.findById(actor._id).select("name email phone employeeId role riderAvailable riderAvailabilityRevision").lean() : null;
+  return { success: true, mode: "rehearsal", operationalEnabled: false, workflowEnabled: true,
+    counts, deliveries: facet.rows.map(row => serializeDelivery(row, row.orderRecord, row.riderRecord[0])),
+    pagination: { page, limit, total: facet.total[0]?.count || 0 },
+    ...(profile ? { profile: { id: String(profile._id), name: profile.name, role: profile.role, employeeId: profile.employeeId, email: profile.email, phone: profile.phone },
+      availability: profile.riderAvailable === true, availabilityRevision: profile.riderAvailabilityRevision || 0 } : {}), serverNow: new Date() };
+}
+
+export async function listAssignableRiders(actor) {
+  assertDeliveryRehearsal();
+  if (!hasCapability(actor?.role, CAPABILITIES.DELIVERY_MANAGE)) throw deliveryError("Assignment access denied", 403);
+  const users = await User.find({ role: "rider", isActive: { $ne: false } }).select("name employeeId riderAvailable riderAvailabilityRevision").sort({ name: 1, _id: 1 }).limit(100).lean();
+  const counts = await Delivery.aggregate([{ $match: { rider: { $in: users.map(user => user._id) }, status: { $in: ["assigned", "picked_up", "issue"] } } }, { $group: { _id: "$rider", count: { $sum: 1 } } }]);
+  return users.map(user => ({ id: String(user._id), name: user.name, employeeId: user.employeeId,
+    available: user.riderAvailable === true, activeCount: counts.find(row => String(row._id) === String(user._id))?.count || 0 }));
+}
+
+export async function findEnrollmentOrder(actor, number) {
+  assertDeliveryRehearsal();
+  if (!hasCapability(actor?.role, CAPABILITIES.DELIVERY_MANAGE)) throw deliveryError("Assignment access denied", 403);
+  if (typeof number !== "string" || !number.trim() || number.length > 80) throw deliveryError("Enter an exact existing order number");
+  const order = await Order.findOne({ orderNumber: number.trim().toUpperCase() }).select("orderNumber orderType source manualEntry deliveryProvider deliveryMode status paymentStatus __v").lean();
+  if (!order) throw deliveryError("Order unavailable", 404);
+  return { id: String(order._id), orderNumber: order.orderNumber, revision: order.__v || 0, status: order.status, orderType: order.orderType, source: order.source };
+}

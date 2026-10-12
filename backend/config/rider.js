@@ -1,5 +1,5 @@
 // Preview is only allowed on an explicitly named, loopback-only disposable database.
-// Phase 1 never activates dispatch, even if the future activation flag is set.
+// Production dispatch is never activated here. Phase 2 mutations require isolated rehearsal.
 export function riderConfiguration(env = process.env) {
   let isolated = false;
   try {
@@ -14,6 +14,8 @@ export function riderConfiguration(env = process.env) {
     operationalEnabled: false,
     activationRequested: env.RIDER_DELIVERY_ENABLED === "true",
     previewEnabled: env.RIDER_PREVIEW_ENABLED === "true"
+      && ["development", "test"].includes(env.NODE_ENV) && isolated,
+    workflowEnabled: env.RIDER_WORKFLOW_ENABLED === "true"
       && ["development", "test"].includes(env.NODE_ENV) && isolated,
   });
 }

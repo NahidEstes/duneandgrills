@@ -39,6 +39,7 @@ import { KNOWLEDGE_BASE_ROLES } from "../knowledge/knowledgePermissions.js";
 
 const NAV_ITEMS = [
   { id: "rider", label: "Rider Portal", icon: ShoppingBasket, href: "/rider", roles: ["admin"] },
+  { id: "deliveries", label: "Deliveries", icon: ShoppingBasket, href: "/admin/deliveries", roles: ["admin", "manager", "cashier"] },
   { id: "record-search", label: "Search by ID", icon: Search, href: "/admin/record-search", roles: ["admin", "manager", "cashier", "inventory", "storekeeper", "accountant"] },
   { id: "overview", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager"] },
   { id: "pos", label: "POS / New Sale", icon: ShoppingBasket, roles: ["admin", "manager", "cashier"] },

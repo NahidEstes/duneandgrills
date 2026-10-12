@@ -80,6 +80,8 @@ const userSchema = new mongoose.Schema(
       default: "customer",
     },
     isActive: { type: Boolean, default: true, index: true },
+      riderAvailable: { type: Boolean, default: false },
+      riderAvailabilityRevision: { type: Number, default: 0, min: 0 },
     sessionVersion: { type: Number, default: 0, min: 0, select: false },
     deactivatedAt: { type: Date, default: null },
     employeeId: { type: String, trim: true, uppercase: true, maxlength: 30 },

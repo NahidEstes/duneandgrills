@@ -8,6 +8,7 @@ export function contentSecurityPolicy(nonce, development = false) {
 }
 export function staffRoles(pathname) {
   if (pathname === "/rider" || pathname.startsWith("/rider/")) return ["admin", "rider"];
+  if (pathname === "/admin/deliveries" || pathname.startsWith("/admin/deliveries/")) return ["admin", "manager", "cashier"];
   if (["/pos/customer-display", "/pos/manifest.webmanifest", "/kitchen/manifest.webmanifest"].includes(pathname)) return null;
   if (pathname === "/pos" || pathname.startsWith("/pos/")) return ["admin", "manager", "cashier"];
   if (pathname === "/kitchen" || pathname.startsWith("/kitchen/")) return ["admin", "manager", "kitchen"];

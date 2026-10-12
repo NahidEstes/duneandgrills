@@ -24,7 +24,7 @@ test("preview requires explicit flag, non-production environment and isolated lo
 test("only rider capability is granted; admin retains private preview permission", () => {
   assert.ok(STAFF_ROLES.includes("rider"));
   assert.ok(hasCapability("admin", CAPABILITIES.RIDER_PORTAL_READ));
-  for (const capability of Object.values(CAPABILITIES)) assert.equal(hasCapability("rider", capability), capability === CAPABILITIES.RIDER_PORTAL_READ);
+  for (const capability of Object.values(CAPABILITIES)) assert.equal(hasCapability("rider", capability), [CAPABILITIES.RIDER_PORTAL_READ, CAPABILITIES.RIDER_DELIVERY_OPERATE].includes(capability));
   for (const role of ["customer", "manager", "cashier", "kitchen", "accountant", "inventory"])
     assert.equal(hasCapability(role, CAPABILITIES.RIDER_PORTAL_READ), false);
 });

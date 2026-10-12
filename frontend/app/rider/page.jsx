@@ -1,5 +1,6 @@
 import RiderPortal from "@/src/components/rider/RiderPortal.jsx";
 
 export default async function RiderPage({ searchParams }) {
-  return <RiderPortal section="deliveries" preview={(await searchParams)?.preview === "1"} />;
+  const query = await searchParams;
+  return <RiderPortal section="deliveries" preview={query.preview === "1"} rehearsal={query.rehearsal === "1"} />;
 }

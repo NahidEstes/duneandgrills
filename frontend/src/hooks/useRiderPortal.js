@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchRiderPortal } from "../api/riderApi.js";
 
-export default function useRiderPortal(user, preview) {
+export default function useRiderPortal(user, preview, rehearsal = false, status = "all", history = false, page = 1) {
   const [state, setState] = useState({ data: null, loading: true, error: "", updatedAt: null, denied: false });
   const [retry, setRetry] = useState(0);
   const pending = useRef(false);
@@ -14,7 +14,7 @@ export default function useRiderPortal(user, preview) {
     pending.current = true;
     // Clear the prior actor/mode's data rather than relabeling it during navigation.
     setState({ data: null, loading: true, error: "", updatedAt: null, denied: false });
-    fetchRiderPortal(preview, controller.signal).then(data => {
+    fetchRiderPortal(preview, controller.signal, { rehearsal, status, history, page }).then(data => {
       if (current) setState({ data, loading: false, error: "", updatedAt: new Date(), denied: false });
     }).catch(error => {
       if (!current) return;
@@ -23,6 +23,6 @@ export default function useRiderPortal(user, preview) {
         error: error.response?.data?.message || (navigator.onLine ? error.message || "Rider portal could not be loaded." : "You are offline. Reconnect and retry.") });
     }).finally(() => { if (current) pending.current = false; });
     return () => { current = false; controller.abort(); pending.current = false; };
-  }, [user, preview, retry]);
+  }, [user, preview, retry, rehearsal, status, history, page]);
   return { ...state, refresh };
 }

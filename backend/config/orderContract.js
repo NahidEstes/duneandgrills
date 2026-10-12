@@ -30,7 +30,7 @@ export const resolveOrderInput = (payload, channel) => {
   if (orderType && payload.fulfillmentType && types[orderType] !== payload.fulfillmentType) throw new OrderEngineError("Order type and fulfillment type disagree");
   orderType ||= { delivery: "delivery", pickup: channel === "pos" ? "takeaway" : "pickup", dine_in: "dine-in" }[payload.fulfillmentType] || (channel === "pos" ? "dine-in" : "delivery");
   if (channel === "pos" && orderType === "pickup") orderType = "takeaway";
-  for (const field of ["source", "createdBy", "user", "inventoryStatus", "orderNumber", "trackingTokenHash"]) {
+  for (const field of ["deliveryMode", "source", "createdBy", "user", "inventoryStatus", "orderNumber", "trackingTokenHash"]) {
     if (payload[field] !== undefined) throw new OrderEngineError(`${field} is controlled by the server`);
   }
   if (payload.status !== undefined || payload.fulfillmentStatus !== undefined || payload.paymentStatus !== undefined) throw new OrderEngineError("Initial payment and fulfillment statuses are controlled by the server");
@@ -51,7 +51,7 @@ export const resolveOrderTransition = (order, nextStatus, workflow = "admin") =>
   if (nextStatus === "refunded") throw new OrderEngineError("Use the refund workflow to refund a payment; order status and payment refund are separate");
   if (order.manualEntry) throw new OrderEngineError("Historical delivery entries cannot enter the live fulfillment workflow", 409);
   if (workflow === "kitchen" && !["confirmed", "preparing", "ready"].includes(nextStatus)) throw new OrderEngineError("Kitchen status must be confirmed, preparing or ready");
-  if (workflow === "handoff" && !["out-for-delivery", "delivered"].includes(nextStatus)) throw new OrderEngineError("Handover can only dispatch or complete an order");
+  if (["handoff", "rider"].includes(workflow) && !["out-for-delivery", "delivered"].includes(nextStatus)) throw new OrderEngineError("Handover can only dispatch or complete an order");
   if (order.paymentStatus === "voided") throw new OrderEngineError("Voided orders cannot change fulfillment status", 409);
   if (order.status === nextStatus) return { duplicate: true };
   if (!["cancelled", "failed"].includes(nextStatus) && (order.inventoryStatus === "restored" || Object.values(order.restoredItemQuantities || {}).some(quantity => Number(quantity) > 0))) throw new OrderEngineError("Returned inventory cannot be fulfilled; cancel this order and create a new order if needed", 409);

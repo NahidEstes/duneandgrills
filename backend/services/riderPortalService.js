@@ -22,5 +22,16 @@ export function buildRiderPortal(user, { preview = false, config = riderConfigur
   ] : [];
   return { mode: preview ? "preview" : "disabled", operationalEnabled: false,
     previewAvailable: config.previewEnabled, profile, availability: null, deliveries, history: [],
+    workflowAvailable: config.workflowEnabled === true,
     counts: { active: preview ? deliveries.length : null, deliveredToday: preview ? 0 : null } };
+}
+
+export function buildPreviewDelivery(user, id) {
+  const portal = buildRiderPortal(user, { preview: true });
+  const row = portal.deliveries.find(row => row.id === id);
+  if (!row) throw failure(404, "Preview delivery unavailable.");
+  return { ...row, revision: 0, pickupInstructions: "Sample restaurant pickup counter.",
+    customer: { name: row.customerName, address: row.address, phone: "" }, deliveryNote: "Sample delivery note — no real recipient.",
+    orderTotal: row.amountToCollect || 24, items: [{ name: "Sample menu item", quantity: 1, price: row.amountToCollect || 24, lineTotal: row.amountToCollect || 24, selectedAddOns: [] }],
+    cashReport: { status: "none", amount: null }, canConfirmCash: false, issue: null };
 }

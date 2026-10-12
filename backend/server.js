@@ -11,6 +11,7 @@ import menuRoutes from "./routes/menuRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import riderRoutes from "./routes/riderRoutes.js";
+import deliveryRoutes from "./routes/deliveryRoutes.js";
 import blogRoutes from "./routes/blogRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
@@ -96,6 +97,7 @@ app.use(csrfProtection);
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/rider", riderRoutes);
+app.use("/api/deliveries", deliveryRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/blog", blogRoutes);

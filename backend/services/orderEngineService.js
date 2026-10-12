@@ -1,6 +1,9 @@
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
+import Delivery from "../models/Delivery.js";
+import { riderConfiguration } from "../config/rider.js";
+import { eligibleDeliveryOrder } from "./deliveryContractService.js";
 import OrderRequestFence from "../models/OrderRequestFence.js";
 import { CAPABILITIES, hasCapability } from "../config/permissions.js";
 import { calculateOrderPoints } from "../config/rewards.js";
@@ -107,12 +110,17 @@ export const persistOrderWithInventory = async ({ fields, catalogLines, actor, s
 const auditFields = ["status", "paymentStatus", "inventoryStatus", "cancellationReason", "estimatedPreparationMinutes", "preparationDueAt", "acceptedAt", "preparationStartedAt", "readyAt"];
 
 export const transitionOrderInSession = async ({ orderId, nextStatus, actor, reason, estimatedPreparationMinutes, expectedStatus, workflow = "admin", defaultPreparationMinutes = 20, correlationId = "", session }) => {
-  const capability = workflow === "kitchen" ? CAPABILITIES.KITCHEN_OPERATE : workflow === "handoff" ? CAPABILITIES.ORDERS_HANDOFF : CAPABILITIES.ORDERS_MANAGE;
+  const capability = workflow === "rider" ? CAPABILITIES.RIDER_DELIVERY_OPERATE : workflow === "kitchen" ? CAPABILITIES.KITCHEN_OPERATE : workflow === "handoff" ? CAPABILITIES.ORDERS_HANDOFF : CAPABILITIES.ORDERS_MANAGE;
   if (!actor || !hasCapability(actor.role, capability)) throw new OrderEngineError("Not authorized to change order fulfillment", 403);
   if (!mongoose.isValidObjectId(orderId)) throw new OrderEngineError("Invalid order id");
   if (!session) throw new OrderEngineError("Order transitions require a MongoDB replica set", 503);
   const order = await Order.findById(orderId).session(session);
   if (!order) throw new OrderEngineError("Order not found", 404);
+  if (workflow === "rider" && (!riderConfiguration().workflowEnabled || actor.role !== "rider"
+    || !eligibleDeliveryOrder(order)
+    || !await Delivery.exists({ order: order._id, rider: actor._id, status: nextStatus === "out-for-delivery" ? "assigned" : "picked_up" }).session(session))) {
+    throw new OrderEngineError("Assigned restaurant delivery not found", 404);
+  }
   if (expectedStatus !== undefined && !ORDER_STATUSES.includes(expectedStatus)) throw new OrderEngineError("Invalid expected status");
   if (expectedStatus !== undefined && order.status !== expectedStatus) throw new OrderEngineError(`Order status already changed to ${order.status}`, 409);
   const result = resolveOrderTransition(order, nextStatus, workflow);
