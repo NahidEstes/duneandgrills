@@ -44,6 +44,12 @@ const restaurantSettingsSchema = new mongoose.Schema(
   {
     key: { type: String, default: "default", unique: true, immutable: true },
     timezone: { type: String, enum: ["Asia/Riyadh"], default: "Asia/Riyadh", immutable: true },
+    riderDelivery: {
+      enabled: { type: Boolean, default: false },
+      revision: { type: Number, default: 0, min: 0 },
+    },
+    // Shared write fence serializes delivery actions with enable/disable changes.
+    riderOperationRevision: { type: Number, default: 0, min: 0 },
     openingHours: {
       type: [openingDaySchema],
       default: () => RESTAURANT_DAYS.map((day) => ({

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Delivery from "../models/Delivery.js";
-import { riderConfiguration } from "../config/rider.js";
+import { assertDeliveryEnabled } from "./riderAccessService.js";
 import { eligibleDeliveryOrder } from "./deliveryContractService.js";
 import OrderRequestFence from "../models/OrderRequestFence.js";
 import { CAPABILITIES, hasCapability } from "../config/permissions.js";
@@ -116,7 +116,8 @@ export const transitionOrderInSession = async ({ orderId, nextStatus, actor, rea
   if (!session) throw new OrderEngineError("Order transitions require a MongoDB replica set", 503);
   const order = await Order.findById(orderId).session(session);
   if (!order) throw new OrderEngineError("Order not found", 404);
-  if (workflow === "rider" && (!riderConfiguration().workflowEnabled || actor.role !== "rider"
+  if (workflow === "rider") await assertDeliveryEnabled(session, { lock: true });
+  if (workflow === "rider" && (actor.role !== "rider"
     || !eligibleDeliveryOrder(order)
     || !await Delivery.exists({ order: order._id, rider: actor._id, status: nextStatus === "out-for-delivery" ? "assigned" : "picked_up" }).session(session))) {
     throw new OrderEngineError("Assigned restaurant delivery not found", 404);

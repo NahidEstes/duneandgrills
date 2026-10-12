@@ -1,5 +1,6 @@
 // Preview is only allowed on an explicitly named, loopback-only disposable database.
-// Production dispatch is never activated here. Phase 2 mutations require isolated rehearsal.
+// This environment-only helper grants synthetic preview/rehearsal access, never
+// operational activation. Saved Admin enablement is resolved in riderAccessService.
 export function riderConfiguration(env = process.env) {
   let isolated = false;
   try {

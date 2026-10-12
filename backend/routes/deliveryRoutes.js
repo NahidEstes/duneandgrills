@@ -1,7 +1,7 @@
 import express from "express";
 import { protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
-import { riderConfiguration } from "../config/rider.js";
+import { getRiderAccess } from "../services/riderAccessService.js";
 import { actOnDelivery, enrollDelivery, getWorkflowDelivery } from "../services/deliveryWorkflowService.js";
 import { listAssignableRiders, listWorkflowDeliveries, findEnrollmentOrder } from "../services/deliveryReadService.js";
 import { adminDeliveryPreview } from "../services/deliveryPreviewService.js";
@@ -20,7 +20,7 @@ export function validateDeliveryPayload(action, body) {
 const router = express.Router();
 router.use((req, res, next) => { res.set("Cache-Control", "private, no-store"); res.set("Vary", "Cookie, Authorization"); next(); });
 router.use(protect, requireCapability(CAPABILITIES.DELIVERY_CASH_CONFIRM));
-router.get("/config", (req, res) => res.json({ success: true, operationalEnabled: false, workflowEnabled: riderConfiguration().workflowEnabled, previewAvailable: riderConfiguration().previewEnabled }));
+router.get("/config", deliveryHandler(async () => ({ success: true, ...await getRiderAccess() })));
 router.get("/preview", requireCapability(CAPABILITIES.DELIVERY_MANAGE), deliveryHandler(req => adminDeliveryPreview(req.user)));
 router.get("/preview/:id", requireCapability(CAPABILITIES.DELIVERY_MANAGE), deliveryHandler(req => ({ success: true, mode: "preview", operationalEnabled: false, data: adminDeliveryPreview(req.user, req.params.id) })));
 router.get("/", deliveryHandler(req => listWorkflowDeliveries(req.user, req.query)));
@@ -28,7 +28,7 @@ router.get("/riders", requireCapability(CAPABILITIES.DELIVERY_MANAGE), deliveryH
 router.get("/enrollment-order", requireCapability(CAPABILITIES.DELIVERY_MANAGE), deliveryHandler(async req => ({ success: true, data: await findEnrollmentOrder(req.user, req.query.orderNumber) })));
 router.post("/orders/:orderId/enroll", requireCapability(CAPABILITIES.DELIVERY_MANAGE), deliveryHandler(async req => ({ success: true,
   ...await enrollDelivery({ actor: req.user, orderId: req.params.orderId, payload: validateDeliveryPayload("enroll", req.body), correlationId: req.correlationId }) })));
-router.get("/:id", deliveryHandler(async req => ({ success: true, mode: "rehearsal", operationalEnabled: false, data: await getWorkflowDelivery(req.user, req.params.id) })));
+router.get("/:id", deliveryHandler(async req => ({ success: true, ...await getRiderAccess(), data: await getWorkflowDelivery(req.user, req.params.id) })));
 router.post("/:id/:action", deliveryHandler(async req => ({ success: true,
   ...await actOnDelivery({ actor: req.user, id: req.params.id, action: req.params.action, payload: validateDeliveryPayload(req.params.action, req.body), correlationId: req.correlationId }) })));
 export default router;

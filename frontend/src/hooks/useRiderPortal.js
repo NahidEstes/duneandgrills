@@ -24,5 +24,12 @@ export default function useRiderPortal(user, preview, rehearsal = false, status 
     }).finally(() => { if (current) pending.current = false; });
     return () => { current = false; controller.abort(); pending.current = false; };
   }, [user, preview, retry, rehearsal, status, history, page]);
+  useEffect(() => {
+    if (!state.data?.operationalEnabled) return;
+    const update = () => { if (document.visibilityState === "visible") refresh(); };
+    const timer = setInterval(update, 30_000);
+    window.addEventListener("focus", update);
+    return () => { clearInterval(timer); window.removeEventListener("focus", update); };
+  }, [state.data?.operationalEnabled, refresh]);
   return { ...state, refresh };
 }

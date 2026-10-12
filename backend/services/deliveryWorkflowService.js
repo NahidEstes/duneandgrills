@@ -4,7 +4,7 @@ import Delivery from "../models/Delivery.js";
 import DeliveryRequest from "../models/DeliveryRequest.js";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
-import { riderConfiguration } from "../config/rider.js";
+import { assertDeliveryEnabled } from "./riderAccessService.js";
 import { CAPABILITIES, hasCapability } from "../config/permissions.js";
 import { orderText } from "../config/orderContract.js";
 import { runInventoryTransaction } from "./inventoryStockService.js";
@@ -15,9 +15,6 @@ import { findOpenShift } from "./posShiftService.js";
 import { toHalala, fromHalala } from "../utils/money.js";
 import { eligibleDeliveryOrder, outstandingDeliveryHalala, deliveryError, serializeDelivery } from "./deliveryContractService.js";
 
-export function assertDeliveryRehearsal() {
-  if (!riderConfiguration().workflowEnabled) throw Object.assign(deliveryError("Live delivery disabled. Isolated workflow rehearsal is not enabled.", 503), { code: "LIVE_DELIVERY_DISABLED" });
-}
 const capability = (actor, cap) => {
   if (!actor?._id) throw deliveryError("Staff sign-in required", 401);
   if (!hasCapability(actor.role, cap)) throw deliveryError("Not authorized for this delivery action", 403);
@@ -29,7 +26,7 @@ const digest = value => crypto.createHash("sha256").update(value).digest("hex");
 
 // Serialize the complete action with both order and delivery revisions. No offline queue.
 async function requestOnce({ scope, action, actor, payload }, work) {
-  assertDeliveryRehearsal();
+  await assertDeliveryEnabled();
   const key = orderText(payload.idempotencyKey, "Request identifier", 120);
   if (!/^[A-Za-z0-9._:-]{16,120}$/.test(key)) throw deliveryError("A unique request identifier is required");
   const id = digest(`${scope}:${key}`);
@@ -42,7 +39,8 @@ async function requestOnce({ scope, action, actor, payload }, work) {
   };
   try {
     return await runInventoryTransaction(async session => {
-      if (!session) throw deliveryError("Delivery rehearsal requires a MongoDB replica set", 503);
+      if (!session) throw deliveryError("Delivery workflow requires a MongoDB replica set", 503);
+      await assertDeliveryEnabled(session, { lock: true });
       const prior = await replay(session); if (prior) return prior;
       await DeliveryRequest.create([{ _id: id, actor: actor._id, fingerprint }], { session });
       const result = await work(session, id);
@@ -56,7 +54,7 @@ async function requestOnce({ scope, action, actor, payload }, work) {
 }
 
 export async function enrollDelivery({ actor, orderId, payload, correlationId }) {
-  capability(actor, CAPABILITIES.DELIVERY_MANAGE); assertDeliveryRehearsal(); objectId(orderId);
+  capability(actor, CAPABILITIES.DELIVERY_MANAGE); await assertDeliveryEnabled(); objectId(orderId);
   revisionOf(payload); const reason = reasonText(payload.reason);
   return requestOnce({ scope: `enroll:${orderId}`, action: "enroll", actor, payload }, async session => {
     const order = await Order.findById(orderId).session(session);
@@ -75,7 +73,7 @@ export async function enrollDelivery({ actor, orderId, payload, correlationId })
 
 const ownScope = (actor, id) => ({ _id: objectId(id), ...(actor.role === "rider" ? { rider: actor._id } : actor.role === "cashier" ? { status: "delivered" } : {}) });
 export async function getWorkflowDelivery(actor, id) {
-  assertDeliveryRehearsal();
+  await assertDeliveryEnabled();
   capability(actor, actor.role === "rider" ? CAPABILITIES.RIDER_DELIVERY_OPERATE : CAPABILITIES.DELIVERY_CASH_CONFIRM);
   const delivery = await Delivery.findOne(ownScope(actor, id)).lean();
   if (!delivery) throw deliveryError("Delivery unavailable", 404);
@@ -107,7 +105,7 @@ const actions = {
 };
 export async function actOnDelivery({ actor, id, action, payload, correlationId }) {
   if (!actions[action]) throw deliveryError("Unknown delivery action");
-  capability(actor, actions[action]); assertDeliveryRehearsal(); objectId(id); revisionOf(payload);
+  capability(actor, actions[action]); await assertDeliveryEnabled(); objectId(id); revisionOf(payload);
   if (["pickup", "deliver", "issue", "report_cash"].includes(action) && actor.role !== "rider") throw deliveryError("Rider action requires the assigned rider", 403);
   // Scope checked before replay: a former rider cannot retrieve another rider's action result.
   if (!await Delivery.exists(ownScope(actor, id))) throw deliveryError("Delivery unavailable", 404);

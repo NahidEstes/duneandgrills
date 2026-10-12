@@ -20,23 +20,29 @@ import riderRoutes from "../routes/riderRoutes.js";
 import authRoutes from "../routes/authRoutes.js";
 import { csrfProtection, requestCorrelation, validateRequestStructure } from "../middleware/security.js";
 import { enrollDelivery } from "../services/deliveryWorkflowService.js";
+import settingsRoutes from "../routes/restaurantSettingsRoutes.js";
+import { setRiderDeliverySetting } from "../services/riderAccessService.js";
 
 // No dotenv, real server.js, supplied database URI or external API. --manual holds
 // this disposable replica set/API/UI open for a human rehearsal, until Ctrl+C.
 const frontend = path.resolve(import.meta.dirname, "../../frontend");
 const manual = process.argv.includes("--manual");
+const operational = process.argv.includes("--operational");
+const modeQuery = operational ? "" : "?rehearsal=1";
 const keys = ["NODE_ENV", "MONGO_URI", "JWT_SECRET", "RIDER_WORKFLOW_ENABLED", "RIDER_PREVIEW_ENABLED"];
 const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
 try {
   await withIsolatedMongo(async ({ uri }) => {
-    Object.assign(process.env, { NODE_ENV: "test", MONGO_URI: uri, JWT_SECRET: "local-disposable-browser-rehearsal-only", RIDER_WORKFLOW_ENABLED: "true", RIDER_PREVIEW_ENABLED: "true" });
+    Object.assign(process.env, { NODE_ENV: "test", MONGO_URI: uri, JWT_SECRET: "local-disposable-browser-rehearsal-only", RIDER_WORKFLOW_ENABLED: operational ? "false" : "true", RIDER_PREVIEW_ENABLED: "true" });
     const actors = {};
-    for (const role of ["manager", "cashier", "rider"]) actors[role] = await User.create({ role, name: `Local ${role}`, email: `${role}@rehearsal.invalid`, password: "LocalDummy123!", riderAvailable: role === "rider" });
+    for (const role of ["admin", "manager", "cashier", "rider"]) actors[role] = await User.create({ role, name: `Local ${role}`, email: `${role}@rehearsal.invalid`, password: "LocalDummy123!", riderAvailable: role === "rider" });
     actors.other = await User.create({ role: "rider", name: "Other local rider", email: "other@rehearsal.invalid", password: "LocalDummy123!", riderAvailable: false });
     const order = await Order.create({ orderNumber: "TEST-REHEARSAL-CASH", source: "website", orderType: "delivery", status: "ready", paymentStatus: "pending", totalAmount: 40, subtotal: 40,
       customer: { name: "Synthetic recipient", phone: "+0000000000", address: "Synthetic test address, not a real destination" },
       items: [{ menuItem: new mongoose.Types.ObjectId(), name: "Dummy dish", quantity: 2, price: 20 }], inventoryStatus: "not_required" });
+    if (operational) await setRiderDeliverySetting(actors.admin, { enabled: true, expectedRevision: 0 });
     const enrolled = await enrollDelivery({ actor: actors.manager, orderId: order._id, payload: { reason: "Isolated browser rehearsal", expectedRevision: 0, idempotencyKey: "isolated-browser-enrollment" } });
+    if (operational && !manual) await setRiderDeliverySetting(actors.admin, { enabled: false, expectedRevision: 1 });
     await PosShift.create({ cashier: actors.cashier._id, terminal: "LOCAL", openingCashHalala: 0, openedBy: actors.cashier._id, isOpen: true, status: "open" });
     const requests = [];
     let failReads = false;
@@ -47,7 +53,8 @@ try {
       if (failReads && req.method === "GET" && req.path.startsWith("/api/deliveries") && !req.path.endsWith("/config")) return res.status(503).json({ success: false, message: "Isolated injected API failure" });
       next();
     });
-    app.use("/api/auth", authRoutes); app.use("/api/deliveries", deliveryRoutes); app.use("/api/rider", riderRoutes);
+    app.use("/api/auth", authRoutes); app.use("/api/deliveries", deliveryRoutes); app.use("/api/rider", riderRoutes); app.use("/api/settings", settingsRoutes);
+    app.use((error, _req, res, _next) => res.status(error.status || 500).json({ success: false, message: error.message }));
     app.use((_req, res) => res.status(404).json({ success: false, message: "No unrelated API is available in this isolated rehearsal" }));
     const server = app.listen(0, "127.0.0.1"); await new Promise(resolve => server.once("listening", resolve));
     const probe = createServer(); await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve));
@@ -64,7 +71,7 @@ try {
         catch { if (next.exitCode != null || i === 119) throw new Error(`Local Next failed: ${serverOutput.slice(-1500)}`); await new Promise(resolve => setTimeout(resolve, 250)); }
       }
       if (manual) {
-        console.log(`Disposable rehearsal: ${origin}/admin/deliveries?rehearsal=1 and ${origin}/rider?rehearsal=1`);
+        console.log(`Disposable rehearsal: ${origin}/admin/deliveries${modeQuery} and ${origin}/rider${modeQuery}`);
         console.log("Log in on separate browser profiles as manager@rehearsal.invalid / rider@rehearsal.invalid / cashier@rehearsal.invalid; dummy password LocalDummy123!; cashier terminal LOCAL.");
         console.log("Only one synthetic TEST-REHEARSAL-CASH order. Ctrl+C stops this owned sandbox and removes its temporary database; no persistent/production records.");
         await new Promise(resolve => { process.once("SIGINT", resolve); process.once("SIGTERM", resolve); });
@@ -88,14 +95,30 @@ try {
         const violations = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })).violations.map(row => ({ id: row.id, nodes: row.nodes.map(node => node.target) })));
         assert.deepEqual(violations, []);
       };
+      let admin;
+      if (operational) {
+        admin = await session(actors.admin, { width: 1536, height: 1024 });
+        await admin.page.goto(`${origin}/admin?tab=settings`);
+        const toggle = admin.page.getByRole("checkbox", { name: /^Enable delivery rider/ });
+        await toggle.waitFor(); assert.equal(await toggle.isChecked(), false);
+        // Shared switch uses a visually hidden native checkbox. Test its real
+        // keyboard interaction, not a pointer click on the hidden input box.
+        await toggle.focus(); await admin.page.keyboard.press("Space"); assert.equal(await toggle.isChecked(), true);
+        await admin.page.getByRole("button", { name: "Save Rider Setting", exact: true }).click();
+        await admin.page.getByRole("status").filter({ hasText: "Delivery riders enabled." }).waitFor();
+        await admin.page.screenshot({ path: path.join(screenshots, "admin-rider-setting.png"), fullPage: true });
+        // No unrelated dashboard endpoints are mounted in this sandbox. Their
+        // expected errors are honest, not synthesized report data.
+        await admin.page.goto(`${origin}/admin/deliveries`);
+      }
       const manager = await session(actors.manager, { width: 1536, height: 1024 });
-      await manager.page.goto(`${origin}/admin/deliveries?rehearsal=1`);
+      await manager.page.goto(`${origin}/admin/deliveries${modeQuery}`);
       const row = manager.page.getByRole("row").filter({ hasText: order.orderNumber }); await row.waitFor();
       await row.getByRole("button", { name: "Assign", exact: true }).focus(); await manager.page.keyboard.press("Enter");
       await manager.page.getByRole("radio").first().check();
       await manager.page.screenshot({ path: path.join(screenshots, "admin-assignment-desktop.png"), fullPage: true });
       await assertLayout(manager.page);
-      await manager.page.getByRole("button", { name: "Assign · Isolated Test", exact: true }).click();
+      await manager.page.getByRole("button", { name: operational ? "Assign Rider" : "Assign · Isolated Test", exact: true }).click();
       await manager.page.getByRole("status").filter({ hasText: "Confirmed by the server" }).waitFor();
       assert.equal(String((await Delivery.findById(enrolled.id)).rider), String(actors.rider._id));
       // Wait for the post-mutation reload before injecting the next failure. Otherwise
@@ -107,7 +130,7 @@ try {
       assert.equal(await manager.page.locator("time").count(), 0);
       failReads = false; await manager.page.getByRole("button", { name: "Retry deliveries" }).click(); await row.waitFor();
       const rider = await session(actors.rider, { width: 390, height: 844 });
-      await rider.page.goto(`${origin}/rider?rehearsal=1`);
+      await rider.page.goto(`${origin}/rider${modeQuery}`);
       await rider.page.getByRole("link", { name: "View Delivery" }).click();
       await rider.page.getByRole("button", { name: "Confirm Pickup", exact: true }).waitFor();
       assert.equal(await rider.page.getByRole("link", { name: "Call Customer" }).getAttribute("href"), "tel:+0000000000");
@@ -132,10 +155,10 @@ try {
       await rider.page.getByText("Payment: pending · Cash report: unconfirmed", { exact: true }).waitFor();
       assert.equal(await CashMovement.countDocuments(), 0);
       const cashier = await session(actors.cashier, { width: 1536, height: 1024 });
-      await cashier.page.goto(`${origin}/admin/deliveries?rehearsal=1`);
+      await cashier.page.goto(`${origin}/admin/deliveries${modeQuery}`);
       await cashier.page.getByRole("row").filter({ hasText: order.orderNumber }).getByRole("button", { name: "Details", exact: true }).click();
       await cashier.page.getByLabel("Your open cashier terminal").fill("LOCAL");
-      await cashier.page.getByRole("button", { name: "Confirm Cashier Receipt · Isolated Test" }).click();
+      await cashier.page.getByRole("button", { name: operational ? "Confirm Cashier Receipt" : "Confirm Cashier Receipt · Isolated Test", exact: true }).click();
       await cashier.page.getByRole("status").filter({ hasText: "Confirmed by the server" }).waitFor();
       assert.equal((await Order.findById(order._id)).paymentStatus, "paid");
       assert.equal(await CashMovement.countDocuments({ order: order._id }), 1);
@@ -161,6 +184,19 @@ try {
       await rider.page.getByRole("heading", { name: "PREVIEW-A", exact: true }).waitFor();
       await rider.page.getByRole("switch").click();
       assert.equal(requests.filter(req => req.method !== "GET").length, writesBeforePreview, "Preview wins over conflicting rehearsal parameter; no availability mutation");
+      if (operational) {
+        await admin.page.goto(`${origin}/admin?tab=settings`);
+        const toggle = admin.page.getByRole("checkbox", { name: /^Enable delivery rider/ });
+        await toggle.waitFor(); assert.equal(await toggle.isChecked(), true);
+        await toggle.focus(); await admin.page.keyboard.press("Space"); assert.equal(await toggle.isChecked(), false);
+        await admin.page.getByRole("button", { name: "Save Rider Setting", exact: true }).click();
+        await admin.page.getByRole("status").filter({ hasText: "Delivery riders disabled." }).waitFor();
+        await rider.page.goto(`${origin}/rider`);
+        await rider.page.getByRole("switch", { name: /Availability disabled/ }).waitFor();
+        assert.equal(await rider.page.getByRole("switch").isDisabled(), true);
+        assert.equal((await Order.findById(order._id)).paymentStatus, "paid"); assert.equal(await Delivery.countDocuments(), 1);
+        console.log("PASS normal site mode: actual Admin Settings enable/disable persists; no rehearsal URL/flag, no record/payment loss");
+      }
       assert.deepEqual(errors, []);
       console.log("PASS real isolated UI rehearsal: manager assignment → rider pickup → delivery (unpaid) → cash report (unconfirmed) → cashier receipt (paid, one shift movement)");
       console.log("PASS 390/820px rider and 1536px admin: keyboard, axe, no overflow, offline/no queue, error/retry, history privacy, read-only preview/no writes");

@@ -16,7 +16,7 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
   useEffect(() => {
     const controller = new AbortController(); let current = true;
     setLoading(true); setError(""); setData(null); setUpdatedAt(null);
-    fetchDeliveryDetails(id, { preview, rehearsal, admin }, controller.signal).then(result => { if (current) { setData(result.data); setUpdatedAt(new Date()); } })
+    fetchDeliveryDetails(id, { preview, rehearsal, admin }, controller.signal).then(result => { if (current) { setData({ ...result.data, mode: result.mode }); setUpdatedAt(new Date()); } })
       .catch(error => { if (current) setError(navigator.onLine ? error.response?.data?.message || error.message || "Delivery unavailable." : "You are offline. Reconnect and retry."); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; controller.abort(); };
@@ -31,7 +31,7 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
   const stage = data.deliveryStatus === "issue" ? data.issue?.previousStatus : data.deliveryStatus;
   const phone = !preview && customerPhoneHref(data.customer?.phone), map = !preview && customerMapHref(data.customer?.address);
   return <>
-    <div className={styles.banner}><Info aria-hidden="true" /><div><strong>{preview ? "DESIGN PREVIEW • SYNTHETIC DATA" : "ISOLATED LOCAL REHEARSAL"}</strong><p>Live delivery disabled. Delivery status does not confirm payment.</p></div></div>
+    <div className={styles.banner}><Info aria-hidden="true" /><div><strong>{preview ? "DESIGN PREVIEW • SYNTHETIC DATA" : data.mode === "operational" ? "RESTAURANT DELIVERY" : "ISOLATED LOCAL REHEARSAL"}</strong><p>{data.mode !== "operational" && "Live delivery disabled. "}Delivery status does not confirm payment.</p></div></div>
     {data.eligibilityWarning && <p className={styles.error} role="alert">{data.eligibilityWarning}</p>}
     <section className={styles.card}><div className={styles.cardHeading}><h2>{data.orderNumber}</h2><span className={styles.badge}>{deliveryStatusLabel(data.deliveryStatus)}</span></div><p>{data.restaurantStatus === "ready" ? "Food ready for pickup." : `Restaurant status: ${data.restaurantStatus}`}</p>
       <ol className={styles.progress} aria-label="Delivery progress">{["assigned", "picked_up", "delivered"].map((status, index, steps) => <li key={status} className={index < steps.indexOf(stage) ? styles.completedStep : undefined} aria-current={stage === status ? "step" : undefined}><span />{deliveryStatusLabel(status)}</li>)}</ol></section>
@@ -45,7 +45,7 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
     {mutation.error && <p role="alert" className={styles.error}>{mutation.error}</p>}{mutation.message && <p role="status" className={styles.notice}>{mutation.message}</p>}
     {preview && <p className={styles.privacy}>Read-only preview. All pickup, delivery and payment controls are disabled.</p>}
     {preview && !admin && <div className={styles.workflowActions}><button type="button" className={styles.action} disabled>Confirm Pickup · Preview Only</button><button type="button" disabled>Report Delivery Issue · Preview Only</button></div>}
-    {rehearsal && !admin && data.canOperate && <div className={styles.workflowActions}>
+    {!preview && (data.mode === "operational" || rehearsal) && !admin && data.canOperate && <div className={styles.workflowActions}>
       {data.deliveryStatus === "assigned" && <button type="button" className={styles.action} disabled={mutation.pending || data.restaurantStatus !== "ready"} onClick={() => act("pickup")}>Confirm Pickup</button>}
       {data.deliveryStatus === "picked_up" && <button type="button" className={styles.action} disabled={mutation.pending} onClick={() => act("deliver")}>Confirm Delivery</button>}
       {["assigned", "picked_up", "delivered"].includes(data.deliveryStatus) && <label>Reason / discrepancy explanation (no customer contact details)<textarea maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></label>}

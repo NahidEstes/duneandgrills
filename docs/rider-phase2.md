@@ -1,5 +1,9 @@
 # Rider Module — Phase 2
 
+**Activation update:** the rehearsal-only boundary below describes the original
+Phase 2. The owner-authorized saved Admin toggle now supersedes it; see
+[Rider activation](rider-activation.md). Preview/rehearsal isolation still applies.
+
 This supersedes the Phase 2 foundation described in `rider-phase1.md`. Software is
 implemented for a **disposable local rehearsal**, not activated for production.
 No website checkout option, notification, dispatch scheduler, sale creation,

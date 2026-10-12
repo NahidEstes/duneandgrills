@@ -105,7 +105,10 @@ test("Phase 1 stock and recipe accuracy (isolated replica set)", { timeout: 1800
         assert.deepEqual(await counts(), before);
         assert.equal((await InventoryItem.findById(ingredient._id)).currentStock, 12);
         if (channel === "pos") {
-          const repeat = await sale(channel, [line(dish, { quantity: 2 })], { idempotencyKey: order.idempotencyKey });
+          // A retry must repeat the exact request, including the ignored client
+          // price. Changed contents correctly fail the shared fingerprint guard.
+          await assert.rejects(sale(channel, [line(dish, { quantity: 2 })], { idempotencyKey: order.idempotencyKey }), /different contents/);
+          const repeat = await sale(channel, [line(dish, { quantity: 2, price: 0.01 })], { idempotencyKey: order.idempotencyKey });
           assert.equal(String(repeat._id), String(order._id));
           assert.equal(await StockTransaction.countDocuments({ order: order._id }), 1);
         }

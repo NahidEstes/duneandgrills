@@ -306,6 +306,7 @@ export const getRestaurantSettingsDiff = (before, after) => {
 
 export const toAdminRestaurantSettings = (settings, configured = true) => ({
   configured,
+  riderDelivery: { enabled: settings.riderDelivery?.enabled === true, revision: settings.riderDelivery?.revision || 0 },
   timezone: settings.timezone,
   openingHours: settings.openingHours,
   orders: settings.orders,
@@ -347,6 +348,9 @@ export const loadAdminRestaurantSettings = async () => {
 };
 
 export const updateRestaurantSettings = async (payload, actor) => {
+  if (Object.hasOwn(payload, "riderDelivery") || Object.hasOwn(payload, "riderOperationRevision")) {
+    throw new ValidationError("Use the administrator delivery rider control to change rider enablement.");
+  }
   const existing = await RestaurantSettings.findOne({ key: "default" }).lean();
   const before = mergeSettings(getRestaurantSettingsDefaults(), existing || {});
   const normalized = normalizeRestaurantSettings(payload, before);

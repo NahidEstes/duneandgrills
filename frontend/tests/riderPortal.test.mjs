@@ -16,10 +16,11 @@ test("preview filters and honest payment labels", () => {
   assert.equal(paymentLabel("pending"), "Payment not confirmed");
   assert.equal(paymentLabel(undefined), "Payment unavailable");
 });
-test("rider API is read-only and rejects unexpected operational/other-rider data", async () => {
+test("rider reads separate operational and synthetic data and reject other-rider data", async () => {
   const source = await readFile(new URL("../src/api/riderApi.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /api\.(post|put|patch|delete)\(/);
-  assert.match(source, /data\.operationalEnabled !== false/);
+  assert.match(source, /data\.operationalEnabled !== \(data\.mode === "operational"\)/);
+  assert.match(source, /preview \? \["preview"\]/);
   assert.match(source, /row\.riderId !== data\.profile\.id/);
 });
 test("rider provider avoids favorites, customer cart hydration and reward-writing me endpoint", async () => {

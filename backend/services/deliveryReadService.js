@@ -5,12 +5,12 @@ import User from "../models/User.js";
 import { CAPABILITIES, hasCapability } from "../config/permissions.js";
 import { startOfRiyadhDay, ADMIN_DAY_MS } from "../utils/adminDate.js";
 import { escapeRegex } from "../utils/inventoryValidation.js";
-import { assertDeliveryRehearsal } from "./deliveryWorkflowService.js";
+import { assertDeliveryEnabled } from "./riderAccessService.js";
 import { deliveryError, serializeDelivery } from "./deliveryContractService.js";
 
 export const DELIVERY_STATES = Object.freeze(["unassigned", "assigned", "picked_up", "delivered", "issue"]);
 export async function listWorkflowDeliveries(actor, query = {}) {
-  assertDeliveryRehearsal();
+  const config = await assertDeliveryEnabled();
   const rider = actor?.role === "rider";
   if (!actor?._id || !hasCapability(actor.role, rider ? CAPABILITIES.RIDER_DELIVERY_OPERATE : CAPABILITIES.DELIVERY_CASH_CONFIRM)) throw deliveryError("Delivery access denied", 403);
   if (Object.keys(query).some(key => !["status", "search", "page", "limit", "history"].includes(key))) throw deliveryError("Unsupported delivery filter");
@@ -41,7 +41,7 @@ export async function listWorkflowDeliveries(actor, query = {}) {
   counts.active = counts.assigned + counts.picked_up + counts.issue;
   counts.deliveredToday = facet.deliveredToday[0]?.count || 0;
   const profile = rider ? await User.findById(actor._id).select("name email phone employeeId role riderAvailable riderAvailabilityRevision").lean() : null;
-  return { success: true, mode: "rehearsal", operationalEnabled: false, workflowEnabled: true,
+  return { success: true, ...config,
     counts, deliveries: facet.rows.map(row => serializeDelivery(row, row.orderRecord, row.riderRecord[0])),
     pagination: { page, limit, total: facet.total[0]?.count || 0 },
     ...(profile ? { profile: { id: String(profile._id), name: profile.name, role: profile.role, employeeId: profile.employeeId, email: profile.email, phone: profile.phone },
@@ -49,7 +49,7 @@ export async function listWorkflowDeliveries(actor, query = {}) {
 }
 
 export async function listAssignableRiders(actor) {
-  assertDeliveryRehearsal();
+  await assertDeliveryEnabled();
   if (!hasCapability(actor?.role, CAPABILITIES.DELIVERY_MANAGE)) throw deliveryError("Assignment access denied", 403);
   const users = await User.find({ role: "rider", isActive: { $ne: false } }).select("name employeeId riderAvailable riderAvailabilityRevision").sort({ name: 1, _id: 1 }).limit(100).lean();
   const counts = await Delivery.aggregate([{ $match: { rider: { $in: users.map(user => user._id) }, status: { $in: ["assigned", "picked_up", "issue"] } } }, { $group: { _id: "$rider", count: { $sum: 1 } } }]);
@@ -58,7 +58,7 @@ export async function listAssignableRiders(actor) {
 }
 
 export async function findEnrollmentOrder(actor, number) {
-  assertDeliveryRehearsal();
+  await assertDeliveryEnabled();
   if (!hasCapability(actor?.role, CAPABILITIES.DELIVERY_MANAGE)) throw deliveryError("Assignment access denied", 403);
   if (typeof number !== "string" || !number.trim() || number.length > 80) throw deliveryError("Enter an exact existing order number");
   const order = await Order.findOne({ orderNumber: number.trim().toUpperCase() }).select("orderNumber orderType source manualEntry deliveryProvider deliveryMode status paymentStatus __v").lean();
