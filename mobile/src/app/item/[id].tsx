@@ -6,14 +6,19 @@ import { useResource } from '../../hooks/useResource';
 import { availableAddOns, emptySelection, lineFor, money, selectionError } from '../../domain/cart';
 import type { Product, Selection } from '../../domain/types';
 import { useApp } from '../../state/AppProvider';
+import { useFavorites } from '../../state/FavoritesProvider';
+import { FavoriteButton } from '../../components/favorite';
+import { ShareButton } from '../../components/share';
+import { validPublicId } from '../../domain/public-links';
 import { Button, Chip, Field, FoodImage, Loading, Notice, Quantity, Screen, messageOf, styles } from '../../components/ui';
 export default function Item() {
   const { id, type } = useLocalSearchParams<{ id: string; type?: string }>();
   return type === 'combo' ? <Redirect href={{ pathname: '/combo/[id]', params: { id } }} /> : <ItemContents key={id} />;
 }
 function ItemContents() {
-  const { id, type } = useLocalSearchParams<{ id: string; type?: string }>(); const kind = type === 'combo' ? 'combo' : 'menuItem';
-  const { data: product, loading, error, refresh } = useResource<Product>(async signal => ({ ...(await api<{ data: Product }>(`/${kind === 'combo' ? 'combos' : 'menu'}/${encodeURIComponent(id)}`, { signal })).data, productType: kind }), `${kind}:${id}`);
+  const { id, type, favorite } = useLocalSearchParams<{ id: string; type?: string; favorite?: string }>(); const kind = type === 'combo' ? 'combo' : 'menuItem';
+  const favorites = useFavorites();
+  const { data: product, loading, error, refresh } = useResource<Product>(async signal => { if (!validPublicId(id)) throw new Error('This item link is invalid.'); return { ...(await api<{ data: Product }>(`/${kind === 'combo' ? 'combos' : 'menu'}/${encodeURIComponent(id)}`, { signal })).data, productType: kind }; }, `${kind}:${id}`);
   const [draft, setDraft] = useState<Selection | null>(null);
   const initialSelection = { ...emptySelection(), spiceLevel: product?.customization?.enabled && product.customization.spice?.enabled ? product.customization.spice.default || product.customization.spice.options[0] || '' : '' };
   const selection = draft || initialSelection;
@@ -24,7 +29,8 @@ function ItemContents() {
   const price = product && !validation ? lineFor(product, selection, quantity).unitPrice * quantity : product ? product.price * quantity : 0;
   const add = async () => { if (!product || saving) return; setSaving(true); try { await app.add(lineFor(product, selection, quantity)); router.push('/(tabs)/cart'); } catch (e) { setFailure(messageOf(e)); } finally { setSaving(false); } };
   return <Screen><Notice message={error} retry={() => void refresh()} />{loading && !product && <Loading />}{product && <>
-    <FoodImage uri={product.image} large /><Text style={styles.title}>{product.name}</Text><Text style={styles.text}>{product.description}</Text>
+    <FoodImage uri={product.image} large /><View style={styles.between}><Text style={[styles.title, { flexShrink: 1 }]}>{product.name}</Text><View style={styles.row}><FavoriteButton product={product} /><ShareButton kind="item" id={product._id} title={product.name} description={product.description} /></View></View><Text style={styles.text}>{product.description}</Text>
+    {favorite === 'review' && app.session && <Text style={styles.muted}>Signed in as {app.session.user.name}. Tap the heart to save this food to this account.</Text>}<Notice message={favorites.error} retry={() => void favorites.refresh()} />
     {product.items?.map((i, idx) => <Text key={idx} style={styles.muted}>{i.quantity} × {i.name}</Text>)}
     {product.customization?.enabled && <>
       {product.customization.groups?.map(g => <View key={g.name} style={styles.card}><Text style={styles.heading}>{g.name}</Text><Text style={styles.muted}>Choose {g.minSelections}–{g.selectionType === 'single' ? 1 : g.maxSelections}</Text>

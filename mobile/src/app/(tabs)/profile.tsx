@@ -9,7 +9,7 @@ import { useAccountAction } from '../../hooks/useAccountAction';
 import { initials, restaurantContact } from '../../domain/profile';
 import { imageUrl, loadRestaurant } from '../../services/api';
 import { Button, Notice, Screen, colors, styles } from '../../components/ui';
-import { LogOut, MapPin, Pencil, Phone, ReceiptText, ShieldCheck, UserRound } from '../../components/icons';
+import { Heart, LogOut, MapPin, Pencil, Phone, ReceiptText, ShieldCheck, UserRound } from '../../components/icons';
 import { ProfileBrand, ProfileRow, ProfileTile, profileStyles as ps } from '../../components/profile-ui';
 
 export default function Profile() { const app = useApp(); return <ProfileSummary key={app.session?.user._id || 'guest'} />; }
@@ -32,7 +32,7 @@ function ProfileSummary() {
       </View>
       {!app.sessionValidated && <Button title="Validate saved session" secondary onPress={() => void app.validateSession()} />}
       <View style={[styles.row, { flexWrap: 'wrap', alignItems: 'stretch' }]}><ProfileTile icon={ReceiptText} title="My orders" onPress={() => router.push('/(tabs)/orders')} /><ProfileTile icon={MapPin} title="Saved addresses" onPress={addresses} /></View>
-      <Text style={ps.section}>Account</Text><View style={ps.group}><ProfileRow icon={UserRound} title="Personal information" onPress={edit} /><View style={ps.divider} /><ProfileRow icon={MapPin} title="Saved addresses" onPress={addresses} /></View>
+      <Text style={ps.section}>Account</Text><View style={ps.group}><ProfileRow icon={UserRound} title="Personal information" onPress={edit} /><View style={ps.divider} /><ProfileRow icon={MapPin} title="Saved addresses" onPress={addresses} /><View style={ps.divider} /><ProfileRow icon={Heart} title="Favourite foods" onPress={() => router.push('/favorites')} /></View>
     </> : <>
       <View style={styles.card}><Text style={styles.heading}>Welcome to Dune & Grills</Text><Text style={styles.muted}>Sign in to edit your profile and manage saved addresses.</Text><Button title="Sign in" onPress={() => router.push('/auth')} /><Button title="Create customer account" secondary onPress={() => router.push({ pathname: '/auth', params: { mode: 'register' } })} /></View>
       <ProfileTile icon={ReceiptText} title="My orders" onPress={() => router.push('/(tabs)/orders')} /><Text style={styles.muted}>Track orders saved on this device without signing in.</Text>

@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { loadCatalog, loadRestaurant } from '../../services/api';
 import { useResource } from '../../hooks/useResource';
+import { useFavorites } from '../../state/FavoritesProvider';
 import { CartBar, CategoryChips, ProductCard, useProductAdder } from '../../components/commerce';
 import { ListScreen, Loading, Notice, SearchField, styles } from '../../components/ui';
 export default function Menu() {
@@ -11,6 +12,7 @@ export default function Menu() {
 }
 function MenuContents({ query: initialQuery, category: initialCategory }: { query: string; category: string }) {
   const { data, error, loading, refresh } = useResource(loadCatalog, 'catalog');
+  const favorites = useFavorites();
   const restaurant = useResource(loadRestaurant, 'restaurant'); const adder = useProductAdder();
   const [query, setQuery] = useState(initialQuery); const [category, setCategory] = useState(initialCategory);
   const categories = ['All', ...new Set((data || []).map(product => product.category).filter(Boolean))];
@@ -21,6 +23,7 @@ function MenuContents({ query: initialQuery, category: initialCategory }: { quer
     <SearchField label="Search the menu" placeholder="Search menu" value={query} onChangeText={setQuery} />
     <CategoryChips categories={categories} selected={category} change={setCategory} />
     <Notice message={error} retry={() => void refresh()} /><Notice message={adder.error} />
+    <Notice message={favorites.error} retry={() => void favorites.refresh()} />
     {loading && !data && <Loading />}{data && !visible.length && <View style={styles.card}><Text style={styles.text}>No dishes match your search.</Text></View>}
   </ListScreen>;
 }

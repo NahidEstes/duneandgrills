@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from '../state/AppProvider';
+import { FavoritesProvider } from '../state/FavoritesProvider';
 import { Button, Loading, Notice, Screen, colors, styles } from '../components/ui';
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return <SafeAreaProvider><Screen><Text style={styles.title}>Let’s try that again</Text><Text style={styles.text}>This screen could not open. Your saved cart and any unresolved order are kept on this device.</Text><Button title="Try again" onPress={() => void retry()} /></Screen></SafeAreaProvider>;
@@ -23,7 +24,10 @@ function Navigation() {
     <Stack.Screen name="addresses" options={{ title: 'Saved addresses' }} />
     <Stack.Screen name="profile-edit" options={{ title: 'Edit profile' }} />
     <Stack.Screen name="combo/[id]" options={{ title: 'Combo details' }} />
+    <Stack.Screen name="offer/[id]" options={{ title: 'Offer details' }} />
+    <Stack.Screen name="favorites" options={{ title: 'Favourite foods' }} />
+    <Stack.Screen name="link-unavailable" options={{ title: 'Link unavailable' }} />
     <Stack.Screen name="explore" options={{ headerShown: false }} />
   </Stack></>;
 }
-export default function Layout() { return <SafeAreaProvider><AppProvider><Navigation /></AppProvider></SafeAreaProvider>; }
+export default function Layout() { return <SafeAreaProvider><AppProvider><FavoritesProvider><Navigation /></FavoritesProvider></AppProvider></SafeAreaProvider>; }

@@ -19,7 +19,7 @@ type State = {
   request: <T>(path: string, options?: RequestOptions) => Promise<T>;
   authenticate: (mode: 'login' | 'register', fields: Record<string, string>) => Promise<void>;
   validateSession: () => Promise<void>; logout: () => Promise<void>; updateUser: (user: User) => Promise<void>;
-  setCart: (cart: CartLine[], expectedActor?: string) => Promise<void>; add: (line: CartLine, expectedActor?: string) => Promise<void>;
+  setCart: (cart: CartLine[], expectedActor?: string, expectedCart?: CartLine[]) => Promise<void>; add: (line: CartLine, expectedActor?: string) => Promise<void>;
   submit: (payload: OrderPayload) => Promise<OrderResult>; recover: (cancel: boolean) => Promise<OrderResult>;
   bootstrap: () => Promise<void>;
 };
@@ -77,12 +77,13 @@ export function AppProvider({ children }: React.PropsWithChildren) {
     } catch (e) { setError(messageOf(e)); }
   }, [replaceCart, replaceSession, validateSession]);
   useEffect(() => { void Promise.resolve().then(bootstrap); }, [bootstrap]);
-  const setCart = useCallback(async (value: CartLine[], expectedActor?: string) => {
+  const setCart = useCallback(async (value: CartLine[], expectedActor?: string, expectedCart?: CartLine[]) => {
     if (!ready || transition.current || managerRef.current?.busy) throw new Error('Please wait for the current operation');
     if (expectedActor && actorRef.current !== expectedActor) throw new Error('Your account changed. Please open this order again.');
     transition.current = true;
     try {
       if (await vault.read('pending')) throw new Error('Resolve the saved order before changing your cart');
+      if (expectedCart && expectedCart !== cartRef.current) throw new Error('Your cart changed. Review it before trying Order again.');
       await AsyncStorage.setItem(cartKey(actorRef.current), JSON.stringify(value)); replaceCart(value);
     } finally { transition.current = false; }
   }, [ready, replaceCart]);

@@ -24,3 +24,5 @@ export { default as ShieldCheck } from 'lucide-react-native/icons/shield-check';
 export { default as LogOut } from 'lucide-react-native/icons/log-out';
 export { default as CookingPot } from 'lucide-react-native/icons/cooking-pot';
 export { default as Check } from 'lucide-react-native/icons/check';
+export { default as Heart } from 'lucide-react-native/icons/heart';
+export { default as Share2 } from 'lucide-react-native/icons/share-2';

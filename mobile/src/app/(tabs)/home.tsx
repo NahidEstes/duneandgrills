@@ -12,6 +12,7 @@ import { useActiveOrders } from '../../hooks/useActiveOrders';
 import { ActiveOrderCard } from '../../components/active-order';
 import { useDeliveryAddress } from '../../hooks/useDeliveryAddress';
 import { useApp } from '../../state/AppProvider';
+import { useFavorites } from '../../state/FavoritesProvider';
 import { palette } from '../../constants/design';
 import { AddressCard, CategoryShortcuts, ProductCard, SectionLink, openMenu, useProductAdder } from '../../components/commerce';
 import { Button, FoodImage, FulfillmentSelector, IconButton, Loading, Notice, Screen, SearchField, messageOf, styles } from '../../components/ui';
@@ -19,6 +20,7 @@ import { Button, FoodImage, FulfillmentSelector, IconButton, Loading, Notice, Sc
 export default function Home() {
   const app = useApp(); const catalog = useResource(loadCatalog, 'home-catalog'); const config = useResource(loadOrderConfig, 'home-config');
   const active = useActiveOrders();
+  const favorites = useFavorites();
   const offers = useResource(loadOffers, 'home-offers', () => true, 60000); const now = useOfferTime(offers.data); const [offerError, setOfferError] = useState('');
   const currentOffers = (offers.data || []).filter(offer => activeOffer(offer, now)).slice(0, 2);
   const { customer } = useDeliveryAddress(); const adder = useProductAdder(); const [query, setQuery] = useState(''); const { fontScale } = useWindowDimensions();
@@ -37,6 +39,7 @@ export default function Home() {
     <SearchField label="Search your favourites" placeholder="Search your favourites" value={query} onChangeText={setQuery} onSubmitEditing={() => openMenu('All', query.trim())} />
     {!!query.trim() && <Button title="Search menu" secondary onPress={() => openMenu('All', query.trim())} />}
     <Notice message={catalog.error} retry={() => void catalog.refresh()} /><Notice message={adder.error} />
+    <Notice message={favorites.error} retry={() => void favorites.refresh()} />
     {catalog.loading && !catalog.data && <Loading />}
     {hero && <View style={[styles.card, { padding: 0, borderRadius: 24, overflow: 'hidden' }]}>
       {fontScale > 1.35 ? <FoodImage uri={hero.image} large style={{ height: 240, borderRadius: 0 }} /> : <><FoodImage uri={hero.image} style={[StyleSheet.absoluteFill, { height: '100%', borderRadius: 0 }]} /><LinearGradient pointerEvents="none" colors={['rgba(0,0,0,0.94)', 'rgba(0,0,0,0.52)', 'rgba(0,0,0,0.08)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} /></>}

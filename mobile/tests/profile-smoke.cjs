@@ -58,6 +58,7 @@ async function main() {
       return reply({ data: addresses });
     }
     if (key === 'orders/my') return reply({ data: [order] });
+    if (key === 'profile/favorites') return reply({ data: [] });
     if (key === 'offers') return reply({ data: [] });
     if (key === 'orders/fixture-order' || key === 'orders/track/' + order.orderNumber) return reply({ data: order });
     if (key === 'orders/fixture-order/repeat') return reply({ data: [], warnings: ['Fixture has no items to reorder.'] });
@@ -71,7 +72,7 @@ async function main() {
   const shot = async name => { await page.waitForTimeout(200); await fits(name); await page.screenshot({ path: path.join(artifacts, `${name}.png`), fullPage: true, animations: 'disabled' }); };
   try {
     await page.goto(base + '/profile'); await button('Create customer account').waitFor(); assert.equal(await button('Log out').count(), 0); assert.equal(await button('Personal information').count(), 0); await shot('profile-guest-390');
-    await button('My orders').click(); await text(order.orderNumber).waitFor(); await text(order.orderNumber).click(); await text('Latest restaurant status').waitFor(); assert.equal(await button('Reorder at current prices').count(), 0);
+    await button('My orders').click(); await text(order.orderNumber).waitFor(); await text(order.orderNumber).click(); await text('Latest restaurant status').waitFor(); assert.equal(await button('Order again').count(), 0);
     await page.goto(base + '/profile'); await button('Create customer account').click(); await text('Join the table').waitFor();
     await page.goto(base + '/profile'); await button('Sign in').click(); await page.getByRole('textbox', { name: 'Email', exact: true }).fill(user.email); await page.getByRole('textbox', { name: 'Password', exact: true }).fill('FixturePassword1!'); await button('Sign in').last().click();
     await button('Edit profile').waitFor(); await text('AC').waitFor(); await text(user.name).waitFor(); await text('My profile').scrollIntoViewIfNeeded(); await shot('profile-signed-in-390');
@@ -95,7 +96,7 @@ async function main() {
     await button('Delete Other address').click(); failure = 'profile/addresses/new-address'; await button('Delete address').click(); await text('The restaurant service is temporarily unavailable. Please try again shortly.').last().waitFor(); await button('Delete address').click(); await text('Address deleted.').waitFor(); assert.equal(await text('New fixture delivery address').count(), 0);
     // The checkout selector reads the same updated collection.
     await page.goto(base + '/address-select?fixture=signed'); await text('Updated fixture office address').first().waitFor(); assert.equal(await page.getByRole('textbox', { name: 'Delivery address', exact: true }).inputValue(), 'Updated fixture office address');
-    await page.goto(base + '/profile?fixture=signed'); await button('My orders').click(); await text(order.orderNumber).waitFor(); await text(order.orderNumber).click(); await button('Reorder at current prices').waitFor(); await button('Reorder at current prices').click(); await text('Some items were skipped:\nFixture has no items to reorder.').waitFor();
+    await page.goto(base + '/profile?fixture=signed'); await button('My orders').click(); await text(order.orderNumber).waitFor(); await text(order.orderNumber).click(); await button('Order again').waitFor(); await button('Order again').click(); await text('No eligible items could be added. Your cart is unchanged.\nFixture has no items to reorder.').waitFor();
     await page.goto(base + '/profile?fixture=signed'); await button('Log out').click(); await button('Create customer account').waitFor(); assert.equal(await text(user.name).count(), 0); assert.equal(await button('Saved addresses').count(), 0);
     const retained = await page.evaluate(async () => ({ session: await window.__profileTestVault.read('session'), tracking: await window.__profileTestVault.read('tracking'), owner: localStorage.getItem('dg.cart.owner.v1'), oldCart: localStorage.getItem('dg.cart.v1.profile-fixture') }));
     assert.equal(retained.session, null); assert.ok(retained.tracking.every(t => t.actor === 'guest')); assert.equal(retained.owner, 'guest'); assert.equal(retained.oldCart, null);

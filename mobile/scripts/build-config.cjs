@@ -11,17 +11,22 @@ function buildConfig(config, env = process.env) {
   if (environment !== 'development' && url.protocol !== 'https:') throw new Error('Preview and production builds require HTTPS.');
   if (environment === 'preview' && apiUrl.replace(/\/$/, '') !== STAGING_API) throw new Error('The internal preview must use the approved staging API.');
   if (environment === 'production' && url.hostname === new URL(STAGING_API).hostname) throw new Error('Set the approved production API; staging cannot be used for production.');
+  const publicWebsite = env.EXPO_PUBLIC_WEBSITE_URL || (environment === 'production' ? '' : STAGING_API.replace(/\/api$/, ''));
+  let website;
+  try { website = new URL(publicWebsite); } catch { throw new Error('Set EXPO_PUBLIC_WEBSITE_URL to the approved public HTTPS website origin.'); }
+  if (website.protocol !== 'https:' || website.username || website.password || website.search || website.hash || website.pathname !== '/') throw new Error('Public website configuration must be an HTTPS origin with no credentials, path, query or fragment.');
+  if (environment === 'production' && website.hostname === new URL(STAGING_API).hostname) throw new Error('Set the approved production website; staging cannot be used for production.');
   return {
     ...config,
-    ios: { ...config.ios, buildNumber: config.ios?.buildNumber || '1' },
-    android: { ...config.android, versionCode: config.android?.versionCode || 1, permissions: [], blockedPermissions: [
+    ios: { ...config.ios, buildNumber: config.ios?.buildNumber || '1', associatedDomains: [...new Set([...(config.ios?.associatedDomains || []), `applinks:${website.host}`])] },
+    android: { ...config.android, versionCode: config.android?.versionCode || 1, intentFilters: [...(config.android?.intentFilters || []), { action: 'VIEW', autoVerify: true, category: ['BROWSABLE', 'DEFAULT'], data: ['item', 'combo', 'offer'].map(kind => ({ scheme: 'https', host: website.hostname, pathPrefix: `/${kind}/` })) }], permissions: [], blockedPermissions: [
       'android.permission.RECORD_AUDIO', 'android.permission.CAMERA', 'android.permission.READ_EXTERNAL_STORAGE',
       'android.permission.WRITE_EXTERNAL_STORAGE', 'android.permission.READ_MEDIA_IMAGES', 'android.permission.READ_MEDIA_VIDEO',
       'android.permission.ACCESS_FINE_LOCATION', 'android.permission.ACCESS_COARSE_LOCATION', 'android.permission.POST_NOTIFICATIONS', 'android.permission.VIBRATE',
       'android.permission.USE_BIOMETRIC', 'android.permission.USE_FINGERPRINT',
       ...(environment === 'development' ? [] : ['android.permission.SYSTEM_ALERT_WINDOW']),
     ] },
-    extra: { ...config.extra, appEnvironment: environment, apiUrl: apiUrl.replace(/\/$/, '') },
+    extra: { ...config.extra, appEnvironment: environment, apiUrl: apiUrl.replace(/\/$/, ''), websiteUrl: website.origin },
   };
 }
 module.exports = { buildConfig, STAGING_API };

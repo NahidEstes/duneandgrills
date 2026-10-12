@@ -49,6 +49,7 @@ async function main() {
     const reply = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(status === 200 ? { data } : { message: data }) });
     if (method !== 'GET') writes.push({ key, method, body: req.postDataJSON(), authorization: req.headers().authorization });
     if (key === failure) return reply('Fixture outage', 503);
+    if (key === 'profile/favorites') return reply([]);
     if (key === 'offers') return reply(empty ? [] : configured);
     if (key.startsWith('offers/') && key !== 'offers/validate-coupon') {
       const offer = configured.find(o => o._id === key.split('/')[1]); return expired || !offer ? reply('No active offer', 404) : reply(offer);

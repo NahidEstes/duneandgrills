@@ -65,7 +65,7 @@ async function main() {
       if (hold && requested === initial._id) { hold = false; held = route; return; }
       return reply(requested === otherOrder._id ? otherOrder : requested === older._id ? older : current);
     }
-    if (key === 'profile/addresses' || key === 'offers') return reply([]);
+    if (key === 'profile/addresses' || key === 'profile/favorites' || key === 'offers') return reply([]);
     return reply('Unprovided fixture', 503);
   });
   const tab = name => page.getByRole('tab', { name, exact: true });

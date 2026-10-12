@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CirclePlus, Tag, Trash2 } from '../../components/icons';
 import { useApp } from '../../state/AppProvider';
 import { useResource } from '../../hooks/useResource';
@@ -15,6 +15,7 @@ import { palette } from '../../constants/design';
 import { Button, FoodImage, FulfillmentSelector, IconButton, Notice, Quantity, Screen, messageOf, styles } from '../../components/ui';
 export default function Cart() { const app = useApp(); return <CartContents key={app.actor} />; }
 function CartContents() {
+  const { repeatNotice } = useLocalSearchParams<{ repeatNotice?: string }>();
   const app = useApp(); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); const gate = useRef(false);
   const config = useResource(loadOrderConfig, 'cart-config'); const { customer, addresses } = useDeliveryAddress();
   const { type, coupon } = app.checkoutDraft; const selected = useCartCoupon();
@@ -26,6 +27,7 @@ function CartContents() {
     catch (e) { setError(messageOf(e)); } finally { gate.current = false; setSaving(false); }
   };
   return <Screen top>
+    {!!repeatNotice && <Text accessibilityLiveRegion="polite" style={styles.text}>{repeatNotice.slice(0, 4000)}</Text>}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><IconButton icon={ArrowLeft} label="Back to menu" onPress={() => router.canGoBack() ? router.back() : openMenu()} /><Text style={styles.title}>Your cart</Text></View>
     <FulfillmentSelector value={type} change={type => app.setCheckoutDraft(d => ({ ...d, type }))} disabled={locked} available={config.data?.orderTypes.map(option => option.value)} />
     <Notice message={error} />

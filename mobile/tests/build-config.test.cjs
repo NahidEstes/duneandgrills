@@ -12,8 +12,17 @@ test('production AAB requires approved HTTPS URL, rejects missing/staging/creden
   assert.equal(profiles.build.production.android.buildType, 'app-bundle');
   const env = { EXPO_PUBLIC_APP_ENV: 'production', EAS_BUILD_PROFILE: 'production' };
   for (const value of ['', STAGING_API, 'http://fixture.test/api', 'https://secret:password@fixture.test/api', 'https://fixture.test/api?secret=1', 'https://fixture.test/v1']) assert.throws(() => buildConfig(base, { ...env, EXPO_PUBLIC_API_URL: value }));
-  const config = buildConfig({ ...base, owner: 'existing', extra: { eas: { projectId: 'existing-project' } } }, { ...env, EXPO_PUBLIC_API_URL: 'https://approved.fixture.test/api' });
+  const config = buildConfig({ ...base, owner: 'existing', extra: { eas: { projectId: 'existing-project' } } }, { ...env, EXPO_PUBLIC_API_URL: 'https://approved.fixture.test/api', EXPO_PUBLIC_WEBSITE_URL: 'https://approved.fixture.test' });
   assert.equal(config.owner, 'existing'); assert.equal(config.extra.eas.projectId, 'existing-project');
+});
+test('public website is HTTPS and explicit for production; association config uses actual app identity and matching paths', () => {
+  const config = buildConfig(base, { EXPO_PUBLIC_WEBSITE_URL: 'https://website.fixture.test' });
+  assert.equal(config.extra.websiteUrl, 'https://website.fixture.test');
+  assert.ok(config.ios.associatedDomains.includes('applinks:website.fixture.test'));
+  assert.deepEqual(config.android.intentFilters.at(-1).data.map(d => d.pathPrefix), ['/item/', '/combo/', '/offer/']);
+  assert.equal(config.android.intentFilters.at(-1).autoVerify, true);
+  for (const value of ['http://fixture.test', 'https://fixture.test/api', 'https://secret:password@fixture.test', 'https://fixture.test?secret=1']) assert.throws(() => buildConfig(base, { EXPO_PUBLIC_WEBSITE_URL: value }));
+  assert.throws(() => buildConfig(base, { EXPO_PUBLIC_APP_ENV: 'production', EXPO_PUBLIC_API_URL: 'https://approved.fixture.test/api' }), /WEBSITE/);
 });
 test('development accepts local API, mismatched release environments and preview destinations fail closed', () => {
   assert.equal(buildConfig(base, { EXPO_PUBLIC_API_URL: 'http://10.0.2.2:5000/api' }).extra.appEnvironment, 'development');

@@ -7,6 +7,7 @@ import { emptySelection, lineFor, money, subtotal } from '../domain/cart';
 import type { Product } from '../domain/types';
 import { palette } from '../constants/design';
 import { Chip, FoodImage, IconButton, messageOf, styles } from './ui';
+import { FavoriteButton } from './favorite';
 
 export function openProduct(product: Product) { if (product.productType === 'combo') router.push({ pathname: '/combo/[id]', params: { id: product._id } }); else router.push({ pathname: '/item/[id]', params: { id: product._id, type: product.productType } }); }
 export function openMenu(category = 'All', q = '') { router.navigate({ pathname: '/(tabs)', params: { category, q, filter: Date.now().toString() } }); }
@@ -29,10 +30,11 @@ export function ProductCard({ product, grid = false, add, disabled }: { product:
   return <View style={[styles.card, { padding: grid ? 0 : 6, gap: grid ? 0 : 12, overflow: 'hidden', flexDirection: grid || stacked ? 'column' : 'row' }]}>
     <Pressable accessibilityRole="button" accessibilityLabel={`View ${product.name}`} onPress={() => openProduct(product)} style={grid || stacked ? undefined : { width: photoWidth, alignSelf: 'stretch' }}><FoodImage uri={product.image} style={grid ? { height: undefined, aspectRatio: 1.13, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 } : stacked ? { height: 170 } : { height: undefined, minHeight: 130, flex: 1 }} /></Pressable>
     <View style={{ flex: 1, minWidth: 0, gap: grid ? 8 : 10, padding: grid ? 12 : 8 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Details for ${product.name}`} onPress={() => openProduct(product)}><Text style={[styles.heading, { fontSize: grid ? 17 : 20 }]}>{product.name}</Text>{!grid && !!product.description && <Text style={[styles.muted, { marginTop: 6 }]}>{product.description}</Text>}</Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}><Pressable accessibilityRole="button" accessibilityLabel={`Details for ${product.name}`} onPress={() => openProduct(product)} style={{ flex: 1, minWidth: 0 }}><Text style={[styles.heading, { fontSize: grid ? 17 : 20 }]}>{product.name}</Text>{!grid && !!product.description && <Text style={[styles.muted, { marginTop: 6 }]}>{product.description}</Text>}</Pressable>{!grid && <FavoriteButton product={product} />}</View>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, marginTop: 'auto' }}><Text style={[grid ? styles.muted : styles.heading, { flexShrink: 1 }]}>{money(product.price)}</Text><IconButton icon={Plus} orange label={`Add ${product.name}`} onPress={() => add(product)} disabled={disabled || !product.isAvailable} /></View>
       {!product.isAvailable && <Text style={styles.muted}>Unavailable</Text>}
     </View>
+    {grid && <View style={{ position: 'absolute', top: 8, right: 8 }}><FavoriteButton product={product} /></View>}
   </View>;
 }
 export function CartBar() {

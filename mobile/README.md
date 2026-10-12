@@ -39,7 +39,7 @@ SHA-256: `f23ff4000d92db6ce5e1ad946f08b058503cf85cb4d58a63d576571411dddff1`. Siz
 | --- | --- | --- |
 | development | Internal development APK | Explicit HTTPS staging; Metro required. Configure an owned local/test API when rehearsing |
 | preview | Internal release APK | Explicit `https://duneandgrills-testing-six.vercel.app/api`; runs independently |
-| production | AAB for future Play submission | Requires the approved HTTPS `EXPO_PUBLIC_API_URL` in the EAS production environment; no production URL is assumed |
+| production | AAB for future Play submission | Requires approved HTTPS `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_WEBSITE_URL` in the EAS production environment; no production URL is assumed |
 
 `app.config.js` validates environment/URLs and preserves existing project metadata. Release builds reject HTTP and production rejects the known staging host. `eas.json` uses remote build numbers with preview/production auto-increment; marketing version remains `1.0.0`. Android and iOS retain `com.duneandgrills.customer`; all profiles replace the same app, so resolve saved requests before changing environments. No store submission or OTA release command is configured/run. The repository `.easignore` uploads only mobile source and excludes credentials, env secrets, other apps, generated native projects and artifacts.
 
@@ -66,6 +66,8 @@ Local `npm run android` / `npx expo run:android` requires Java/Android Studio SD
 
 ## Customer behavior
 
+See [customer conveniences and link setup](./CONVENIENCES.md) for Order again (Merge/Replace), account favourites, native Share, public website fallbacks, environment configuration and remaining verified app-link prerequisites.
+
 - Live menu/combos, customization-aware cart, quantities up to 99, current catalog revalidation and delivery/pickup COD checkout with server fees/minimums/coupons.
 - Secure customer auth/session restoration, profile and owner-only addresses/default selection; history/private tracking and current-price reorder.
 - Immutable pending payload/key/actor/origin persisted before submission. Explicit original-request retry or safe check/cancel across restart; no automatic offline order/payment queue. Cart clears only on confirmed success; cancellation preserves it.
@@ -86,7 +88,9 @@ npx expo-doctor
 npx expo export --platform all
 ```
 
-Verified: **37 mobile tests**, **49 selected isolated backend tests**, TypeScript/lint, compatible dependencies, Expo Doctor **21/21**, Android native generation/config inspection and Android/iOS Hermes/web exports. Fixture Chrome smoke passed at **320/390/768px**, including outage/retry, image failure, cart reload, checkout draft navigation, validation/coupons and the native-storage send gate. Run `node tests/browser-smoke.cjs` after export with `PLAYWRIGHT_MODULE` pointing to installed Playwright and Chrome available. The script starts/stops its own server/browser; screenshots/logs/config/audit artifacts are ignored.
+Current conveniences verification: **65 mobile tests**, TypeScript/lint, Android/iOS/web exports, fixture conveniences/profile/offers/active-order/design checks, and website lint/build plus 11 selected tests and public fallback browser checks passed. Native runtime/domain association remains unverified. Full details: [CONVENIENCES.md](./CONVENIENCES.md).
+
+Earlier Phase B verification: **37 mobile tests**, **49 selected isolated backend tests**, TypeScript/lint, compatible dependencies, Expo Doctor **21/21**, Android native generation/config inspection and Android/iOS Hermes/web exports. Fixture Chrome smoke passed at **320/390/768px**, including outage/retry, image failure, cart reload, checkout draft navigation, validation/coupons and the native-storage send gate. Run `node tests/browser-smoke.cjs` after export with `PLAYWRIGHT_MODULE` pointing to installed Playwright and Chrome available. The script starts/stops its own server/browser; screenshots/logs/config/audit artifacts are ignored.
 
 **No physical Android/iOS or emulator runtime testing. No APK/IPA.** Export and browser checks cannot prove native secure storage, lifecycle, keyboard/back or installation. Dependency audit still reports **29 advisories (11 moderate, 18 high)**; incompatible forced fixes were not applied. Resolve compatible remediation before production release.
 

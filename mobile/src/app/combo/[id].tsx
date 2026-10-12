@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '../../state/AppProvider';
+import { ShareButton } from '../../components/share';
 import { useResource } from '../../hooks/useResource';
 import { useAccountAction } from '../../hooks/useAccountAction';
 import { useOfferTime } from '../../hooks/useOfferTime';
@@ -52,7 +53,7 @@ function ComboDetailsContent() {
   return <Screen footer={footer} refreshing={resource.loading} onRefresh={() => { setFresh(null); void resource.refresh(); }}>
     <Notice message={action.error || resource.error} retry={resource.error ? () => void resource.refresh() : undefined} />{resource.loading && !combo && <Loading />}
     {combo && <><View style={{ borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: palette.border }}><FoodImage uri={combo.image} style={{ aspectRatio: 1.9, height: undefined }} />{offer && <View style={{ position: 'absolute', top: 12, left: 12, right: 12, alignItems: 'flex-start' }}><Text style={[styles.buttonText, { backgroundColor: palette.orange, borderRadius: 10, padding: 10 }]}>{offerBadge(offer)}</Text></View>}</View>
-      <Text accessibilityRole="header" style={styles.title}>{combo.name}</Text><Text style={styles.text}>{combo.description}</Text><ComboPrice product={combo} />
+      <View style={styles.between}><Text accessibilityRole="header" style={[styles.title, { flexShrink: 1 }]}>{combo.name}</Text><ShareButton kind="combo" id={combo._id} title={combo.name} description={combo.description} /></View><Text style={styles.text}>{combo.description}</Text><ComboPrice product={combo} />
       {offer && <><Text style={styles.muted}>Valid until {offerDate(offer.expiresAt)} (Riyadh)</Text>{!!offerTerms(offer) && <Text style={styles.muted}>{offerTerms(offer)}</Text>}{!!priceDisclosure(offer, combo) && <Text style={styles.muted}>{priceDisclosure(offer, combo)}</Text>}</>}
       {!available && <Notice message="This combo or an included item is currently unavailable." />}
       {unavailableOffer && available && <View style={styles.card}><Text style={styles.text}>This offer is no longer available. The combo is still available at its current catalog price.</Text>{mustAccept && <Button title={`Continue at current price · ${money(combo.price)}`} disabled={!!app.pending || action.busy} onPress={() => { setAcceptedPrice(combo.price); setNotice('Current catalog price selected. Add the combo when you are ready.'); }} />}</View>}

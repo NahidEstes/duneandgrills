@@ -31,6 +31,13 @@ fs.writeFileSync(path.join(temporary, 'src/services/profile-linking-fixture.ts')
   if (browser.__profileContactFailure) throw new Error('Fixture has no dialer');
 }`);
 const output = path.join(root, 'artifacts/profile-harness-dist');
+const sharing = path.join(temporary, 'src/services/sharing.ts');
+fs.writeFileSync(sharing, fs.readFileSync(sharing, 'utf8').replace("from 'react-native'", "from './native-share-fixture'"));
+fs.writeFileSync(path.join(temporary, 'src/services/native-share-fixture.ts'), `export const Share = { dismissedAction: 'dismissedAction', async share(content: unknown) {
+  const browser = window as any; (browser.__shareCalls ||= []).push(content);
+  if (browser.__shareFailure) throw new Error('Fixture share unavailable');
+  return { action: browser.__shareCancel ? 'dismissedAction' : 'sharedAction' };
+} };`);
 console.log('Diagnostic copy:', temporary);
 const child = spawn(process.execPath, [path.join(root, 'node_modules/expo/bin/cli'), 'export', '--clear', '--platform', 'web', '--output-dir', output, '--max-workers', '2'], { cwd: temporary, stdio: 'inherit', windowsHide: true, env: { ...process.env, CI: '1' } });
 child.on('exit', code => { process.exitCode = code ?? 1; });

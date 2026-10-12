@@ -5,7 +5,7 @@ import { useApp } from '../state/AppProvider';
 import { passwordError } from '../domain/cart';
 import { Button, Chip, Field, Notice, Screen, messageOf, styles } from '../components/ui';
 export default function Auth() {
-  const { mode: initialMode, offer, combo, quantity } = useLocalSearchParams<{ mode?: string; offer?: string; combo?: string; quantity?: string }>();
+  const { mode: initialMode, offer, combo, quantity, favorite } = useLocalSearchParams<{ mode?: string; offer?: string; combo?: string; quantity?: string; favorite?: string }>();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode === 'register' ? 'register' : 'login');
   const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [phone, setPhone] = useState(''); const [password, setPassword] = useState('');
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const gate = useRef(false); const app = useApp();
@@ -22,6 +22,7 @@ export default function Auth() {
       // no coupon, price, or arbitrary return URL is trusted from auth params.
       const safeId = (value?: string) => typeof value === 'string' && /^[A-Za-z0-9-]{1,120}$/.test(value);
       if (app.pending) router.replace('/checkout');
+      else if (safeId(favorite)) router.replace({ pathname: '/item/[id]', params: { id: favorite!, favorite: 'review' } });
       else if (safeId(offer) && safeId(combo)) router.replace({ pathname: '/combo/[id]', params: { id: combo!, offer, quantity: String(Number.isInteger(Number(quantity)) && Number(quantity) >= 1 && Number(quantity) <= 99 ? Number(quantity) : 1) } });
       else if (safeId(offer)) router.replace({ pathname: '/(tabs)/cart', params: { offer } });
       else router.replace('/(tabs)/profile');
