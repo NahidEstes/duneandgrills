@@ -23,6 +23,15 @@ export function outstandingDeliveryHalala(order) {
 
 export const deliveryError = (message, status = 400) => new OrderEngineError(message, status);
 
+export function deliveryEligibilityWarning(order) {
+  if (eligibleDeliveryOrder(order)) return "";
+  const reason = !order ? "Order is unavailable" : ["cancelled", "failed", "refunded"].includes(order.status) ? `Order is ${order.status}`
+    : ["voided", "failed"].includes(order.paymentStatus) ? `Payment is ${order.paymentStatus}`
+      : order.inventoryStatus === "restored" || Object.values(order.restoredItemQuantities || {}).some(value => Number(value) > 0) ? "Order stock has been restored"
+        : "Order is not an eligible restaurant-managed delivery (mode, source or historical/platform entry)";
+  return `${reason}. Delivery actions are blocked; authorized order review is required.`;
+}
+
 export function serializeDelivery(delivery, order, rider, { detail = false } = {}) {
   const balance = outstandingDeliveryHalala(order);
   const historical = delivery.status === "delivered";
@@ -36,11 +45,12 @@ export function serializeDelivery(delivery, order, rider, { detail = false } = {
     revision: delivery.revision, orderRevision: order.__v ?? 0, riderId: delivery.rider ? String(delivery.rider) : null,
     riderName: rider?.name || null, deliveryStatus: delivery.status, restaurantStatus: order.status,
     canOperate: eligible,
-    eligibilityWarning: eligible ? "" : "This order is no longer eligible. Delivery actions are blocked; authorized order handling is required.",
+    eligibilityWarning: deliveryEligibilityWarning(order),
     customerName: historical ? "Completed delivery" : order.customer?.name || "Guest",
     paymentStatus: order.paymentStatus, amountToCollect: balance === null ? null : fromHalala(balance),
     ...deliveryCashFacts(delivery, balance, eligible),
     readyAt: order.readyAt || null,
+    enrolledAt: delivery.createdAt || null,
     assignedAt: delivery.assignedAt || null, pickedUpAt: delivery.pickedUpAt || null,
     deliveredAt: delivery.deliveredAt || null, updatedAt: delivery.updatedAt,
     cashReport: { status: cash.status || "none", amount: cash.amountHalala == null ? null : fromHalala(cash.amountHalala),

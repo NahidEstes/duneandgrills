@@ -8,13 +8,14 @@ import { escapeRegex } from "../utils/inventoryValidation.js";
 import { assertDeliveryEnabled } from "./riderAccessService.js";
 import { deliveryError, serializeDelivery } from "./deliveryContractService.js";
 import { ATTENTION_KEYS, CASH_LABELS, deliveryHealthPipeline } from "./deliveryHealthService.js";
+import { managementDeliveryQuery } from "./deliveryQueryService.js";
 
 export const DELIVERY_STATES = Object.freeze(["unassigned", "assigned", "picked_up", "delivered", "issue"]);
 export async function listWorkflowDeliveries(actor, query = {}) {
   const config = await assertDeliveryEnabled();
   const rider = actor?.role === "rider";
   if (!actor?._id || !hasCapability(actor.role, rider ? CAPABILITIES.RIDER_DELIVERY_OPERATE : CAPABILITIES.DELIVERY_CASH_CONFIRM)) throw deliveryError("Delivery access denied", 403);
-  if (Object.keys(query).some(key => !["status", "search", "page", "limit", "history", ...(!rider ? ["attention", "cashStatus"] : [])].includes(key))) throw deliveryError("Unsupported delivery filter");
+  if (Object.keys(query).some(key => !["status", "search", "page", "limit", "history", ...(!rider ? ["attention", "cashStatus", "datePeriod", "dateBasis", "from", "to", "riderId", "sort"] : [])].includes(key))) throw deliveryError("Unsupported delivery filter");
   const attention = query.attention || "all", cashStatus = query.cashStatus || "all";
   if (attention !== "all" && !ATTENTION_KEYS.includes(attention)) throw deliveryError("Invalid attention filter");
   if (cashStatus !== "all" && cashStatus !== "confirmed_today" && !Object.hasOwn(CASH_LABELS, cashStatus)) throw deliveryError("Invalid cash filter");
@@ -30,6 +31,11 @@ export async function listWorkflowDeliveries(actor, query = {}) {
     ...(search.trim() ? { "orderRecord.orderNumber": { $regex: escapeRegex(search.trim()), $options: "i" } } : {}) };
   const today = startOfRiyadhDay(), tomorrow = new Date(today.getTime() + ADMIN_DAY_MS);
   const now = new Date(), health = deliveryHealthPipeline(now);
+  const management = !rider ? managementDeliveryQuery(actor, query, now) : null;
+  if (management) {
+    // Intersect stage-sort scope with explicit status rather than overwriting it.
+    rowMatch.$and = [management.match];
+  }
   if (!rider && attention !== "all") rowMatch[`attentionFlags.${attention}`] = true;
   if (!rider && cashStatus !== "all") rowMatch.healthCash = cashStatus === "confirmed_today" ? "confirmed" : cashStatus;
   if (cashStatus === "confirmed_today") rowMatch["cashReport.confirmedAt"] = { $gte: health.today, $lt: health.tomorrow };
@@ -41,9 +47,14 @@ export async function listWorkflowDeliveries(actor, query = {}) {
     { $facet: {
       counts: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
       deliveredToday: [{ $match: { status: "delivered", deliveredAt: { $gte: today, $lt: tomorrow } } }, { $count: "count" }],
-      rows: [{ $match: rowMatch }, { $sort: { updatedAt: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit },
+      rows: [{ $match: rowMatch }, ...(management ? management.stages : [{ $sort: { updatedAt: -1, _id: -1 } }]), { $skip: (page - 1) * limit }, { $limit: limit },
         { $lookup: { from: "users", localField: "rider", foreignField: "_id", as: "riderRecord", pipeline: [{ $project: { name: 1 } }] } }],
       total: [{ $match: rowMatch }, { $count: "count" }],
+      ...(!rider && hasCapability(actor.role, CAPABILITIES.DELIVERY_MANAGE) ? {
+        riderFilters: [{ $match: { rider: { $ne: null } } }, { $group: { _id: "$rider" } },
+          { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user", pipeline: [{ $project: { name: 1 } }] } },
+          { $set: { name: { $ifNull: [{ $arrayElemAt: ["$user.name", 0] }, "Former rider"] } } }, { $sort: { name: 1, _id: 1 } }, { $limit: 101 }],
+      } : {}),
       ...(!rider ? {
         attention: [{ $group: { _id: null, ...Object.fromEntries(ATTENTION_KEYS.map(key => [key, { $sum: { $cond: [`$attentionFlags.${key}`, 1, 0] } }])) } }],
         cash: [{ $group: { _id: "$healthCash", count: { $sum: 1 }, amountHalala: { $sum: { $switch: { branches: [
@@ -66,6 +77,8 @@ export async function listWorkflowDeliveries(actor, query = {}) {
       confirmedToday: { count: facet.confirmedToday[0]?.count || 0, amountHalala: facet.confirmedToday[0]?.amountHalala || 0, start: health.today, endExclusive: health.tomorrow },
     } } : {}),
     pagination: { page, limit, total: facet.total[0]?.count || 0 },
+    ...(management ? { appliedFilters: management.applied } : {}),
+    ...(facet.riderFilters ? { riderFilters: facet.riderFilters.slice(0, 100).map(row => ({ id: String(row._id), name: row.name })), riderFiltersHasMore: facet.riderFilters.length > 100 } : {}),
     ...(profile ? { profile: { id: String(profile._id), name: profile.name, role: profile.role, employeeId: profile.employeeId, email: profile.email, phone: profile.phone },
       availability: profile.riderAvailable === true, availabilityRevision: profile.riderAvailabilityRevision || 0 } : {}), serverNow: now };
 }

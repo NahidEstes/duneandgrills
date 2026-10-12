@@ -58,9 +58,10 @@ test("out-of-order list and detail responses, unmount, logout and revoked access
 test("admin source has no polling/focus reload, draft handlers do not fetch, details key is stable", () => {
   const ui = readFileSync(new URL("../src/components/admin/delivery/DeliveryManagement.jsx", import.meta.url), "utf8");
   const hook = readFileSync(new URL("../src/hooks/useDeliveryManagement.js", import.meta.url), "utf8");
+  const filters = readFileSync(new URL("../src/components/admin/delivery/DeliveryFilters.jsx", import.meta.url), "utf8");
   for (const code of [ui, hook]) assert.doesNotMatch(code, /setInterval|setTimeout|addEventListener|WebSocket|EventSource/);
-  assert.match(ui, /onChange=\{event => editDraft\("search", event.target.value\)\}/);
-  assert.match(ui, /<form onSubmit=/); assert.match(ui, /<details key=\{selected.id\}/);
+  assert.match(filters, /onChange=\{event => editDraft\("search", event.target.value\)\}/);
+  assert.match(filters, /<form onSubmit=/); assert.match(ui, /<ManagementDeliveryDetails key=\{selected.id\}/);
   assert.doesNotMatch(ui, /selected.id\}-\$\{/);
 });
 

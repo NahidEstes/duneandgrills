@@ -1,4 +1,4 @@
-export const emptyDeliveryQuery = () => ({ search: "", status: "all", attention: "all", cashStatus: "all", page: 1 });
+export const emptyDeliveryQuery = () => ({ search: "", status: "all", attention: "all", cashStatus: "all", datePeriod: "all", dateBasis: "enrolled", from: "", to: "", riderId: "all", sort: "newest", page: 1 });
 const fingerprint = row => JSON.stringify([row.revision, row.orderRevision, row.deliveryStatus, row.restaurantStatus, row.riderId, row.canOperate, row.paymentStatus, row.ledgerOutstandingHalala, row.cashReport]);
 
 // Explicit commands only: no timers, subscriptions to browser focus, or draft inputs.

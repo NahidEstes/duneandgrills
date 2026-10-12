@@ -14,6 +14,7 @@ import { recordOrderPaymentInSession } from "./orderPaymentService.js";
 import { findOpenShift } from "./posShiftService.js";
 import { toHalala, fromHalala } from "../utils/money.js";
 import { eligibleDeliveryOrder, outstandingDeliveryHalala, deliveryError, serializeDelivery } from "./deliveryContractService.js";
+import { readDeliveryTimeline } from "./deliveryTimelineService.js";
 
 const capability = (actor, cap) => {
   if (!actor?._id) throw deliveryError("Staff sign-in required", 401);
@@ -79,7 +80,8 @@ export async function getWorkflowDelivery(actor, id) {
   if (!delivery) throw deliveryError("Delivery unavailable", 404);
   const [order, rider] = await Promise.all([Order.findById(delivery.order).lean(), delivery.rider ? User.findById(delivery.rider).select("name").lean() : null]);
   if (!order) throw deliveryError("Delivery unavailable", 404);
-  return serializeDelivery(delivery, order, rider, { detail: true });
+  return { ...serializeDelivery(delivery, order, rider, { detail: true }),
+    ...(actor.role !== "rider" ? { timeline: await readDeliveryTimeline(actor, delivery, order) } : {}) };
 }
 
 export async function setRiderAvailability({ actor, payload, correlationId }) {

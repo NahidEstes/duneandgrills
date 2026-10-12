@@ -1,0 +1,13 @@
+import { deliveryDateLabel, deliveryStatusLabel } from "./deliveryManagementPresentation.js";
+import { formatPrice } from "@/src/utils/currency.js";
+
+export default function DeliveryTimeline({ timeline, preview }) {
+  return <details className="rounded-xl border border-white/10 p-4"><summary className="min-h-11 cursor-pointer text-sm font-semibold text-dune-amber">Delivery timeline · recorded history</summary>
+    {!timeline ? <p className="mt-3 text-sm text-neutral-400">{preview ? "Synthetic preview has no recorded audit history." : "Recorded timeline unavailable. Verify the selected delivery with Refresh."}</p> : <div className="mt-3 space-y-4">
+      <ol className="space-y-3">{timeline.events.map(event => <li key={event.id} className={`space-y-1 rounded-lg border-l-2 p-3 text-sm ${event.at ? "border-dune-amber bg-white/[0.025]" : "border-neutral-500 bg-white/[0.01]"}`}><h3 className="font-body text-sm font-semibold text-white">{event.label}{event.at ? "" : " · historical time unavailable"}</h3>{event.at && <time dateTime={event.at} className="block text-xs text-neutral-400">{deliveryDateLabel(event.at)}</time>}{event.timestampBasis && <p className="text-xs text-neutral-400">{event.timestampBasis}</p>}<p className="text-xs text-neutral-300">{event.actor ? `${event.actor.name}${event.actor.role ? ` · ${event.actor.role}` : ""}` : "Actor unavailable"}{event.actor?.source === "current profile of recorded actor" ? " (current profile; no historical name snapshot)" : ""}</p>{event.riderName && <p>Rider: {event.riderName}</p>}{event.fromStatus && event.toStatus && <p className="text-xs text-neutral-400">{deliveryStatusLabel(event.fromStatus)} → {deliveryStatusLabel(event.toStatus)}</p>}{event.reason && <p className="whitespace-pre-wrap break-words text-neutral-300">{event.reason}</p>}{event.amountHalala != null && <p className="text-xs text-neutral-300">Recorded amount: {formatPrice(event.amountHalala / 100)}</p>}</li>)}</ol>
+      {!!timeline.pending.length && <div className="rounded-lg border border-dashed border-neutral-500/40 p-3"><h3 className="font-body text-sm text-neutral-300">Pending · not completed events</h3>{timeline.pending.map(text => <p key={text} className="mt-2 text-xs text-neutral-400">○ {text}</p>)}</div>}
+      {!!timeline.limitations.length && <div className="rounded-lg border border-amber-500/20 p-3 text-xs text-amber-200"><h3 className="font-body text-sm">Historical data limitations</h3>{timeline.limitations.map(text => <p key={text} className="mt-2">{text}</p>)}</div>}
+      <p className="text-xs text-neutral-400">Private management history · Asia/Riyadh. Delivered does not mean Paid. Cash reporting and shortage acknowledgment are not payment confirmation.</p>
+    </div>}
+  </details>;
+}

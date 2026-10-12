@@ -1,12 +1,13 @@
 "use client";
 import { formatPrice } from "@/src/utils/currency.js";
 import { panelClass } from "@/src/components/admin/staff/staffUi.jsx";
+import { DeliveryBadge } from "./DeliveryBadges.jsx";
 
 export const cashLabels = { collection_pending: "Customer collection pending", awaiting_confirmation: "Rider reported — cashier pending", discrepancy: "Shortage/discrepancy", confirmed: "Cash confirmed", no_collection: "No collection needed", unavailable: "Unavailable / requires review" };
 export const attentionLabels = { ready_unassigned: "Food ready · no rider", pickup_delayed: "Pickup delayed", delivery_delayed: "Delivery delayed", issue: "Unresolved issue", no_cash_report: "Delivered · cash not reported", awaiting_cash: "Reported · cashier pending", discrepancy: "Discrepancy review", timing_unavailable: "Timing unavailable" };
 export function CashVisibility({ delivery }) {
   const reported = delivery.cashReport?.amount;
-  return <div className="min-w-44 max-w-60 space-y-1 text-xs"><p className="text-amber-300">{cashLabels[delivery.cashState] || "Preview cash state"}</p><strong className="text-sm text-white">{reported != null ? formatPrice(reported) : delivery.amountToCollect == null ? "Unavailable" : formatPrice(delivery.amountToCollect)}</strong><p className="text-neutral-400">Payment: {delivery.paymentStatus}</p>{reported != null && <p className="text-neutral-400">{delivery.cashState === "confirmed" ? "Confirmed receipt" : "Rider reported; do not recollect"}. Ledger outstanding: {delivery.amountToCollect == null ? "Unavailable" : formatPrice(delivery.amountToCollect)}</p>}{delivery.attention?.includes("timing_unavailable") && <p className="text-amber-300">Delay timing unavailable</p>}</div>;
+  return <div className="min-w-0 max-w-60 space-y-1 text-xs"><DeliveryBadge kind="cash" value={delivery.cashState === "discrepancy" ? "issue" : delivery.cashState === "confirmed" ? "delivered" : delivery.cashState} label={cashLabels[delivery.cashState] || "Preview cash state"} /><strong className="block text-sm text-white">{reported != null ? formatPrice(reported) : delivery.amountToCollect == null ? "Unavailable" : formatPrice(delivery.amountToCollect)}</strong><DeliveryBadge kind="payment" value={delivery.paymentStatus} />{reported != null && <p className="text-neutral-400">{delivery.cashState === "confirmed" ? "Confirmed receipt" : "Rider reported; do not recollect"}. Ledger outstanding: {delivery.amountToCollect == null ? "Unavailable" : formatPrice(delivery.amountToCollect)}</p>}{delivery.attention?.includes("timing_unavailable") && <p className="text-amber-300">Delay timing unavailable</p>}</div>;
 }
 export default function DeliveryHealthPanel({ health, onFilter, disabled, preview }) {
   if (!health) return <p className="text-sm text-neutral-400">{preview ? "Attention and cash totals are unavailable in synthetic design preview." : "Operational summaries unavailable."}</p>;

@@ -102,6 +102,9 @@ try {
       };
       const assertLayout = async page => {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "No document-level horizontal overflow");
+        assert.equal(await page.evaluate(() => [...document.querySelectorAll("dialog[open]")].every(node => {
+          const box = node.getBoundingClientRect(); return box.top >= 0 && box.left >= 0 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1;
+        })), true, "Open drawer/confirmation is fully within the viewport");
         const violations = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })).violations.map(row => ({ id: row.id, nodes: row.nodes.map(node => node.target) })));
         assert.deepEqual(violations, []);
       };
@@ -133,9 +136,23 @@ try {
         await reason.fill("Keep my unsaved authorization draft"); await terminal.fill("DRAFT-TERMINAL");
         await page.getByText("View delivery details", { exact: true }).click();
         await page.getByRole("heading", { name: "Order Summary", exact: true }).waitFor();
+        await page.getByText("Delivery timeline · recorded history", { exact: true }).click();
+        await page.getByRole("heading", { name: "Enrolled", exact: true }).waitFor();
+        const details = page.locator("details").filter({ has: page.getByText("View delivery details", { exact: true }) });
+        const timeline = page.locator("details").filter({ has: page.getByText("Delivery timeline · recorded history", { exact: true }) });
+        // Modal focus cannot escape into background search/assignment controls.
+        for (let index = 0; index < 24; index++) {
+          await page.keyboard.press("Tab");
+          assert.equal(await page.evaluate(() => Boolean(document.activeElement.closest('dialog[open]'))), true);
+        }
+        await page.keyboard.press("Escape");
+        assert.equal(await row.getByRole("button", { name: "Assign", exact: true }).evaluate(node => node === document.activeElement), true, "Escape restores focus to the selected row action");
         const before = count();
         await page.getByLabel("Search order number", { exact: true }).pressSequentially("NO-MATCH", { delay: 25 });
         await page.getByRole("combobox", { name: "Delivery status", exact: true }).click(); await page.getByRole("option", { name: "Assigned", exact: true }).click();
+        for (const [label, option] of [["Date period", "Today"], ["Date basis", "Delivered date · Riyadh"], ["Sort deliveries", "Assigned longest · assigned only"]]) {
+          await page.getByRole("combobox", { name: label, exact: true }).click(); await page.getByRole("option", { name: option, exact: true }).click();
+        }
         await page.clock.install();
         await page.evaluate(() => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
         await page.clock.fastForward(65_000); await new Promise(resolve => setTimeout(resolve, 250));
@@ -144,7 +161,7 @@ try {
         await page.getByText("No matching deliveries. This is a successful empty result.", { exact: true }).waitFor();
         assert.equal(count(), before + 1); assert.equal(requests.filter(req => req.path === "/api/deliveries").at(-1).query.search, "NO-MATCH");
         assert.equal(await reason.inputValue(), "Keep my unsaved authorization draft"); assert.equal(await terminal.inputValue(), "DRAFT-TERMINAL");
-        assert.equal(await page.locator("details").evaluate(element => element.open), true);
+        assert.equal(await details.evaluate(element => element.open), true); assert.equal(await timeline.evaluate(element => element.open), true);
         await page.getByRole("button", { name: "Reset filters", exact: true }).click(); await row.waitFor();
         const attentionResponse = page.waitForResponse(response => response.url().includes("/api/deliveries?") && response.url().includes("attention=ready_unassigned"));
         await page.getByRole("button", { name: /Food ready · no rider/ }).click(); await attentionResponse;
@@ -163,24 +180,38 @@ try {
         // Isolated fixture simulates another authorized worker advancing the revision.
         await Delivery.updateOne({ _id: enrolled.id }, { $inc: { revision: 1 } });
         await page.getByRole("button", { name: "Refresh deliveries", exact: true }).click();
+        await page.getByRole("button", { name: "Open selected delivery", exact: true }).click();
         await page.getByRole("button", { name: "I reviewed the latest delivery", exact: true }).waitFor();
         assert.equal(await page.getByRole("button", { name: operational ? "Assign Rider" : "Assign · Isolated Test", exact: true }).isDisabled(), true);
         assert.equal(await reason.inputValue(), "Keep my unsaved authorization draft");
         await page.getByRole("button", { name: "I reviewed the latest delivery", exact: true }).click();
         await page.setViewportSize({ width: 390, height: 844 }); await assertLayout(page);
-        await page.screenshot({ path: path.join(screenshots, "management-mobile.png"), fullPage: true });
+        await page.screenshot({ path: path.join(screenshots, "management-mobile-details.png"), fullPage: false });
+        await page.getByRole("button", { name: "Close Delivery details & actions", exact: true }).click();
+        assert.equal(await page.locator("table").isVisible(), false);
+        await page.getByRole("region", { name: "Delivery orders" }).getByRole("heading", { name: order.orderNumber, exact: true }).waitFor();
+        await page.screenshot({ path: path.join(screenshots, "management-mobile-cards.png"), fullPage: true });
         await page.setViewportSize({ width: 820, height: 1180 }); await assertLayout(page);
         await page.setViewportSize({ width: 1536, height: 1024 });
+        await page.getByRole("button", { name: "Open selected delivery", exact: true }).click();
         console.log("PASS explicit management search/Enter/reset, zero typing/focus/timer requests, retained rows/details/drafts, revision review and mobile/tablet accessibility");
       }
       await manager.page.getByRole("radio").first().check();
-      await manager.page.screenshot({ path: path.join(screenshots, "admin-assignment-desktop.png"), fullPage: true });
+      await manager.page.screenshot({ path: path.join(screenshots, "admin-assignment-desktop.png"), fullPage: false });
       await assertLayout(manager.page);
       if (management) holdWrites = true;
       await manager.page.getByRole("button", { name: operational ? "Assign Rider" : "Assign · Isolated Test", exact: true }).click();
+      const confirmation = manager.page.getByRole("dialog", { name: "Confirm rider assignment", exact: true });
+      await confirmation.waitFor();
+      await confirmation.getByText(order.orderNumber, { exact: true }).waitFor();
+      await confirmation.getByText("Local rider", { exact: true }).waitFor();
+      await assertLayout(manager.page);
+      await manager.page.screenshot({ path: path.join(screenshots, "management-assignment-confirmation.png"), fullPage: false });
+      await confirmation.getByRole("button", { name: "Confirm assignment", exact: true }).click();
       if (management) {
-        const otherRow = manager.page.getByRole("row").filter({ hasText: "TEST-SECOND-DELIVERY" });
-        assert.equal(await otherRow.getByRole("button", { name: "Assign", exact: true }).isDisabled(), true, "Cannot change selection during a pending mutation");
+        const otherRow = manager.page.locator("table tbody tr").filter({ hasText: "TEST-SECOND-DELIVERY" });
+        assert.equal(await otherRow.locator("button").isDisabled(), true, "Cannot change selection during a pending mutation");
+        await manager.page.keyboard.press("Escape"); assert.equal(await confirmation.isVisible(), true, "Pending confirmation cannot be dismissed");
         for (let index = 0; !releaseWrite && index < 100; index++) await new Promise(resolve => setTimeout(resolve, 25));
         holdWrites = false; releaseWrite();
       }
@@ -191,8 +222,11 @@ try {
       if (management) {
         await manager.page.getByText("Delivery: Assigned", { exact: true }).waitFor();
         await manager.page.getByText("Selected delivery is outside the applied results. Its authorized detail and your drafts are retained.", { exact: true }).waitFor();
+        assert.equal(await manager.page.getByRole("button", { name: operational ? "Reassign Rider" : "Reassign · Isolated Test", exact: true }).isDisabled(), true, "No-op reassignment stays blocked");
+        await manager.page.getByRole("button", { name: "Close Delivery details & actions", exact: true }).click();
         await manager.page.getByRole("button", { name: "Reset filters", exact: true }).click();
       }
+      else await manager.page.getByRole("button", { name: "Close Delivery details & actions", exact: true }).click();
       await row.getByText("Assigned", { exact: true }).waitFor();
       failReads = true;
       await manager.page.getByRole("button", { name: "Refresh deliveries", exact: true }).click();
@@ -228,13 +262,18 @@ try {
       assert.equal(await CashMovement.countDocuments(), 0);
       const cashier = await session(actors.cashier, { width: 1536, height: 1024 });
       await cashier.page.goto(`${origin}/admin/deliveries${modeQuery}`);
-      await cashier.page.getByRole("row").filter({ hasText: order.orderNumber }).getByRole("button", { name: "Details", exact: true }).click();
+      await cashier.page.getByRole("row").filter({ hasText: order.orderNumber }).getByRole("button", { name: "Review Cash", exact: true }).click();
+      assert.equal(await cashier.page.getByRole("radio").count(), 0, "Cashier receives no assignment controls");
       await cashier.page.getByLabel("Your open cashier terminal").fill("LOCAL");
       await cashier.page.getByRole("button", { name: operational ? "Confirm Cashier Receipt" : "Confirm Cashier Receipt · Isolated Test", exact: true }).click();
       await cashier.page.getByRole("status").filter({ hasText: "Confirmed by the server" }).waitFor();
       assert.equal((await Order.findById(order._id)).paymentStatus, "paid");
       assert.equal(await CashMovement.countDocuments({ order: order._id }), 1);
       assert.equal((await CashMovement.findOne({ order: order._id })).amountHalala, 4000);
+      await cashier.page.getByText("Delivery timeline · recorded history", { exact: true }).click();
+      await cashier.page.getByRole("heading", { name: "Cashier receipt confirmed", exact: true }).waitFor();
+      await cashier.page.screenshot({ path: path.join(screenshots, "management-confirmed-timeline.png"), fullPage: false });
+      await cashier.page.getByRole("button", { name: "Close Delivery details & actions", exact: true }).click();
       if (management) {
         await cashier.page.getByRole("row").filter({ hasText: order.orderNumber }).getByText("Cash confirmed", { exact: true }).waitFor();
         const cashResponse = cashier.page.waitForResponse(response => response.url().includes("/api/deliveries?") && response.url().includes("cashStatus=confirmed_today"));
@@ -257,6 +296,7 @@ try {
       await manager.page.goto(`${origin}/admin/deliveries?preview=1`);
       await manager.page.getByRole("row").filter({ hasText: "PREVIEW-A" }).getByRole("button", { name: "Assign", exact: true }).click();
       await manager.page.getByRole("radio").first().check(); await manager.page.getByRole("button", { name: "Preview Assignment" }).click();
+      await manager.page.getByRole("button", { name: "Confirm preview selection", exact: true }).click();
       await manager.page.getByRole("status").filter({ hasText: "No record was assigned" }).waitFor();
       assert.equal(requests.filter(req => req.method !== "GET").length, writesBeforePreview);
       await rider.page.goto(`${origin}/rider?preview=1&rehearsal=1`);

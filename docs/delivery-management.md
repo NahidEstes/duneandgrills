@@ -94,3 +94,69 @@ Stop with Ctrl+C; only the harness-owned temporary database is removed.
 Production load/latency, real role accounts and historical missing timestamps are
 not verified by a local rehearsal. Summary aggregation is server-side/batched but
 must examine the authorized delivery scope; no cache or production indexes were added.
+
+## Timeline, dates, sorting and details
+
+Management detail responses now include a private, allowlisted timeline. Sources:
+Delivery.createdAt, assignmentHistory (with previous riders), issueHistory plus the
+current issue, pickedUpAt/deliveredAt, cash report/acknowledgment/confirmation stamps,
+and matching enrollment/Delivery audit records. Recorded action stamps are preferred;
+matching audit events enrich actor snapshots and recorded status transitions, not
+duplicate them. Audit-only events explicitly say “Audit recorded time”. Matching
+is one-to-one by action, recorded actor/rider when available and closest transaction
+time within 60 seconds. Unknown historic timestamps/actors are labelled unavailable,
+not guessed from today's assigned rider. Current actor-profile fallback is labelled
+as such, rather than a historical snapshot. Pending steps are separate from events.
+Reasons come from private Delivery records, not generic/redacted audit explanations.
+Only the latest 500 audit records are read (with an explicit truncation warning);
+all existing bounded assignment/issue history remains included. No records are rewritten.
+Rider/public responses receive no new timeline or internal history. Cashier detail
+scope remains delivered records; cashier lists remain delivered cash reports only.
+
+List defaults: all time, enrolled date, newest enrolled first, all riders. Filters
+apply on the server **before** stable sorting/skip/limit; summary/attention/cash
+cards remain overall authorized scope, independent of applied filters and pages.
+Date basis is Delivery.createdAt (enrollment) or deliveredAt (completion), never
+the order occurrence time or generic updatedAt. Today and Yesterday are complete
+Riyadh calendar days. Custom requires both YYYY-MM-DD dates, includes both selected
+days (start inclusive, next midnight exclusive), and rejects invalid/reversed bounds.
+Missing date stamps cannot match a date range. No stored timestamps change.
+
+- Newest: enrolled createdAt descending, ID descending.
+- Oldest waiting: eligible, food-ready, unassigned only; Order.readyAt ascending.
+- Assigned longest: eligible assigned deliveries only; assignedAt ascending.
+- Picked up longest: eligible picked-up deliveries only; pickedUpAt ascending.
+
+Missing stage clocks sort last and remain visibly unavailable. Ascending sorts use
+ID ascending as the tie-breaker. Reassignment correctly restarts assignedAt, while
+issue resolution and unrelated updates do not reset recorded stage clocks. Stage
+sorts intersect other filters; contradictory filters can honestly produce no results.
+Rider filtering is Admin/Manager-only; inactive historical riders remain filterable.
+The picker is bounded to the first 100 historical riders plus the current bounded
+assignment directory, with a truncation notice when necessary. Cashiers receive
+neither that directory/filter nor assignment controls.
+
+The mobile list uses cards below 1024px; desktop retains the table. Native modal
+details/confirmation dialogs trap focus, support Escape and restore trigger focus.
+Closed details stay mounted, preserving expansion and rider/reason/terminal drafts.
+Assignments require a confirmation showing order, rider, state and reassignment
+reason. Same-rider reassignment is disabled. Blocked deliveries offer review/history,
+not assignment. All existing server eligibility/revision/idempotency/payment checks
+remain authoritative. Pending actions lock conflicting controls. Timeline reporting
+and acknowledgment do not settle cash; only the existing cashier confirmation does.
+
+Additional verification: `node --test tests/deliveryTimelineFiltersIntegration.js`
+from backend. The updated `riderWorkflowBrowser.mjs --management --operational`
+rehearsal enables/disables the setting **only in its disposable local database**,
+checks dialogs/focus/timeline/mobile cards and the real existing cash ledger flow.
+
+Manual checks: choose date basis/period/rider/sort without applying (no request),
+then Enter/Apply and check chips/count/page 1. Reset or click a summary/attention
+card to apply a new explicit query. Open a selected delivery, expand timeline and
+details, enter drafts, close it and Refresh; reopen to verify retained inputs and
+expansion. Change a delivery in a second authorized session: Refresh must require
+review and backend must reject stale confirmation. On mobile verify cards and the
+scrollable drawer. Assign/reassign via confirmation; verify unavailable/same rider
+and missing reassignment reason cannot submit. As cashier verify no rider controls,
+reported cash remains unpaid until a supported receipt confirmation. No migration,
+index creation, new environment variable or delivery activation is required.

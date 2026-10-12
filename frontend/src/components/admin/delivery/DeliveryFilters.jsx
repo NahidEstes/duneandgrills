@@ -1,0 +1,31 @@
+import { Search } from "lucide-react";
+import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
+import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
+import { inputClass } from "@/src/components/admin/staff/staffUi.jsx";
+import { attentionLabels, cashLabels } from "./DeliveryHealthPanel.jsx";
+import { deliverySortLabels, deliveryStatusLabel } from "./deliveryManagementPresentation.js";
+
+export default function DeliveryFilters({ draft, editDraft, apply, reset, disabled, preview, canManage, riders, applied, loading, matching, ridersHasMore }) {
+  const chips = [applied.search ? `Order: ${applied.search}` : "All order numbers", applied.status === "all" ? "All deliveries" : deliveryStatusLabel(applied.status),
+    cashLabels[applied.cashStatus] || (applied.cashStatus === "confirmed_today" ? "Cash confirmed today" : "All cash states"), attentionLabels[applied.attention] || "All attention states",
+    `${applied.dateBasis === "delivered" ? "Delivered" : "Enrolled"} date · ${applied.datePeriod === "custom" ? `${applied.from} – ${applied.to}` : applied.datePeriod === "all" ? "All time" : applied.datePeriod} · Riyadh`,
+    ...(canManage ? [applied.riderId === "all" ? "All riders" : applied.riderId === "unassigned" ? "No rider assigned" : `Rider: ${riders.find(row => row.id === applied.riderId)?.name || "Selected rider"}`] : []), deliverySortLabels[applied.sort]];
+  return <>
+    <form onSubmit={event => { event.preventDefault(); apply({ ...draft, search: draft.search.trim(), page: 1 }); }} className="grid gap-3 border-b border-white/10 p-4 sm:grid-cols-2 xl:grid-cols-4">
+      <label className="relative sm:col-span-2"><span className="sr-only">Search order number</span><Search className="absolute left-3 top-3 text-neutral-500" size={18} /><input className={`${inputClass} pl-10`} placeholder="Search order number…" value={draft.search} onChange={event => editDraft("search", event.target.value)} disabled={disabled} maxLength={80} /></label>
+      <DarkSelect aria-label="Delivery status" disabled={disabled} value={draft.status} onChange={event => editDraft("status", event.target.value)}>{["all", "unassigned", "assigned", "picked_up", "delivered", "issue"].map(state => <option key={state} value={state}>{state === "all" ? "All deliveries" : deliveryStatusLabel(state)}</option>)}</DarkSelect>
+      {!preview && <>
+        <DarkSelect aria-label="Cash status" disabled={disabled} value={draft.cashStatus} onChange={event => editDraft("cashStatus", event.target.value)}><option value="all">All cash states</option>{Object.entries(cashLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}<option value="confirmed_today">Confirmed · Today Riyadh</option></DarkSelect>
+        <DarkSelect aria-label="Attention condition" disabled={disabled} value={draft.attention} onChange={event => editDraft("attention", event.target.value)}><option value="all">All attention states</option>{Object.entries(attentionLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</DarkSelect>
+        <DarkSelect aria-label="Date basis" disabled={disabled} value={draft.dateBasis} onChange={event => editDraft("dateBasis", event.target.value)}><option value="enrolled">Enrolled date · Riyadh</option><option value="delivered">Delivered date · Riyadh</option></DarkSelect>
+        <DarkSelect aria-label="Date period" disabled={disabled} value={draft.datePeriod} onChange={event => editDraft("datePeriod", event.target.value)}><option value="all">All time</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="custom">Custom date range</option></DarkSelect>
+        {canManage && <DarkSelect aria-label="Filter rider" disabled={disabled} value={draft.riderId} onChange={event => editDraft("riderId", event.target.value)}><option value="all">All riders</option><option value="unassigned">No rider assigned</option>{riders.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</DarkSelect>}
+        <DarkSelect aria-label="Sort deliveries" disabled={disabled} value={draft.sort} onChange={event => editDraft("sort", event.target.value)}>{Object.entries(deliverySortLabels).filter(([key]) => canManage || key === "newest").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</DarkSelect>
+        {draft.datePeriod === "custom" && <><label className="text-xs text-neutral-300">From · Riyadh<DarkDatePicker required aria-label="From date" disabled={disabled} value={draft.from} onChange={event => editDraft("from", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="text-xs text-neutral-300">Through · Riyadh<DarkDatePicker required aria-label="Through date" disabled={disabled} value={draft.to} onChange={event => editDraft("to", event.target.value)} className={`${inputClass} mt-1`} /></label></>}
+      </>}
+      <div className="flex flex-wrap gap-3 sm:col-span-2 xl:col-span-4"><button type="submit" disabled={disabled} className="min-h-11 rounded-xl bg-dune-amber px-4 font-semibold text-black disabled:opacity-40">Search / Apply</button><button type="button" disabled={disabled} onClick={reset} className="min-h-11 rounded-xl border border-white/20 px-4 disabled:opacity-40">Reset filters</button></div>
+      {ridersHasMore && <p className="text-xs text-amber-300 sm:col-span-2 xl:col-span-4">Rider filter lists the first 100 historical riders plus the available directory; not all historical riders fit in this picker.</p>}
+    </form>
+    <div className="space-y-2 border-b border-white/10 p-4" aria-label="Applied delivery filters"><div className="flex flex-wrap gap-2">{chips.filter(Boolean).map((chip, index) => <span key={index} className="max-w-full break-words rounded-lg border border-white/10 px-2 py-1 text-xs text-neutral-300">{chip}</span>)}</div><p className="text-xs text-neutral-400">{matching == null ? "Matching count unavailable" : `${matching} matching records`}. {loading ? "New query loading; results still represent the previous applied filters." : "Draft filters apply only with Search / Apply or Enter."} Summary cards show the overall authorized scope, independent of these filters. Stage sorts restrict results to their named stage; missing clocks appear last.</p></div>
+  </>;
+}
