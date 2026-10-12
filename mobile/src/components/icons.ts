@@ -22,3 +22,5 @@ export { default as Pencil } from 'lucide-react-native/icons/pencil';
 export { default as Phone } from 'lucide-react-native/icons/phone';
 export { default as ShieldCheck } from 'lucide-react-native/icons/shield-check';
 export { default as LogOut } from 'lucide-react-native/icons/log-out';
+export { default as CookingPot } from 'lucide-react-native/icons/cooking-pot';
+export { default as Check } from 'lucide-react-native/icons/check';

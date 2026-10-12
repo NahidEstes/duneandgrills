@@ -4,7 +4,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const http = require('node:http'); const fs = require('node:fs'); const path = require('node:path');
 const crypto = require('node:crypto');
-const artifacts = path.resolve(__dirname, '../artifacts'); const root = path.resolve(__dirname, '../dist');
+const artifacts = path.resolve(__dirname, '../artifacts'); const root = path.resolve(__dirname, process.env.MOBILE_EXPORT_DIR || '../dist');
 const snapshot = JSON.parse(fs.readFileSync(path.join(artifacts, 'catalog-snapshot.json'), 'utf8'));
 const dish = snapshot.menu.find(p => p.isAvailable && !p.customization?.enabled);
 assert.ok(dish, 'Snapshot needs an available item for quick-add verification');

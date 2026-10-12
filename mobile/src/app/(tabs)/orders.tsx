@@ -1,23 +1,29 @@
-import { Pressable, Text } from 'react-native';
-import { router } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '../../state/AppProvider';
 import { useResource } from '../../hooks/useResource';
+import { useActiveOrders } from '../../hooks/useActiveOrders';
 import type { Order } from '../../domain/types';
 import { money } from '../../domain/cart';
-import { paymentLabel, statusLabel, terminal } from '../../domain/orders';
-import { Button, Loading, Notice, Screen, styles } from '../../components/ui';
+import { newestActiveOrders, paymentLabel, statusLabel, terminal } from '../../domain/orders';
+import { Button, Chip, Loading, Notice, Screen, styles } from '../../components/ui';
 export default function Orders() {
-  const app = useApp(); const actor = app.session?.user._id || 'guest';
+  const app = useApp(); const actor = app.actor; const params = useLocalSearchParams<{ active?: string }>(); const activeOnly = params.active === '1';
+  const guestActive = useActiveOrders(activeOnly && actor === 'guest');
   const resource = useResource(async signal => app.session ? (await app.request<{ data: Order[] }>('/orders/my', { signal })).data : [], actor, orders => orders.some(o => !terminal(o)), 30000);
   const guest = actor === 'guest' ? app.tracking.filter(t => t.actor === 'guest') : [];
-  return <Screen top refreshing={resource.loading} onRefresh={() => void resource.refresh()}><Text style={styles.title}>Your orders</Text>
+  const visible = activeOnly ? newestActiveOrders(resource.data || []) : resource.data;
+  const guestVisible = activeOnly ? guest.filter(t => guestActive.orders.some(o => o.orderNumber === t.orderNumber)) : guest;
+  return <Screen top refreshing={resource.loading || guestActive.loading} onRefresh={() => { void resource.refresh(); void guestActive.refresh(); }}><Text style={styles.title}>{activeOnly ? 'Active orders' : 'Your orders'}</Text>
+    <View style={styles.row}><Chip label="All orders" selected={!activeOnly} onPress={() => router.setParams({ active: '0' })} /><Chip label="Active orders" selected={activeOnly} onPress={() => router.setParams({ active: '1' })} /></View>
     {app.pending && <Button title="Resolve unresolved order" onPress={() => router.push('/checkout')} />}
     <Notice message={resource.error} retry={() => void resource.refresh()} />{resource.loading && !resource.data && <Loading />}
+    {activeOnly && <><Notice message={guestActive.error || (guestActive.outdated ? 'Status may be outdated.' : '')} retry={() => void guestActive.refresh()} />{guestActive.loading && !guestActive.data && <Loading />}</>}
     {!app.session && <><Text style={styles.muted}>Guest tracking saved securely on this phone. Sign in to see your account history.</Text><Button title="Sign in" secondary onPress={() => router.push('/auth')} /></>}
-    {app.session && resource.data?.map(o => <Pressable key={o._id} accessibilityRole="button" onPress={() => router.push({ pathname: '/order/[id]', params: { id: o._id! } })} style={styles.card}>
+    {app.session && visible?.map(o => <Pressable key={o._id} accessibilityRole="button" onPress={() => router.push({ pathname: '/order/[id]', params: { id: o._id! } })} style={styles.card}>
       <Text style={styles.heading}>{o.orderNumber}</Text><Text style={styles.text}>{statusLabel(o)} · {money(o.totalAmount)}</Text><Text style={styles.muted}>{paymentLabel(o)} · {new Date(o.createdAt).toLocaleDateString()}</Text>
     </Pressable>)}
-    {guest.map(t => <Pressable key={t.orderNumber} accessibilityRole="button" onPress={() => router.push({ pathname: '/order/[id]', params: { id: t.orderNumber, guest: '1' } })} style={styles.card}><Text style={styles.heading}>{t.orderNumber}</Text><Text style={styles.muted}>Open private tracking · {money(t.order.totalAmount)}</Text></Pressable>)}
-    {resource.data && !resource.data.length && !guest.length && <Text style={styles.text}>No orders yet. Your next meal starts in the menu.</Text>}
+    {guestVisible.map(t => <Pressable key={t.orderNumber} accessibilityRole="button" onPress={() => router.push({ pathname: '/order/[id]', params: { id: t.orderNumber, guest: '1' } })} style={styles.card}><Text style={styles.heading}>{t.orderNumber}</Text><Text style={styles.muted}>{activeOnly ? statusLabel(guestActive.orders.find(o => o.orderNumber === t.orderNumber)!) : 'Open private tracking'} · {money(t.order.totalAmount)}</Text></Pressable>)}
+    {resource.data && !visible?.length && !guestVisible.length && !guestActive.loading && <Text style={styles.text}>{activeOnly ? 'No active orders.' : 'No orders yet. Your next meal starts in the menu.'}</Text>}
   </Screen>;
 }

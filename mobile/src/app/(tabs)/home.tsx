@@ -8,6 +8,8 @@ import { activeOffer } from '../../domain/offers';
 import { useOfferTime } from '../../hooks/useOfferTime';
 import { OfferCard, browseOffer } from '../../components/offers';
 import { useResource } from '../../hooks/useResource';
+import { useActiveOrders } from '../../hooks/useActiveOrders';
+import { ActiveOrderCard } from '../../components/active-order';
 import { useDeliveryAddress } from '../../hooks/useDeliveryAddress';
 import { useApp } from '../../state/AppProvider';
 import { palette } from '../../constants/design';
@@ -16,6 +18,7 @@ import { Button, FoodImage, FulfillmentSelector, IconButton, Loading, Notice, Sc
 
 export default function Home() {
   const app = useApp(); const catalog = useResource(loadCatalog, 'home-catalog'); const config = useResource(loadOrderConfig, 'home-config');
+  const active = useActiveOrders();
   const offers = useResource(loadOffers, 'home-offers', () => true, 60000); const now = useOfferTime(offers.data); const [offerError, setOfferError] = useState('');
   const currentOffers = (offers.data || []).filter(offer => activeOffer(offer, now)).slice(0, 2);
   const { customer } = useDeliveryAddress(); const adder = useProductAdder(); const [query, setQuery] = useState(''); const { fontScale } = useWindowDimensions();
@@ -24,10 +27,12 @@ export default function Home() {
   // No popularity metric is invented: unfeatured catalogs use their original order.
   const picks = (featured.length ? featured : available).slice(0, 4); const hero = picks[0];
   const categories = [...new Set(available.map(product => product.category).filter(Boolean))];
-  return <Screen top refreshing={catalog.loading} onRefresh={() => { void catalog.refresh(); void config.refresh(); void offers.refresh(); }}>
+  return <Screen top refreshing={catalog.loading || active.loading} onRefresh={() => { void catalog.refresh(); void config.refresh(); void offers.refresh(); void active.refresh(); }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Image source={require('../../../assets/images/brand.png')} accessibilityLabel="Dune & Grills logo" style={{ width: 42, height: 42, borderRadius: 12 }} /><Text style={[styles.heading, { fontSize: 24, flex: 1 }]}>Dune & <Text style={{ color: palette.orange }}>Grills</Text></Text><IconButton icon={ShoppingBag} label={`Open cart, ${app.cart.reduce((n, line) => n + line.quantity, 0)} items`} onPress={() => router.push('/(tabs)/cart')} /></View>
     <FulfillmentSelector value={app.checkoutDraft.type} change={type => app.setCheckoutDraft(d => ({ ...d, type }))} disabled={!!app.pending} available={config.data?.orderTypes.map(type => type.value)} />
     {app.checkoutDraft.type === 'delivery' && <AddressCard compact address={customer.address} disabled={!!app.pending} />}
+    <ActiveOrderCard orders={active.orders} guest={active.guest} outdated={active.outdated} refreshing={active.loading} retry={() => void active.refresh()} />
+    {app.pending && <Button title="Resolve unresolved order" secondary onPress={() => router.push('/checkout')} />}
     <Text style={[styles.title, { marginTop: 6 }]}>What are you craving?</Text>
     <SearchField label="Search your favourites" placeholder="Search your favourites" value={query} onChangeText={setQuery} onSubmitEditing={() => openMenu('All', query.trim())} />
     {!!query.trim() && <Button title="Search menu" secondary onPress={() => openMenu('All', query.trim())} />}
