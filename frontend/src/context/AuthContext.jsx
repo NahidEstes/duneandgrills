@@ -2,12 +2,12 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { loginUser, registerUser, fetchMe, logoutUser, migrateLegacySession } from "../api/api.js";
+import { loginUser, registerUser, fetchMe, fetchSession, logoutUser, migrateLegacySession } from "../api/api.js";
 import { useCart } from "./CartContext.jsx";
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
+export const AuthProvider = ({ children, readOnlyStaff = false }) => {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,18 +25,18 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem("dg_token");
     const restoreSession = async () => {
       try {
-        const currentUser = token ? await migrateLegacySession() : await fetchMe();
+        const currentUser = readOnlyStaff ? await fetchSession() : token ? await migrateLegacySession() : await fetchMe();
         if (cancelled) return;
         if (token) localStorage.removeItem("dg_token");
         setSessionError("");
         setUser(currentUser);
-        await restoreUserCart(currentUser._id).catch(() => undefined);
+        if (!readOnlyStaff && currentUser.role !== "rider") await restoreUserCart(currentUser._id).catch(() => undefined);
       } catch (error) {
         if (cancelled) return;
         if ([401, 403].includes(error.response?.status)) {
           localStorage.removeItem("dg_token");
           setUser(null); setSessionError("");
-          restoreGuestCart();
+          if (!readOnlyStaff) restoreGuestCart();
         } else setSessionError("Session could not be verified. Reconnect and retry; your saved work is retained.");
       } finally {
         if (!cancelled) setLoading(false);
@@ -50,14 +50,14 @@ export const AuthProvider = ({ children }) => {
       cancelled = true;
       window.removeEventListener("online", retry);
     };
-  }, [restoreGuestCart, restoreUserCart, restoreVersion]);
+  }, [restoreGuestCart, restoreUserCart, restoreVersion, readOnlyStaff]);
 
   const login = async (email, password) => {
     const data = await loginUser({ email, password });
     localStorage.removeItem("dg_token");
     setUser(data.user);
     setSessionError("");
-    await migrateGuestCart(data.user._id).catch(() => undefined);
+    if (data.user.role !== "rider") await migrateGuestCart(data.user._id).catch(() => undefined);
     return data.user;
   };
 

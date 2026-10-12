@@ -11,6 +11,9 @@ export default function Providers({ children }) {
   const pathname = usePathname();
   // The read-only second monitor must not load auth, cart, or customer data.
   if (pathname === "/pos/customer-display") return <><PwaExperience />{children}</>;
+  if (pathname === "/rider" || pathname.startsWith("/rider/")) return (
+    <CartProvider><AuthProvider readOnlyStaff>{children}<DuneToaster /></AuthProvider></CartProvider>
+  );
   return (
     <CartProvider>
       <AuthProvider>

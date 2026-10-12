@@ -8,7 +8,10 @@ const signToken = (user) =>
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 
-const sanitize = (user) => ({
+const sanitize = (user) => user.role === "rider" ? ({
+  _id: user._id, employeeId: user.employeeId, name: user.name, email: user.email,
+  role: user.role, phone: user.phone, isActive: user.isActive !== false,
+}) : ({
   _id: user._id,
   customerNumber: user.customerNumber,
   employeeId: user.employeeId,
@@ -105,7 +108,7 @@ export const login = async (req, res) => {
         .json({ success: false, message: "Invalid email or password" });
     }
 
-    await ensurePointsBalance(user._id);
+    if (user.role !== "rider") await ensurePointsBalance(user._id);
     const currentUser = await User.findById(user._id);
     sendAuthResponse(req, res, user, currentUser, 200);
   } catch (err) {
@@ -127,7 +130,7 @@ export const logout = async (_req, res) => {
 
 // @route GET /api/auth/me
 export const getMe = async (req, res) => {
-  await ensurePointsBalance(req.user._id);
+  if (req.user.role !== "rider") await ensurePointsBalance(req.user._id);
   const user = await User.findById(req.user._id);
   res.status(200).json({ success: true, user: sanitize(user) });
 };

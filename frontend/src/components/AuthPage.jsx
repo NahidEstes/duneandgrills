@@ -39,7 +39,7 @@ const AuthPage = () => {
       }
       const destination = new URLSearchParams(window.location.search).get("returnTo");
       const safe = destination && destination.startsWith("/") && !destination.startsWith("//") && !destination.includes("\\") && !/[\r\n]/.test(destination);
-      router.push(safe ? destination : authenticatedUser?.role === "kitchen" ? "/kitchen" : "/");
+      router.push(safe ? destination : authenticatedUser?.role === "rider" ? "/rider" : authenticatedUser?.role === "kitchen" ? "/kitchen" : "/");
     } catch (err) {
       setError(
         err.response?.data?.message || "Something went wrong. Please try again."

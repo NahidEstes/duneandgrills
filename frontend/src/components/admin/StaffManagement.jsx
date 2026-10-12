@@ -11,7 +11,7 @@ import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import { formatAdminDate } from "./adminUi.js";
 import { inputClass, panelClass, StaffDialog } from "./staff/staffUi.jsx";
 
-const ROLES = ["admin", "manager", "cashier", "kitchen", "inventory", "storekeeper", "accountant"];
+const ROLES = ["admin", "manager", "cashier", "kitchen", "inventory", "storekeeper", "accountant", "rider"];
 const EMPTY = { name: "", email: "", phone: "", role: "cashier", password: "", employeeId: "", joiningDate: "", defaultShift: "", attendanceEnabled: false, pin: "" };
 
 export default function StaffManagement() {

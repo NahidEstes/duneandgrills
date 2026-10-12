@@ -619,6 +619,11 @@ export const fetchMe = async () => {
   return data.user;
 };
 
+export const fetchSession = async () => {
+  const { data } = await api.get("/auth/session");
+  return data.user;
+};
+
 export const migrateLegacySession = async () => {
   const { data } = await api.post("/auth/migrate-session");
   return data.user;
