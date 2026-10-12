@@ -1,6 +1,7 @@
 import { DELIVERY_PROVIDERS } from "../config/sales.js";
 import { toHalala, fromHalala } from "../utils/money.js";
 import { OrderEngineError } from "../config/orderContract.js";
+import { deliveryCashFacts } from "./deliveryHealthService.js";
 
 export const eligibleDeliveryOrder = (order, { enrolled = true } = {}) => Boolean(order
   && (!enrolled || order.deliveryMode === "restaurant") && order.orderType === "delivery"
@@ -27,21 +28,23 @@ export function serializeDelivery(delivery, order, rider, { detail = false } = {
   const historical = delivery.status === "delivered";
   const cash = delivery.cashReport || {};
   const eligible = eligibleDeliveryOrder(order);
-  const accepted = eligible && historical && cash.status === "unconfirmed" && cash.amountHalala === balance
+  const accepted = eligible && balance !== null && historical && cash.status === "unconfirmed" && cash.amountHalala === balance
     && balance === toHalala(order.totalAmount) && !(order.paymentRecords || []).length
     && !order.refundReservedHalala;
   return {
     id: String(delivery._id), orderId: String(order._id), orderNumber: order.orderNumber,
-    revision: delivery.revision, riderId: delivery.rider ? String(delivery.rider) : null,
+    revision: delivery.revision, orderRevision: order.__v ?? 0, riderId: delivery.rider ? String(delivery.rider) : null,
     riderName: rider?.name || null, deliveryStatus: delivery.status, restaurantStatus: order.status,
     canOperate: eligible,
     eligibilityWarning: eligible ? "" : "This order is no longer eligible. Delivery actions are blocked; authorized order handling is required.",
     customerName: historical ? "Completed delivery" : order.customer?.name || "Guest",
     paymentStatus: order.paymentStatus, amountToCollect: balance === null ? null : fromHalala(balance),
+    ...deliveryCashFacts(delivery, balance, eligible),
+    readyAt: order.readyAt || null,
     assignedAt: delivery.assignedAt || null, pickedUpAt: delivery.pickedUpAt || null,
     deliveredAt: delivery.deliveredAt || null, updatedAt: delivery.updatedAt,
     cashReport: { status: cash.status || "none", amount: cash.amountHalala == null ? null : fromHalala(cash.amountHalala),
-      confirmedAt: cash.confirmedAt || null, acknowledgedAt: cash.acknowledgedAt || null },
+      reportedAt: cash.reportedAt || null, confirmedAt: cash.confirmedAt || null, acknowledgedAt: cash.acknowledgedAt || null },
     canConfirmCash: Boolean(accepted),
     cashConfirmationGap: cash.status === "discrepancy" ? "Shortage/discrepancy requires authorized handling; not posted as payment."
       : cash.status === "unconfirmed" && !accepted ? "Existing payment workflow cannot safely confirm this balance. Cash remains unconfirmed." : "",

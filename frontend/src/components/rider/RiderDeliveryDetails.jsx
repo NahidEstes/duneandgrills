@@ -9,24 +9,26 @@ import RiderNav from "./RiderNav.jsx";
 import { customerMapHref, customerPhoneHref, deliveryModeQuery, deliveryStatusLabel } from "./deliveryPresentation.js";
 import styles from "./rider.module.css";
 
-export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, afterChange }) {
-  const [data, setData] = useState(null), [error, setError] = useState(""), [loading, setLoading] = useState(true), [version, setVersion] = useState(0), [updatedAt, setUpdatedAt] = useState(null);
+export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, afterChange, record, onRefresh, stamp }) {
+  const [loadedData, setData] = useState(null), [error, setError] = useState(""), [loading, setLoading] = useState(true), [version, setVersion] = useState(0), [updatedAt, setUpdatedAt] = useState(null);
+  const data = record || loadedData;
   const [reason, setReason] = useState(""), [amount, setAmount] = useState("");
   const mutation = useDeliverySubmission();
   useEffect(() => {
+    if (record) return;
     const controller = new AbortController(); let current = true;
     setLoading(true); setError(""); setData(null); setUpdatedAt(null);
     fetchDeliveryDetails(id, { preview, rehearsal, admin }, controller.signal).then(result => { if (current) { setData({ ...result.data, mode: result.mode }); setUpdatedAt(new Date()); } })
       .catch(error => { if (current) setError(navigator.onLine ? error.response?.data?.message || error.message || "Delivery unavailable." : "You are offline. Reconnect and retry."); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; controller.abort(); };
-  }, [id, preview, rehearsal, admin, version]);
-  const refresh = () => setVersion(value => value + 1);
+  }, [id, preview, rehearsal, admin, version, record]);
+  const refresh = () => record ? onRefresh?.() : setVersion(value => value + 1);
   const act = action => mutation.submit(action, { expectedRevision: data.revision,
     ...(["issue", "resolve_issue", "acknowledge_cash", "report_cash"].includes(action) ? { reason } : {}), ...(action === "report_cash" ? { amount } : {}) },
   payload => deliveryAction(id, action, payload, { admin }), () => { refresh(); afterChange?.(); });
-  if (loading) return <div className={styles.empty} role="status">Loading delivery details…</div>;
-  if (error) return <div className={styles.empty} role="alert"><h2>Delivery unavailable</h2><p>{error}</p><button type="button" className={styles.action} onClick={refresh}>Retry details</button></div>;
+  if (!record && loading) return <div className={styles.empty} role="status">Loading delivery details…</div>;
+  if (!record && error) return <div className={styles.empty} role="alert"><h2>Delivery unavailable</h2><p>{error}</p><button type="button" className={styles.action} onClick={refresh}>Retry details</button></div>;
   if (!data) return null;
   const stage = data.deliveryStatus === "issue" ? data.issue?.previousStatus : data.deliveryStatus;
   const phone = !preview && customerPhoneHref(data.customer?.phone), map = !preview && customerMapHref(data.customer?.address);
@@ -34,13 +36,14 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
     <div className={styles.banner}><Info aria-hidden="true" /><div><strong>{preview ? "DESIGN PREVIEW • SYNTHETIC DATA" : data.mode === "operational" ? "RESTAURANT DELIVERY" : "ISOLATED LOCAL REHEARSAL"}</strong><p>{data.mode !== "operational" && "Live delivery disabled. "}Delivery status does not confirm payment.</p></div></div>
     {data.eligibilityWarning && <p className={styles.error} role="alert">{data.eligibilityWarning}</p>}
     <section className={styles.card}><div className={styles.cardHeading}><h2>{data.orderNumber}</h2><span className={styles.badge}>{deliveryStatusLabel(data.deliveryStatus)}</span></div><p>{data.restaurantStatus === "ready" ? "Food ready for pickup." : `Restaurant status: ${data.restaurantStatus}`}</p>
+      {admin && <dl className="mt-3 space-y-1 text-xs text-neutral-400">{[["Food ready", data.readyAt], ["Rider assigned", data.assignedAt], ["Picked up", data.pickedUpAt]].map(([label, date]) => <div key={label}><dt className="inline">{label}: </dt><dd className="inline">{date ? new Date(date).toLocaleString("en-GB", { timeZone: "Asia/Riyadh" }) + " Riyadh" : "Not recorded — timing unavailable where required"}</dd></div>)}</dl>}
       <ol className={styles.progress} aria-label="Delivery progress">{["assigned", "picked_up", "delivered"].map((status, index, steps) => <li key={status} className={index < steps.indexOf(stage) ? styles.completedStep : undefined} aria-current={stage === status ? "step" : undefined}><span />{deliveryStatusLabel(status)}</li>)}</ol></section>
     <section className={styles.card}><div className={styles.recipient}><Store className="text-amber-400" /><div><h2>Pickup · Dune &amp; Grills</h2><p>{data.pickupInstructions}</p></div></div></section>
     {data.customer && <section className={styles.card}><div className={styles.recipient}><UserRound /><div><h2>{data.customer.name}</h2><p><MapPin size={18} />{data.customer.address || "Address not recorded"}</p><p>{data.deliveryNote}</p></div></div>
       <div className={styles.linkActions}>{phone ? <a href={phone}><Phone size={20} />Call Customer</a> : <button type="button" disabled>Call unavailable{preview ? " in preview" : ""}</button>}{map ? <a href={map} target="_blank" rel="noopener noreferrer"><MapPin size={20} />Open Map</a> : <button type="button" disabled>Map unavailable{preview ? " in preview" : ""}</button>}</div></section>}
     {!data.customer && <p className={styles.privacy}>Historical customer contact/address is hidden.</p>}
     <section className={styles.card}><h2 className={styles.detailTitle}><UtensilsCrossed size={23} />Order Summary</h2><ul className={styles.orderItems}>{data.items.map((item, index) => <li key={index}><div><strong>{item.quantity} × {item.name}</strong>{item.selectedAddOns?.map((row, index) => <p key={index}>{row.quantity} × {row.name}</p>)}{item.spiceLevel && <p>Spice: {item.spiceLevel}</p>}{item.itemNote && <p>{item.itemNote}</p>}</div><span>{formatPrice(item.lineTotal)}</span></li>)}</ul><div className={styles.orderTotal}><strong>Order total</strong><strong>{formatPrice(data.orderTotal)}</strong></div></section>
-    <section className={styles.card}><h2 className={styles.detailTitle}><Wallet size={23} />Cash to Collect</h2><strong className={styles.balance}>{data.amountToCollect == null ? "Unavailable" : formatPrice(data.amountToCollect)}</strong><p>Payment: {data.paymentStatus} · Cash report: {data.cashReport?.status || "none"}</p>{data.cashReport?.amount != null && <p>Reported: {formatPrice(data.cashReport.amount)}</p>}<p>Cash receipt/payment is confirmed separately by a cashier.</p>{data.cashConfirmationGap && <p role="alert">{data.cashConfirmationGap}</p>}</section>
+    <section className={styles.card}><h2 className={styles.detailTitle}><Wallet size={23} />{data.cashLabel || "Cash to Collect"}</h2><strong className={styles.balance}>{data.cashReport?.amount != null ? formatPrice(data.cashReport.amount) : data.amountToCollect == null ? "Unavailable" : formatPrice(data.amountToCollect)}</strong><p>Payment: {data.paymentStatus} · Cash report: {data.cashReport?.status || "none"}</p>{data.cashReport?.amount != null && <><p>Rider reported: {formatPrice(data.cashReport.amount)}</p><p>Outstanding payment ledger: {data.amountToCollect == null ? "Unavailable" : formatPrice(data.amountToCollect)}. Do not collect the reported cash again; cashier reconciliation is separate.</p></>}<p>Cash receipt/payment is confirmed separately by a cashier.</p>{data.cashConfirmationGap && <p role="alert">{data.cashConfirmationGap}</p>}</section>
     {data.issue && <section className={styles.card}><h2>Delivery Issue</h2><p>{data.issue.reason}</p></section>}
     {mutation.error && <p role="alert" className={styles.error}>{mutation.error}</p>}{mutation.message && <p role="status" className={styles.notice}>{mutation.message}</p>}
     {preview && <p className={styles.privacy}>Read-only preview. All pickup, delivery and payment controls are disabled.</p>}
@@ -52,7 +55,7 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
       {["assigned", "picked_up"].includes(data.deliveryStatus) && <button type="button" disabled={mutation.pending || !reason.trim()} onClick={() => act("issue")}>Report Delivery Issue</button>}
       {data.deliveryStatus === "delivered" && data.amountToCollect > 0 && data.cashReport?.status === "none" && <><label>Cash actually collected (SAR)<input type="number" min="0" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} /></label><button type="button" disabled={mutation.pending || amount === ""} className={styles.action} onClick={() => act("report_cash")}>Report Cash · Not a Payment</button></>}
     </div>}
-    <div className={styles.updated}><button type="button" onClick={refresh}>Refresh details</button>{updatedAt && <time dateTime={updatedAt.toISOString()}>Last loaded · {updatedAt.toLocaleTimeString("en-GB", { timeZone: "Asia/Riyadh" })} Riyadh</time>}</div>
+    <div className={styles.updated}><button type="button" onClick={refresh}>Refresh details</button>{(stamp || updatedAt) && <time dateTime={new Date(stamp || updatedAt).toISOString()}>Last loaded · {new Date(stamp || updatedAt).toLocaleTimeString("en-GB", { timeZone: "Asia/Riyadh" })} Riyadh</time>}</div>
   </>;
 }
 export default function RiderDeliveryDetails(props) {

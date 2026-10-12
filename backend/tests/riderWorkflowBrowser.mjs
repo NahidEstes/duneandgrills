@@ -28,6 +28,7 @@ import { setRiderDeliverySetting } from "../services/riderAccessService.js";
 const frontend = path.resolve(import.meta.dirname, "../../frontend");
 const manual = process.argv.includes("--manual");
 const operational = process.argv.includes("--operational");
+const management = process.argv.includes("--management");
 const modeQuery = operational ? "" : "?rehearsal=1";
 const keys = ["NODE_ENV", "MONGO_URI", "JWT_SECRET", "RIDER_WORKFLOW_ENABLED", "RIDER_PREVIEW_ENABLED"];
 const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
@@ -45,11 +46,20 @@ try {
     if (operational && !manual) await setRiderDeliverySetting(actors.admin, { enabled: false, expectedRevision: 1 });
     await PosShift.create({ cashier: actors.cashier._id, terminal: "LOCAL", openingCashHalala: 0, openedBy: actors.cashier._id, isOpen: true, status: "open" });
     const requests = [];
+    let releaseRead, holdReads = false, releaseWrite, holdWrites = false;
+    let second;
+    if (management) {
+      const secondOrder = await Order.create({ orderNumber: "TEST-SECOND-DELIVERY", source: "website", orderType: "delivery", deliveryMode: "restaurant", status: "ready", readyAt: new Date(), paymentStatus: "pending", totalAmount: 10, subtotal: 10,
+        customer: { name: "Second synthetic recipient", phone: "+0000000000" }, items: [{ menuItem: new mongoose.Types.ObjectId(), name: "Dummy dish", quantity: 1, price: 10 }], inventoryStatus: "not_required" });
+      second = await Delivery.create({ order: secondOrder._id });
+    }
     let failReads = false;
     const app = express();
     app.use(express.json(), requestCorrelation, validateRequestStructure, csrfProtection);
-    app.use((req, res, next) => {
-      requests.push({ method: req.method, path: req.path });
+    app.use(async (req, res, next) => {
+      requests.push({ method: req.method, path: req.path, query: { ...req.query } });
+      if (holdReads && req.method === "GET" && req.path === "/api/deliveries") await new Promise(resolve => { releaseRead = resolve; });
+      if (holdWrites && req.method === "POST" && req.path.endsWith("/assign")) await new Promise(resolve => { releaseWrite = resolve; });
       if (failReads && req.method === "GET" && req.path.startsWith("/api/deliveries") && !req.path.endsWith("/config")) return res.status(503).json({ success: false, message: "Isolated injected API failure" });
       next();
     });
@@ -115,19 +125,81 @@ try {
       await manager.page.goto(`${origin}/admin/deliveries${modeQuery}`);
       const row = manager.page.getByRole("row").filter({ hasText: order.orderNumber }); await row.waitFor();
       await row.getByRole("button", { name: "Assign", exact: true }).focus(); await manager.page.keyboard.press("Enter");
+      await manager.page.getByRole("radio").first().waitFor();
+      if (management) {
+        const page = manager.page, count = () => requests.filter(req => req.method === "GET" && req.path === "/api/deliveries").length;
+        await page.getByRole("radio").first().check();
+        const reason = page.getByLabel("Authorization reason / resolution", { exact: false }), terminal = page.getByLabel("Your open cashier terminal");
+        await reason.fill("Keep my unsaved authorization draft"); await terminal.fill("DRAFT-TERMINAL");
+        await page.getByText("View delivery details", { exact: true }).click();
+        await page.getByRole("heading", { name: "Order Summary", exact: true }).waitFor();
+        const before = count();
+        await page.getByLabel("Search order number", { exact: true }).pressSequentially("NO-MATCH", { delay: 25 });
+        await page.getByRole("combobox", { name: "Delivery status", exact: true }).click(); await page.getByRole("option", { name: "Assigned", exact: true }).click();
+        await page.clock.install();
+        await page.evaluate(() => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
+        await page.clock.fastForward(65_000); await new Promise(resolve => setTimeout(resolve, 250));
+        assert.equal(count(), before, "Typing, unapplied filter, focus, visibility and two polling intervals cause zero list requests");
+        await page.getByLabel("Search order number", { exact: true }).press("Enter");
+        await page.getByText("No matching deliveries. This is a successful empty result.", { exact: true }).waitFor();
+        assert.equal(count(), before + 1); assert.equal(requests.filter(req => req.path === "/api/deliveries").at(-1).query.search, "NO-MATCH");
+        assert.equal(await reason.inputValue(), "Keep my unsaved authorization draft"); assert.equal(await terminal.inputValue(), "DRAFT-TERMINAL");
+        assert.equal(await page.locator("details").evaluate(element => element.open), true);
+        await page.getByRole("button", { name: "Reset filters", exact: true }).click(); await row.waitFor();
+        const attentionResponse = page.waitForResponse(response => response.url().includes("/api/deliveries?") && response.url().includes("attention=ready_unassigned"));
+        await page.getByRole("button", { name: /Food ready · no rider/ }).click(); await attentionResponse;
+        await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent.trim() === "Refresh deliveries" && !button.disabled));
+        assert.equal(requests.filter(req => req.path === "/api/deliveries").at(-1).query.attention, "ready_unassigned");
+        const appliedResponse = page.waitForResponse(response => response.url().includes("/api/deliveries?") && response.url().includes("attention=ready_unassigned"));
+        const beforeApply = count(); await page.getByRole("button", { name: "Search / Apply", exact: true }).click(); await appliedResponse;
+        await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent.trim() === "Refresh deliveries" && !button.disabled));
+        assert.equal(count(), beforeApply + 1, "Search button produces one deliberate list request");
+        holdReads = true; await page.getByRole("button", { name: "Refresh deliveries", exact: true }).click();
+        await page.getByRole("status").filter({ hasText: "Refreshing…" }).waitFor();
+        assert.equal(await row.isVisible(), true); assert.equal(await reason.inputValue(), "Keep my unsaved authorization draft");
+        for (let index = 0; !releaseRead && index < 100; index++) await new Promise(resolve => setTimeout(resolve, 25));
+        holdReads = false; releaseRead();
+        await page.getByRole("button", { name: "Refresh deliveries", exact: true }).waitFor({ state: "visible" });
+        // Isolated fixture simulates another authorized worker advancing the revision.
+        await Delivery.updateOne({ _id: enrolled.id }, { $inc: { revision: 1 } });
+        await page.getByRole("button", { name: "Refresh deliveries", exact: true }).click();
+        await page.getByRole("button", { name: "I reviewed the latest delivery", exact: true }).waitFor();
+        assert.equal(await page.getByRole("button", { name: operational ? "Assign Rider" : "Assign · Isolated Test", exact: true }).isDisabled(), true);
+        assert.equal(await reason.inputValue(), "Keep my unsaved authorization draft");
+        await page.getByRole("button", { name: "I reviewed the latest delivery", exact: true }).click();
+        await page.setViewportSize({ width: 390, height: 844 }); await assertLayout(page);
+        await page.screenshot({ path: path.join(screenshots, "management-mobile.png"), fullPage: true });
+        await page.setViewportSize({ width: 820, height: 1180 }); await assertLayout(page);
+        await page.setViewportSize({ width: 1536, height: 1024 });
+        console.log("PASS explicit management search/Enter/reset, zero typing/focus/timer requests, retained rows/details/drafts, revision review and mobile/tablet accessibility");
+      }
       await manager.page.getByRole("radio").first().check();
       await manager.page.screenshot({ path: path.join(screenshots, "admin-assignment-desktop.png"), fullPage: true });
       await assertLayout(manager.page);
+      if (management) holdWrites = true;
       await manager.page.getByRole("button", { name: operational ? "Assign Rider" : "Assign · Isolated Test", exact: true }).click();
+      if (management) {
+        const otherRow = manager.page.getByRole("row").filter({ hasText: "TEST-SECOND-DELIVERY" });
+        assert.equal(await otherRow.getByRole("button", { name: "Assign", exact: true }).isDisabled(), true, "Cannot change selection during a pending mutation");
+        for (let index = 0; !releaseWrite && index < 100; index++) await new Promise(resolve => setTimeout(resolve, 25));
+        holdWrites = false; releaseWrite();
+      }
       await manager.page.getByRole("status").filter({ hasText: "Confirmed by the server" }).waitFor();
       assert.equal(String((await Delivery.findById(enrolled.id)).rider), String(actors.rider._id));
       // Wait for the post-mutation reload before injecting the next failure. Otherwise
       // the old reload's error can be observed just before the manual refresh clears it.
+      if (management) {
+        await manager.page.getByText("Delivery: Assigned", { exact: true }).waitFor();
+        await manager.page.getByText("Selected delivery is outside the applied results. Its authorized detail and your drafts are retained.", { exact: true }).waitFor();
+        await manager.page.getByRole("button", { name: "Reset filters", exact: true }).click();
+      }
       await row.getByText("Assigned", { exact: true }).waitFor();
       failReads = true;
       await manager.page.getByRole("button", { name: "Refresh deliveries", exact: true }).click();
       await manager.page.getByRole("alert").filter({ hasText: "Isolated injected API failure" }).waitFor();
-      assert.equal(await manager.page.locator("time").count(), 0);
+      assert.ok(await manager.page.locator("time").count() > 0, "Failed refresh retains the last successful timestamp");
+      assert.equal(await row.isVisible(), true);
+      await manager.page.getByText(/Retained results may be outdated/).waitFor();
       failReads = false; await manager.page.getByRole("button", { name: "Retry deliveries" }).click(); await row.waitFor();
       const rider = await session(actors.rider, { width: 390, height: 844 });
       await rider.page.goto(`${origin}/rider${modeQuery}`);
@@ -163,7 +235,14 @@ try {
       assert.equal((await Order.findById(order._id)).paymentStatus, "paid");
       assert.equal(await CashMovement.countDocuments({ order: order._id }), 1);
       assert.equal((await CashMovement.findOne({ order: order._id })).amountHalala, 4000);
-      assert.equal(await Order.countDocuments(), 1); assert.equal(await StockTransaction.countDocuments(), 0);
+      if (management) {
+        await cashier.page.getByRole("row").filter({ hasText: order.orderNumber }).getByText("Cash confirmed", { exact: true }).waitFor();
+        const cashResponse = cashier.page.waitForResponse(response => response.url().includes("/api/deliveries?") && response.url().includes("cashStatus=confirmed_today"));
+        await cashier.page.getByRole("button", { name: /Cash confirmed · Today/ }).click(); await cashResponse;
+        assert.equal(requests.filter(req => req.path === "/api/deliveries").at(-1).query.cashStatus, "confirmed_today");
+        console.log("PASS attention and confirmed-today cards apply matching explicit server filters; no implicit cash settlement");
+      }
+      assert.equal(await Order.countDocuments(), management ? 2 : 1); assert.equal(await StockTransaction.countDocuments(), 0);
       await rider.page.getByRole("button", { name: "Refresh details", exact: true }).click();
       await rider.page.getByText("Payment: paid · Cash report: confirmed", { exact: true }).waitFor();
       await rider.page.getByRole("link", { name: "History", exact: true }).click();
@@ -194,7 +273,7 @@ try {
         await rider.page.goto(`${origin}/rider`);
         await rider.page.getByRole("switch", { name: /Availability disabled/ }).waitFor();
         assert.equal(await rider.page.getByRole("switch").isDisabled(), true);
-        assert.equal((await Order.findById(order._id)).paymentStatus, "paid"); assert.equal(await Delivery.countDocuments(), 1);
+        assert.equal((await Order.findById(order._id)).paymentStatus, "paid"); assert.equal(await Delivery.countDocuments(), second ? 2 : 1);
         console.log("PASS normal site mode: actual Admin Settings enable/disable persists; no rehearsal URL/flag, no record/payment loss");
       }
       assert.deepEqual(errors, []);

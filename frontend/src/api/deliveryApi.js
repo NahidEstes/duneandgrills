@@ -5,12 +5,12 @@ const safe = (data, { preview = false, rehearsal = false } = {}) => {
       || data.operationalEnabled !== (data.mode === "operational")) throw new Error("Unexpected delivery response; reload the delivery workspace.");
   return data;
 };
-export async function fetchDeliveryManagement({ preview, rehearsal, status = "all", search = "", page = 1 }, signal) {
+export async function fetchDeliveryManagement({ preview, rehearsal, status = "all", search = "", page = 1, attention = "all", cashStatus = "all" }, signal) {
   if (preview) return safe((await api.get("/deliveries/preview", { signal })).data, { preview });
   const config = (await api.get("/deliveries/config", { signal })).data;
   if (!config.success || typeof config.operationalEnabled !== "boolean" || typeof config.workflowEnabled !== "boolean") throw new Error("Delivery configuration unavailable. Retry before acting.");
   if (!config.operationalEnabled && !(rehearsal && config.workflowEnabled)) return { mode: "disabled", operationalEnabled: false, workflowAvailable: config.workflowEnabled, previewAvailable: config.previewAvailable, deliveries: [], riders: [], counts: null, pagination: null };
-  const [list, riders] = await Promise.all([api.get("/deliveries", { params: { status, search, page, limit: 20 }, signal }), api.get("/deliveries/riders", { signal }).catch(error => {
+  const [list, riders] = await Promise.all([api.get("/deliveries", { params: { status, search, page, attention, cashStatus, limit: 20 }, signal }), api.get("/deliveries/riders", { signal }).catch(error => {
     if (error.response?.status === 403) return { data: { data: [] } }; throw error;
   })]);
   return { ...safe(list.data, { rehearsal }), riders: riders.data.data };
