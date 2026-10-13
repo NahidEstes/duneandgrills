@@ -26,6 +26,7 @@ function Navigation() {
     <Stack.Screen name="combo/[id]" options={{ title: 'Combo details' }} />
     <Stack.Screen name="offer/[id]" options={{ title: 'Offer details' }} />
     <Stack.Screen name="favorites" options={{ title: 'Favourite foods' }} />
+    <Stack.Screen name="points" options={{ headerShown: false }} />
     <Stack.Screen name="link-unavailable" options={{ title: 'Link unavailable' }} />
     <Stack.Screen name="explore" options={{ headerShown: false }} />
   </Stack></>;

@@ -52,6 +52,7 @@ async function main() {
       return reply(method === 'DELETE' ? id : [food, plain].find(p => p._id === id), method === 'POST' ? 201 : 200);
     }
     if (key === 'orders/my') { assert.ok(request.headers().authorization); return reply([order]); }
+    if (key === 'rewards/me') return reply({ pointsBalance: 0, pointsDebt: 0, pointsPerSAR: 10, policy: { earnAfter: 'completed_and_paid', pointsExpire: false }, history: [] });
     if (key === 'orders/fixture-order/repeat') {
       assert.equal(method, 'POST'); assert.ok(request.headers().authorization);
       const result = { data: repeatEmpty ? [] : [{ _id: food._id, productType: 'menuItem', name: food.name, quantity: 2, price: 20, selectedAddOns: [{ _id: cheese._id, quantity: 1 }], spiceLevel: 'mild', note: 'PRIVATE HISTORICAL NOTE' }], warnings: ['Sold-out historical item skipped.'] };

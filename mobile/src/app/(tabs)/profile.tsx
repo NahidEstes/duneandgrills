@@ -6,6 +6,8 @@ import * as Linking from 'expo-linking';
 import { useApp } from '../../state/AppProvider';
 import { useResource } from '../../hooks/useResource';
 import { useAccountAction } from '../../hooks/useAccountAction';
+import { useMyPoints } from '../../hooks/useMyPoints';
+import { PointsEntry } from '../../components/points';
 import { initials, restaurantContact } from '../../domain/profile';
 import { imageUrl, loadRestaurant } from '../../services/api';
 import { Button, Notice, Screen, colors, styles } from '../../components/ui';
@@ -14,7 +16,7 @@ import { ProfileBrand, ProfileRow, ProfileTile, profileStyles as ps } from '../.
 
 export default function Profile() { const app = useApp(); return <ProfileSummary key={app.session?.user._id || 'guest'} />; }
 function ProfileSummary() {
-  const app = useApp(); const action = useAccountAction();
+  const app = useApp(); const action = useAccountAction(); const points = useMyPoints();
   const restaurant = useResource(loadRestaurant, 'restaurant-profile'); const user = app.session?.user;
   const avatar = imageUrl(user?.avatar || ''); const [failedAvatar, setFailedAvatar] = useState<string>();
   const contact = restaurantContact(restaurant.data?.location, restaurant.data?.receipt);
@@ -24,7 +26,7 @@ function ProfileSummary() {
     try { await Linking.openURL(contact.url); }
     catch { throw new Error(`Unable to open the contact app. Restaurant contact: ${contact.label}`); }
   });
-  return <Screen top refreshing={restaurant.loading} onRefresh={() => { void restaurant.refresh(); if (user) void app.validateSession(); }}>
+  return <Screen top refreshing={restaurant.loading || points.loading} onRefresh={() => { void restaurant.refresh(); void points.refresh(); if (user) void app.validateSession(); }}>
     <ProfileBrand /><Text accessibilityRole="header" style={styles.title}>My profile</Text><Notice message={action.error || app.error} />
     {user ? <>
       <View style={ps.identity}><View style={ps.avatar}>{avatar && failedAvatar !== avatar ? <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} onError={() => setFailedAvatar(avatar)} accessibilityLabel="Your profile photo" /> : <Text style={ps.initials}>{initials(user.name)}</Text>}</View>
@@ -33,9 +35,11 @@ function ProfileSummary() {
       {!app.sessionValidated && <Button title="Validate saved session" secondary onPress={() => void app.validateSession()} />}
       <View style={[styles.row, { flexWrap: 'wrap', alignItems: 'stretch' }]}><ProfileTile icon={ReceiptText} title="My orders" onPress={() => router.push('/(tabs)/orders')} /><ProfileTile icon={MapPin} title="Saved addresses" onPress={addresses} /></View>
       <Text style={ps.section}>Account</Text><View style={ps.group}><ProfileRow icon={UserRound} title="Personal information" onPress={edit} /><View style={ps.divider} /><ProfileRow icon={MapPin} title="Saved addresses" onPress={addresses} /><View style={ps.divider} /><ProfileRow icon={Heart} title="Favourite foods" onPress={() => router.push('/favorites')} /></View>
+      <PointsEntry points={points} />
     </> : <>
       <View style={styles.card}><Text style={styles.heading}>Welcome to Dune & Grills</Text><Text style={styles.muted}>Sign in to edit your profile and manage saved addresses.</Text><Button title="Sign in" onPress={() => router.push('/auth')} /><Button title="Create customer account" secondary onPress={() => router.push({ pathname: '/auth', params: { mode: 'register' } })} /></View>
       <ProfileTile icon={ReceiptText} title="My orders" onPress={() => router.push('/(tabs)/orders')} /><Text style={styles.muted}>Track orders saved on this device without signing in.</Text>
+      <PointsEntry points={points} />
       {(!!app.cart.length || app.actor !== 'guest') && <Button title="Clear cart and continue as guest" secondary disabled={action.busy || !!app.pending || app.busy} onPress={() => void action.run(async () => app.logout())} />}
     </>}
     <Text style={ps.section}>Help</Text><Notice message={restaurant.error} retry={() => void restaurant.refresh()} />

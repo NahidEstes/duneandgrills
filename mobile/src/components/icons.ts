@@ -26,3 +26,5 @@ export { default as CookingPot } from 'lucide-react-native/icons/cooking-pot';
 export { default as Check } from 'lucide-react-native/icons/check';
 export { default as Heart } from 'lucide-react-native/icons/heart';
 export { default as Share2 } from 'lucide-react-native/icons/share-2';
+export { default as Star } from 'lucide-react-native/icons/star';
+export { default as RefreshCw } from 'lucide-react-native/icons/refresh-cw';

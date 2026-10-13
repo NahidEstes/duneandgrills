@@ -59,6 +59,7 @@ async function main() {
     }
     if (key === 'orders/my') return reply({ data: [order] });
     if (key === 'profile/favorites') return reply({ data: [] });
+    if (key === 'rewards/me') return reply({ data: { pointsBalance: 0, pointsDebt: 0, pointsPerSAR: 10, policy: { earnAfter: 'completed_and_paid', pointsExpire: false }, history: [] } });
     if (key === 'offers') return reply({ data: [] });
     if (key === 'orders/fixture-order' || key === 'orders/track/' + order.orderNumber) return reply({ data: order });
     if (key === 'orders/fixture-order/repeat') return reply({ data: [], warnings: ['Fixture has no items to reorder.'] });
