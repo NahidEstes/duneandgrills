@@ -81,7 +81,7 @@ test("server-wide delivery attention, cash summaries, filters and Riyadh boundar
       await assert.rejects(listWorkflowDeliveries(actors.customer), /denied/i);
       await assert.rejects(listWorkflowDeliveries(null), /denied/i);
       for (const query of [{ attention: "invented" }, { cashStatus: "invented" }, { riderId: "forged" }]) await assert.rejects(listWorkflowDeliveries(actors.admin, query), /Invalid|Unsupported/);
-      await assert.rejects(listWorkflowDeliveries(actors.rider, { cashStatus: "confirmed" }), /Unsupported/);
+      await assert.rejects(listWorkflowDeliveries(actors.rider, { cashStatus: "confirmed" }), /require delivery history/);
     });
     await t.test("Mongo read facts match authoritative contract including rounding and legacy/invalid balances", async () => {
       for (const order of [{ totalAmount: 0.29 }, { totalAmount: 1.005 }, { paymentRecords: [{ amount: 10.01 }] }, { paymentStatus: "refunded" }, { paymentStatus: "partially_refunded" }, { paymentStatus: "failed" }, { status: "cancelled" }, { restoredItemQuantities: { one: 1 } }]) await fixture({}, order);

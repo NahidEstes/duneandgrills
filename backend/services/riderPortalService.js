@@ -14,11 +14,11 @@ export function buildRiderPortal(user, { preview = false, config = riderConfigur
     { id: "preview-a", orderNumber: "PREVIEW-A", riderId: profile.id, synthetic: true,
       deliveryStatus: "assigned", restaurantStatus: "ready", customerName: "Sample recipient A",
       address: "Synthetic delivery address — not a real destination", paymentStatus: "pending",
-      amountToCollect: 42, timeLabel: "Sample delivery • no real timestamp" },
+      amountToCollect: 42, cashState: "collection_pending", customerCollectionHalala: 4200, ledgerOutstandingHalala: 4200, reportedCashHalala: null, timeLabel: "Sample delivery • no real timestamp" },
     { id: "preview-b", orderNumber: "PREVIEW-B", riderId: profile.id, synthetic: true,
       deliveryStatus: "assigned", restaurantStatus: "preparing", customerName: "Sample recipient B",
       address: "Synthetic delivery address — not a real destination", paymentStatus: "paid",
-      amountToCollect: 0, timeLabel: "Sample delivery • no real timestamp" },
+      amountToCollect: 0, cashState: "no_collection", customerCollectionHalala: null, ledgerOutstandingHalala: 0, reportedCashHalala: null, timeLabel: "Sample delivery • no real timestamp" },
   ] : [];
   return { mode: preview ? "preview" : "disabled", operationalEnabled: false,
     previewAvailable: config.previewEnabled, profile, availability: null, deliveries, history: [],

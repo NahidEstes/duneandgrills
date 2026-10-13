@@ -21,7 +21,7 @@ test("normal rider uses private live portal with bounded server filters and abor
   responses = { "/rider/portal": operational }; calls = [];
   const signal = new AbortController().signal;
   assert.deepEqual(await rider.fetchRiderPortal(false, signal, { status: "assigned", history: true, page: 2 }), operational);
-  assert.deepEqual(calls[0], { path: "/rider/portal", options: { signal, params: { status: "assigned", history: "true", limit: 20, page: 2 } } });
+  assert.deepEqual(calls[0], { path: "/rider/portal", options: { signal, params: { status: "assigned", history: "true", limit: 20, page: 2, search: "", datePeriod: "all", cashStatus: "all" } } });
 });
 test("preview never accepts operational data, other riders or synthetic live lists", async () => {
   responses = { "/rider/preview": operational }; await assert.rejects(rider.fetchRiderPortal(true), /Unexpected/);

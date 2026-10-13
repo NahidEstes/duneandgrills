@@ -12,7 +12,7 @@ test("preview filters and honest payment labels", () => {
   const rows = [{ deliveryStatus: "assigned" }, { deliveryStatus: "picked_up" }];
   assert.equal(filterDeliveries(rows, "all").length, 2);
   assert.equal(filterDeliveries(rows, "assigned").length, 1);
-  assert.deepEqual(RIDER_FILTERS.map(row => row.value), ["all", "assigned", "picked_up"]);
+  assert.deepEqual(RIDER_FILTERS.map(row => row.value), ["all", "assigned", "picked_up", "issue"]);
   assert.equal(paymentLabel("pending"), "Payment not confirmed");
   assert.equal(paymentLabel(undefined), "Payment unavailable");
 });

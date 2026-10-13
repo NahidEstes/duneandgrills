@@ -9,13 +9,14 @@ import { assertDeliveryEnabled } from "./riderAccessService.js";
 import { deliveryError, serializeDelivery } from "./deliveryContractService.js";
 import { ATTENTION_KEYS, CASH_LABELS, deliveryHealthPipeline } from "./deliveryHealthService.js";
 import { managementDeliveryQuery } from "./deliveryQueryService.js";
+import { riderHistoryQuery, restaurantContact } from "./riderReadPresentation.js";
 
 export const DELIVERY_STATES = Object.freeze(["unassigned", "assigned", "picked_up", "delivered", "issue"]);
 export async function listWorkflowDeliveries(actor, query = {}) {
   const config = await assertDeliveryEnabled();
   const rider = actor?.role === "rider";
   if (!actor?._id || !hasCapability(actor.role, rider ? CAPABILITIES.RIDER_DELIVERY_OPERATE : CAPABILITIES.DELIVERY_CASH_CONFIRM)) throw deliveryError("Delivery access denied", 403);
-  if (Object.keys(query).some(key => !["status", "search", "page", "limit", "history", ...(!rider ? ["attention", "cashStatus", "datePeriod", "dateBasis", "from", "to", "riderId", "sort"] : [])].includes(key))) throw deliveryError("Unsupported delivery filter");
+  if (Object.keys(query).some(key => !["status", "search", "page", "limit", "history", "cashStatus", "datePeriod", "from", "to", ...(!rider ? ["attention", "dateBasis", "riderId", "sort"] : [])].includes(key))) throw deliveryError("Unsupported delivery filter");
   const attention = query.attention || "all", cashStatus = query.cashStatus || "all";
   if (attention !== "all" && !ATTENTION_KEYS.includes(attention)) throw deliveryError("Invalid attention filter");
   if (cashStatus !== "all" && cashStatus !== "confirmed_today" && !Object.hasOwn(CASH_LABELS, cashStatus)) throw deliveryError("Invalid cash filter");
@@ -27,11 +28,12 @@ export async function listWorkflowDeliveries(actor, query = {}) {
   if (!Number.isInteger(page) || page < 1 || page > 10000 || !Number.isInteger(limit) || limit < 1 || limit > 50) throw deliveryError("Invalid pagination");
   const scope = rider ? { rider: new mongoose.Types.ObjectId(String(actor._id)) }
     : actor.role === "cashier" ? { status: "delivered", "cashReport.status": { $in: ["unconfirmed", "discrepancy", "confirmed"] } } : {};
-  const rowMatch = { ...(rider ? { status: query.history === "true" ? "delivered" : { $ne: "delivered" } } : {}), ...(status === "all" ? {} : { status }),
+  const rowMatch = { ...(rider ? { status: query.history === "true" ? "delivered" : { $ne: "delivered" } } : status === "all" ? {} : { status }),
     ...(search.trim() ? { "orderRecord.orderNumber": { $regex: escapeRegex(search.trim()), $options: "i" } } : {}) };
   const today = startOfRiyadhDay(), tomorrow = new Date(today.getTime() + ADMIN_DAY_MS);
   const now = new Date(), health = deliveryHealthPipeline(now);
   const management = !rider ? managementDeliveryQuery(actor, query, now) : null;
+  if (rider) rowMatch.$and = [riderHistoryQuery(query, now), ...(status !== "all" ? [{ status }] : [])];
   if (management) {
     // Intersect stage-sort scope with explicit status rather than overwriting it.
     rowMatch.$and = [management.match];
@@ -43,13 +45,19 @@ export async function listWorkflowDeliveries(actor, query = {}) {
     { $match: scope },
     { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderRecord", pipeline: [{ $project: { orderNumber: 1, customer: { name: 1 }, status: 1, totalAmount: 1, paymentStatus: 1, paymentRecords: 1, refundReservedHalala: 1, deliveryMode: 1, orderType: 1, source: 1, manualEntry: 1, deliveryProvider: 1, deliveryPaymentType: 1, inventoryStatus: 1, restoredItemQuantities: 1, readyAt: 1, __v: 1 } }] } },
     { $unwind: "$orderRecord" },
-    ...(!rider ? health.stages : []),
+    ...health.stages,
     { $facet: {
       counts: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
       deliveredToday: [{ $match: { status: "delivered", deliveredAt: { $gte: today, $lt: tomorrow } } }, { $count: "count" }],
       rows: [{ $match: rowMatch }, ...(management ? management.stages : [{ $sort: { updatedAt: -1, _id: -1 } }]), { $skip: (page - 1) * limit }, { $limit: limit },
         { $lookup: { from: "users", localField: "rider", foreignField: "_id", as: "riderRecord", pipeline: [{ $project: { name: 1 } }] } }],
       total: [{ $match: rowMatch }, { $count: "count" }],
+      ...(rider ? {
+        pendingCash: [{ $match: { status: "delivered", healthCash: { $in: ["collection_pending", "awaiting_confirmation", "discrepancy"] } } },
+          { $group: { _id: "$healthCash", count: { $sum: 1 }, amountHalala: { $sum: { $cond: [{ $eq: ["$healthCash", "collection_pending"] }, "$healthBalance", "$cashReport.amountHalala"] } } } }],
+        pendingRows: [{ $match: { status: "delivered", healthCash: { $in: ["collection_pending", "awaiting_confirmation", "discrepancy"] } } },
+          { $sort: { deliveredAt: -1, _id: -1 } }, { $limit: 5 }],
+      } : {}),
       ...(!rider && hasCapability(actor.role, CAPABILITIES.DELIVERY_MANAGE) ? {
         riderFilters: [{ $match: { rider: { $ne: null } } }, { $group: { _id: "$rider" } },
           { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user", pipeline: [{ $project: { name: 1 } }] } },
@@ -69,8 +77,20 @@ export async function listWorkflowDeliveries(actor, query = {}) {
   counts.active = counts.assigned + counts.picked_up + counts.issue;
   counts.deliveredToday = facet.deliveredToday[0]?.count || 0;
   const profile = rider ? await User.findById(actor._id).select("name email phone employeeId role riderAvailable riderAvailabilityRevision").lean() : null;
+  // Count only this rider's recorded assignment events, including earlier assignments.
+  // It is independent of page/status filters and does not decrease on completion/reassignment.
+  const assignments = rider ? await Delivery.aggregate([
+    { $match: { "assignmentHistory.rider": actor._id } }, { $unwind: "$assignmentHistory" },
+    { $match: { "assignmentHistory.rider": actor._id } }, { $count: "count" },
+  ]) : [];
   return { success: true, ...config,
     counts, deliveries: facet.rows.map(row => ({ ...serializeDelivery(row, row.orderRecord, row.riderRecord[0]), ...(!rider ? { attention: Object.keys(row.attentionFlags).filter(key => row.attentionFlags[key]), pickupClock: row.pickupClock } : {}) })),
+    ...(rider ? { assignmentCount: assignments[0]?.count || 0, restaurantContact: await restaurantContact(),
+      pendingCash: { groups: Object.fromEntries(["collection_pending", "awaiting_confirmation", "discrepancy"].map(key => {
+        const group = facet.pendingCash.find(row => row._id === key);
+        return [key, { count: group?.count || 0, amountHalala: group?.amountHalala || 0 }];
+      })), deliveries: facet.pendingRows.map(row => serializeDelivery(row, row.orderRecord)), limit: 5 },
+    } : {}),
     ...(!rider ? { health: { scope: actor.role === "cashier" ? "Delivered cash reports visible to cashier" : "All authorized restaurant deliveries; independent of table filters and pagination", updatedAt: now,
       thresholds: health.thresholds, attention: Object.fromEntries(ATTENTION_KEYS.map(key => [key, facet.attention[0]?.[key] || 0])),
       cash: Object.fromEntries(Object.keys(CASH_LABELS).map(key => [key, { count: facet.cash.find(row => row._id === key)?.count || 0, amountHalala: facet.cash.find(row => row._id === key)?.amountHalala || 0, ledgerOutstandingHalala: facet.cash.find(row => row._id === key)?.ledgerOutstandingHalala || 0 }])),

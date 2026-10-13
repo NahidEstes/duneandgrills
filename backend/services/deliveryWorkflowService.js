@@ -15,6 +15,7 @@ import { findOpenShift } from "./posShiftService.js";
 import { toHalala, fromHalala } from "../utils/money.js";
 import { eligibleDeliveryOrder, outstandingDeliveryHalala, deliveryError, serializeDelivery } from "./deliveryContractService.js";
 import { readDeliveryTimeline } from "./deliveryTimelineService.js";
+import { riderTimeline, restaurantContact } from "./riderReadPresentation.js";
 
 const capability = (actor, cap) => {
   if (!actor?._id) throw deliveryError("Staff sign-in required", 401);
@@ -81,6 +82,7 @@ export async function getWorkflowDelivery(actor, id) {
   const [order, rider] = await Promise.all([Order.findById(delivery.order).lean(), delivery.rider ? User.findById(delivery.rider).select("name").lean() : null]);
   if (!order) throw deliveryError("Delivery unavailable", 404);
   return { ...serializeDelivery(delivery, order, rider, { detail: true }),
+    ...(actor.role === "rider" ? { riderTimeline: riderTimeline(delivery, actor._id), restaurantContact: await restaurantContact() } : {}),
     ...(actor.role !== "rider" ? { timeline: await readDeliveryTimeline(actor, delivery, order) } : {}) };
 }
 
@@ -109,6 +111,7 @@ export async function actOnDelivery({ actor, id, action, payload, correlationId 
   if (!actions[action]) throw deliveryError("Unknown delivery action");
   capability(actor, actions[action]); await assertDeliveryEnabled(); objectId(id); revisionOf(payload);
   if (["pickup", "deliver", "issue", "report_cash"].includes(action) && actor.role !== "rider") throw deliveryError("Rider action requires the assigned rider", 403);
+  if (payload.expectedOrderRevision !== undefined && (!Number.isSafeInteger(payload.expectedOrderRevision) || payload.expectedOrderRevision < 0)) throw deliveryError("Invalid expected order revision");
   // Scope checked before replay: a former rider cannot retrieve another rider's action result.
   if (!await Delivery.exists(ownScope(actor, id))) throw deliveryError("Delivery unavailable", 404);
   return requestOnce({ scope: `delivery:${id}`, action, actor, payload }, async (session, requestId) => {
@@ -116,6 +119,7 @@ export async function actOnDelivery({ actor, id, action, payload, correlationId 
     if (!delivery) throw deliveryError("Delivery unavailable", 404);
     if (delivery.revision !== payload.expectedRevision) throw deliveryError("Delivery changed; reload before acting", 409);
     const order = await Order.findById(delivery.order).session(session);
+    if (payload.expectedOrderRevision !== undefined && order?.__v !== payload.expectedOrderRevision) throw deliveryError("Order changed; review current delivery and payment details before acting", 409);
     if (!eligibleDeliveryOrder(order)) throw deliveryError("Order is no longer eligible for restaurant delivery", 409);
     const priorStatus = delivery.status;
     const claim = await Delivery.updateOne({ ...ownScope(actor, id), revision: payload.expectedRevision }, { $inc: { revision: 1 } }, { session });

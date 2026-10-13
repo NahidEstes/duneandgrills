@@ -30,7 +30,7 @@ router.use((req, res, next) => {
 });
 for (const [path, preview] of [["/portal", false], ["/preview", true]]) {
   router.get(path, deliveryHandler(async req => {
-    if (Object.keys(req.query).some(key => !(!preview && ["status", "history", "page", "limit"].includes(key)))) throw Object.assign(new Error("Rider identity comes from your session, not query parameters."), { status: 400 });
+    if (Object.keys(req.query).some(key => !(!preview && ["status", "history", "page", "limit", "search", "datePeriod", "from", "to", "cashStatus"].includes(key)))) throw Object.assign(new Error("Rider identity comes from your session, not query parameters."), { status: 400 });
     if (!preview && req.user.role === "rider" && (await getRiderAccess()).operationalEnabled) return listWorkflowDeliveries(req.user, req.query);
     return { success: true, ...buildRiderPortal(req.user, { preview }) };
   }));

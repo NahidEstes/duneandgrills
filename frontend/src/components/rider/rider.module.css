@@ -129,3 +129,27 @@
 .pagination button { min-height: 48px; padding: 8px 16px; border: 1px solid #ffffff25; border-radius: 10px; }
 .pagination button:disabled { opacity: .4; cursor: not-allowed; }
 .detailMain .updated { flex-wrap: wrap; }
+.cashFacts { min-width: 0; }
+.cashFacts strong { display: block; font-size: clamp(24px, 4vw, 32px); }
+.cashFacts dl { display: grid; gap: 12px; margin: 18px 0; }
+.cashFacts dt { color: #a7b0bc; font-size: 13px; }
+.cashFacts dd { font-weight: 600; }
+.pendingCash { margin-top: 18px; }
+.pendingCash h2 { font-size: 22px; }
+.cashGroups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+.cashGroups a { display: grid; align-content: start; gap: 8px; padding: 14px; border: 1px solid #f59e0b44; border-radius: 12px; color: #fbbf24; }
+.cashGroups strong { font-size: 26px; }
+.cashGroups small { color: #b8c2d0; }
+.pendingCash li a { display: block; padding: 12px 0; min-height: 48px; border-top: 1px solid #ffffff15; color: #fbbf24; }
+.contact { display: block; margin-top: 16px; padding: 14px; text-align: center; border: 1px solid #f59e0b88; border-radius: 12px; color: #fbbf24; min-height: 48px; }
+.historyFilters { display: grid; gap: 14px; margin: 20px 0; padding: 18px; border: 1px solid #ffffff20; border-radius: 16px; }
+.historyFilters label { display: grid; gap: 8px; }
+.historyFilters input { min-width: 0; min-height: 48px; background: #101719; padding: 12px; border: 1px solid #ffffff25; border-radius: 12px; }
+.timeline { display: grid; gap: 14px; margin: 18px 0; }
+.timeline li { display: grid; gap: 4px; border-left: 3px dashed #697586; padding-left: 14px; color: #a7b0bc; }
+.timeline li[data-recorded='true'] { border-left: 3px solid #f59e0b; color: #fbbf24; }
+.timeline span { font-size: 13px; }
+.portal :is(button,a,input,textarea):focus-visible { outline: 2px solid #fbbf24; outline-offset: 3px; }
+.workflowActions { scroll-margin-bottom: calc(110px + env(safe-area-inset-bottom)); }
+.banner > button { min-height: 44px; padding: 8px; flex-shrink: 0; }
+@media (max-width: 540px) { .cashGroups { gap: 6px; } .cashGroups a { padding: 10px 8px; font-size: 12px; } .cashGroups small { font-size: 11px; } .linkActions { grid-template-columns: 1fr; } .cardHeading { flex-wrap: wrap; } }

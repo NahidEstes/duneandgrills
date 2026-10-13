@@ -13,11 +13,12 @@ let responseStatus = 200, previewAllowed = true, previewDelay = 0;
 const fixture = createServer((req, res) => {
   requests.push({ method: req.method, path: req.url });
   const role = /dg_session=([^;]+)/.exec(req.headers.cookie || "")?.[1];
+  const pathname = new URL(req.url, "http://127.0.0.1").pathname;
   const user = { _id: "111111111111111111111111", employeeId: "EMP-TEST", name: "Local Test Rider", role, email: "local@isolated.invalid", phone: "" };
   let status = 200, body;
   if (!role) { status = 401; body = { success: false, message: "Fixture session required" }; }
   else if (req.url === "/api/auth/session") body = { success: true, user };
-  else if (["/api/rider/portal", "/api/rider/preview"].includes(req.url)) {
+  else if (["/api/rider/portal", "/api/rider/preview"].includes(pathname)) {
     if (responseStatus !== 200) { status = responseStatus; body = { success: false, message: "Fixture connection failure" }; }
     else try { body = { success: true, ...buildRiderPortal(user, { preview: req.url.endsWith("preview"), config: { previewEnabled: previewAllowed } }) }; }
     catch (error) { status = error.status; body = { success: false, message: error.message }; }
@@ -81,7 +82,7 @@ try {
     const accessibility = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })).violations.map(row => ({ id: row.id, nodes: row.nodes.length })));
     assert.deepEqual(accessibility, []);
     await page.getByRole("link", { name: "History", exact: true }).click();
-    await page.getByRole("heading", { name: "No delivery history available" }).waitFor();
+    await page.getByRole("heading", { name: "No matching delivery history" }).waitFor();
     assert.equal(await page.getByText("Synthetic delivery address", { exact: false }).count(), 0);
     await page.getByRole("link", { name: "Profile", exact: true }).click();
     await page.getByRole("region", { name: "Rider profile" }).waitFor();
@@ -90,8 +91,8 @@ try {
     await page.getByRole("heading", { name: "PREVIEW-A", exact: true }).waitFor();
     responseStatus = 503;
     await page.getByRole("button", { name: "Refresh rider workspace" }).click();
-    await page.getByRole("heading", { name: "Workspace unavailable" }).waitFor();
-    assert.equal(await page.locator("article").count(), 0); assert.equal(await page.locator("time").count(), 0);
+    await page.getByRole("heading", { name: "Retained data may be outdated" }).waitFor();
+    assert.equal(await page.locator("article").count(), 2); assert.equal(await page.locator("time").count(), 1);
     responseStatus = 200;
     await page.getByRole("button", { name: "Retry", exact: true }).click();
     await page.getByRole("heading", { name: "PREVIEW-A", exact: true }).waitFor();
@@ -100,7 +101,7 @@ try {
     await page.getByRole("link", { name: "Return to private dashboard" }).waitFor();
     assert.equal(await page.locator("article").count(), 0);
     assert.ok(requests.every(row => row.method === "GET"));
-    assert.ok(requests.every(row => ["/api/auth/session", "/api/rider/portal", "/api/rider/preview"].includes(row.path)), JSON.stringify(requests));
+    assert.ok(requests.every(row => ["/api/auth/session", "/api/rider/portal", "/api/rider/preview"].includes(row.path.split("?")[0])), JSON.stringify(requests));
     assert.deepEqual(errors, []);
     console.log(`PASS rider ${viewport.width}px: private access, disabled/demo states, keyboard details, navigation, filters, errors/retry, axe, no writes/customer APIs`);
     await context.close();

@@ -12,7 +12,7 @@ export const deliveryHandler = work => async (req, res) => {
 };
 export function validateDeliveryPayload(action, body) {
   const fields = { enroll: ["reason", "pickupInstructions", "deliveryNote"], availability: ["available"], assign: ["riderId", "reason"],
-    pickup: [], deliver: [], issue: ["reason"], resolve_issue: ["reason"], report_cash: ["amount", "reason"], acknowledge_cash: ["reason"], confirm_cash: ["terminal"] };
+    pickup: ["expectedOrderRevision"], deliver: ["expectedOrderRevision"], issue: ["reason", "expectedOrderRevision"], resolve_issue: ["reason"], report_cash: ["amount", "reason", "expectedOrderRevision"], acknowledge_cash: ["reason"], confirm_cash: ["terminal"] };
   if (!fields[action] || !body || typeof body !== "object" || Array.isArray(body)
     || Object.keys(body).some(key => !["idempotencyKey", "expectedRevision", ...fields[action]].includes(key))) throw Object.assign(new Error("Invalid delivery action fields"), { status: 400 });
   return body;

@@ -45,8 +45,8 @@ test("lists use server pagination/counts; mode changes abort reads and mutations
   const portal = await read("../src/components/rider/RiderPortal.jsx");
   assert.match(portal, /data\.counts\.active/); assert.match(portal, /data\.pagination\.total/);
   assert.match(portal, /rehearsal: props\.rehearsal && !props\.preview/);
-  const hook = await read("../src/hooks/useRiderPortal.js");
-  assert.match(hook, /controller\.abort\(\)/); assert.match(hook, /if \(current\)/);
+  const hook = await read("../src/components/rider/riderReadState.js");
+  assert.match(hook, /controller\?\.abort\(\)/); assert.match(hook, /token !== sequence/);
   const write = await read("../src/hooks/useDeliverySubmission.js");
   assert.match(write, /mounted\.current = false/); assert.match(write, /if \(busy\.current\) return null/);
 });
