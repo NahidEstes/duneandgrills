@@ -1,9 +1,14 @@
+"use client";
 import { ArrowRight, Tag } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { usePublicRestaurant } from "../../context/PublicRestaurantContext.jsx";
 import { formatPrice } from "../../utils/currency.js";
 import SmartImage from "../SmartImage.jsx";
 import OfferBadge from "./OfferBadge.jsx";
 
-const OfferCard = ({ offer, onOrderNow }) => (
+const OfferCard = ({ offer, onOrderNow }) => {
+  const { orderConfig } = usePublicRestaurant(); const router = useRouter();
+  return (
   <article className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-dune-border bg-[#111] transition duration-300 hover:-translate-y-1 hover:border-dune-amber/60 hover:shadow-amberGlow">
     <figure className="relative h-56 overflow-hidden">
       <SmartImage
@@ -61,14 +66,14 @@ const OfferCard = ({ offer, onOrderNow }) => (
 
       <button
         type="button"
-        onClick={onOrderNow}
+        onClick={() => orderConfig?.websiteOrderingEnabled === true ? onOrderNow?.() : router.push("/menu")}
         className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-dune-amber/70 px-5 py-2.5 text-xs font-bold uppercase tracking-[0.1em] text-dune-amber transition hover:bg-dune-amber hover:text-black"
       >
-        {offer.ctaText || "Order Now"}
+        {orderConfig?.websiteOrderingEnabled === true ? offer.ctaText || "Order Now" : "View Menu"}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
   </article>
-);
+); };
 
 export default OfferCard;

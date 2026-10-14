@@ -11,6 +11,8 @@ import CartDrawer from "./CartDrawer.jsx";
 import { fetchCategories, fetchCombos, fetchMenuItems } from "../api/api.js";
 import { filterMenu } from "../utils/menuFilters.js";
 import GuestOrderTracking from "./GuestOrderTracking.jsx";
+import DarkSelect from "./ui/DarkSelect.jsx";
+import { usePublicRestaurant } from "../context/PublicRestaurantContext.jsx";
 
 const FullMenuPage = ({
   initialItems = [],
@@ -30,6 +32,8 @@ const FullMenuPage = ({
   const [maximumPrice, setMaximumPrice] = useState("");
   const [retryVersion, setRetryVersion] = useState(0);
   const visibleItems = filterMenu(items, { search, sort, maximumPrice });
+  const { orderConfig, configError } = usePublicRestaurant();
+  const clearFilters = () => { setSearch(""); setSort("menu"); setMaximumPrice(""); setActiveCategory("All"); };
 
   const firstLoad = useRef(true);
 
@@ -86,7 +90,7 @@ const FullMenuPage = ({
   }, [activeCategory, initialCombos.length, initialItems.length, retryVersion]);
 
   return (
-    <div className="bg-black min-h-screen">
+    <div className="public-page bg-black min-h-screen">
       <Navbar onCartClick={() => setCartOpen(true)} />
 
       <div className="max-w-7xl mx-auto px-5 md:px-8 pt-28 pb-20 md:pb-28">
@@ -104,13 +108,16 @@ const FullMenuPage = ({
             <span className="text-gradient-amber">GRILL.</span>
           </h1>
         </div>
+        {orderConfig?.websiteOrderingEnabled === false && <p role="status" className="mt-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-200">Online ordering is currently unavailable. Browse our menu or <Link href="/#visit" className="underline">contact the restaurant</Link>.</p>}
+        {configError && <p className="mt-4 text-sm text-amber-200">Ordering availability could not be verified. You can browse the menu; checkout requires confirmed order options.</p>}
 
-        <div className="mt-10 flex flex-wrap gap-3">
+        <div role="group" aria-label="Menu categories" className="mt-10 flex gap-3 overflow-x-auto pb-2 sm:flex-wrap">
           {[...new Set(["All", ...categories.map((entry) => entry.name), "Combos"])].map((cat) => (
             <button
               key={cat}
+              type="button" aria-pressed={activeCategory === cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-5 py-2 rounded-full text-sm font-medium border transition-colors duration-300 ${
+              className={`min-h-11 shrink-0 px-5 py-2 rounded-full text-sm font-medium border transition-colors duration-300 ${
                 activeCategory === cat
                   ? "bg-dune-amber text-black border-dune-amber"
                   : "border-dune-border text-neutral-300 hover:border-dune-amber hover:text-dune-amber"
@@ -123,10 +130,11 @@ const FullMenuPage = ({
 
         <GuestOrderTracking />
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <input aria-label="Search menu" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search dishes and combos…" className="rounded-lg border border-dune-border bg-black px-4 py-3 text-white" />
-          <select aria-label="Sort menu" value={sort} onChange={event => setSort(event.target.value)} className="rounded-lg border border-dune-border bg-black px-4 py-3 text-white"><option value="menu">Menu order</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name</option></select>
-          <input aria-label="Maximum price SAR" type="number" min="0" value={maximumPrice} onChange={event => setMaximumPrice(event.target.value)} placeholder="Maximum price (SAR)" className="rounded-lg border border-dune-border bg-black px-4 py-3 text-white" />
+          <label className="grid gap-2 text-sm text-neutral-300">Search menu<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search dishes and combos…" className="min-w-0 rounded-lg border border-dune-border bg-black px-4 py-3 text-white" /></label>
+          <label className="grid gap-2 text-sm text-neutral-300">Sort menu<DarkSelect value={sort} onChange={event => setSort(event.target.value)} className="rounded-lg border border-dune-border bg-black px-4 py-3 text-white"><option value="menu">Menu order</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name</option></DarkSelect></label>
+          <label className="grid gap-2 text-sm text-neutral-300">Maximum price (SAR)<input type="number" min="0" inputMode="decimal" value={maximumPrice} onChange={event => setMaximumPrice(event.target.value)} placeholder="Any price" className="min-w-0 rounded-lg border border-dune-border bg-black px-4 py-3 text-white" /></label>
         </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-neutral-300">{status === "success" ? `${visibleItems.length} matching ${visibleItems.length === 1 ? "item" : "items"}` : status === "loading" ? "Loading menu…" : "Results unavailable"}</p><button type="button" onClick={clearFilters} className="min-h-11 px-4 text-sm text-dune-amber underline">Clear filters</button></div>
         <div className="mt-12">
           {status === "loading" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -150,7 +158,8 @@ const FullMenuPage = ({
 
           {status === "success" && visibleItems.length === 0 && (
             <div className="text-center py-16 border border-dune-border rounded-2xl">
-              <p className="text-neutral-400">No items match this category and your filters.</p>
+              <p className="text-neutral-300">{items.length ? "No items match your search and price filters. Try a different search or clear the filters." : activeCategory === "All" ? "No menu items are available right now." : "No available items in this category. Try All categories."}</p>
+              <button type="button" onClick={clearFilters} className="mt-3 min-h-11 px-4 text-dune-amber underline">Reset menu filters</button>
             </div>
           )}
 

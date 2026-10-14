@@ -396,8 +396,8 @@ export const addItemToCart = async (productId, quantity = 1, productType = "menu
   return data.data;
 };
 
-export const updateCartItem = async (productId, quantity, productType = "menuItem", lineId = undefined) => {
-  const { data } = await api.patch(`/cart/${productId}`, { quantity }, { params: { productType, lineId } });
+export const updateCartItem = async (productId, quantity, productType = "menuItem", lineId = undefined, customization = undefined, expected = undefined) => {
+  const { data } = await api.patch(`/cart/${productId}`, { quantity, ...(customization ? { customization, expectedCustomizationKey: expected.customizationKey, expectedQuantity: expected.quantity } : {}) }, { params: { productType, lineId } });
   return data.data;
 };
 

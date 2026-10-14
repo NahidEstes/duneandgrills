@@ -17,6 +17,7 @@ import {
   removeCartItem,
   updateCartItem,
 } from "../api/api.js";
+import { replaceCartConfiguration } from "../utils/cartEditing.js";
 
 const CartContext = createContext(null);
 
@@ -75,6 +76,7 @@ const normalizeLine = (line) => {
     category: typeof line.category === "string" ? line.category : "",
     tags: Array.isArray(line.tags) ? line.tags : [],
     isAvailable: line.isAvailable !== false,
+    customizationEnabled: Boolean(line.customizationEnabled || line.customization?.enabled),
     isFeatured: Boolean(line.isFeatured),
     calories: Number(line.calories) || 0,
     ingredients: Array.isArray(line.ingredients) ? line.ingredients : [],
@@ -620,6 +622,27 @@ export const CartProvider = ({ children }) => {
     enqueueUserSync(clearUserCart);
   }, [applyLocalAction, enqueueUserSync, removeSuggestedCoupon]);
 
+  const editCartItem = useCallback(async (original, replacement) => {
+    const next = replaceCartConfiguration(cartRef.current, original, replacement);
+    const session = sessionVersionRef.current;
+    if (scopeRef.current.type === "user") {
+      setSyncing(true);
+      try {
+        await syncQueueRef.current;
+        if (session !== sessionVersionRef.current) throw new Error("Your account changed. Reopen your cart.");
+        // Recheck after queued quantity changes; never remove-and-add a configured line.
+        replaceCartConfiguration(cartRef.current, original, replacement);
+        const result = await updateCartItem(original._id, replacement.quantity, "menuItem", original.cartLineId,
+          { selectedAddOns: replacement.selectedAddOns.map(addOnRequest), spiceLevel: replacement.spiceLevel, note: replacement.note }, original);
+        if (session !== sessionVersionRef.current) throw new Error("Your account changed. Reopen your cart.");
+        commitCart(withCurrentRewards(result));
+      } catch (error) { if (session === sessionVersionRef.current) setSyncError(error.response?.data?.message || error.message); throw error; }
+      finally { if (session === sessionVersionRef.current) setSyncing(false); }
+    } else if (scopeRef.current.type === "guest") commitCart(next);
+    else throw new Error("Wait until your cart has loaded.");
+    return true;
+  }, [commitCart, withCurrentRewards]);
+
   const itemCount = useMemo(
     () => cart.reduce((sum, line) => sum + line.quantity, 0),
     [cart]
@@ -636,6 +659,7 @@ export const CartProvider = ({ children }) => {
     incrementItem,
     decrementItem,
     removeFromCart,
+    editCartItem,
     clearCart,
     itemCount,
     subtotal,

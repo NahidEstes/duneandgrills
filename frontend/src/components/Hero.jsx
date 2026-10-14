@@ -2,8 +2,10 @@ import React from "react";
 import { ArrowRight, Flame } from "lucide-react";
 import DuneDivider from "./DuneDivider.jsx";
 import SmartImage from "./SmartImage.jsx";
+import { usePublicRestaurant } from "../context/PublicRestaurantContext.jsx";
 
 const Hero = () => {
+  const { orderConfig } = usePublicRestaurant();
   return (
     <section
       id="home"
@@ -41,8 +43,7 @@ const Hero = () => {
           style={{ animationDelay: "0.2s" }}
         >
           Dune &amp; Grills brings bold, char-grilled flavor to every plate —
-          from smoked burgers to spiced shawarma. Order online and taste the
-          fire.
+          from smoked burgers to spiced shawarma. Explore the menu and taste the fire.
         </p>
 
         <div
@@ -50,10 +51,10 @@ const Hero = () => {
           style={{ animationDelay: "0.3s" }}
         >
           <a
-            href="#menu"
+            href="/menu"
             className="group inline-flex items-center gap-2 bg-dune-amber hover:bg-dune-amberLight text-black font-semibold px-7 py-3.5 rounded-full transition-all duration-300 shadow-amberGlow"
           >
-            Order Now
+            {orderConfig?.websiteOrderingEnabled === true ? "Order Now" : "View Menu"}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </a>
           <a
@@ -63,6 +64,7 @@ const Hero = () => {
             Our Story
           </a>
         </div>
+        {orderConfig?.websiteOrderingEnabled === false && <p className="mt-4 text-sm text-amber-200">Online ordering is currently unavailable. You can still browse our menu and restaurant contact details.</p>}
       </div>
 
       <div className="relative">

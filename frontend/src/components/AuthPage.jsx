@@ -51,7 +51,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-4">
+    <div className="min-h-dvh bg-black flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
         <Link href="/" className="flex items-center justify-center gap-2 mb-8">
           <Flame className="w-6 h-6 text-dune-amber" />
@@ -70,8 +70,10 @@ const AuthPage = () => {
             className="space-y-4"
             aria-busy={loading}
           >
-            {mode === "register" && (
+            {mode === "register" && (<>
+              <label htmlFor="auth-name" className="block text-sm text-neutral-300">Full name</label>
               <input
+                id="auth-name" autoComplete="name" aria-describedby={error ? "auth-error" : undefined}
                 required
                 disabled={loading}
                 name="name"
@@ -79,9 +81,11 @@ const AuthPage = () => {
                 value={form.name}
                 onChange={handleChange}
                 className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none"
-              />
+              /></>
             )}
+            <label htmlFor="auth-email" className="block text-sm text-neutral-300">Email</label>
             <input
+              id="auth-email" autoComplete={mode === "login" ? "username" : "email"} aria-describedby={error ? "auth-error" : undefined}
               required
               disabled={loading}
               type="email"
@@ -91,7 +95,9 @@ const AuthPage = () => {
               onChange={handleChange}
               className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none"
             />
+            <label htmlFor="auth-password" className="block text-sm text-neutral-300">Password</label>
             <input
+              id="auth-password" autoComplete={mode === "login" ? "current-password" : "new-password"} aria-describedby={error ? "auth-error" : undefined}
               required
               disabled={loading}
               type="password"
@@ -104,7 +110,9 @@ const AuthPage = () => {
             />
             {mode === "register" && (
               <>
+                <label htmlFor="auth-phone" className="block text-sm text-neutral-300">Phone (optional)</label>
                 <input
+                  id="auth-phone" type="tel" autoComplete="tel" aria-describedby={error ? "auth-error" : undefined}
                   name="phone"
                   disabled={loading}
                   placeholder="Phone (optional)"
@@ -112,7 +120,9 @@ const AuthPage = () => {
                   onChange={handleChange}
                   className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white focus:border-dune-amber outline-none"
                 />
+                <label htmlFor="auth-address" className="block text-sm text-neutral-300">Address (optional)</label>
                 <input
+                  id="auth-address" autoComplete="street-address" aria-describedby={error ? "auth-error" : undefined}
                   name="address"
                   disabled={loading}
                   placeholder="Address (optional)"
@@ -123,7 +133,7 @@ const AuthPage = () => {
               </>
             )}
 
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p id="auth-error" role="alert" className="text-sm text-red-300">{error}</p>}
 
             <button
               type="submit"
@@ -158,6 +168,7 @@ const AuthPage = () => {
             </button>
           </p>
         </div>
+        <div id="public-app-options" className="mt-6 flex justify-center" />
       </div>
     </div>
   );

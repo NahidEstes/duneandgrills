@@ -81,7 +81,7 @@ const OffersSection = ({ initialOffers = [], onCartOpen }) => {
     [addItemsToCart, onCartOpen, suggestCoupon]
   );
 
-  if (status === "success" && offers.length === 0) return null;
+  if (status === "success" && offers.length === 0) return <section id="offers" aria-label="Offers" className="border-t border-white/5 bg-[#080909] px-5 py-10 text-center text-sm text-neutral-300">No current offers are available.</section>;
 
   const featured = offers.find((offer) => offer.isFeatured) || offers[0];
   const otherOffers = offers.filter((offer) => offer._id !== featured?._id);

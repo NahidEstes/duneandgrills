@@ -34,7 +34,7 @@ try {
       await route.fulfill({ status: code, contentType: "application/json", body: JSON.stringify(payload) });
     });
     await page.goto(origin + "/menu");
-    await page.getByLabel("Search menu").fill("missing fixture"); await page.getByText("No items match this category and your filters.").waitFor();
+    await page.getByLabel("Search menu").fill("missing fixture"); await page.getByText("No items match your search and price filters. Try a different search or clear the filters.").waitFor();
     await page.getByLabel("Search menu").fill("Test Burger"); await page.getByRole("button", { name: "Customize & Add" }).click();
     const modal = page.getByRole("dialog"); await modal.getByRole("button", { name: "Hot", exact: true }).click(); await modal.getByPlaceholder("E.g. no onions, extra sauce, well done…").fill("No onion"); await modal.getByRole("button", { name: /Add to Cart/ }).click();
     await page.reload(); await page.getByRole("button", { name: "Open cart, 1 items" }).click(); await page.getByRole("button", { name: "Proceed to Checkout" }).click();

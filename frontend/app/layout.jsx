@@ -27,7 +27,7 @@ export const metadata = {
     template: "%s | Dune & Grills",
   },
   description:
-    "Dune & Grills serves fire-grilled burgers, shawarma and appetizers in Riyadh. Order online for pickup or delivery.",
+    "Dune & Grills serves fire-grilled burgers, shawarma and appetizers in Riyadh. Explore the menu and restaurant information.",
   applicationName: "Dune & Grills",
   authors: [{ name: "Dune & Grills" }],
   creator: "Dune & Grills",
@@ -42,7 +42,7 @@ export const metadata = {
     siteName: "Dune & Grills",
     title: "Dune & Grills | Fire-Grilled, Desert-Inspired",
     description:
-      "Fire-grilled burgers, shawarma and appetizers in Riyadh. Order online for pickup or delivery.",
+      "Fire-grilled burgers, shawarma and appetizers in Riyadh. Explore the menu and restaurant information.",
     images: [
       {
         url: "/logo2.jpeg",
@@ -56,7 +56,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "Dune & Grills | Fire-Grilled, Desert-Inspired",
     description:
-      "Fire-grilled burgers, shawarma and appetizers in Riyadh. Order online for pickup or delivery.",
+      "Fire-grilled burgers, shawarma and appetizers in Riyadh. Explore the menu and restaurant information.",
     images: ["/logo2.jpeg"],
   },
   icons: {

@@ -10,6 +10,8 @@ import Contact from "./Contact.jsx";
 import VisitUs from "./VisitUs.jsx";
 import LandingFooter from "./LandingFooter.jsx";
 import CartDrawer from "./CartDrawer.jsx";
+import PublicHashNavigation from "./PublicHashNavigation.jsx";
+import { usePublicRestaurant } from "../context/PublicRestaurantContext.jsx";
 
 const SHOW_CONTACT_SECTION = false;
 
@@ -20,9 +22,11 @@ const HomePageClient = ({
   restaurantSettings = null,
 }) => {
   const [cartOpen, setCartOpen] = useState(false);
+  const { settings } = usePublicRestaurant();
 
   return (
-    <div className="bg-dune-gradient min-h-screen">
+    <div className="public-page bg-dune-gradient min-h-screen">
+      <PublicHashNavigation />
       <Navbar onCartClick={() => setCartOpen(true)} />
       <main>
         <Hero />
@@ -36,7 +40,7 @@ const HomePageClient = ({
         />
         <About />
         {SHOW_CONTACT_SECTION && <Contact settings={restaurantSettings} />}
-        <VisitUs settings={restaurantSettings} />
+        <VisitUs settings={settings || restaurantSettings} />
       </main>
       <LandingFooter />
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />

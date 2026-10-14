@@ -22,11 +22,10 @@ const MenuCard = ({ item, onSelect }) => {
 
   return (
     <div
-      onClick={() => onSelect(item)}
       className="group relative flex flex-col rounded-2xl border border-dune-border bg-dune-surface overflow-hidden hover:border-dune-amber/60 hover:-translate-y-1 hover:shadow-amberGlow transition-all duration-300 cursor-pointer"
     >
       <div className="relative h-52 overflow-hidden">
-        <SmartImage
+        <button type="button" aria-label={`View ${item.name}`} onClick={() => onSelect(item)} className="h-full w-full"><SmartImage
           src={item.image}
           alt={item.name}
           width={800}
@@ -34,8 +33,8 @@ const MenuCard = ({ item, onSelect }) => {
           sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
           loading="lazy"
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-dune-surface via-transparent to-transparent" />
+        /></button>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-dune-surface via-transparent to-transparent" />
         {isBestseller && (
           <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-black/70 backdrop-blur px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide text-dune-amber border border-dune-amber/40">
             <Flame className="w-3 h-3" /> Bestseller
@@ -55,7 +54,7 @@ const MenuCard = ({ item, onSelect }) => {
               : `Add ${item.name} to favorites`
           }
           aria-pressed={isFavorite}
-          className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full border border-white/20 bg-black/70 backdrop-blur flex items-center justify-center text-white hover:border-dune-amber hover:text-dune-amber transition-colors"
+          className="absolute top-3 right-3 z-10 w-11 h-11 rounded-full border border-white/20 bg-black/70 backdrop-blur flex items-center justify-center text-white hover:border-dune-amber hover:text-dune-amber transition-colors"
         >
           <Heart
             className="w-4 h-4"
@@ -66,7 +65,7 @@ const MenuCard = ({ item, onSelect }) => {
 
       <div className="flex flex-col flex-1 p-5">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="text-xl font-bold text-white leading-snug">
+          <h3 className="min-w-0 break-words text-xl font-bold text-white leading-snug">
             {item.name}
           </h3>
           {/* <span className="shrink-0 font-display text-xl text-dune-amber">
@@ -110,14 +109,15 @@ const MenuCard = ({ item, onSelect }) => {
         )}
 
         <button
+          type="button" disabled={item.isAvailable === false}
           onClick={(e) => {
             e.stopPropagation();
             onSelect(item);
           }}
-          className="mt-5 inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-full border border-dune-amber/60 text-dune-amber font-medium hover:bg-dune-amber hover:text-black transition-colors duration-300"
+          className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 w-full py-2.5 rounded-full border border-dune-amber/60 text-dune-amber font-medium hover:bg-dune-amber hover:text-black transition-colors duration-300 disabled:opacity-50"
         >
           <Plus className="w-4 h-4" />
-          Customize & Add
+          {item.isAvailable === false ? "Unavailable" : "Customize & Add"}
         </button>
       </div>
     </div>

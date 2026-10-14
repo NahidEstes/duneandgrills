@@ -28,6 +28,7 @@ const MenuSection = ({ initialItems = [], initialCombos = [] }) => {
     initialProducts.length > 0 ? "success" : "loading"
   );
   const [selectedItem, setSelectedItem] = useState(null);
+  const [retryVersion, setRetryVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,11 +49,11 @@ const MenuSection = ({ initialItems = [], initialCombos = [] }) => {
       }
     };
 
-    if (initialProducts.length === 0) load();
+    if (initialProducts.length === 0 || retryVersion > 0) load();
     return () => {
       cancelled = true;
     };
-  }, [initialProducts.length]);
+  }, [initialProducts.length, retryVersion]);
 
   return (
     <section id="menu" className="relative bg-black py-20 md:py-28">
@@ -69,7 +70,7 @@ const MenuSection = ({ initialItems = [], initialCombos = [] }) => {
 
         <div className="mt-12">
           {status === "loading" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div role="status" aria-label="Loading menu preview" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
@@ -84,10 +85,12 @@ const MenuSection = ({ initialItems = [], initialCombos = [] }) => {
               <p className="text-neutral-400">
                 We couldn&apos;t load the menu right now.
               </p>
+              <button type="button" onClick={() => setRetryVersion(value => value + 1)} className="mt-3 min-h-11 px-4 text-dune-amber underline">Retry menu</button>
             </div>
           )}
 
-          {status === "success" && (
+          {status === "success" && !items.length && <p className="rounded-xl border border-dune-border p-8 text-center text-neutral-300">Our menu has no available items right now. Please check again later.</p>}
+          {status === "success" && items.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {items.map((item) => (
                 <MenuCard

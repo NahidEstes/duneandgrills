@@ -1,17 +1,17 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ShoppingCart, Menu, X, Flame, User, LogOut } from "lucide-react";
 import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const NAV_LINKS = [
   { label: "Home", hash: "home" },
-  { label: "Menu", hash: "menu" },
+  { label: "Menu", hash: "menu", href: "/menu" },
   { label: "About Us", hash: "about" },
-  { label: "Contact", hash: "contact" },
+  { label: "Contact", hash: "visit" },
 ];
 
 const Navbar = ({
@@ -28,7 +28,7 @@ const Navbar = ({
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("");
-  const router = useRouter();
+  const mobileToggle = useRef(null), mobilePanel = useRef(null);
   const pathname = usePathname();
   const hasAccountMenu = accountMenuItems.length > 0;
   const hideDesktopNav = pathname === "/profile" || pathname.startsWith("/profile/");
@@ -43,6 +43,7 @@ const Navbar = ({
   }, []);
 
   useEffect(() => {
+    const update = () => {
     if (pathname === "/menu") {
       setActiveNav("menu");
     } else if (pathname === "/blog" || pathname.startsWith("/blog/")) {
@@ -52,42 +53,29 @@ const Navbar = ({
     } else {
       setActiveNav("");
     }
+    };
+    update(); window.addEventListener("hashchange", update);
+    return () => window.removeEventListener("hashchange", update);
   }, [pathname]);
 
-  // Smoothly scrolls to a section, waiting a tick if we just navigated
-  // from another page so the home page has time to render first.
-  const scrollToSection = (hash, delay = 0) => {
-    setTimeout(() => {
-      const el = document.getElementById(hash);
-      if (el) el.scrollIntoView({ behavior: "smooth" });
-    }, delay);
-  };
-
-  // Handles clicks on Home / Menu / About / Contact — navigates to "/"
-  // first if we're on another page, then scrolls to the section.
-  const handleNavClick = (e, hash) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (!mobileOpen) return;
+    mobilePanel.current?.querySelector("a,button")?.focus();
+    const dismiss = event => {
+      if (event.key === "Escape") { setMobileOpen(false); mobileToggle.current?.focus(); }
+      if (event.type === "pointerdown" && !mobilePanel.current?.contains(event.target) && !mobileToggle.current?.contains(event.target)) setMobileOpen(false);
+    };
+    document.addEventListener("keydown", dismiss); document.addEventListener("pointerdown", dismiss);
+    return () => { document.removeEventListener("keydown", dismiss); document.removeEventListener("pointerdown", dismiss); };
+  }, [mobileOpen]);
+  const handleNavClick = (_e, hash) => {
     setMobileOpen(false);
     setActiveNav(hash);
-
-    if (pathname !== "/") {
-      router.push(`/#${hash}`);
-      scrollToSection(hash, 100); // small delay lets the home page mount
-    } else {
-      scrollToSection(hash);
-    }
   };
-
-  const handleLogoClick = (e) => {
-    e.preventDefault();
+  const handleLogoClick = () => {
     setMobileOpen(false);
     setActiveNav("home");
 
-    if (pathname !== "/") {
-      router.push("/");
-    } else {
-      scrollToSection("home");
-    }
   };
 
   return (
@@ -100,14 +88,14 @@ const Navbar = ({
     >
       <nav
         className={`mx-auto flex h-16 items-center justify-between md:h-20 ${
-          hasAccountMenu ? "px-3 sm:px-5 md:px-8" : "px-5 md:px-8"
+          hasAccountMenu ? "px-3 sm:px-5 md:px-8" : "px-3 sm:px-5 md:px-8"
         } ${wide ? "max-w-[1440px]" : "max-w-7xl"}
         `}
       >
         <Link
-          href="/"
+          href="/#home"
           onClick={handleLogoClick}
-          className={`group flex cursor-pointer items-center ${
+          className={`group flex shrink-0 cursor-pointer items-center ${
             hasAccountMenu ? "gap-1 sm:gap-2" : "gap-2"
           }`}
         >
@@ -117,10 +105,10 @@ const Navbar = ({
             }`}
           />
           <span
-            className={`font-display tracking-widest text-white md:text-3xl ${
+            className={`whitespace-nowrap font-display tracking-widest text-white md:text-3xl ${
               hasAccountMenu
                 ? "text-[17px] min-[375px]:text-xl sm:text-2xl"
-                : "text-2xl"
+                : "text-lg min-[375px]:text-2xl"
             }`}
           >
             DUNE <span className="text-dune-amber">&amp;</span> GRILLS
@@ -128,15 +116,11 @@ const Navbar = ({
         </Link>
 
         {!hideDesktopNav && (
-          <ul
-            className={`items-center gap-9 ${
-              hasAccountMenu ? "hidden lg:flex" : "hidden md:flex"
-            }`}
-          >
+          <ul className="hidden items-center gap-9 lg:flex">
             {NAV_LINKS.map((link) => (
               <li key={link.label}>
-                <a
-                  href={`/#${link.hash}`}
+                <Link
+                  href={link.href || `/#${link.hash}`}
                   onClick={(e) => handleNavClick(e, link.hash)}
                   aria-current={activeNav === link.hash ? "page" : undefined}
                   className={`cursor-pointer text-sm font-medium tracking-wide transition-colors active:text-dune-amber ${
@@ -146,7 +130,7 @@ const Navbar = ({
                   }`}
                 >
                   {link.label}
-                </a>
+                </Link>
               </li>
             ))}
             <li>
@@ -168,14 +152,14 @@ const Navbar = ({
 
         <div
           className={`flex items-center ${
-            hasAccountMenu ? "gap-1 sm:gap-3" : "gap-3"
+            hasAccountMenu ? "gap-1 sm:gap-3" : "gap-1 sm:gap-3"
           }`}
         >
           <Link
             href={user ? "/profile" : "/login"}
             aria-label={user ? "Open your account" : "Log in"}
             aria-current={accountActive ? "page" : undefined}
-            className={`group flex items-center gap-2 rounded-full border px-3 py-2 transition-colors active:border-dune-amber active:text-dune-amber ${
+            className={`group flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border px-2 sm:px-3 py-2 transition-colors active:border-dune-amber active:text-dune-amber ${
               accountActive
                 ? "border-dune-amber text-dune-amber"
                 : "border-dune-border text-white hover:border-dune-amber hover:text-dune-amber"
@@ -185,7 +169,7 @@ const Navbar = ({
             {!authLoading && (
               <span
                 className={`font-medium text-current ${
-                  user ? "hidden text-sm sm:inline" : "inline text-xs sm:text-sm"
+                  user ? "hidden text-sm sm:inline" : "hidden min-[375px]:inline text-xs sm:text-sm"
                 }`}
               >
                 {user ? user.name.split(" ")[0] : "Log In"}
@@ -196,7 +180,7 @@ const Navbar = ({
           <button
             onClick={onCartClick}
             aria-label={`Open cart, ${itemCount} items`}
-            className="group relative rounded-full border border-dune-border p-2.5 transition-all duration-300 hover:border-dune-amber hover:shadow-amberGlow active:border-dune-amber"
+            className="group relative min-h-11 min-w-11 rounded-full border border-dune-border p-2.5 transition-all duration-300 hover:border-dune-amber hover:shadow-amberGlow active:border-dune-amber"
           >
             <ShoppingCart className="h-5 w-5 text-white transition-colors group-active:text-dune-amber" />
             {itemCount > 0 && (
@@ -207,9 +191,8 @@ const Navbar = ({
           </button>
 
           <button
-            className={`rounded-full border border-dune-border p-2.5 text-white active:border-dune-amber active:text-dune-amber ${
-              hasAccountMenu ? "lg:hidden" : "md:hidden"
-            }`}
+            ref={mobileToggle} aria-expanded={mobileOpen} aria-controls="public-mobile-navigation"
+            className="min-h-11 min-w-11 rounded-full border border-dune-border p-2.5 text-white active:border-dune-amber active:text-dune-amber lg:hidden"
             onClick={() => setMobileOpen((o) => !o)}
             aria-label="Toggle navigation menu"
           >
@@ -224,9 +207,8 @@ const Navbar = ({
 
       {mobileOpen && (
         <div
-          className={`bg-black border-t border-dune-border animate-fadeUp ${
-            hasAccountMenu ? "lg:hidden" : "md:hidden"
-          }`}
+          id="public-mobile-navigation" ref={mobilePanel}
+          className="max-h-[calc(100dvh-5rem)] overflow-y-auto bg-black border-t border-dune-border animate-fadeUp lg:hidden"
         >
           {hasAccountMenu ? (
             <nav
@@ -273,18 +255,18 @@ const Navbar = ({
             <ul className="flex flex-col px-5 py-4 gap-4">
               {NAV_LINKS.map((link) => (
                 <li key={link.label}>
-                  <a
-                    href={`/#${link.hash}`}
+                  <Link
+                    href={link.href || `/#${link.hash}`}
                     onClick={(e) => handleNavClick(e, link.hash)}
                     aria-current={activeNav === link.hash ? "page" : undefined}
-                    className={`block cursor-pointer text-base font-medium transition-colors active:text-dune-amber ${
+                    className={`flex min-h-11 items-center cursor-pointer text-base font-medium transition-colors active:text-dune-amber ${
                       activeNav === link.hash
                         ? "text-dune-amber"
                         : "text-neutral-200 hover:text-dune-amber"
                     }`}
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
               <li>
@@ -295,7 +277,7 @@ const Navbar = ({
                     setActiveNav("blog");
                   }}
                   aria-current={activeNav === "blog" ? "page" : undefined}
-                  className={`block text-base font-medium transition-colors active:text-dune-amber ${
+                  className={`flex min-h-11 items-center text-base font-medium transition-colors active:text-dune-amber ${
                     activeNav === "blog"
                       ? "text-dune-amber"
                       : "text-neutral-200 hover:text-dune-amber"

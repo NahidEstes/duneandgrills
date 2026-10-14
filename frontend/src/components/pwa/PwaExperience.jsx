@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { createPortal } from "react-dom";
 import { appKind } from "../../pwa/config.js";
 import { updateBlockedForWindow } from "../../pwa/network.js";
 
-export default function PwaExperience() {
+export default function PwaExperience({ inlineOptions = false }) {
   const pathname = usePathname();
   const kind = appKind(pathname);
   const staff = kind !== "customer";
@@ -21,6 +22,20 @@ export default function PwaExperience() {
   const [permission, setPermission] = useState("unsupported");
   const [installationUnavailable, setInstallationUnavailable] = useState(false);
   const applying = useRef(false);
+  const [optionsTarget, setOptionsTarget] = useState(null);
+  useEffect(() => {
+    if (!inlineOptions) return;
+    // Public-page actions must not sit underneath a floating installation button.
+    const findTarget = () => {
+      const target = document.getElementById("public-app-options");
+      setOptionsTarget(target);
+      return !!target;
+    };
+    if (findTarget()) return;
+    const observer = new MutationObserver(() => { if (findTarget()) observer.disconnect(); });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [inlineOptions, pathname]);
   useEffect(() => {
     let disposed = false; let registration; let checkTimer;
     let controlled = Boolean(navigator.serviceWorker?.controller);
@@ -102,12 +117,7 @@ export default function PwaExperience() {
   };
   // Keep the second monitor limited to the public bill and connectivity indicators.
   const display = pathname === "/pos/customer-display";
-  return <aside aria-label="App connection and installation" className="print:hidden">
-    {(!online || reconnecting || stale) && <div role="status" aria-live="polite" className="sticky top-0 z-[80] border-b border-amber-500/40 bg-amber-950 px-4 py-3 text-center text-sm text-amber-100">
-      {!online ? "Offline. Reconnect to order, pay or change status. No operations are queued." : reconnecting ? "Reconnecting — retained data may be outdated. Retry after the connection recovers." : "Showing a saved menu. Prices and availability are checked again online at checkout."}
-    </div>}
-    {(waiting || refreshNeeded) && <div role="status" className="border-b border-amber-400/30 bg-neutral-900 px-4 py-3 text-center text-sm text-white">App update available. <button type="button" onClick={applyUpdate} className="min-h-11 rounded border border-amber-400 px-4 text-amber-200">Apply update</button></div>}
-    {!display && <div className="fixed bottom-3 left-3 z-[70] max-w-[calc(100vw-1.5rem)] text-sm text-white">
+  const options = !display && <div className={`${inlineOptions ? "relative" : "fixed bottom-3 left-3 z-[70]"} max-w-[calc(100vw-1.5rem)] text-sm text-white`}>
       <button type="button" aria-expanded={open} aria-controls="pwa-options" onClick={() => setOpen(value => !value)} className="min-h-11 rounded-xl border border-white/20 bg-neutral-950 px-4 shadow-xl focus-visible:outline focus-visible:outline-amber-300">App options</button>
       {open && <div id="pwa-options" className="mt-2 max-w-sm space-y-2 rounded-xl border border-white/20 bg-neutral-950 p-3 shadow-xl">
         {installationUnavailable && <p role="status" className="text-xs text-amber-200">Offline installation support is unavailable in this browser. Ordering still works online.</p>}
@@ -116,7 +126,13 @@ export default function PwaExperience() {
         {permission !== "unsupported" && <button type="button" onClick={notify} disabled={permission === "granted"} className="min-h-11 w-full rounded border border-white/20 px-4 text-left disabled:opacity-60">{permission === "granted" ? "Notifications allowed" : "Allow notifications"}</button>}
         <p className="text-xs text-neutral-300">Alerts work while the Kitchen/Admin app is open. Background push requires a separately configured push service.</p>
       </div>}
+    </div>;
+  return <aside aria-label="App connection and installation" className="print:hidden">
+    {(!online || reconnecting || stale) && <div role="status" aria-live="polite" className="sticky top-0 z-[80] border-b border-amber-500/40 bg-amber-950 px-4 py-3 text-center text-sm text-amber-100">
+      {!online ? "Offline. Reconnect to order, pay or change status. No operations are queued." : reconnecting ? "Reconnecting — retained data may be outdated. Retry after the connection recovers." : "Showing a saved menu. Prices and availability are checked again online at checkout."}
     </div>}
+    {(waiting || refreshNeeded) && <div role="status" className="border-b border-amber-400/30 bg-neutral-900 px-4 py-3 text-center text-sm text-white">App update available. <button type="button" onClick={applyUpdate} className="min-h-11 rounded border border-amber-400 px-4 text-amber-200">Apply update</button></div>}
+    {inlineOptions ? optionsTarget?.isConnected && createPortal(options, optionsTarget) : options}
     {message && <div role="alert" className="fixed bottom-16 left-3 z-[90] max-w-sm rounded-xl border border-amber-400/40 bg-neutral-950 p-4 text-sm text-white"><p>{message}</p><button type="button" onClick={() => setMessage("")} className="mt-2 min-h-11 px-3 text-amber-300">Dismiss</button></div>}
   </aside>;
 }

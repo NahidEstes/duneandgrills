@@ -233,13 +233,29 @@ export const updateItem = async (req, res) => {
       });
     }
 
+    if (Object.hasOwn(req.body, "customization")) {
+      const identity = entryIdentity(item);
+      if (!mongoose.isValidObjectId(lineId) || identity.productType !== "menuItem" || productType !== "menuItem" || String(identity.productId) !== String(productId)) return res.status(400).json({ success: false, message: "Select the exact menu-item cart line to edit" });
+      if (typeof req.body.expectedCustomizationKey !== "string" || req.body.expectedCustomizationKey !== item.customizationKey || req.body.expectedQuantity !== item.quantity) return res.status(409).json({ success: false, message: "This cart item changed. Reload and review it before editing." });
+      const [resolved] = await resolveCartLines([{ productType, productId, quantity, customization: req.body.customization }]);
+      const key = `${productKey(productType, productId)}:${resolved.customization.key}`;
+      if (cart.items.some(entry => String(entry.lineId) !== String(lineId) && persistedKey(entry) === key)) return res.status(409).json({ success: false, message: "This configuration is already in your cart. Change that item’s quantity instead." });
+      // Update only the addressed line. The revision and collision predicate protect concurrent edits.
+      const updated = await UserCart.findOneAndUpdate({ _id: cart._id, userId: req.user._id, __v: cart.__v,
+        $and: [{ items: { $elemMatch: { lineId: item.lineId, quantity: item.quantity, customizationKey: item.customizationKey } } },
+          { items: { $not: { $elemMatch: { lineId: { $ne: item.lineId }, menuItem: identity.productId, customizationKey: resolved.customization.key } } } }],
+      }, { $set: { "items.$[target]": storedLineFromResolved(resolved, item.lineId) }, $inc: { __v: 1 } },
+      { arrayFilters: [{ "target.lineId": item.lineId }], new: true, runValidators: true });
+      if (!updated) return res.status(409).json({ success: false, message: "Your cart changed. Reload and review it before editing." });
+      return sendCart(res, updated);
+    }
     item.quantity = quantity;
     await cart.save();
     return sendCart(res, cart);
   } catch (error) {
-    return res.status(400).json({
+    return res.status(error.status || 400).json({
       success: false,
-      message: "Failed to update cart product",
+      message: error.message || "Failed to update cart product",
       error: error.message,
     });
   }

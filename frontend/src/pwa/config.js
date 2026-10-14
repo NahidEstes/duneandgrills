@@ -10,7 +10,7 @@ export function createManifest(kind = "customer") {
   const route = kind === "customer" ? "/" : `/${kind}`;
   return {
     id: route, name: names[kind] || names.customer, short_name: kind === "customer" ? "Dune & Grills" : `Dune ${kind === "pos" ? "POS" : "Kitchen"}`,
-    description: kind === "customer" ? "Order for pickup or delivery from Dune & Grills." : "Authenticated restaurant workspace. Internet connection required for operations.",
+    description: kind === "customer" ? "Explore the Dune & Grills menu and restaurant information." : "Authenticated restaurant workspace. Internet connection required for operations.",
     start_url: route, scope: route, display: "standalone", background_color: PWA_THEME, theme_color: PWA_THEME,
     lang: "en", dir: "ltr",
     icons: [192, 512].map(size => ({ src: `/pwa/icon-${size}.png`, sizes: `${size}x${size}`, type: "image/png", purpose: "any" })).concat([{ src: "/pwa/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }]),

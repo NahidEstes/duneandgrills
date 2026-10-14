@@ -78,15 +78,14 @@ const BlogSidebar = ({ currentSlug, onSearch, initialData = {} }) => {
         </div>
         <div className="p-5">
           <h3 className="font-display text-lg tracking-wide text-white">
-            HUNGRY? ORDER NOW
+            EXPLORE OUR MENU
           </h3>
           <p className="text-sm text-neutral-400 mt-1.5">
-            Craving something delicious? Order your favorite dishes fresh and
-            fast.
+            Explore your favorite dishes and check current ordering options.
           </p>
           <Link
             href="/menu"
-            className="mt-4 inline-flex items-center justify-center w-full bg-dune-amber hover:bg-dune-amberLight text-black font-semibold py-2.5 rounded-full text-sm transition-colors"
+            className="mt-4 min-h-11 inline-flex items-center justify-center w-full bg-dune-amber hover:bg-dune-amberLight text-black font-semibold py-2.5 rounded-full text-sm transition-colors"
           >
             View Menu
           </Link>
@@ -197,9 +196,9 @@ const BlogSidebar = ({ currentSlug, onSearch, initialData = {} }) => {
               </span>
               <Link
                 href="/menu"
-                className="text-xs font-semibold bg-dune-amber hover:bg-dune-amberLight text-black px-4 py-2 rounded-full transition-colors"
+                className="min-h-11 inline-flex items-center text-sm font-semibold bg-dune-amber hover:bg-dune-amberLight text-black px-4 py-2 rounded-full transition-colors"
               >
-                Order Now
+                View Menu
               </Link>
             </div>
           </div>
