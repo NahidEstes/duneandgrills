@@ -1,7 +1,7 @@
 import { ORDER_STATUS_LABELS, orderPaymentLabel } from "../../../utils/adminOrders.js";
 import { deliveryStatusLabel } from "../../rider/deliveryPresentation.js";
 
-export const deliverySortLabels = { newest: "Newest enrolled first", oldest_waiting: "Oldest waiting · ready/unassigned only", assigned_longest: "Assigned longest · assigned only", picked_up_longest: "Picked up longest · picked up only" };
+export const deliverySortLabels = { newest: "Newest enrolled first", oldest: "Oldest enrolled first", delivered_newest: "Recently delivered first", delivered_oldest: "Oldest delivered first", oldest_waiting: "Oldest waiting · ready/unassigned only", assigned_longest: "Assigned longest · assigned only", picked_up_longest: "Picked up longest · picked up only" };
 export { ORDER_STATUS_LABELS, orderPaymentLabel, deliveryStatusLabel };
 export const deliveryDateLabel = value => value && Number.isFinite(new Date(value).getTime()) ? `${new Date(value).toLocaleString("en-GB", { timeZone: "Asia/Riyadh" })} Riyadh` : "Timestamp unavailable";
 export function deliveryActionLabel(row, canManage) {

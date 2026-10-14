@@ -57,6 +57,15 @@ test("server-wide delivery attention, cash summaries, filters and Riyadh boundar
       assert.equal(list.deliveries.length, 1); assert.equal(list.health.attention.ready_unassigned, 23);
       assert.equal(list.health.attention.pickup_delayed, 1); assert.equal(list.health.attention.delivery_delayed, 1);
       assert.equal(list.health.attention.timing_unavailable, 2); assert.equal(list.health.attention.issue, 1);
+      assert.equal(list.health.activeAttentionCount, 28);
+      const active = await listWorkflowDeliveries(actors.admin, { workspace: "active", limit: 1 });
+      assert.equal(active.pagination.total, 29); assert.equal(active.health.activeAttentionCount, 28);
+      assert.equal((await listWorkflowDeliveries(actors.manager, { workspace: "active", attention: "needs_attention", limit: 1 })).pagination.total, 28);
+      for (const workspace of ["cash", "history"]) {
+        const completed = await listWorkflowDeliveries(actors.manager, { workspace, limit: 1 });
+        assert.equal(completed.pagination.total, 7); assert.equal(completed.deliveries[0].deliveryStatus, "delivered");
+      }
+      await assert.rejects(listWorkflowDeliveries(actors.cashier, { workspace: "active" }), error => error.status === 403);
       assert.equal(list.health.attention.no_cash_report, 1); assert.equal(list.health.attention.awaiting_cash, 1); assert.equal(list.health.attention.discrepancy, 1);
       for (const [attention, count] of Object.entries(list.health.attention)) assert.equal((await listWorkflowDeliveries(actors.manager, { attention, limit: 1 })).pagination.total, count);
       const page2 = await listWorkflowDeliveries(actors.admin, { attention: "ready_unassigned", page: 2, limit: 20 });
@@ -69,6 +78,9 @@ test("server-wide delivery attention, cash summaries, filters and Riyadh boundar
       const list = await listWorkflowDeliveries(actors.admin);
       assert.equal(list.health.cash.awaiting_confirmation.amountHalala, 4001); assert.equal(list.health.cash.discrepancy.amountHalala, 3001);
       assert.equal(list.health.cash.discrepancy.ledgerOutstandingHalala, 4001); assert.equal(list.health.confirmedToday.amountHalala, 4001);
+      assert.equal(list.health.deliveredCash.collection_pending.count, 1); assert.equal(list.health.deliveredCash.collection_pending.amountHalala, 4001);
+      assert.ok(list.health.cash.collection_pending.count > list.health.deliveredCash.collection_pending.count);
+      for (const [cashStatus, count] of Object.entries(list.health.deliveredCash)) assert.equal((await listWorkflowDeliveries(actors.manager, { workspace: "cash", cashStatus, limit: 1 })).pagination.total, count.count);
       assert.equal(list.health.confirmedToday.count, 1);
       assert.equal((await listWorkflowDeliveries(actors.admin, { cashStatus: "confirmed_today" })).pagination.total, 1);
       const reported = await listWorkflowDeliveries(actors.admin, { cashStatus: "awaiting_confirmation" });

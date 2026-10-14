@@ -8,11 +8,12 @@ export default function useDeliveryManagement({ preview, rehearsal }) {
   const { setUser, user } = useAuth(), workspace = useRef(null), unauthorized = useRef(setUser);
   useEffect(() => { unauthorized.current = setUser; }, [setUser]);
   const userId = user?._id || user?.id, role = user?.role, hasSession = Boolean(user);
-  const [state, setState] = useState({ data: null, query: emptyDeliveryQuery(), loading: true });
+  const [state, setState] = useState({ data: null, query: emptyDeliveryQuery(role === "cashier" ? "cash" : "active"), loading: true });
   useEffect(() => {
     if (!hasSession) return;
     const current = createDeliveryWorkspace({
-      list: (query, signal) => fetchDeliveryManagement({ ...query, preview, rehearsal }, signal),
+      initialQuery: emptyDeliveryQuery(role === "cashier" ? "cash" : "active"),
+      list: (query, signal) => fetchDeliveryManagement({ ...query, preview, rehearsal, canManage: ["admin", "manager"].includes(role) }, signal),
       detail: (id, signal) => fetchDeliveryDetails(id, { preview, rehearsal, admin: true }, signal),
       onUnauthorized: () => unauthorized.current(null),
     });

@@ -5,16 +5,16 @@ const safe = (data, { preview = false, rehearsal = false } = {}) => {
       || data.operationalEnabled !== (data.mode === "operational")) throw new Error("Unexpected delivery response; reload the delivery workspace.");
   return data;
 };
-export async function fetchDeliveryManagement({ preview, rehearsal, status = "all", search = "", page = 1, attention = "all", cashStatus = "all", datePeriod = "all", dateBasis = "enrolled", from = "", to = "", riderId = "all", sort = "newest" }, signal) {
+export async function fetchDeliveryManagement({ preview, rehearsal, canManage = false, workspace = "all", status = "all", search = "", page = 1, attention = "all", cashStatus = "all", datePeriod = "all", dateBasis = "enrolled", from = "", to = "", riderId = "all", sort = "newest" }, signal) {
   if (preview) return safe((await api.get("/deliveries/preview", { signal })).data, { preview });
   const config = (await api.get("/deliveries/config", { signal })).data;
   if (!config.success || typeof config.operationalEnabled !== "boolean" || typeof config.workflowEnabled !== "boolean") throw new Error("Delivery configuration unavailable. Retry before acting.");
   if (!config.operationalEnabled && !(rehearsal && config.workflowEnabled)) return { mode: "disabled", operationalEnabled: false, workflowAvailable: config.workflowEnabled, previewAvailable: config.previewAvailable, deliveries: [], riders: [], counts: null, pagination: null };
   // Cashier callers must not send even an all-riders management filter.
-  const [list, riders] = await Promise.all([api.get("/deliveries", { params: { status, search, page, attention, cashStatus, datePeriod, dateBasis, sort,
-    ...(datePeriod === "custom" ? { from, to } : {}), ...(riderId !== "all" ? { riderId } : {}), limit: 20 }, signal }), api.get("/deliveries/riders", { signal }).catch(error => {
+  const [list, riders] = await Promise.all([api.get("/deliveries", { params: { workspace, status, search, page, attention, cashStatus, datePeriod, dateBasis, sort,
+    ...(datePeriod === "custom" ? { from, to } : {}), ...(canManage && riderId !== "all" ? { riderId } : {}), limit: 20 }, signal }), canManage ? api.get("/deliveries/riders", { signal }).catch(error => {
     if (error.response?.status === 403) return { data: { data: [] } }; throw error;
-  })]);
+  }) : Promise.resolve({ data: { data: [] } })]);
   return { ...safe(list.data, { rehearsal }), riders: riders.data.data };
 }
 export async function fetchDeliveryDetails(id, { preview, rehearsal, admin = false }, signal) {

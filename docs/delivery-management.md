@@ -1,5 +1,10 @@
 # Explicit delivery management, attention and cash visibility
 
+**UI update (14 October 2026):** the workspaces, compact summaries, contextual
+drawer and enrollment dialog described in [Delivery management redesign](delivery-management-redesign.md)
+supersede the previous always-expanded page layout. The manual refresh, privacy,
+attention definitions, permissions and payment rules below remain in effect.
+
 `/admin/deliveries` loads once on entry. Search typing/paste/clear and draft filters do
 not fetch. Search/Apply (or Enter), Reset, paging, Refresh and attention/cash card
 clicks are explicit commands. A confirmed mutation deliberately revalidates once.

@@ -4,12 +4,13 @@ import { findEnrollmentOrder, enrollRestaurantDelivery } from "@/src/api/deliver
 import useDeliverySubmission from "@/src/hooks/useDeliverySubmission.js";
 import { inputClass, panelClass } from "@/src/components/admin/staff/staffUi.jsx";
 
-export default function OwnDeliveryEnrollment({ afterChange, rehearsal = false }) {
+export default function OwnDeliveryEnrollment({ afterChange, rehearsal = false, onBusyChange }) {
   const [number, setNumber] = useState(""), [order, setOrder] = useState(null);
   const [lookingUp, setLookingUp] = useState(false), [error, setError] = useState("");
   const [reason, setReason] = useState(""), [pickup, setPickup] = useState(""), [note, setNote] = useState("");
   const lookupController = useRef(null), mutation = useDeliverySubmission();
   useEffect(() => () => lookupController.current?.abort(), []);
+  useEffect(() => { onBusyChange?.(lookingUp || mutation.pending); }, [lookingUp, mutation.pending, onBusyChange]);
   const lookup = async () => {
     lookupController.current?.abort();
     const controller = new AbortController(); lookupController.current = controller;
@@ -39,7 +40,7 @@ export default function OwnDeliveryEnrollment({ afterChange, rehearsal = false }
         <label className="block text-sm">Pickup instructions (optional)<input value={pickup} onChange={event => setPickup(event.target.value)} maxLength={300} placeholder="Restaurant pickup counter" className={`${inputClass} mt-2`} /></label>
         <label className="block text-sm">Delivery note (optional)<input value={note} onChange={event => setNote(event.target.value)} maxLength={300} className={`${inputClass} mt-2`} /></label>
       </div>
-      <button type="button" disabled={!reason.trim() || mutation.pending} onClick={enroll} className="min-h-11 rounded-xl bg-dune-amber px-4 font-medium text-black">{rehearsal ? "Enroll Own Delivery · Isolated Test" : "Enroll Own Delivery"}</button>
+      <button type="button" disabled={!reason.trim() || mutation.pending} onClick={enroll} className="min-h-11 rounded-xl bg-dune-amber px-4 font-medium text-black">{mutation.pending ? "Enrolling existing order…" : rehearsal ? "Enroll Own Delivery · Isolated Test" : "Enroll Own Delivery"}</button>
     </>}
     {mutation.error && <p role="alert" className="text-red-300">{mutation.error}</p>}
     {mutation.message && <p role="status" className="text-emerald-300">{mutation.message}</p>}

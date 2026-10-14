@@ -58,7 +58,7 @@ export function serializeDelivery(delivery, order, rider, { detail = false } = {
     deliveredAt: delivery.deliveredAt || null, updatedAt: delivery.updatedAt,
     cashReport: { status: cash.status || "none", amount: cash.amountHalala == null ? null : fromHalala(cash.amountHalala),
       reportedAt: cash.reportedAt || null, confirmedAt: cash.confirmedAt || null, acknowledgedAt: cash.acknowledgedAt || null },
-    issue: delivery.status === "issue" ? { reason: delivery.issue?.reason || "", previousStatus: delivery.issue?.previousStatus } : null,
+    issue: delivery.status === "issue" ? { reason: delivery.issue?.reason || "", previousStatus: delivery.issue?.previousStatus, reportedAt: delivery.issue?.reportedAt || null } : null,
     canConfirmCash: Boolean(accepted),
     cashConfirmationGap: cash.status === "discrepancy" ? "Shortage/discrepancy requires authorized handling; not posted as payment."
       : cash.status === "unconfirmed" && !accepted ? "Existing payment workflow cannot safely confirm this balance. Cash remains unconfirmed." : "",

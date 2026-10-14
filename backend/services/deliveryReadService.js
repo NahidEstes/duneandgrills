@@ -8,7 +8,7 @@ import { escapeRegex } from "../utils/inventoryValidation.js";
 import { assertDeliveryEnabled } from "./riderAccessService.js";
 import { deliveryError, serializeDelivery } from "./deliveryContractService.js";
 import { ATTENTION_KEYS, CASH_LABELS, deliveryHealthPipeline } from "./deliveryHealthService.js";
-import { managementDeliveryQuery } from "./deliveryQueryService.js";
+import { managementDeliveryQuery, activeAttentionMatch } from "./deliveryQueryService.js";
 import { riderHistoryQuery, restaurantContact } from "./riderReadPresentation.js";
 
 export const DELIVERY_STATES = Object.freeze(["unassigned", "assigned", "picked_up", "delivered", "issue"]);
@@ -16,9 +16,9 @@ export async function listWorkflowDeliveries(actor, query = {}) {
   const config = await assertDeliveryEnabled();
   const rider = actor?.role === "rider";
   if (!actor?._id || !hasCapability(actor.role, rider ? CAPABILITIES.RIDER_DELIVERY_OPERATE : CAPABILITIES.DELIVERY_CASH_CONFIRM)) throw deliveryError("Delivery access denied", 403);
-  if (Object.keys(query).some(key => !["status", "search", "page", "limit", "history", "cashStatus", "datePeriod", "from", "to", ...(!rider ? ["attention", "dateBasis", "riderId", "sort"] : [])].includes(key))) throw deliveryError("Unsupported delivery filter");
+  if (Object.keys(query).some(key => !["status", "search", "page", "limit", "history", "cashStatus", "datePeriod", "from", "to", ...(!rider ? ["workspace", "attention", "dateBasis", "riderId", "sort"] : [])].includes(key))) throw deliveryError("Unsupported delivery filter");
   const attention = query.attention || "all", cashStatus = query.cashStatus || "all";
-  if (attention !== "all" && !ATTENTION_KEYS.includes(attention)) throw deliveryError("Invalid attention filter");
+  if (attention !== "all" && attention !== "needs_attention" && !ATTENTION_KEYS.includes(attention)) throw deliveryError("Invalid attention filter");
   if (cashStatus !== "all" && cashStatus !== "confirmed_today" && !Object.hasOwn(CASH_LABELS, cashStatus)) throw deliveryError("Invalid cash filter");
   const status = query.status || "all";
   if (status !== "all" && !DELIVERY_STATES.includes(status)) throw deliveryError("Invalid delivery status");
@@ -38,7 +38,8 @@ export async function listWorkflowDeliveries(actor, query = {}) {
     // Intersect stage-sort scope with explicit status rather than overwriting it.
     rowMatch.$and = [management.match];
   }
-  if (!rider && attention !== "all") rowMatch[`attentionFlags.${attention}`] = true;
+  if (!rider && attention === "needs_attention") rowMatch.$and.push(activeAttentionMatch());
+  else if (!rider && attention !== "all") rowMatch[`attentionFlags.${attention}`] = true;
   if (!rider && cashStatus !== "all") rowMatch.healthCash = cashStatus === "confirmed_today" ? "confirmed" : cashStatus;
   if (cashStatus === "confirmed_today") rowMatch["cashReport.confirmedAt"] = { $gte: health.today, $lt: health.tomorrow };
   const [facet] = await Delivery.aggregate([
@@ -64,12 +65,17 @@ export async function listWorkflowDeliveries(actor, query = {}) {
           { $set: { name: { $ifNull: [{ $arrayElemAt: ["$user.name", 0] }, "Former rider"] } } }, { $sort: { name: 1, _id: 1 } }, { $limit: 101 }],
       } : {}),
       ...(!rider ? {
+        activeAttention: [{ $match: activeAttentionMatch() }, { $count: "count" }],
         attention: [{ $group: { _id: null, ...Object.fromEntries(ATTENTION_KEYS.map(key => [key, { $sum: { $cond: [`$attentionFlags.${key}`, 1, 0] } }])) } }],
         cash: [{ $group: { _id: "$healthCash", count: { $sum: 1 }, amountHalala: { $sum: { $switch: { branches: [
           { case: { $eq: ["$healthCash", "collection_pending"] }, then: "$healthBalance" },
           { case: { $in: ["$healthCash", ["awaiting_confirmation", "discrepancy"]] }, then: "$cashReport.amountHalala" },
         ], default: 0 } } }, ledgerOutstandingHalala: { $sum: { $ifNull: ["$healthBalance", 0] } } } }],
-        confirmedToday: [{ $match: { healthCash: "confirmed", "cashReport.confirmedAt": { $gte: health.today, $lt: health.tomorrow } } }, { $group: { _id: null, count: { $sum: 1 }, amountHalala: { $sum: "$cashReport.amountHalala" } } }],
+        deliveredCash: [{ $match: { status: "delivered" } }, { $group: { _id: "$healthCash", count: { $sum: 1 }, amountHalala: { $sum: { $switch: { branches: [
+          { case: { $eq: ["$healthCash", "collection_pending"] }, then: "$healthBalance" },
+          { case: { $in: ["$healthCash", ["awaiting_confirmation", "discrepancy"]] }, then: "$cashReport.amountHalala" },
+        ], default: 0 } } } } }],
+        confirmedToday: [{ $match: { status: "delivered", healthCash: "confirmed", "cashReport.confirmedAt": { $gte: health.today, $lt: health.tomorrow } } }, { $group: { _id: null, count: { $sum: 1 }, amountHalala: { $sum: "$cashReport.amountHalala" } } }],
       } : {}),
     } },
   ]);
@@ -92,8 +98,9 @@ export async function listWorkflowDeliveries(actor, query = {}) {
       })), deliveries: facet.pendingRows.map(row => serializeDelivery(row, row.orderRecord)), limit: 5 },
     } : {}),
     ...(!rider ? { health: { scope: actor.role === "cashier" ? "Delivered cash reports visible to cashier" : "All authorized restaurant deliveries; independent of table filters and pagination", updatedAt: now,
-      thresholds: health.thresholds, attention: Object.fromEntries(ATTENTION_KEYS.map(key => [key, facet.attention[0]?.[key] || 0])),
+      thresholds: health.thresholds, activeAttentionCount: facet.activeAttention[0]?.count || 0, attention: Object.fromEntries(ATTENTION_KEYS.map(key => [key, facet.attention[0]?.[key] || 0])),
       cash: Object.fromEntries(Object.keys(CASH_LABELS).map(key => [key, { count: facet.cash.find(row => row._id === key)?.count || 0, amountHalala: facet.cash.find(row => row._id === key)?.amountHalala || 0, ledgerOutstandingHalala: facet.cash.find(row => row._id === key)?.ledgerOutstandingHalala || 0 }])),
+      deliveredCash: Object.fromEntries(Object.keys(CASH_LABELS).map(key => [key, { count: facet.deliveredCash.find(row => row._id === key)?.count || 0, amountHalala: facet.deliveredCash.find(row => row._id === key)?.amountHalala || 0 }])),
       confirmedToday: { count: facet.confirmedToday[0]?.count || 0, amountHalala: facet.confirmedToday[0]?.amountHalala || 0, start: health.today, endExclusive: health.tomorrow },
     } } : {}),
     pagination: { page, limit, total: facet.total[0]?.count || 0 },

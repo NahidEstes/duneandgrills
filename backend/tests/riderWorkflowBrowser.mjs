@@ -130,18 +130,18 @@ try {
       const manager = await session(actors.manager, { width: 1536, height: 1024 });
       await manager.page.goto(`${origin}/admin/deliveries${modeQuery}`);
       const row = manager.page.getByRole("row").filter({ hasText: order.orderNumber }); await row.waitFor();
-      await row.getByRole("button", { name: "Assign", exact: true }).focus(); await manager.page.keyboard.press("Enter");
+      await row.getByRole("button", { name: "Assign Rider", exact: true }).focus(); await manager.page.keyboard.press("Enter");
       await manager.page.getByRole("radio").first().waitFor();
       if (management) {
         const page = manager.page, count = () => requests.filter(req => req.method === "GET" && req.path === "/api/deliveries").length;
         await page.getByRole("radio").first().check();
-        const reason = page.getByLabel("Authorization reason / resolution", { exact: false }), terminal = page.getByLabel("Your open cashier terminal");
-        await reason.fill("Keep my unsaved authorization draft"); await terminal.fill("DRAFT-TERMINAL");
-        await page.getByText("View delivery details", { exact: true }).click();
-        await page.getByRole("heading", { name: "Order Summary", exact: true }).waitFor();
+        assert.equal(await page.getByLabel("Your open cashier terminal").count(), 0, "No unrelated cash input for assignment");
+        await page.getByText("Customer details", { exact: true }).click();
+        await page.getByText("Order Summary", { exact: true }).click();
+        await page.getByText("Order total:", { exact: false }).waitFor();
         await page.getByText("Delivery timeline · recorded history", { exact: true }).click();
         await page.getByRole("heading", { name: "Enrolled", exact: true }).waitFor();
-        const details = page.locator("details").filter({ has: page.getByText("View delivery details", { exact: true }) });
+        const details = page.locator("details").filter({ has: page.getByText("Customer details", { exact: true }) });
         const timeline = page.locator("details").filter({ has: page.getByText("Delivery timeline · recorded history", { exact: true }) });
         // Modal focus cannot escape into background search/assignment controls.
         for (let index = 0; index < 24; index++) {
@@ -149,9 +149,10 @@ try {
           assert.equal(await page.evaluate(() => Boolean(document.activeElement.closest('dialog[open]'))), true);
         }
         await page.keyboard.press("Escape");
-        assert.equal(await row.getByRole("button", { name: "Assign", exact: true }).evaluate(node => node === document.activeElement), true, "Escape restores focus to the selected row action");
+        assert.equal(await row.getByRole("button", { name: "Assign Rider", exact: true }).evaluate(node => node === document.activeElement), true, "Escape restores focus to the selected row action");
         const before = count();
         await page.getByLabel("Search order number", { exact: true }).pressSequentially("NO-MATCH", { delay: 25 });
+        await page.getByRole("button", { name: "More Filters", exact: false }).click();
         await page.getByRole("combobox", { name: "Delivery status", exact: true }).click(); await page.getByRole("option", { name: "Assigned", exact: true }).click();
         for (const [label, option] of [["Date period", "Today"], ["Date basis", "Delivered date · Riyadh"], ["Sort deliveries", "Assigned longest · assigned only"]]) {
           await page.getByRole("combobox", { name: label, exact: true }).click(); await page.getByRole("option", { name: option, exact: true }).click();
@@ -161,22 +162,23 @@ try {
         await page.clock.fastForward(65_000); await new Promise(resolve => setTimeout(resolve, 250));
         assert.equal(count(), before, "Typing, unapplied filter, focus, visibility and two polling intervals cause zero list requests");
         await page.getByLabel("Search order number", { exact: true }).press("Enter");
-        await page.getByText("No matching deliveries. This is a successful empty result.", { exact: true }).waitFor();
+        await page.getByRole("heading", { name: "No matching active deliveries", exact: true }).waitFor();
         assert.equal(count(), before + 1); assert.equal(requests.filter(req => req.path === "/api/deliveries").at(-1).query.search, "NO-MATCH");
-        assert.equal(await reason.inputValue(), "Keep my unsaved authorization draft"); assert.equal(await terminal.inputValue(), "DRAFT-TERMINAL");
+        assert.equal(await page.getByRole("radio").first().isChecked(), true, "Rider draft survives applying filters");
         assert.equal(await details.evaluate(element => element.open), true); assert.equal(await timeline.evaluate(element => element.open), true);
-        await page.getByRole("button", { name: "Reset filters", exact: true }).click(); await row.waitFor();
+        await page.getByRole("button", { name: "Clear filters", exact: true }).first().click(); await row.waitFor();
+        await page.getByText("View all alerts", { exact: true }).click();
         const attentionResponse = page.waitForResponse(response => response.url().includes("/api/deliveries?") && response.url().includes("attention=ready_unassigned"));
         await page.getByRole("button", { name: /Food ready · no rider/ }).click(); await attentionResponse;
         await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent.trim() === "Refresh deliveries" && !button.disabled));
         assert.equal(requests.filter(req => req.path === "/api/deliveries").at(-1).query.attention, "ready_unassigned");
         const appliedResponse = page.waitForResponse(response => response.url().includes("/api/deliveries?") && response.url().includes("attention=ready_unassigned"));
-        const beforeApply = count(); await page.getByRole("button", { name: "Search / Apply", exact: true }).click(); await appliedResponse;
+        const beforeApply = count(); await page.getByRole("button", { name: "Apply", exact: true }).click(); await appliedResponse;
         await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent.trim() === "Refresh deliveries" && !button.disabled));
         assert.equal(count(), beforeApply + 1, "Search button produces one deliberate list request");
         holdReads = true; await page.getByRole("button", { name: "Refresh deliveries", exact: true }).click();
         await page.getByRole("status").filter({ hasText: "Refreshing…" }).waitFor();
-        assert.equal(await row.isVisible(), true); assert.equal(await reason.inputValue(), "Keep my unsaved authorization draft");
+        assert.equal(await row.isVisible(), true); assert.equal(await page.getByRole("radio").first().isChecked(), true);
         for (let index = 0; !releaseRead && index < 100; index++) await new Promise(resolve => setTimeout(resolve, 25));
         holdReads = false; releaseRead();
         await page.getByRole("button", { name: "Refresh deliveries", exact: true }).waitFor({ state: "visible" });
@@ -186,7 +188,7 @@ try {
         await page.getByRole("button", { name: "Open selected delivery", exact: true }).click();
         await page.getByRole("button", { name: "I reviewed the latest delivery", exact: true }).waitFor();
         assert.equal(await page.getByRole("button", { name: operational ? "Assign Rider" : "Assign · Isolated Test", exact: true }).isDisabled(), true);
-        assert.equal(await reason.inputValue(), "Keep my unsaved authorization draft");
+        assert.equal(await page.getByRole("radio").first().isChecked(), true);
         await page.getByRole("button", { name: "I reviewed the latest delivery", exact: true }).click();
         await page.setViewportSize({ width: 390, height: 844 }); await assertLayout(page);
         await page.screenshot({ path: path.join(screenshots, "management-mobile-details.png"), fullPage: false });
@@ -223,11 +225,11 @@ try {
       // Wait for the post-mutation reload before injecting the next failure. Otherwise
       // the old reload's error can be observed just before the manual refresh clears it.
       if (management) {
-        await manager.page.getByText("Delivery: Assigned", { exact: true }).waitFor();
-        await manager.page.getByText("Selected delivery is outside the applied results. Its authorized detail and your drafts are retained.", { exact: true }).waitFor();
+        await manager.page.getByRole("dialog", { name: "Delivery details & actions" }).getByText("Assigned", { exact: true }).waitFor();
+        await manager.page.getByText("Outside applied results. Authorized details and your drafts are retained.", { exact: true }).waitFor();
         assert.equal(await manager.page.getByRole("button", { name: operational ? "Reassign Rider" : "Reassign · Isolated Test", exact: true }).isDisabled(), true, "No-op reassignment stays blocked");
         await manager.page.getByRole("button", { name: "Close Delivery details & actions", exact: true }).click();
-        await manager.page.getByRole("button", { name: "Reset filters", exact: true }).click();
+        await manager.page.getByRole("button", { name: "Clear filters", exact: true }).click();
       }
       else await manager.page.getByRole("button", { name: "Close Delivery details & actions", exact: true }).click();
       await row.getByText("Assigned", { exact: true }).waitFor();
@@ -360,7 +362,7 @@ try {
       if (management) {
         await cashier.page.getByRole("row").filter({ hasText: order.orderNumber }).getByText("Cash confirmed", { exact: true }).waitFor();
         const cashResponse = cashier.page.waitForResponse(response => response.url().includes("/api/deliveries?") && response.url().includes("cashStatus=confirmed_today"));
-        await cashier.page.getByRole("button", { name: /Cash confirmed · Today/ }).click(); await cashResponse;
+        await cashier.page.getByRole("button", { name: /Confirmed today/ }).click(); await cashResponse;
         assert.equal(requests.filter(req => req.path === "/api/deliveries").at(-1).query.cashStatus, "confirmed_today");
         console.log("PASS attention and confirmed-today cards apply matching explicit server filters; no implicit cash settlement");
       }

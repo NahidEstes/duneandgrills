@@ -61,7 +61,7 @@ test("admin source has no polling/focus reload, draft handlers do not fetch, det
   const filters = readFileSync(new URL("../src/components/admin/delivery/DeliveryFilters.jsx", import.meta.url), "utf8");
   for (const code of [ui, hook]) assert.doesNotMatch(code, /setInterval|setTimeout|addEventListener|WebSocket|EventSource/);
   assert.match(filters, /onChange=\{event => editDraft\("search", event.target.value\)\}/);
-  assert.match(filters, /<form onSubmit=/); assert.match(ui, /<ManagementDeliveryDetails key=\{selected.id\}/);
+  assert.match(filters, /<form[^>]*onSubmit=/); assert.match(ui, /<ManagementDeliveryDetails key=\{selected.id\}/);
   assert.doesNotMatch(ui, /selected.id\}-\$\{/);
 });
 

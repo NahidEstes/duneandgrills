@@ -1,9 +1,9 @@
-export const emptyDeliveryQuery = () => ({ search: "", status: "all", attention: "all", cashStatus: "all", datePeriod: "all", dateBasis: "enrolled", from: "", to: "", riderId: "all", sort: "newest", page: 1 });
+export const emptyDeliveryQuery = (workspace = "all") => ({ workspace, search: "", status: "all", attention: "all", cashStatus: "all", datePeriod: "all", dateBasis: ["cash", "history"].includes(workspace) ? "delivered" : "enrolled", from: "", to: "", riderId: "all", sort: ["cash", "history"].includes(workspace) ? "delivered_newest" : "newest", page: 1 });
 const fingerprint = row => JSON.stringify([row.revision, row.orderRevision, row.deliveryStatus, row.restaurantStatus, row.riderId, row.canOperate, row.paymentStatus, row.ledgerOutstandingHalala, row.cashReport]);
 
 // Explicit commands only: no timers, subscriptions to browser focus, or draft inputs.
-export function createDeliveryWorkspace({ list, detail, onUnauthorized = () => {} }) {
-  let state = { data: null, dataQuery: null, query: emptyDeliveryQuery(), loading: false, error: "", stamp: null,
+export function createDeliveryWorkspace({ list, detail, onUnauthorized = () => {}, initialQuery = emptyDeliveryQuery() }) {
+  let state = { data: null, dataQuery: null, query: { ...initialQuery }, loading: false, error: "", stamp: null,
     selected: null, detailLoading: false, detailError: "", changed: false }, listener = () => {}, disposed = false;
   let listToken = 0, detailToken = 0, listController, detailController, pending, pendingSignature, locked = false;
   const publish = patch => { if (!disposed) { state = { ...state, ...patch }; listener(state); } };

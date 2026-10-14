@@ -34,7 +34,15 @@ test("normal management requires saved enablement; failure is not a fabricated d
   assert.equal((await delivery.fetchDeliveryManagement({})).mode, "disabled"); assert.equal(calls.length, 1);
   responses["/deliveries/config"] = { success: false }; await assert.rejects(delivery.fetchDeliveryManagement({}), /unavailable/);
   responses = { "/deliveries/config": { success: true, operationalEnabled: true, workflowEnabled: false }, "/deliveries": operational, "/deliveries/riders": { data: [{ id: "rider-a" }] } };
-  const result = await delivery.fetchDeliveryManagement({}); assert.equal(result.mode, "operational"); assert.equal(result.riders[0].id, "rider-a");
+  const result = await delivery.fetchDeliveryManagement({ canManage: true }); assert.equal(result.mode, "operational"); assert.equal(result.riders[0].id, "rider-a");
+});
+
+test("cashier management reads omit rider directory and rider filters", async () => {
+  responses = { "/deliveries/config": { success: true, operationalEnabled: true, workflowEnabled: false }, "/deliveries": operational }; calls = [];
+  const result = await delivery.fetchDeliveryManagement({ workspace: "cash", canManage: false, riderId: "forged-rider" });
+  assert.deepEqual(result.riders, []); assert.equal(calls.some(call => call.path === "/deliveries/riders"), false);
+  const params = calls.find(call => call.path === "/deliveries").options.params;
+  assert.equal(params.workspace, "cash"); assert.equal(Object.hasOwn(params, "riderId"), false);
 });
 test("normal detail works without rehearsal URL, and preview rejects live detail envelopes", async () => {
   responses = { "/rider/workflow/deliveries/delivery-a": operational, "/rider/preview/deliveries/delivery-a": operational };
