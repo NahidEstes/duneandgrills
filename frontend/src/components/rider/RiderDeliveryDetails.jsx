@@ -10,10 +10,12 @@ import useRiderRead from "@/src/hooks/useRiderRead.js";
 import DeliveryDialog from "../admin/delivery/DeliveryDialog.jsx";
 import RiderNav from "./RiderNav.jsx";
 import RiderCash from "./RiderCash.jsx";
+import RiderCashReport from "./RiderCashReport.jsx";
 import { RestaurantContact } from "./RiderPendingCash.jsx";
 import { customerMapHref, customerPhoneHref, deliveryModeQuery, deliveryStatusLabel } from "./deliveryPresentation.js";
-import { cashReportError, deliveryFingerprint, restaurantStatusLabel } from "./riderPresentation.js";
+import { deliveryFingerprint, restaurantStatusLabel } from "./riderPresentation.js";
 import { riderPickupState, riderFoodStatus, riderAmount } from "./riderPickup.js";
+import { riderCompletionAction, riyadhRecordedTime } from "./riderCompletion.js";
 import styles from "./rider.module.css";
 
 const foodIcons = { issue: AlertTriangle, transit: Truck, completed: CircleCheck, ready: CircleCheck, preparing: Clock3 };
@@ -34,26 +36,32 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
   const { error, loading, refreshing, offline, updatedAt } = read;
   const data = record || read.data;
   const [reason, setReason] = useState(""), [amount, setAmount] = useState("");
+  const [cashReason, setCashReason] = useState("");
   const [confirmation, setConfirmation] = useState(null), [validation, setValidation] = useState(""), [reviewRequired, setReviewRequired] = useState(false);
+  const [acceptedFingerprint, setAcceptedFingerprint] = useState(null);
   const pickupReasonId = useId();
   const mutation = useDeliverySubmission();
   const refresh = () => record ? onRefresh?.() : read.refresh();
-  const pickup = riderPickupState(data, { userId, role: user?.role, preview, rehearsal, loading, refreshing, offline, error, pending: mutation.pending });
+  const awaitingUpdate = !!acceptedFingerprint && acceptedFingerprint === deliveryFingerprint(data);
+  const actionContext = { userId, role: user?.role, preview, rehearsal, admin, loading, refreshing, offline, error, pending: mutation.pending, awaitingUpdate };
+  const pickup = riderPickupState(data, { ...actionContext, pending: mutation.pending || awaitingUpdate });
   const confirmationChanged = !!confirmation && (reviewRequired || confirmation.fingerprint !== deliveryFingerprint(data));
   const contents = action => ({ expectedRevision: data.revision, expectedOrderRevision: data.orderRevision,
-    ...(["issue", "report_cash"].includes(action) ? { reason } : {}), ...(action === "report_cash" ? { amount } : {}) });
+    ...(action === "issue" ? { reason } : {}), ...(action === "report_cash" ? { amount, reason: cashReason } : {}) });
+  const actionState = (action, payload = contents(action)) => action === "pickup" ? pickup : riderCompletionAction(data, action, actionContext, payload);
   const act = (action, payload) => {
-    if (action === "pickup" && (!pickup.allowed || confirmationChanged || !confirmation || confirmation.action !== "pickup")) {
-      setValidation(confirmationChanged ? "Delivery changed. Go back, refresh and review the current details." : pickup.reason);
+    const eligible = actionState(action, payload);
+    if (!eligible.allowed || confirmationChanged || !confirmation || confirmation.action !== action) {
+      setValidation(confirmationChanged ? "Delivery changed. Go back, refresh and review the current details." : eligible.reason);
       return;
     }
     return mutation.submit(action, payload, async request => {
       try { return await deliveryAction(id, action, request, { admin }); }
       catch (failure) { if (failure.response?.status === 409) { setReviewRequired(true); refresh(); } throw failure; }
-    }, () => { setConfirmation(null); record ? onRefresh?.() : read.invalidate(); afterChange?.(); });
+    }, () => { setAcceptedFingerprint(deliveryFingerprint(data)); setConfirmation(null); record ? onRefresh?.() : read.invalidate(); afterChange?.(); });
   };
   const ask = action => {
-    const problem = action === "pickup" && !pickup.allowed ? pickup.reason : action === "report_cash" ? cashReportError(amount, reason, data) : "";
+    const eligible = actionState(action), problem = eligible.allowed ? "" : eligible.reason;
     setValidation(problem); if (problem) return;
     mutation.clearFeedback();
     setReviewRequired(false); setConfirmation({ action, orderNumber: data.orderNumber, payload: contents(action), fingerprint: deliveryFingerprint(data) });
@@ -73,8 +81,11 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
   const ownRider = user?.role === "rider" && String(data.riderId) === String(userId);
   const canAct = !preview && !admin && ownRider && data.canOperate && (data.mode === "operational" || (rehearsal && data.mode === "rehearsal"));
   const pickupDialog = confirmation?.action === "pickup";
-  const confirmDisabled = mutation.pending || offline || refreshing || !!error || confirmationChanged || (pickupDialog && !pickup.allowed);
-  const closeLabel = pickupDialog ? "Go back" : "Cancel / Review details";
+  const deliver = actionState("deliver"), cash = actionState("report_cash"), issue = actionState("issue");
+  const confirmedAction = confirmation ? actionState(confirmation.action, confirmation.payload) : null;
+  const confirmDisabled = !confirmedAction?.allowed || confirmationChanged;
+  const dialogTitle = ({ pickup: "Confirm pickup", deliver: "Confirm delivery", report_cash: "Confirm cash report", issue: "Report delivery issue" })[confirmation?.action] || "Confirm rider action";
+  const yesLabel = ({ pickup: "Yes, confirm pickup", deliver: "Yes, confirm delivery", report_cash: "Yes, report cash collected", issue: "Yes, report delivery issue" })[confirmation?.action];
 
   return <>
     <div className={styles.detailsIdentity}><h2>{data.orderNumber}</h2><div className={styles.detailStatusLabels}><span><Store size={15} aria-hidden="true" />Kitchen: {restaurantStatusLabel(data.restaurantStatus)}</span><span><Truck size={15} aria-hidden="true" />Delivery: {deliveryStatusLabel(data.deliveryStatus)}</span></div></div>
@@ -82,9 +93,11 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
     {(error || offline) && <p role="alert" className={styles.error}>Retained details may be outdated. {offline ? "Offline — no actions are queued." : error}</p>}
     {(preview || (rehearsal && data.mode !== "operational")) && <div className={styles.banner}><Info aria-hidden="true" /><div><strong>{preview ? "DESIGN PREVIEW · SYNTHETIC DATA" : "ISOLATED LOCAL REHEARSAL"}</strong><p>{preview ? "Read-only preview. No real pickup or payment actions." : "Only disposable local test records. No production activity."}</p></div></div>}
     {data.eligibilityWarning && <p className={styles.error} role="alert">{data.eligibilityWarning}</p>}
-    <section className={`${styles.foodStatus} ${styles[food.tone]}`} aria-label="Food and pickup status"><FoodIcon aria-hidden="true" /><div><h3>{food.title}</h3><p>{food.message}</p></div></section>
+    {historical ? <section className={styles.completionHero} aria-label="Delivery completion"><CircleCheck aria-hidden="true" /><div><h3>Delivery completed</h3><p>Order {data.orderNumber}</p><strong>Delivered</strong><p>Completed at · {riyadhRecordedTime(data.deliveredAt)}</p></div></section> : <section className={`${styles.foodStatus} ${styles[food.tone]}`} aria-label="Food and pickup status"><FoodIcon aria-hidden="true" /><div><h3>{data.deliveryStatus === "picked_up" && data.restaurantStatus === "out-for-delivery" ? "Picked up · Out for delivery" : food.title}</h3><p>{food.message}</p></div></section>}
     <ol className={styles.pickupProgress} aria-label="Delivery progress">{[["assigned", "Assigned"], ["picked_up", "Picked up"], ["delivered", "Delivered"]].map(([status, label], index) => <li key={status} className={`${index < progressIndex ? styles.progressDone : ""} ${data.deliveryStatus === "issue" && index === progressIndex ? styles.progressPaused : ""}`} aria-current={data.deliveryStatus !== "issue" && stage === status ? "step" : undefined}><span>{index < progressIndex && <Check size={15} aria-hidden="true" />}</span>{label}</li>)}</ol>
     {data.deliveryStatus === "issue" && <p className={styles.privacy}>Delivery paused at {deliveryStatusLabel(stage)}. Waiting for manager review.</p>}
+    {historical && <><RiderCashReport data={data} amount={amount} reason={cashReason} onAmount={setAmount} onReason={setCashReason} onConfirm={() => ask("report_cash")} action={cash} preview={preview} admin={admin} pending={mutation.pending} /><a className={styles.backToDeliveries} href={`/rider/deliveries${deliveryModeQuery({ preview, rehearsal })}`}><ChevronLeft size={21} aria-hidden="true" />Back to deliveries</a></>}
+    {data.issue && <section className={`${styles.detailCard} ${styles.detailIssue}`}><h3><AlertTriangle size={21} aria-hidden="true" />Delivery Issue · Awaiting manager review</h3><p>{data.issue.reason}</p><p>Previous stage: {deliveryStatusLabel(data.issue.previousStatus)}. Contact the restaurant. Wait for authorized resolution; do not resume, cancel or refund the order yourself.</p><RestaurantContact contact={data.restaurantContact} preview={preview} /></section>}
     {admin && <dl className={styles.adminDetailTimes}>{[["Food ready", data.readyAt], ["Rider assigned", data.assignedAt], ["Picked up", data.pickedUpAt]].map(([label, date]) => <div key={label}><dt>{label}</dt><dd>{date ? new Date(date).toLocaleString("en-GB", { timeZone: "Asia/Riyadh" }) + " Riyadh" : "Not recorded — timing unavailable where required"}</dd></div>)}</dl>}
     <div className={styles.detailPanels}>
       <div className={styles.detailColumn}>
@@ -95,36 +108,30 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
       </div>
       <div className={styles.detailColumn}>
         <section className={styles.detailCard}><h3 className={styles.detailTitle}><ShoppingBag size={22} aria-hidden="true" />Order Summary</h3><ul className={styles.detailItems}>{(data.items || []).map((item, index) => <li key={index}><div><strong>{item.quantity} × {item.name}</strong>{item.selectedAddOns?.map((row, addIndex) => <p key={addIndex}>{row.quantity} × {row.name}</p>)}{item.spiceLevel && <p>Spice: {item.spiceLevel}</p>}{!historical && item.itemNote && <p>Note: {item.itemNote}</p>}</div><span>{riderAmount(item.lineTotal)}</span></li>)}</ul>{!data.items?.length && <p>No item details are included in this response.</p>}<div className={styles.orderTotal}><strong>Order total</strong><strong>{riderAmount(data.orderTotal)}</strong></div></section>
-        <section className={`${styles.detailCard} ${styles.detailPayment}`}><h3 className={styles.detailTitle}><Banknote size={22} aria-hidden="true" />Cash &amp; Payment</h3><RiderCash delivery={data} /><p className={styles.paymentReminder}><Info size={16} aria-hidden="true" />Cash collection is confirmed separately. Pickup does not confirm payment.</p><details className={styles.paymentDetails}><summary>View payment details</summary><RiderCash delivery={data} detail /></details>{data.cashConfirmationGap && <p role="alert" className={styles.error}>{data.cashConfirmationGap}</p>}</section>
+        <section className={`${styles.detailCard} ${styles.detailPayment}`}><h3 className={styles.detailTitle}><Banknote size={22} aria-hidden="true" />Cash &amp; Payment</h3><RiderCash delivery={data} /><p className={styles.paymentReminder}><Info size={16} aria-hidden="true" />Pickup and delivery confirmation do not confirm payment.</p><details className={styles.paymentDetails}><summary>View payment details</summary><RiderCash delivery={data} detail /></details>{data.cashConfirmationGap && <p role="alert" className={styles.error}>{data.cashConfirmationGap}</p>}</section>
       </div>
     </div>
     {!admin && !["picked_up", "delivered"].includes(data.deliveryStatus) && <section className={styles.pickupAction} aria-label="Pickup confirmation"><button type="button" className={styles.pickupPrimary} aria-describedby={pickupReasonId} disabled={!pickup.allowed} onClick={() => ask("pickup")}><ShoppingBag size={21} aria-hidden="true" />{mutation.pending ? "Waiting for server…" : preview ? "Confirm Pickup · Preview Only" : "Confirm Pickup"}</button><p id={pickupReasonId}>{pickup.reason}</p></section>}
-    {data.deliveryStatus === "picked_up" && <p className={styles.nextStep}><Truck size={19} aria-hidden="true" />{canAct ? "Pickup is confirmed. Deliver the order, then use Confirm Delivery below. Payment confirmation remains separate." : "Pickup is already recorded. Further delivery actions are unavailable in this view; review the status or contact the restaurant."}</p>}
-    {data.deliveryStatus === "delivered" && <p className={styles.nextStep}><CircleCheck size={19} aria-hidden="true" />Delivery is completed. Review the cash status and any remaining reporting task below.</p>}
-    {data.issue && <section className={`${styles.detailCard} ${styles.detailIssue}`}><h3><AlertTriangle size={21} aria-hidden="true" />Delivery Issue · Awaiting manager review</h3><p>{data.issue.reason}</p><p>Previous stage: {deliveryStatusLabel(data.issue.previousStatus)}. Contact the restaurant. Wait for authorized resolution; do not resume, cancel or refund the order yourself.</p></section>}
+    {!admin && data.deliveryStatus === "picked_up" && <section className={styles.pickupAction} aria-label="Delivery confirmation"><button type="button" className={styles.pickupPrimary} aria-describedby={pickupReasonId} disabled={!deliver.allowed} onClick={() => ask("deliver")}><Truck size={22} aria-hidden="true" />Confirm Delivery</button><div id={pickupReasonId}><p>Confirm after the customer receives the order.</p>{!deliver.allowed && <p>{deliver.reason}</p>}</div></section>}
     <RestaurantContact contact={data.restaurantContact} preview={preview} />
     {mutation.error && <p role="alert" className={styles.error}>{mutation.error}</p>}{mutation.message && <p role="status" className={styles.notice}>{mutation.message}</p>}
     {canAct && <div className={styles.workflowActions}>
-      {data.deliveryStatus === "picked_up" && <button type="button" className={styles.action} disabled={mutation.pending || offline || refreshing || !!error} onClick={() => ask("deliver")}>Confirm Delivery</button>}
-      {["assigned", "picked_up", "delivered"].includes(data.deliveryStatus) && <label>Reason / discrepancy explanation (no customer contact details)<textarea maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></label>}
-      {["assigned", "picked_up"].includes(data.deliveryStatus) && <button type="button" disabled={mutation.pending || offline || refreshing || !!error || !reason.trim()} onClick={() => act("issue", contents("issue"))}>Report Delivery Issue</button>}
-      {data.deliveryStatus === "delivered" && data.cashState === "collection_pending" && <><label>Cash actually collected (SAR)<input type="text" inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} /></label><button type="button" disabled={mutation.pending || offline || refreshing || !!error || amount === ""} className={styles.action} onClick={() => ask("report_cash")}>Report Cash · Not a Payment</button></>}
+      {["assigned", "picked_up"].includes(data.deliveryStatus) && <section className={`${styles.detailCard} ${styles.issueReportForm}`} aria-label="Report delivery issue"><h3><AlertTriangle size={21} aria-hidden="true" />Report delivery issue</h3><p>A manager must resolve the issue before pickup or delivery can continue.</p><label>Delivery issue reason (no customer contact details)<textarea maxLength={500} value={reason} disabled={mutation.pending} onChange={event => setReason(event.target.value)} /></label><button type="button" className={styles.issueReportButton} disabled={!issue.allowed} onClick={() => ask("issue")}><AlertTriangle size={20} aria-hidden="true" />Report Delivery Issue</button>{!issue.allowed && <p>{issue.reason}</p>}</section>}
     </div>}
     {data.riderTimeline && <details className={styles.detailTimeline}><summary>Delivery Timeline · Riyadh</summary><ol className={styles.timeline}>{data.riderTimeline.steps.map(row => <li key={row.label} data-recorded={!!row.at}><strong>{row.label}</strong><span>{row.at ? new Date(row.at).toLocaleString("en-GB", { timeZone: "Asia/Riyadh" }) : "Pending / timestamp not recorded"}</span></li>)}</ol>{data.riderTimeline.events.map((row, index) => <p key={index}>{row.label} · {new Date(row.at).toLocaleString("en-GB", { timeZone: "Asia/Riyadh" })}{row.reason ? ` · ${row.reason}` : ""}{row.previousStatus ? ` · ${deliveryStatusLabel(row.previousStatus)}` : ""}</p>)}</details>}
     {validation && <p role="alert" className={styles.error}>{validation}</p>}
-    <DeliveryDialog open={!!confirmation} onClose={closeConfirmation} title={pickupDialog ? "Confirm pickup" : "Confirm rider action"} centered busy={mutation.pending} className={pickupDialog ? styles.pickupDialog : ""} returnFocusSelector="[data-rider-return-focus]">
+    <DeliveryDialog open={!!confirmation} onClose={closeConfirmation} title={dialogTitle} centered busy={mutation.pending} className={styles.pickupDialog} returnFocusSelector="[data-rider-return-focus]">
       {confirmation && <>
-        {pickupDialog ? <div className={styles.pickupPrompt}><div className={styles.pickupIllustration} aria-hidden="true"><ShoppingBag /><span><Check /></span></div><p className={styles.confirmOrderNumber}>Order {confirmation.orderNumber}</p><h3>Have you received this order from the restaurant?</h3><p>Confirm only after collecting the food.</p></div> : <><p className="text-amber-300 font-semibold">{confirmation.orderNumber}</p><p>{confirmation.action === "deliver" ? "Confirm Delivery — delivery does not confirm payment." : `Report Cash: ${formatPrice(Number(confirmation.payload.amount))}. This records your collection only; cashier confirmation is separate.`}</p></>}
+        <div className={styles.pickupPrompt}><div className={styles.pickupIllustration} aria-hidden="true">{confirmation.action === "report_cash" ? <Banknote /> : confirmation.action === "issue" ? <AlertTriangle /> : <ShoppingBag />}<span><Check /></span></div><p className={styles.confirmOrderNumber}>Order {confirmation.orderNumber}</p><h3>{pickupDialog ? "Have you received this order from the restaurant?" : confirmation.action === "deliver" ? "Has the customer received this order?" : confirmation.action === "report_cash" ? `Report ${formatPrice(Number(confirmation.payload.amount))} collected?` : "Report this delivery issue?"}</h3><p>{pickupDialog ? "Confirm only after collecting the food." : confirmation.action === "deliver" ? "Confirm after the customer receives the order. Delivery confirmation does not confirm payment." : confirmation.action === "report_cash" ? "Reporting cash does not confirm payment. Cashier confirmation is separate." : "This delivery will be paused until a manager reviews and resolves the issue."}</p></div>
         {confirmation.payload.reason && <p>Explanation: {confirmation.payload.reason}</p>}
         {confirmationChanged && <p role="alert" className={styles.error}>Delivery/payment state changed. Go back, refresh details, review the order and explicitly start a new confirmation.</p>}
-        {pickupDialog && !pickup.allowed && !mutation.pending && !confirmationChanged && <p role="alert" className={styles.error}>{pickup.reason}</p>}
+        {!confirmedAction?.allowed && !mutation.pending && !confirmationChanged && <p role="alert" className={styles.error}>{confirmedAction?.reason}</p>}
         {mutation.error && <p role="alert" className={styles.error}>{mutation.error}</p>}
         {mutation.pending && <p role="status" className={styles.confirmPending}><RefreshCw size={17} aria-hidden="true" />Waiting for server confirmation…</p>}
-        <div className={pickupDialog ? styles.pickupDialogActions : styles.linkActions}>
-          {pickupDialog && <button type="button" className={styles.pickupPrimary} disabled={confirmDisabled} onClick={() => act(confirmation.action, confirmation.payload)}>{mutation.pending ? "Confirming pickup…" : "Yes, confirm pickup"}</button>}
-          <button type="button" disabled={mutation.pending} autoFocus={pickupDialog} onClick={closeConfirmation}>{closeLabel}</button>
-          {!pickupDialog && <button type="button" disabled={confirmDisabled} onClick={() => act(confirmation.action, confirmation.payload)}>{mutation.pending ? "Waiting for server…" : "Confirm action"}</button>}
-          {(confirmationChanged || (pickupDialog && !!error)) && <button type="button" disabled={refreshing || mutation.pending || offline} onClick={refresh}><RefreshCw size={16} aria-hidden="true" />Refresh details</button>}
+        <div className={styles.pickupDialogActions}>
+          <button type="button" className={styles.pickupPrimary} disabled={confirmDisabled} onClick={() => act(confirmation.action, confirmation.payload)}>{mutation.pending ? "Waiting for server…" : yesLabel}</button>
+          <button type="button" disabled={mutation.pending} autoFocus onClick={closeConfirmation}>Go back</button>
+          {(confirmationChanged || !!error) && <button type="button" disabled={refreshing || mutation.pending || offline} onClick={refresh}><RefreshCw size={16} aria-hidden="true" />Refresh details</button>}
         </div>
       </>}
     </DeliveryDialog>

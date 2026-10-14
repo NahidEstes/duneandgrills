@@ -30,8 +30,9 @@ export function riderPickupState(data, context = {}) {
 }
 
 export function riderFoodStatus(data) {
-  if (data.deliveryStatus === "issue") return { title: "Delivery issue — pickup paused", message: "Contact the restaurant and wait for manager review.", tone: "issue", icon: "issue" };
-  if (data.deliveryStatus === "delivered" || data.restaurantStatus === "delivered") return { title: "Delivery completed", message: "Pickup is finished. Cash collection is confirmed separately.", tone: "ready", icon: "completed" };
+  if (data.deliveryStatus === "issue") return { title: "Delivery issue — actions paused", message: "Contact the restaurant and wait for manager review.", tone: "issue", icon: "issue" };
+  if (data.deliveryStatus === "delivered") return { title: "Delivery completed", message: "Pickup is finished. Cash collection is confirmed separately.", tone: "ready", icon: "completed" };
+  if (data.restaurantStatus === "delivered") return { title: "Order completed · Delivery requires review", message: "The recorded delivery stage does not match the order. Refresh or contact the restaurant.", tone: "issue", icon: "issue" };
   if (data.deliveryStatus === "picked_up" || data.restaurantStatus === "out-for-delivery") return { title: "Order is on the way", message: "Pickup is already recorded or the order has been dispatched. Review the current delivery stage.", tone: "transit", icon: "transit" };
   if (data.restaurantStatus === "ready") return { title: "Food ready for pickup", message: "The restaurant has prepared this order.", tone: "ready", icon: "ready" };
   return { title: ({ pending: "Waiting for kitchen acceptance", confirmed: "Order accepted by kitchen", preparing: "Food is being prepared" })[data.restaurantStatus] || "Pickup status unavailable",

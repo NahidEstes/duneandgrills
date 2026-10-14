@@ -381,3 +381,40 @@
   .detailItems li > span { font-size: 12px; }
 }
 @media (max-width: 360px) { .customerActions { grid-template-columns: 1fr; } }
+
+/* Phase 3: separate server-confirmed delivery, cash report and cashier receipt. */
+.completionHero { display: flex; align-items: center; gap: 20px; background: linear-gradient(120deg, #1d342a, #192422); border: 1px solid #70d89d65; border-radius: 16px; padding: 26px; }
+.completionHero > svg { width: 64px; height: 64px; flex-shrink: 0; color: #87e6a5; }
+.completionHero h3 { font-size: 27px; line-height: 1.3; }
+.completionHero p { margin-top: 9px; color: #d4ddd7; font-size: 14px; overflow-wrap: anywhere; }
+.completionHero strong { display: block; margin-top: 9px; color: #8ce9ab; }
+.backToDeliveries, .issueReportButton { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; padding: 13px; border: 1px solid #9daea5; border-radius: 12px; color: #f1f0e6; font-weight: 650; }
+.cashReportCard { display: grid; gap: 18px; }
+.cashStatusHeading { display: flex; align-items: flex-start; gap: 12px; border-radius: 12px; padding: 16px; border: 1px solid; }
+.cashStatusHeading > svg { flex-shrink: 0; width: 25px; height: 25px; margin-top: 2px; }
+.cashStatusHeading h3 { color: inherit; }
+.cashReportForm, .issueReportForm { display: grid; gap: 16px; }
+.cashReportForm label, .issueReportForm label { display: grid; gap: 10px; font-size: 14px; color: #f0f0e8; }
+.cashReportForm :is(input,textarea), .issueReportForm textarea { width: 100%; min-width: 0; padding: 14px; border: 1px solid #9aaba2; border-radius: 10px; background: #0e1515; color: #f4f4ed; font-size: 16px; }
+.cashReportForm input { font-size: 28px; font-weight: 650; min-height: 64px; }
+.cashReportForm textarea, .issueReportForm textarea { min-height: 100px; resize: vertical; }
+.cashReportForm label > span { color: #ffd17a; font-size: 12px; }
+.cashReportCard .paymentReminder { display: flex; gap: 10px; padding-top: 16px; border-top: 1px solid #ffffff20; }
+.cashReceipt { display: grid; gap: 15px; }
+.cashReceipt > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 7px 20px; padding-bottom: 14px; border-bottom: 1px solid #ffffff18; }
+.cashReceipt dt { font-size: 13px; color: #c8d0cb; }
+.cashReceipt dd { font-size: 15px; color: #f4f4ed; font-weight: 600; overflow-wrap: anywhere; }
+.cashReceipt > div:first-child dd { font-size: 25px; }
+.cashReportCard .discrepancyMessage { border-left: 3px solid #ffb3a5; padding-left: 14px; color: #ffd1c8; }
+.issueReportForm h3 { display: flex; align-items: center; gap: 10px; }
+.issueReportButton { border-color: #ffbd4d; color: #ffd17a; }
+.issueReportButton:disabled { border-color: #7f8b84; color: #c4cdc7; cursor: not-allowed; }
+.cashReportForm :is(input,textarea):focus-visible, .issueReportForm textarea:focus-visible { outline: 2px solid #ffcf77; outline-offset: 3px; }
+@media (max-width: 540px) {
+  .completionHero { padding: 22px 16px; gap: 14px; align-items: flex-start; }
+  .completionHero > svg { width: 45px; height: 45px; }
+  .completionHero h3 { font-size: 23px; }
+  .completionHero p { font-size: 12px; }
+  .cashStatusHeading { padding: 14px 12px; }
+  .cashStatusHeading h3 { font-size: 17px; }
+}
