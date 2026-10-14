@@ -43,7 +43,7 @@ export async function listWorkflowDeliveries(actor, query = {}) {
   if (cashStatus === "confirmed_today") rowMatch["cashReport.confirmedAt"] = { $gte: health.today, $lt: health.tomorrow };
   const [facet] = await Delivery.aggregate([
     { $match: scope },
-    { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderRecord", pipeline: [{ $project: { orderNumber: 1, customer: { name: 1 }, status: 1, totalAmount: 1, paymentStatus: 1, paymentRecords: 1, refundReservedHalala: 1, deliveryMode: 1, orderType: 1, source: 1, manualEntry: 1, deliveryProvider: 1, deliveryPaymentType: 1, inventoryStatus: 1, restoredItemQuantities: 1, readyAt: 1, __v: 1 } }] } },
+    { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderRecord", pipeline: [{ $project: { orderNumber: 1, customer: { name: 1, address: 1 }, status: 1, totalAmount: 1, paymentStatus: 1, paymentRecords: 1, refundReservedHalala: 1, deliveryMode: 1, orderType: 1, source: 1, manualEntry: 1, deliveryProvider: 1, deliveryPaymentType: 1, inventoryStatus: 1, restoredItemQuantities: 1, readyAt: 1, __v: 1 } }] } },
     { $unwind: "$orderRecord" },
     ...health.stages,
     { $facet: {
@@ -76,7 +76,7 @@ export async function listWorkflowDeliveries(actor, query = {}) {
   const counts = Object.fromEntries(DELIVERY_STATES.map(status => [status, facet.counts.find(row => row._id === status)?.count || 0]));
   counts.active = counts.assigned + counts.picked_up + counts.issue;
   counts.deliveredToday = facet.deliveredToday[0]?.count || 0;
-  const profile = rider ? await User.findById(actor._id).select("name email phone employeeId role riderAvailable riderAvailabilityRevision").lean() : null;
+  const profile = rider ? await User.findById(actor._id).select("name email phone avatar employeeId role riderAvailable riderAvailabilityRevision").lean() : null;
   // Count only this rider's recorded assignment events, including earlier assignments.
   // It is independent of page/status filters and does not decrease on completion/reassignment.
   const assignments = rider ? await Delivery.aggregate([
@@ -99,7 +99,7 @@ export async function listWorkflowDeliveries(actor, query = {}) {
     pagination: { page, limit, total: facet.total[0]?.count || 0 },
     ...(management ? { appliedFilters: management.applied } : {}),
     ...(facet.riderFilters ? { riderFilters: facet.riderFilters.slice(0, 100).map(row => ({ id: String(row._id), name: row.name })), riderFiltersHasMore: facet.riderFilters.length > 100 } : {}),
-    ...(profile ? { profile: { id: String(profile._id), name: profile.name, role: profile.role, employeeId: profile.employeeId, email: profile.email, phone: profile.phone },
+    ...(profile ? { profile: { id: String(profile._id), name: profile.name, role: profile.role, employeeId: profile.employeeId, email: profile.email, phone: profile.phone, avatar: profile.avatar || "" },
       availability: profile.riderAvailable === true, availabilityRevision: profile.riderAvailabilityRevision || 0 } : {}), serverNow: now };
 }
 

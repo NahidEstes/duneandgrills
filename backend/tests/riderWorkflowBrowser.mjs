@@ -268,7 +268,7 @@ try {
         await rider.page.getByRole("button", { name: "Dismiss", exact: true }).click();
       }
       await rider.page.screenshot({ path: path.join(screenshots, "rider-dashboard-pending-mobile.png"), fullPage: true }); await assertLayout(rider.page);
-      await riderCard.getByRole("link", { name: "View Delivery" }).click();
+      await riderCard.getByRole("link", { name: /^View Delivery/ }).click();
       await rider.page.getByRole("button", { name: "Confirm Pickup", exact: true }).waitFor();
       assert.equal(await rider.page.getByRole("link", { name: "Call Customer" }).getAttribute("href"), "tel:+0000000000");
       await rider.page.screenshot({ path: path.join(screenshots, "rider-assigned-mobile.png"), fullPage: true });
@@ -324,7 +324,7 @@ try {
       await riderDialog.getByRole("button", { name: "Confirm action", exact: true }).click();
       await rider.page.getByText("Cash reported — awaiting cashier", { exact: true }).waitFor();
       assert.equal(await CashMovement.countDocuments(), 0);
-      await rider.page.getByRole("link", { name: "Deliveries", exact: true }).click();
+      await rider.page.getByRole("link", { name: "Cash", exact: true }).click();
       await rider.page.getByRole("region", { name: "Pending Cash" }).getByText(order.orderNumber, { exact: false }).waitFor();
       await rider.page.getByRole("region", { name: "Pending Cash" }).getByRole("link", { name: /Cash reported — awaiting cashier/ }).first().click();
       await rider.page.getByRole("heading", { name: order.orderNumber, exact: true }).waitFor();
@@ -338,7 +338,7 @@ try {
       await rider.page.getByRole("button", { name: "Reset", exact: true }).click();
       await rider.page.getByRole("heading", { name: order.orderNumber, exact: true }).waitFor();
       await rider.page.screenshot({ path: path.join(screenshots, "rider-history-mobile.png"), fullPage: true }); await assertLayout(rider.page);
-      await rider.page.getByRole("link", { name: "View Delivery", exact: true }).click();
+      await rider.page.getByRole("link", { name: /^View Delivery/ }).click();
       const cashier = await session(actors.cashier, { width: 1536, height: 1024 });
       await cashier.page.goto(`${origin}/admin/deliveries${modeQuery}`);
       await cashier.page.getByRole("row").filter({ hasText: order.orderNumber }).getByRole("button", { name: "Review Cash", exact: true }).click();
@@ -363,7 +363,8 @@ try {
       assert.equal(await Order.countDocuments(), management ? 2 : 1); assert.equal(await StockTransaction.countDocuments(), 0);
       await rider.page.getByRole("button", { name: "Refresh details", exact: true }).click();
       await rider.page.getByText("Payment: Paid", { exact: true }).waitFor();
-      await rider.page.getByRole("link", { name: "History", exact: true }).click();
+      await rider.page.getByRole("link", { name: "Deliveries", exact: true }).click();
+      await rider.page.getByRole("link", { name: "Completed", exact: true }).click();
       await rider.page.getByRole("heading", { name: order.orderNumber, exact: true }).waitFor();
       assert.equal(await rider.page.getByText("Synthetic test address", { exact: false }).count(), 0);
       // Default and read-only preview cannot mutate this isolated order either.

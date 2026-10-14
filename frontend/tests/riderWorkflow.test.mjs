@@ -43,7 +43,7 @@ test("double-click is bounded and success is not returned before confirmation", 
 test("lists use server pagination/counts; mode changes abort reads and mutations ignore unmount", async () => {
   const read = path => readFile(new URL(path, import.meta.url), "utf8");
   const portal = await read("../src/components/rider/RiderPortal.jsx");
-  assert.match(portal, /data\.counts\.active/); assert.match(portal, /data\.pagination\.total/);
+  assert.match(portal, /riderCount\(data, "active"\)/); assert.match(portal, /data\.pagination\.total/);
   assert.match(portal, /rehearsal: props\.rehearsal && !props\.preview/);
   const hook = await read("../src/components/rider/riderReadState.js");
   assert.match(hook, /controller\?\.abort\(\)/); assert.match(hook, /token !== sequence/);

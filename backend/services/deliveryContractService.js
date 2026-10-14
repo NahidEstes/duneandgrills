@@ -47,6 +47,9 @@ export function serializeDelivery(delivery, order, rider, { detail = false } = {
     canOperate: eligible,
     eligibilityWarning: deliveryEligibilityWarning(order),
     customerName: historical ? "Completed delivery" : order.customer?.name || "Guest",
+    // The order has a saved address, not a separate district field. Never invent
+    // an area or disclose historical customer locations in a list/detail response.
+    ...(!historical ? { customerAddress: order.customer?.address || "" } : {}),
     paymentStatus: order.paymentStatus, amountToCollect: balance === null ? null : fromHalala(balance),
     ...deliveryCashFacts(delivery, balance, eligible),
     readyAt: order.readyAt || null,

@@ -85,5 +85,5 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
 export default function RiderDeliveryDetails(props) {
   const { user } = useAuth();
   const mode = { ...props, rehearsal: props.rehearsal && !props.preview };
-  return <ProtectedRoute roles={mode.rehearsal ? ["rider"] : ["admin", "rider"]}><div className={styles.portal}><main className={`${styles.main} ${styles.detailMain}`}><header className={styles.detailHeader}><a href={`/rider${deliveryModeQuery(mode)}`} aria-label="Back to deliveries"><ChevronLeft /></a><div><h1>Delivery Details</h1><p>DUNE &amp; GRILLS</p></div></header><DeliveryDetailContent key={`${user?._id || user?.id}:${user?.role}:${mode.id}:${mode.preview}:${mode.rehearsal}`} {...mode} /></main><RiderNav {...mode} /></div></ProtectedRoute>;
+  return <ProtectedRoute roles={mode.rehearsal ? ["rider"] : ["admin", "rider"]}><div className={styles.portal}><main className={`${styles.main} ${styles.detailMain}`}><header className={styles.detailHeader}><a href={`/rider/deliveries${deliveryModeQuery(mode)}`} aria-label="Back to deliveries"><ChevronLeft /></a><div><h1>Delivery Details</h1><p>DUNE &amp; GRILLS</p></div></header><DeliveryDetailContent key={`${user?._id || user?.id}:${user?.role}:${mode.id}:${mode.preview}:${mode.rehearsal}`} {...mode} /></main><RiderNav {...mode} /></div></ProtectedRoute>;
 }

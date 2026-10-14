@@ -9,7 +9,7 @@ export function buildRiderPortal(user, { preview = false, config = riderConfigur
   if (!hasCapability(user.role, CAPABILITIES.RIDER_PORTAL_READ)) throw failure(403, "Rider access required.");
   if (preview && !config.previewEnabled) throw failure(403, "Isolated development preview is disabled.");
   const profile = { id: String(user._id), name: user.name, employeeId: user.employeeId || null,
-    role: user.role, email: user.email || "", phone: user.phone || "" };
+    role: user.role, email: user.email || "", phone: user.phone || "", avatar: user.avatar || "" };
   const deliveries = preview ? [
     { id: "preview-a", orderNumber: "PREVIEW-A", riderId: profile.id, synthetic: true,
       deliveryStatus: "assigned", restaurantStatus: "ready", customerName: "Sample recipient A",
