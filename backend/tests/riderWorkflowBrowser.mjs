@@ -283,7 +283,7 @@ try {
       assert.equal(requests.filter(req => req.method === "POST").length, beforeOffline);
       await rider.context.setOffline(false);
       await rider.page.getByRole("button", { name: "Confirm Pickup", exact: true }).click();
-      const riderDialog = rider.page.getByRole("dialog", { name: "Confirm rider action" });
+      let riderDialog = rider.page.getByRole("dialog", { name: "Confirm pickup" });
       await riderDialog.waitFor(); await assertLayout(rider.page);
       for (let index = 0; index < 10; index++) { await rider.page.keyboard.press("Tab"); assert.equal(await rider.page.evaluate(() => document.querySelector("dialog[open]").contains(document.activeElement)), true); }
       await rider.page.keyboard.press("Escape");
@@ -292,13 +292,13 @@ try {
       await rider.page.screenshot({ path: path.join(screenshots, "rider-pickup-confirmation-mobile.png"), fullPage: false });
       // A payment/order change after the dialog opened must not silently adopt a new revision.
       await Order.updateOne({ _id: order._id }, { $inc: { __v: 1 } });
-      await riderDialog.getByRole("button", { name: "Confirm action", exact: true }).click();
+      await riderDialog.getByRole("button", { name: "Yes, confirm pickup", exact: true }).click();
       await riderDialog.getByRole("alert").filter({ hasText: "Delivery/payment state changed" }).waitFor();
-      assert.equal(await riderDialog.getByRole("button", { name: "Confirm action", exact: true }).isDisabled(), true);
+      assert.equal(await riderDialog.getByRole("button", { name: "Yes, confirm pickup", exact: true }).isDisabled(), true);
       assert.equal((await Delivery.findById(enrolled.id)).status, "assigned");
-      await riderDialog.getByRole("button", { name: "Cancel / Review details", exact: true }).click();
+      await riderDialog.getByRole("button", { name: "Go back", exact: true }).click();
       await rider.page.getByRole("button", { name: "Confirm Pickup", exact: true }).click();
-      await riderDialog.getByRole("button", { name: "Confirm action", exact: true }).click();
+      await riderDialog.getByRole("button", { name: "Yes, confirm pickup", exact: true }).click();
       await rider.page.getByRole("button", { name: "Confirm Delivery", exact: true }).waitFor();
       await rider.page.getByLabel("Reason / discrepancy explanation", { exact: false }).fill("Local road obstruction");
       await rider.page.getByRole("button", { name: "Report Delivery Issue", exact: true }).click();
@@ -310,6 +310,7 @@ try {
       await rider.page.getByRole("button", { name: "Confirm Delivery", exact: true }).waitFor();
       assert.equal(await rider.page.getByText("PRIVATE authorized road review", { exact: false }).count(), 0);
       await rider.page.getByRole("button", { name: "Confirm Delivery", exact: true }).click();
+      riderDialog = rider.page.getByRole("dialog", { name: "Confirm rider action" });
       await riderDialog.getByRole("button", { name: "Confirm action", exact: true }).click();
       await rider.page.getByLabel("Cash actually collected (SAR)").waitFor();
       assert.equal((await Order.findById(order._id)).paymentStatus, "pending");

@@ -36,7 +36,7 @@ export function riderCash(delivery) {
     : ["awaiting_confirmation", "discrepancy", "confirmed"].includes(state) ? delivery.reportedCashHalala : state === "no_collection" ? 0 : null;
   return { state, label: CASH_STATES[state], amount: Number.isSafeInteger(amountHalala) && amountHalala >= 0 ? amountHalala / 100 : null };
 }
-export const deliveryFingerprint = data => JSON.stringify([data?.revision, data?.orderRevision, data?.canOperate, data?.paymentStatus, data?.cashState, data?.ledgerOutstandingHalala, data?.deliveryStatus]);
+export const deliveryFingerprint = data => JSON.stringify([data?.id, data?.riderId, data?.revision, data?.orderRevision, data?.canOperate, data?.restaurantStatus, data?.paymentStatus, data?.cashState, data?.ledgerOutstandingHalala, data?.deliveryStatus]);
 export function cashReportError(amount, reason, data) {
   if (!/^\d+(\.\d{1,2})?$/.test(String(amount))) return "Enter a non-negative SAR amount with at most two decimals.";
   const value = Math.round(Number(amount) * 100), balance = data?.customerCollectionHalala;

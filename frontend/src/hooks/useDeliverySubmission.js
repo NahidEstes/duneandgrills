@@ -17,5 +17,6 @@ export default function useDeliverySubmission() {
     catch (error) { if (mounted.current) { setError(error.response?.data?.message || error.message || "Delivery request failed. Reload before retrying."); if (error.response?.status === 401) setUser(null); } return null; }
     finally { busy.current = false; if (mounted.current) setPending(false); }
   };
-  return { submit, pending, error, message };
+  const clearFeedback = () => { if (!busy.current) { setError(""); setMessage(""); } };
+  return { submit, pending, error, message, clearFeedback };
 }

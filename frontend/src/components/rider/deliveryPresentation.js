@@ -1,6 +1,10 @@
 export const deliveryStatusLabel = status => ({ unassigned: "Unassigned", assigned: "Assigned", picked_up: "Picked Up", delivered: "Delivered", issue: "Delivery Issue" })[status] || "Unavailable";
 export const deliveryModeQuery = ({ preview, rehearsal }) => preview ? "?preview=1" : rehearsal ? "?rehearsal=1" : "";
-export const customerPhoneHref = phone => typeof phone === "string" && /^[+\d][\d ()-]{6,19}$/.test(phone) ? `tel:${phone.replace(/[ ()-]/g, "")}` : null;
+export const customerPhoneHref = phone => {
+  if (typeof phone !== "string" || !/^[+\d][\d ()-]{6,24}$/.test(phone)) return null;
+  const number = phone.replace(/[ ()-]/g, "");
+  return /^\+?\d{7,15}$/.test(number) ? `tel:${number}` : null;
+};
 export const customerMapHref = address => typeof address === "string" && address.trim() ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.trim())}` : null;
 
 // Failed/uncertain submissions reuse their in-memory key. Never persist or queue offline writes.
