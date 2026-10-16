@@ -102,7 +102,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "Finance must not overflow viewport");
     await page.goto(`${origin}/admin/expenses/reports`); await page.getByText(/Archived expenses included/).waitFor();
     const popupEvent = page.waitForEvent("popup"); await page.getByRole("button", { name: "Export PDF", exact: true }).click();
-    const popup = await popupEvent; await popup.getByText("Recognized expense", { exact: true }).waitFor(); await popup.getByText("Archived · Paid", { exact: true }).waitFor(); await popup.close();
+    const popup = await popupEvent; await popup.getByText("Recognized expense", { exact: true }).waitFor(); await popup.getByText("Archived", { exact: true }).waitFor(); await popup.getByText("Paid", { exact: true }).last().waitFor(); await popup.close();
 
     actor = cashier; await setFixtureSession(context, origin, actor.role); await page.goto(`${origin}/pos`);
     const search = page.getByRole("textbox", { name: "Search registered customer" }); await search.waitFor();
