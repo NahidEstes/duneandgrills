@@ -1,5 +1,7 @@
+import { useLanguage } from '../i18n/LocaleProvider';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../i18n/native';
 import { router } from 'expo-router';
 import { useApp } from '../state/AppProvider';
 import { useAccountAction } from '../hooks/useAccountAction';
@@ -7,8 +9,14 @@ import { profileError } from '../domain/profile';
 import type { User } from '../domain/types';
 import { Button, Field, Notice, Screen, styles } from '../components/ui';
 
-export default function ProfileEditor() { const app = useApp(); return <ProfileForm key={app.session?.user._id || 'guest'} />; }
+export default function ProfileEditor() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage(); const app = useApp(); return <ProfileForm key={app.session?.user._id || 'guest'} />; }
 function ProfileForm() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const app = useApp(); const action = useAccountAction();
   const [name, setName] = useState(app.session?.user.name || ''); const [email, setEmail] = useState(app.session?.user.email || ''); const [phone, setPhone] = useState(app.session?.user.phone || '');
   const [validation, setValidation] = useState(''); const [notice, setNotice] = useState('');

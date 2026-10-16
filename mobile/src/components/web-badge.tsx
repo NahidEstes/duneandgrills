@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LocaleProvider';
 import { version } from 'expo/package.json';
 import { Image } from 'expo-image';
 import { useColorScheme, StyleSheet } from 'react-native';
@@ -8,6 +9,9 @@ import { ThemedView } from './themed-view';
 import { Spacing } from '@/constants/theme';
 
 export function WebBadge() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const scheme = useColorScheme();
 
   return (

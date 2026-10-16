@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LocaleProvider';
 import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Keyframe, Easing } from 'react-native-reanimated';
@@ -6,6 +7,9 @@ import classes from './animated-icon.module.css';
 const DURATION = 300;
 
 export function AnimatedSplashOverlay() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   return null;
 }
 
@@ -55,6 +59,9 @@ const glowKeyframe = new Keyframe({
 });
 
 export function AnimatedIcon() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   return (
     <View style={styles.iconContainer}>
       <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>

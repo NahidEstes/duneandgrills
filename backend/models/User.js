@@ -6,6 +6,7 @@ const addressSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true, maxlength: 40 },
   fullAddress: { type: String, required: true, trim: true, maxlength: 300 },
   phone: { type: String, default: "", trim: true, maxlength: 30 },
+  deliveryDetails: { coordinates: { latitude: { type: Number, min: -90, max: 90 }, longitude: { type: Number, min: -180, max: 180 } }, building: { type: String, maxlength: 240 }, apartment: { type: String, maxlength: 240 }, landmark: { type: String, maxlength: 240 }, instructions: { type: String, maxlength: 240 } },
   isDefault: { type: Boolean, default: false },
 });
 

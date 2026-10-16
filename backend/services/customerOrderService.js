@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import MenuItem from "../models/MenuItem.js";
 import User from "../models/User.js";
 import { CAPABILITIES, hasCapability } from "../config/permissions.js";
-import { getDeliveryFee } from "../config/orders.js";
 import { OrderEngineError, orderText, resolveOrderInput } from "../config/orderContract.js";
 import { calculateCartSubtotal, cartLineToOrderItem, resolveCartLines, PRODUCT_TYPES } from "./catalogService.js";
 import { calculateCoupon, reserveCouponUsage } from "./couponService.js";
@@ -13,6 +12,7 @@ import { nextOrderNumber } from "./orderNumberService.js";
 import { runInventoryTransaction } from "./inventoryStockService.js";
 import { creationIdentity, findCreationReplay, persistOrderWithInventory, trackingTokenForIdentity } from "./orderEngineService.js";
 
+import { checkoutQuote, reserveCheckout, ensureSlot, slotKey } from './checkoutService.js';
 export const createCustomerOrder = async ({ payload, actor, channel = "customer", key, correlationId }) => {
   if (channel === "admin" && (!actor || !hasCapability(actor.role, CAPABILITIES.ORDERS_MANAGE))) throw new OrderEngineError("Not authorized to create admin orders", 403);
   const input = resolveOrderInput(payload, channel);
@@ -39,7 +39,9 @@ export const createCustomerOrder = async ({ payload, actor, channel = "customer"
   const coupon = payload.couponCode ? await calculateCoupon({ code: payload.couponCode, lines: catalogLines, userId: channel === "customer" ? actor?._id : null }) : null;
   const discountAmount = coupon?.discountAmount || 0;
   const discountedSubtotal = Number((subtotal - discountAmount).toFixed(2));
-  const deliveryFee = getDeliveryFee(input.orderType, settings.orders);
+  const quote = checkoutQuote(settings, { ...payload, fulfillmentType: input.orderType }, subtotal, discountAmount);
+  const deliveryFee = quote.delivery.fee;
+  if (quote.scheduledAt) await ensureSlot(slotKey(input.orderType, quote.scheduledAt));
   const userId = channel === "customer" ? actor?._id || null : null;
   if (payload.rewardRedemptionId) {
     if (!userId) throw new OrderEngineError("Sign in as the customer to use a reward", 401);
@@ -51,6 +53,7 @@ export const createCustomerOrder = async ({ payload, actor, channel = "customer"
   try {
     const order = await runInventoryTransaction(async session => {
       if (!session) throw new OrderEngineError("The unified order engine requires a MongoDB replica set", 503);
+      await reserveCheckout({ quote, userId, orderId, orderNumber, type: input.orderType, settings, session });
       // Build fresh arrays on transaction retry; never append reward lines twice.
       const inventoryLines = [...catalogLines];
       const orderItems = catalogLines.map(cartLineToOrderItem);
@@ -72,10 +75,12 @@ export const createCustomerOrder = async ({ payload, actor, channel = "customer"
         ...(identity.idempotencyKey ? { idempotencyKey: identity.idempotencyKey, creationRequestHash: identity.creationRequestHash } : {}),
         trackingTokenHash: crypto.createHash("sha256").update(trackingToken).digest("hex"),
         source, createdBy: channel === "admin" ? actor._id : null, user: userId,
-        customer: { name, phone, email, address: input.orderType === "delivery" ? address : "" },
-        ...input, items: orderItems, subtotal, originalSubtotal: subtotal, discountAmount, deliveryFee,
-        totalAmount: Number((discountedSubtotal + deliveryFee).toFixed(2)),
-        eligiblePointsAmount: discountedSubtotal, rewardRedemption: rewardSnapshot,
+        customer: { name, phone, email, address: input.orderType === "delivery" ? address : "", deliveryDetails: input.orderType === "delivery" ? quote.deliveryDetails : undefined },
+        scheduledAt: quote.scheduledAt, kitchenReleaseAt: quote.kitchenReleaseAt,
+        pointsRedemption: quote.redemption.points ? { ...quote.redemption, pointsPerSAR: settings.checkout.points.pointsPerSAR, refundPolicy: settings.checkout.points.refundPolicy } : undefined,
+        ...input, items: orderItems, subtotal, originalSubtotal: subtotal, discountAmount: Number((discountAmount + quote.redemption.discount).toFixed(2)), deliveryFee,
+        totalAmount: quote.total,
+        eligiblePointsAmount: Number((discountedSubtotal - quote.redemption.discount).toFixed(2)), rewardRedemption: rewardSnapshot,
         paymentMethod: "cash",
         rewardAccrualPolicy: "completion", orderOrigin: channel === "admin" ? "phone" : "online",
         couponCode: coupon?.code || "", offer: coupon?.offer._id || null,

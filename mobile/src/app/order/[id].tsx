@@ -1,4 +1,7 @@
-import { Text, View } from 'react-native';
+import { useLanguage } from '../../i18n/LocaleProvider';
+import { formatDate } from '../../i18n/core';
+import { View } from 'react-native';
+import { Text } from '../../i18n/native';
 import { useLocalSearchParams } from 'expo-router';
 import { useApp } from '../../state/AppProvider';
 import { API_URL, apiFor } from '../../services/api';
@@ -10,10 +13,16 @@ import { Button, Loading, Notice, Screen, styles } from '../../components/ui';
 import { useOrderAgain } from '../../hooks/useOrderAgain';
 import { OrderAgainFeedback } from '../../components/order-again';
 export default function OrderDetails() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const app = useApp(); const { id } = useLocalSearchParams<{ id: string }>();
   return <OrderDetailsContent key={`${app.session?.user._id || 'guest'}:${id}`} />;
 }
 function OrderDetailsContent() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const { id, guest, confirmed } = useLocalSearchParams<{ id: string; guest?: string; confirmed?: string }>();
   const app = useApp(); const actor = app.session?.user._id || 'guest';
   const tracking = app.tracking.find(t => t.orderNumber === id && t.actor === actor);
@@ -31,7 +40,9 @@ function OrderDetailsContent() {
     {confirmed === '1' && <Text style={styles.title}>Order confirmed</Text>}
     <Notice message={resource.error} retry={() => void resource.refresh()} />{resource.loading && !order && <Loading />}<OrderAgainFeedback action={again} />
     {order && <><Text style={styles.heading}>{order.orderNumber}</Text><Text style={styles.title}>{statusLabel(order)}</Text><Text style={styles.muted}>{resource.data ? 'Latest restaurant status' : 'Saved confirmation · pull to refresh for live status'}</Text>
-      <View style={styles.card}><Text style={styles.heading}>{money(order.totalAmount)}</Text><Text style={styles.text}>{guest === '1' ? 'Cash order' : 'Payment'} · {paymentLabel(order)}</Text><Text style={styles.muted}>{order.fulfillmentType === 'delivery' ? 'Delivery' : order.fulfillmentType === 'pickup' ? 'Pickup' : 'Dine-in'} · {new Date(order.createdAt).toLocaleString()}</Text>
+      {order.scheduledAt && <Text style={styles.heading}>Scheduled for: {formatDate(order.scheduledAt)}</Text>}
+      {!!order.pointsDiscount && <Text style={styles.text}>Points discount: {money(order.pointsDiscount)}</Text>}
+      <View style={styles.card}><Text style={styles.heading}>{money(order.totalAmount)}</Text><Text style={styles.text}>{guest === '1' ? 'Cash order' : 'Payment'} · {paymentLabel(order)}</Text><Text style={styles.muted}>{order.fulfillmentType === 'delivery' ? 'Delivery' : order.fulfillmentType === 'pickup' ? 'Pickup' : 'Dine-in'} · {formatDate(order.createdAt)}</Text>
         {!terminal(order) && order.estimatedPreparationMinutes && <Text style={styles.muted}>Estimated preparation: {order.estimatedPreparationMinutes} minutes. Times may change.</Text>}
       </View>
       {!resource.data && <Text style={styles.muted}>Pull to refresh for the full item details and latest status.</Text>}

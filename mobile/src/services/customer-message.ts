@@ -6,7 +6,13 @@ export function apiMessage(status: number, path: string, serverMessage: unknown)
   if (status >= 500) return 'The restaurant service is temporarily unavailable. Please try again shortly.';
   if (status === 404) return 'This item or service is currently unavailable.';
   const message = typeof serverMessage === 'string' ? serverMessage : '';
+  if (/Prices or delivery fees changed/i.test(message)) return 'Prices or delivery fees changed. Review your order again. Resolve any saved request first.';
   if (status === 410) return 'This order attempt was already cancelled. Use Check or cancel saved order to clear it safely before placing a new order.';
+  if (/outside the delivery area/i.test(message)) return 'This address is outside the delivery area. Choose pickup.';
+  if (/delivery pin/i.test(message)) return 'Select a delivery pin to check service availability.';
+  if (/map delivery.*not configured/i.test(message)) return 'Map delivery availability is not configured. Choose pickup or use a manual address.';
+  if (/scheduled slot/i.test(message)) return 'This time is full or unavailable. Refresh times and select another slot. Keep any saved order until it is resolved.';
+  if (/points|redemption/i.test(message)) return /Insufficient/i.test(message) ? 'Insufficient points. Review your points selection.' : 'Points cannot be applied. Check the minimum, maximum discount and coupon rules.';
   if (status === 409) {
     if (path === '/offers/validate-coupon') return 'This coupon is no longer eligible. Check its dates, minimum order, usage limit and eligible items.';
     if (path === '/auth/me' && /email.*(already|registered|use)/i.test(message)) return 'That email is already in use. Choose another email.';

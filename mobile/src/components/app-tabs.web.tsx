@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LocaleProvider';
 import {
   Tabs,
   TabList,
@@ -7,7 +8,8 @@ import {
   TabListProps,
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
-import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+import { useColorScheme, View, StyleSheet } from 'react-native';
+import { Pressable } from '../i18n/native';
 
 import { ExternalLink } from './external-link';
 import { ThemedText } from './themed-text';
@@ -16,6 +18,9 @@ import { ThemedView } from './themed-view';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 
 export default function AppTabs() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   return (
     <Tabs>
       <TabSlot style={{ height: '100%' }} />
@@ -34,6 +39,9 @@ export default function AppTabs() {
 }
 
 export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   return (
     <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView
@@ -48,6 +56,9 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 }
 
 export function CustomTabList(props: TabListProps) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
 

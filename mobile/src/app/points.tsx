@@ -1,13 +1,21 @@
+import { useLanguage } from '../i18n/LocaleProvider';
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable, Text } from '../i18n/native';
 import { router } from 'expo-router';
 import { useApp } from '../state/AppProvider';
 import { useMyPoints } from '../hooks/useMyPoints';
 import { activityTitle, earningRules, morePointsActivity, POINTS_HISTORY_LIMIT, pointsDate, pointsNumber, signedPoints } from '../domain/points';
 import { ArrowLeft, ChevronRight, RefreshCw, Star } from '../components/icons';
 import { Button, IconButton, Loading, Notice, Screen, colors, styles } from '../components/ui';
-export default function Points() { const app = useApp(); return <PointsContents key={`${app.actor}:${app.session?.token || ''}`} />; }
+export default function Points() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage(); const app = useApp(); return <PointsContents key={`${app.actor}:${app.session?.token || ''}`} />; }
 function PointsContents() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const points = useMyPoints(); const [count, setCount] = useState(10); const data = points.data;
   return <Screen refreshing={points.loading} onRefresh={() => void points.refresh()}>
     <View style={styles.row}><IconButton icon={ArrowLeft} label="Back to Profile" onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} /><Text accessibilityRole="header" style={[styles.title, { flexShrink: 1 }]}>My points</Text>{points.authenticated && <IconButton icon={RefreshCw} label="Refresh points" disabled={points.loading} onPress={() => void points.refresh()} />}</View>

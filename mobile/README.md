@@ -2,6 +2,8 @@
 
 Expo SDK 57 / React Native customer app with native Home, Menu, Orders and Profile tabs and the existing Cart route. It uses the existing restaurant API, customer accounts and unified ordering engine.
 
+Source now includes Arabic/English, transactional checkout points redemption, delivery pins and scheduled pickup/delivery. See [configuration, contracts and local verification](CHECKOUT-FEATURES.md). New financial/service policies remain disabled until an administrator supplies and approves their values. No new installable/cloud build or deployment was performed.
+
 Profile includes **My points**: current available points, server earning policy and recent signed activity with Riyadh dates, local 10-record loading and account-safe refresh/stale/error states. See [My points contract, behavior and verification](POINTS.md). This read-only source update has no new APK/cloud build.
 
 Home includes an Active Order card with actual owner/private guest status, fulfillment-specific progress, tracking navigation and an active Orders filter. See [active order behavior and verification](ACTIVE-ORDERS.md). This source update has no new APK/cloud build.

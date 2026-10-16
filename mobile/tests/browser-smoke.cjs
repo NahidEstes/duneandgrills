@@ -31,9 +31,12 @@ async function main() {
     let data;
     if (pathname === '/menu') data = [dish, { ...dish, _id: 'drink', name: 'Fresh Lemon', category: 'Drinks', customization: { enabled: false }, addOns: [] }];
     else if (pathname === '/combos') data = [];
+    else if (pathname === '/offers') data = [];
     else if (pathname === '/menu/grill') data = dish;
     else if (pathname === '/orders/config') data = config;
     else if (pathname === '/settings/public') data = { receipt: { restaurantName: 'Dune & Grills' }, location: { city: 'Configured city' } };
+    else if (pathname === '/orders/slots') data = { enabled: false, slots: [] };
+    else if (pathname === '/orders/quote') data = { subtotal: 44, discount: 4, pointsDiscount: 0, fee: 10, total: 50 };
     else if (pathname === '/offers/validate-coupon') data = { code: 'SAVE', originalSubtotal: 44, discountedSubtotal: 40, discountAmount: 4 };
     else { await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ success: false, message: 'Diagnostic fixture does not support this request' }) }); return; }
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
@@ -74,7 +77,7 @@ async function main() {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'menu fits the viewport');
       await page.screenshot({ path: path.join(artifacts, `menu-${width}.png`), fullPage: true });
     }
-    assert.deepEqual(errors, []); assert.deepEqual(mutations, ['/offers/validate-coupon']);
+    assert.deepEqual(errors, []); assert.deepEqual(mutations, ['/orders/quote']);
     console.log('PASS: local fixture web UI at 320px, 390px and 768px; outage/retry/safe errors/image failures/menu/search/customization/cart restart/checkout navigation draft/validation/coupon/native storage gate/auth validation; no page errors or remote writes.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 }

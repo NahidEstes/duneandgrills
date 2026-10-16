@@ -1,5 +1,6 @@
 export type AddOn = { _id: string; name: string; price: number; image?: string };
 export type Product = {
+  translations?: { ar?: { name?: string; description?: string }; en?: { name?: string; description?: string } };
   _id: string; productType: 'menuItem' | 'combo'; name: string; description: string;
   image: string; price: number; category: string; isAvailable: boolean;
   isFeatured?: boolean; featuredOrder?: number;
@@ -25,16 +26,18 @@ export type Selection = { selectedAddOns: { id: string; quantity: number }[]; sp
 export type CartLine = { key: string; product: Product; selection: Selection; quantity: number; unitPrice: number };
 export type User = { _id: string; name: string; email: string; phone: string; role: string; avatar?: string };
 export type Session = { token: string; user: User; expiresAt: number };
-export type Address = { _id: string; label: string; fullAddress: string; phone: string; isDefault: boolean };
+export type DeliveryDetails = { coordinates?: { latitude: number; longitude: number }; building?: string; apartment?: string; landmark?: string; instructions?: string };
+export type Address = { _id: string; label: string; fullAddress: string; phone: string; isDefault: boolean; deliveryDetails?: DeliveryDetails };
 export type OrderConfig = { websiteOrderingEnabled: boolean; minimumDeliveryOrder: number;
+  checkout?: { points: { enabled: boolean; pointsPerSAR: number | null; minimumPoints: number | null; maximumDiscountSAR: number | null; stackWithCoupons: boolean }; delivery: { enabled: boolean; latitude: number | null; longitude: number | null }; scheduling: { enabled: boolean } };
   paymentOptions: { code: string; enabled: boolean }[]; orderTypes: { value: string; label: string; deliveryFee: number }[] };
-export type Customer = { name: string; phone: string; email: string; address: string };
+export type Customer = { name: string; phone: string; email: string; address: string; deliveryDetails?: DeliveryDetails };
 export type OrderPayload = { idempotencyKey?: string; fulfillmentType: 'delivery' | 'pickup'; paymentOption: 'cod';
-  customer: Customer; kitchenNotes: string; couponCode: string;
+  customer: Customer; kitchenNotes: string; couponCode: string; pointsToRedeem?: number; scheduledAt?: string; reviewedTotal?: number;
   items: { productId: string; productType: string; quantity: number; customization: Selection }[] };
 export type Order = { _id?: string; orderNumber: string; totalAmount: number; subtotal: number; deliveryFee: number;
   discountAmount: number; status: string; paymentStatus: string; fulfillmentType: string;
-  createdAt: string; estimatedPreparationMinutes?: number; kitchenNotes?: string;
+  createdAt: string; scheduledAt?: string; pointsDiscount?: number; pointsRedeemed?: number; estimatedPreparationMinutes?: number; kitchenNotes?: string;
   items: { name: string; image: string; quantity: number; price: number; spiceLevel: string; itemNote: string;
     selectedAddOns: { name: string; quantity: number }[] }[] };
 export type OrderResult = { data?: Order; trackingToken?: string; cancelled?: boolean };

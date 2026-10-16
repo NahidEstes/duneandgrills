@@ -1,10 +1,15 @@
+import { useLanguage } from '../i18n/LocaleProvider';
 import { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../i18n/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '../state/AppProvider';
 import { passwordError } from '../domain/cart';
 import { Button, Chip, Field, Notice, Screen, messageOf, styles } from '../components/ui';
 export default function Auth() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const { mode: initialMode, offer, combo, quantity, favorite } = useLocalSearchParams<{ mode?: string; offer?: string; combo?: string; quantity?: string; favorite?: string }>();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode === 'register' ? 'register' : 'login');
   const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [phone, setPhone] = useState(''); const [password, setPassword] = useState('');

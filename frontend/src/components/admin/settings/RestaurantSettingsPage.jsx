@@ -11,8 +11,10 @@ import { LocationSettings, ReceiptSettings } from "./ReceiptLocationSettings.jsx
 import ProcurementSettings from "./ProcurementSettings.jsx";
 import PosDeviceSettings from "./PosDeviceSettings.jsx";
 import RiderDeliverySettings from "./RiderDeliverySettings.jsx";
+import CheckoutSettings from "./CheckoutSettings.jsx";
 
 const editable = (settings) => ({
+  checkout: settings.checkout,
   timezone: settings.timezone,
   openingHours: settings.openingHours,
   orders: settings.orders,
@@ -100,6 +102,7 @@ export default function RestaurantSettingsPage({ onDirtyChange }) {
       <div className="flex gap-2"><button type="button" onClick={reset} disabled={!dirty || saving} className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-xs font-semibold text-neutral-300 disabled:opacity-40"><RotateCcw className="h-4 w-4" />Reset</button><button type="submit" disabled={!dirty || saving} className="inline-flex h-10 items-center gap-2 rounded-xl bg-dune-amber px-5 text-xs font-bold text-black disabled:opacity-40">{saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? "Saving…" : "Save Settings"}</button></div>
     </div>
     <BusinessHoursSettings value={form.openingHours} onChange={(openingHours) => setForm({ ...form, openingHours })} />
+    <CheckoutSettings value={form.checkout} onChange={checkout => setForm({ ...form, checkout })} />
     <RiderDeliverySettings value={riderDelivery} onSaved={setRiderDelivery} />
     <div className="grid items-start gap-4 xl:grid-cols-2"><OrdersDeliverySettings value={form.orders} onChange={(orders) => setForm({ ...form, orders })} /><div className="space-y-4"><NotificationSettings value={form.notifications} onChange={(notifications) => setForm({ ...form, notifications })} /><PreparationSettings value={form.preparation} onChange={(preparation) => setForm({ ...form, preparation })} /></div></div>
     <PosShiftSettings value={form.posShifts} onChange={(posShifts) => setForm({ ...form, posShifts })} />

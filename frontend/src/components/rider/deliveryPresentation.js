@@ -5,7 +5,11 @@ export const customerPhoneHref = phone => {
   const number = phone.replace(/[ ()-]/g, "");
   return /^\+?\d{7,15}$/.test(number) ? `tel:${number}` : null;
 };
-export const customerMapHref = address => typeof address === "string" && address.trim() ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.trim())}` : null;
+export const customerMapHref = (address, coordinates) => {
+  const valid = typeof coordinates?.latitude === 'number' && typeof coordinates?.longitude === 'number' && Number.isFinite(coordinates.latitude) && Number.isFinite(coordinates.longitude) && Math.abs(coordinates.latitude) <= 90 && Math.abs(coordinates.longitude) <= 180;
+  const query = valid ? `${coordinates.latitude},${coordinates.longitude}` : typeof address === 'string' ? address.trim() : '';
+  return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : null;
+};
 
 // Failed/uncertain submissions reuse their in-memory key. Never persist or queue offline writes.
 export function createDeliverySubmission() {

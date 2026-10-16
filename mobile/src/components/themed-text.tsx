@@ -1,4 +1,6 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { useLanguage } from '../i18n/LocaleProvider';
+import { Platform, StyleSheet, type TextProps } from 'react-native';
+import { Text } from '../i18n/native';
 
 import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -9,6 +11,9 @@ export type ThemedTextProps = TextProps & {
 };
 
 export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const theme = useTheme();
 
   return (

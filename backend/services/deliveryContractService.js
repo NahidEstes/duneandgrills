@@ -64,7 +64,7 @@ export function serializeDelivery(delivery, order, rider, { detail = false } = {
       : cash.status === "unconfirmed" && !accepted ? "Existing payment workflow cannot safely confirm this balance. Cash remains unconfirmed." : "",
     ...(detail ? {
       pickupInstructions: delivery.pickupInstructions,
-      customer: historical ? null : { name: order.customer?.name || "Guest", phone: order.customer?.phone || "", address: order.customer?.address || "" },
+      customer: historical ? null : { name: order.customer?.name || "Guest", phone: order.customer?.phone || "", address: order.customer?.address || "", ...(order.customer?.deliveryDetails ? { deliveryDetails: order.customer.deliveryDetails } : {}) },
       deliveryNote: historical ? "" : delivery.deliveryNote,
       orderTotal: order.totalAmount,
       items: (order.items || []).map(item => ({ name: item.name, quantity: item.quantity, price: item.price, lineTotal: fromHalala(toHalala(item.price) * item.quantity),

@@ -60,6 +60,8 @@ export const serializeKitchenOrder = (order, now = new Date()) => {
     status: value.status,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
+    scheduledAt: value.scheduledAt || null,
+    kitchenReleaseAt: value.kitchenReleaseAt || null,
     acceptedAt: value.acceptedAt || null,
     preparationStartedAt: value.preparationStartedAt || null,
     readyAt: value.readyAt || null,
@@ -100,7 +102,7 @@ export const listKitchenOrders = async (
   if (orderType && orderType !== "all" && !ORDER_TYPES.includes(orderType)) throw new ValidationError("Invalid order type");
 
   const readyCutoff = new Date(now.getTime() - readyRetentionMinutes * 60 * 1000);
-  const filters = [{ manualEntry: { $ne: true } }, {
+  const filters = [{ $or: [{ kitchenReleaseAt: null }, { kitchenReleaseAt: { $lte: now } }] }, { manualEntry: { $ne: true } }, {
     $or: [
       { status: { $in: ["pending", "confirmed", "preparing", "ready", "out-for-delivery"] } },
       { status: "delivered", updatedAt: { $gte: readyCutoff } },
@@ -124,7 +126,7 @@ export const listKitchenOrders = async (
   }
 
   const orders = await Order.find({ $and: filters })
-    .select("orderNumber source orderType status createdAt updatedAt acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt customer.name pickupToken pickupNote notes kitchenNotes items")
+    .select("scheduledAt kitchenReleaseAt orderNumber source orderType status createdAt updatedAt acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt customer.name pickupToken pickupNote notes kitchenNotes items")
     .sort({ createdAt: 1 })
     .lean();
   const ids = [...new Set(orders.flatMap(order => order.items.map(item => item.menuItem).filter(Boolean)).map(String))];

@@ -14,6 +14,7 @@ const comboItemSchema = new mongoose.Schema(
 
 const comboSchema = new mongoose.Schema(
   {
+    translations: { ar: { name: { type: String, trim: true, maxlength: 160 }, description: { type: String, trim: true, maxlength: 1000 } }, en: { name: { type: String, trim: true, maxlength: 160 }, description: { type: String, trim: true, maxlength: 1000 } } },
     name: { type: String, required: true, trim: true, maxlength: 120 },
     slug: {
       type: String,

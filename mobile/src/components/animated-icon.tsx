@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LocaleProvider';
 import { Image } from 'expo-image';
 import * as SplashScreen from 'expo-splash-screen';
 import { useState } from 'react';
@@ -9,6 +10,9 @@ const INITIAL_SCALE_FACTOR = Dimensions.get('screen').height / 90;
 const DURATION = 600;
 
 export function AnimatedSplashOverlay() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const [animate, setAnimate] = useState(false);
   const [visible, setVisible] = useState(true);
 
@@ -96,6 +100,9 @@ const glowKeyframe = new Keyframe({
 });
 
 export function AnimatedIcon() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   return (
     <View style={styles.iconContainer}>
       <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>

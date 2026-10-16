@@ -1,12 +1,18 @@
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useLanguage } from '../i18n/LocaleProvider';
+import { StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Pressable, Text } from '../i18n/native';
 import { router } from 'expo-router';
 import { activeStatus, orderProgress } from '../domain/orders';
 import type { Order } from '../domain/types';
 import { palette } from '../constants/design';
 import { Check, ChevronRight, CookingPot, ReceiptText, ShoppingBag, Truck } from './icons';
 import { styles } from './ui';
+import { t, formatDate } from '../i18n/core';
 
 export function ActiveOrderCard({ orders, guest, outdated, refreshing, retry }: { orders: Order[]; guest: boolean; outdated: boolean; refreshing: boolean; retry: () => void }) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const { width, fontScale } = useWindowDimensions(); const vertical = width < 360 || fontScale > 1.2;
   const order = orders[0];
   if (!order) return outdated ? <View style={{ gap: 4 }}><Text style={styles.muted}>Unable to refresh order status.</Text><Action label="Retry order status" title="Retry" onPress={retry} disabled={refreshing} /></View> : null;
@@ -15,11 +21,12 @@ export function ActiveOrderCard({ orders, guest, outdated, refreshing, retry }: 
   const StatusIcon = order.status === 'pending' ? ReceiptText : order.status === 'confirmed' ? Check : order.status === 'preparing' ? CookingPot : Icon;
   return <View style={[styles.card, local.card]}>
     <View style={styles.between}><Text style={[styles.muted, local.label]}>ACTIVE ORDER</Text><Text style={[styles.muted, { flexShrink: 1 }]}>{order.orderNumber}</Text></View>
+    {order.scheduledAt && <Text style={styles.text}>Scheduled for: {formatDate(order.scheduledAt)}</Text>}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <View accessible={false} style={local.icon}><StatusIcon size={30} color={palette.orange} /></View>
       <View style={{ flex: 1, minWidth: 0, gap: 4 }}><Text accessibilityRole="header" style={styles.heading}>{status.title}</Text><Text style={styles.muted}>{status.description}</Text></View>
     </View>
-    <View accessible accessibilityLabel={`Order progress: ${status.title}. ${progress.map(step => `${step.label}, ${step.state}`).join('; ')}`} style={{ flexDirection: vertical ? 'column' : 'row', gap: vertical ? 8 : 0 }}>
+    <View accessible accessibilityLabel={`Order progress: ${t(status.title)}. ${progress.map(step => `${t(step.label)}, ${t(step.state)}`).join('; ')}`} style={{ flexDirection: vertical ? 'column' : 'row', gap: vertical ? 8 : 0 }}>
       {progress.map((step, i) => <View key={step.label} style={{ flex: vertical ? undefined : 1, flexDirection: vertical ? 'row' : 'column', alignItems: vertical ? 'flex-start' : 'center', gap: 6 }}>
         <View style={{ width: vertical ? 28 : '100%', height: 28, alignItems: 'center', justifyContent: 'center' }}>
           {!vertical && i > 0 && <View style={[local.connector, { left: 0, right: '50%', backgroundColor: progress[i - 1].state === 'complete' ? palette.orange : palette.border }]} />}
@@ -38,6 +45,9 @@ export function ActiveOrderCard({ orders, guest, outdated, refreshing, retry }: 
   </View>;
 }
 function Action({ title, label, onPress, disabled }: { title: string; label?: string; onPress: () => void; disabled?: boolean }) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   return <Pressable accessibilityRole="button" accessibilityLabel={label || title} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, opacity: disabled ? 0.45 : pressed ? 0.65 : 1, flexShrink: 1 })}><Text style={[styles.text, { color: palette.orange, fontWeight: '700', flexShrink: 1 }]}>{title}</Text><ChevronRight color={palette.orange} size={20} /></Pressable>;
 }
 const local = StyleSheet.create({

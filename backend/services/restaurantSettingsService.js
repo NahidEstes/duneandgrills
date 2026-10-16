@@ -3,6 +3,7 @@ import RestaurantSettings, { RESTAURANT_DAYS } from "../models/RestaurantSetting
 import { recordAuditLog } from "./auditLogService.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
 
+import { checkoutDefaults, normalizeCheckoutPolicy } from './checkoutPolicy.js';
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -32,6 +33,7 @@ export const upgradeLegacyOpeningHours = (openingHours) => isLegacyDefaultOpenin
   : openingHours;
 
 export const getRestaurantSettingsDefaults = () => ({
+  checkout: checkoutDefaults(),
   timezone: "Asia/Riyadh",
   openingHours: RESTAURANT_DAYS.map((day) => ({
     day,
@@ -105,6 +107,7 @@ export const getRestaurantSettingsDefaults = () => ({
 const mergeSettings = (defaults, stored) => ({
   ...defaults,
   ...stored,
+  checkout: Object.fromEntries(Object.entries(checkoutDefaults()).map(([key, defaults]) => [key, { ...defaults, ...stored?.checkout?.[key] }])),
   openingHours: Array.isArray(stored?.openingHours) && stored.openingHours.length
     ? upgradeLegacyOpeningHours(stored.openingHours)
     : defaults.openingHours,
@@ -198,6 +201,7 @@ const normalizeOpeningHours = (value, fallback) => {
 export const normalizeRestaurantSettings = (payload = {}, current = getRestaurantSettingsDefaults()) => {
   const channels = payload.orders?.channels || {};
   const normalized = {
+    checkout: normalizeCheckoutPolicy(payload.checkout, current.checkout),
     timezone: "Asia/Riyadh",
     openingHours: normalizeOpeningHours(payload.openingHours, current.openingHours),
     orders: {
@@ -300,12 +304,13 @@ export const getRestaurantSettingsDiff = (before, after) => {
     newValues.push({ field: path, value: newValue ?? null });
     changedFields.push(path);
   };
-  for (const group of ["openingHours", "orders", "notifications", "preparation", "posShifts", "posCheckout", "procurement", "receipt", "location"]) walk(before[group], after[group], group);
+  for (const group of ["checkout", "openingHours", "orders", "notifications", "preparation", "posShifts", "posCheckout", "procurement", "receipt", "location"]) walk(before[group], after[group], group);
   return { oldValues, newValues, changedFields };
 };
 
 export const toAdminRestaurantSettings = (settings, configured = true) => ({
   configured,
+  checkout: settings.checkout,
   riderDelivery: { enabled: settings.riderDelivery?.enabled === true, revision: settings.riderDelivery?.revision || 0 },
   timezone: settings.timezone,
   openingHours: settings.openingHours,

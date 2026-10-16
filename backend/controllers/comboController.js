@@ -110,6 +110,7 @@ const buildComboValues = async (body, existing) => {
 
   return {
     name,
+    translations: body.translations ?? existing?.translations,
     slug: await createUniqueSlug(name, existing?._id),
     description,
     image,

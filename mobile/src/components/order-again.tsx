@@ -1,7 +1,12 @@
-import { Modal, Text, View } from 'react-native';
+import { useLanguage } from '../i18n/LocaleProvider';
+import { Modal, View } from 'react-native';
+import { Text } from '../i18n/native';
 import { Button, Notice, styles } from './ui';
 import type { useOrderAgain } from '../hooks/useOrderAgain';
 export function OrderAgainFeedback({ action }: { action: ReturnType<typeof useOrderAgain> }) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   return <><Notice message={action.error} />{!!action.message && <Text style={styles.text}>{action.message}</Text>}
     <Modal visible={!!action.choice} transparent animationType="fade" onRequestClose={() => { if (!action.busy) action.cancel(); }}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 }}><View accessibilityViewIsModal style={styles.card}>

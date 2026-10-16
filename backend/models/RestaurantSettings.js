@@ -44,6 +44,7 @@ const restaurantSettingsSchema = new mongoose.Schema(
   {
     key: { type: String, default: "default", unique: true, immutable: true },
     timezone: { type: String, enum: ["Asia/Riyadh"], default: "Asia/Riyadh", immutable: true },
+    checkout: { type: mongoose.Schema.Types.Mixed, default: undefined },
     riderDelivery: {
       enabled: { type: Boolean, default: false },
       revision: { type: Number, default: 0, min: 0 },

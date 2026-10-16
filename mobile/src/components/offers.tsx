@@ -1,4 +1,6 @@
-import { Text, View } from 'react-native';
+import { useLanguage } from '../i18n/LocaleProvider';
+import { View } from 'react-native';
+import { Text } from '../i18n/native';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { Button, FoodImage, styles } from './ui';
@@ -17,10 +19,16 @@ export async function browseOffer(offer: Offer) {
   else openMenu(target.category);
 }
 export function ComboPrice({ product }: { product: Product }) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const saving = comboSavings(product);
   return <View style={styles.row}>{saving && <Text style={[styles.heading, { color: palette.muted, textDecorationLine: 'line-through' }]}>{money(saving.original)}</Text>}<Text style={[styles.title, { fontSize: 26, color: palette.orange }]}>{money(product.price)}</Text>{saving && <Text style={[styles.muted, { color: palette.orange }]}>Save {money(saving.saved)}</Text>}</View>;
 }
 export function OfferCard({ offer, onBrowse, disabled = false, details = true }: { offer: Offer; onBrowse: (offer: Offer) => void; disabled?: boolean; details?: boolean }) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const combo = offerCombo(offer); const unavailable = !!combo && !comboAvailable(combo); const product = offer.orderProduct?.product;
   return <View style={[styles.card, { padding: 0, overflow: 'hidden' }]}>
     <View><FoodImage uri={offer.image || product?.image || ''} style={{ aspectRatio: 1.9, height: undefined, borderRadius: 0 }} /><View style={{ position: 'absolute', top: 12, left: 12, right: 12, alignItems: 'flex-start' }}><Text style={[styles.buttonText, { backgroundColor: palette.orange, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 }]}>{offerBadge(offer)}</Text></View></View>

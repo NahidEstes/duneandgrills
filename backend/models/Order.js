@@ -115,11 +115,17 @@ const orderSchema = new mongoose.Schema(
     platformTotal: { type: Number, min: 0, default: null },
     totalDifference: { type: Number, default: 0 },
     differenceReason: { type: String, trim: true, maxlength: 300, default: "" },
+    scheduledAt: { type: Date, default: null, index: true },
+    kitchenReleaseAt: { type: Date, default: null, index: true },
+    slotReleasedAt: { type: Date, default: null },
+    pointsRedemption: { points: Number, discount: Number, returnedPoints: { type: Number, default: 0 }, pointsPerSAR: Number, refundPolicy: String },
+    pointsOnlyRefundReserved: { type: Boolean, default: false },
     customer: {
       name: { type: String, required: true },
       phone: { type: String, required: true },
       email: { type: String },
       address: { type: String },
+      deliveryDetails: { coordinates: { latitude: { type: Number, min: -90, max: 90 }, longitude: { type: Number, min: -180, max: 180 } }, building: { type: String, maxlength: 240 }, apartment: { type: String, maxlength: 240 }, landmark: { type: String, maxlength: 240 }, instructions: { type: String, maxlength: 240 } },
     },
     items: {
       type: [orderItemSchema],

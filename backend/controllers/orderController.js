@@ -69,7 +69,7 @@ const buildOrderFilter = (query, { includeStatus = true } = {}) => {
 export const getOrderConfig = async (_req, res) => {
   try {
     const settings = await getEffectiveRestaurantSettings();
-    res.status(200).json({ success: true, data: getPublicOrderConfig(settings.orders) });
+    res.status(200).json({ success: true, data: { ...getPublicOrderConfig(settings.orders), checkout: settings.checkout, timezone: settings.timezone } });
   } catch (error) {
     res.status(500).json({ success: false, message: "Order configuration is temporarily unavailable", error: error.message });
   }

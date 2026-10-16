@@ -8,6 +8,6 @@ export function orderAttentionFilter(category, settings, now = new Date()) {
   if (!ORDER_ATTENTION_CATEGORIES.includes(category)) throw new ValidationError("Unsupported attention filter");
   const live = { manualEntry: { $ne: true }, paymentStatus: { $ne: "voided" }, voidedAt: null };
   return category === "pending_age"
-    ? { ...live, status: "pending", createdAt: { $lt: new Date(now.getTime() - settings.preparation.pendingAttentionMinutes * 60000) } }
+    ? { ...live, status: "pending", $expr: { $lt: [{ $ifNull: ['$kitchenReleaseAt', '$createdAt'] }, new Date(now.getTime() - settings.preparation.pendingAttentionMinutes * 60000)] } }
     : { ...live, status: { $in: [...ACTIVE_PREPARATION_STATUSES] }, preparationDueAt: { $ne: null, $lt: now } };
 }

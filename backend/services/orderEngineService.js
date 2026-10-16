@@ -15,6 +15,7 @@ import { creditOrderPoints, reverseOrderPoints, restoreRedemption } from "./rewa
 import { pickAuditFields, recordAuditLog } from "./auditLogService.js";
 import { awardCompletedOrderPoints } from "./orderPaymentService.js";
 
+import { restoreCheckoutPoints, releaseCheckoutSlot } from './checkoutService.js';
 const stable = value => value && typeof value.toJSON === "function" ? stable(value.toJSON()) : Array.isArray(value) ? value.map(stable) : value && typeof value === "object"
   ? Object.fromEntries(Object.keys(value).sort().filter(key => value[key] !== undefined).map(key => [key, stable(value[key])])) : value;
 const digest = value => crypto.createHash("sha256").update(value).digest("hex");
@@ -116,6 +117,7 @@ export const transitionOrderInSession = async ({ orderId, nextStatus, actor, rea
   if (!session) throw new OrderEngineError("Order transitions require a MongoDB replica set", 503);
   const order = await Order.findById(orderId).session(session);
   if (!order) throw new OrderEngineError("Order not found", 404);
+  if (order.kitchenReleaseAt && new Date(order.kitchenReleaseAt) > new Date() && ['preparing', 'ready', 'out-for-delivery', 'delivered'].includes(nextStatus)) throw new OrderEngineError('Scheduled order is not due for preparation yet', 409);
   if (workflow === "rider") await assertDeliveryEnabled(session, { lock: true });
   if (workflow === "rider" && (actor.role !== "rider"
     || !eligibleDeliveryOrder(order)
@@ -153,9 +155,11 @@ export const transitionOrderInSession = async ({ orderId, nextStatus, actor, rea
   if (minutes) order.estimatedPreparationMinutes = minutes;
   if (["confirmed", "preparing"].includes(nextStatus) && (!order.preparationDueAt || estimateChanged)) {
     order.estimatedPreparationMinutes ||= defaultPreparationMinutes;
-    order.preparationDueAt = new Date(now.getTime() + order.estimatedPreparationMinutes * 60_000);
+    order.preparationDueAt = order.scheduledAt || new Date(now.getTime() + order.estimatedPreparationMinutes * 60_000);
   }
   if (["cancelled", "failed"].includes(nextStatus)) {
+    await releaseCheckoutSlot(order, session);
+    await restoreCheckoutPoints(order, 1, session);
     if (["pending", "confirmed"].includes(previousStatus) && !order.preparationStartedAt && order.inventoryStatus === "deducted") {
       const restored = await restoreOrderInventory({ transactionIds: order.inventoryTransactions, orderId: order._id, orderNumber: order.orderNumber, actorId: actor._id, status: nextStatus, session });
       order.inventoryRestorationTransactions = restored.map(row => row._id);

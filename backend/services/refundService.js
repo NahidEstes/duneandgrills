@@ -22,6 +22,7 @@ export const refundSummaryForOrder = async (order, session = null) => {
     completedRefundAmount: fromHalala(completedHalala),
     pendingRefundAmount: fromHalala(reservedHalala - completedHalala),
     remainingRefundableAmount: fromHalala(Math.max(0, paidHalala - reservedHalala)),
+    pointsOnlyRefundAvailable: paidHalala === 0 && ['paid', 'partially_refunded'].includes(order.paymentStatus) && !order.pointsOnlyRefundReserved && (order.pointsRedemption?.points || 0) > (order.pointsRedemption?.returnedPoints || 0),
     refunds: refunds.map((row) => ({ ...row, amount: fromHalala(row.amountHalala), currency: "SAR" })),
   };
 };
@@ -45,6 +46,8 @@ export const createRefundRequest = async ({ orderId, payload, actor, correlation
     const method = payload.method || order.paymentMethod;
     if (!["cash", "card", "other"].includes(method)) throw new ValidationError("Choose cash, card or other refund method");
     const paidHalala = toHalala(order.totalAmount, "Order total");
+    const pointsOnly = payload.pointsOnly === true;
+    if (pointsOnly && (paidHalala !== 0 || !order.user || !(order.pointsRedemption?.points > (order.pointsRedemption?.returnedPoints || 0)) || (payload.amount !== undefined && Number(payload.amount) !== 0))) throw new ValidationError('Points-only restoration requires an unrefunded zero-payable points order');
     const items = Array.isArray(payload.items) ? payload.items.map(row => ({ index: Number(row.index), quantity: Number(row.quantity) })) : [];
     if (items.length > order.items.length || new Set(items.map(row => row.index)).size !== items.length || items.some(row => !Number.isInteger(row.index) || !order.items[row.index] || !Number.isInteger(row.quantity) || row.quantity <= 0)) throw new ValidationError("Refund item quantities are invalid");
     const pending = await Refund.find({ order: orderId, status: { $in: RESERVED_STATUSES } }).session(session).lean();
@@ -52,13 +55,14 @@ export const createRefundRequest = async ({ orderId, payload, actor, correlation
       const reserved = pending.reduce((sum, refund) => sum + (refund.items || []).filter(item => item.index === row.index).reduce((count, item) => count + item.quantity, 0), 0);
       if (row.quantity + reserved > order.items[row.index].quantity) throw new ValidationError("Refund item quantity exceeds the remaining quantity");
     }
-    const amountHalala = items.length ? Math.round(items.reduce((sum, row) => sum + toHalala(order.items[row.index].price) * row.quantity, 0) * paidHalala / Math.max(1, toHalala(order.subtotal))) : positiveHalala(payload.amount, "Refund amount");
-    if (amountHalala <= 0) throw new ValidationError("Refund amount must be greater than zero");
+    const amountHalala = pointsOnly ? 0 : items.length ? Math.round(items.reduce((sum, row) => sum + toHalala(order.items[row.index].price) * row.quantity, 0) * paidHalala / Math.max(1, toHalala(order.subtotal))) : positiveHalala(payload.amount, "Refund amount");
+    if (amountHalala <= 0 && !pointsOnly) throw new ValidationError("Refund amount must be greater than zero");
     const restock = payload.restock === true;
     if (restock && !items.length) throw new ValidationError("Select the returned item quantities to restore inventory");
     order = await Order.findOneAndUpdate({
       _id: order._id,
       paymentStatus: { $in: ["paid", "partially_refunded"] },
+      ...(pointsOnly ? { pointsOnlyRefundReserved: { $ne: true } } : {}),
       $expr: {
         $lte: [
           {
@@ -71,7 +75,7 @@ export const createRefundRequest = async ({ orderId, payload, actor, correlation
           { $round: [{ $multiply: ["$totalAmount", 100] }, 0] },
         ],
       },
-    }, { $inc: { refundReservedHalala: amountHalala } }, { new: true, session });
+    }, { $inc: { refundReservedHalala: amountHalala }, ...(pointsOnly ? { $set: { pointsOnlyRefundReserved: true } } : {}) }, { new: true, session });
     if (!order) {
       const current = await Order.findById(orderId).session(session || null);
       const used = Number(current?.refundReservedHalala || 0) + Number(current?.refundedAmountHalala || toHalala(current?.refundedAmount || 0));
@@ -88,6 +92,7 @@ export const createRefundRequest = async ({ orderId, payload, actor, correlation
       restock,
       originalPaymentReference: clean(payload.originalPaymentReference, 160),
       amountHalala,
+      pointsOnly,
       type: amountHalala === paidHalala - usedBeforeThisRequest ? "full" : "partial",
       reason,
       method,
@@ -147,7 +152,7 @@ export const transitionRefund = async ({ refundId, action, payload, actor, corre
       refund.completedAt = new Date();
       const totalHalala = toHalala(order.totalAmount, "Order total");
       order = await Order.findOneAndUpdate(
-        { _id: order._id, refundReservedHalala: { $gte: refund.amountHalala } },
+        { _id: order._id, refundReservedHalala: { $gte: refund.amountHalala }, ...(refund.pointsOnly ? { pointsOnlyRefundReserved: true } : {}) },
         [
           { $set: {
             refundReservedHalala: { $subtract: [{ $ifNull: ["$refundReservedHalala", 0] }, refund.amountHalala] },
@@ -156,19 +161,20 @@ export const transitionRefund = async ({ refundId, action, payload, actor, corre
           { $set: {
             refundedAmount: { $divide: ["$refundedAmountHalala", 100] },
             paymentStatus: { $cond: [{ $gte: ["$refundedAmountHalala", totalHalala] }, "refunded", "partially_refunded"] },
+            ...(refund.pointsOnly ? { pointsOnlyRefundReserved: false } : {}),
           } },
         ],
         { new: true, session }
       );
       if (!order) throw new ValidationError("Refund reservation is no longer available");
-      await recordRefundCashMovement({ refund, order, actor, session });
+      if (!refund.pointsOnly) await recordRefundCashMovement({ refund, order, actor, session });
       if (refund.restock) refund.restorationTransactions = await restoreRefundItems({ order, items: refund.items, actor, reference: refund._id, session });
       await reverseRefundRewards({ order, refundedHalala: order.refundedAmountHalala, reference: refund._id, session });
       await order.save(session ? { session } : {});
     } else if (["reject", "fail", "cancel"].includes(action)) {
       order = await Order.findOneAndUpdate(
         { _id: order._id, refundReservedHalala: { $gte: refund.amountHalala } },
-        { $inc: { refundReservedHalala: -refund.amountHalala } },
+        { $inc: { refundReservedHalala: -refund.amountHalala }, ...(refund.pointsOnly ? { $set: { pointsOnlyRefundReserved: false } } : {}) },
         { new: true, session }
       );
       if (!order) throw new ValidationError("Refund reservation is no longer available");

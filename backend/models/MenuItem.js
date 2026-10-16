@@ -32,6 +32,7 @@ const customizationSettingsSchema = new mongoose.Schema(
 
 const menuItemSchema = new mongoose.Schema(
   {
+    translations: { ar: { name: { type: String, trim: true, maxlength: 160 }, description: { type: String, trim: true, maxlength: 1000 } }, en: { name: { type: String, trim: true, maxlength: 160 }, description: { type: String, trim: true, maxlength: 1000 } } },
     name: {
       type: String,
       required: true,

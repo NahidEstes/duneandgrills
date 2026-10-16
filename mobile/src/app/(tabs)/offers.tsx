@@ -1,5 +1,7 @@
+import { useLanguage } from '../../i18n/LocaleProvider';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../../i18n/native';
 import { router } from 'expo-router';
 import { useApp } from '../../state/AppProvider';
 import { useResource } from '../../hooks/useResource';
@@ -13,6 +15,9 @@ import { OfferCard, browseOffer } from '../../components/offers';
 import { Button, IconButton, ListScreen, Loading, Notice, messageOf, styles } from '../../components/ui';
 
 export default function Offers() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const app = useApp(); const resource = useResource(loadOffers, 'offers', () => true, 60000); const now = useOfferTime(resource.data);
   const [filter, setFilter] = useState('All offers'); const [error, setError] = useState('');
   const visible = (resource.data || []).filter(offer => activeOffer(offer, now) && offerMatches(offer, filter));

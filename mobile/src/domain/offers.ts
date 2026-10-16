@@ -1,5 +1,6 @@
 import type { Combo, Offer, Product } from './types';
 import { money } from './cart';
+import { locale } from '../i18n/core';
 
 export function activeOffer(offer: Offer, now = Date.now()) {
   return offer.isActive === true && Date.parse(offer.startDate) <= now && Date.parse(offer.expiresAt) > now &&
@@ -20,7 +21,7 @@ export function comboSavings(product: Product) {
 export function offerBadge(offer: Offer) {
   return hasCoupon(offer) ? offer.discountType === 'percentage' && offer.discountValue <= 100 ? `${offer.discountValue}% off with code` : `Up to ${money(Math.min(offer.discountValue, offer.maximumDiscount ?? offer.discountValue))} off with code` : offerCombo(offer) ? 'Combo deal' : 'Offer';
 }
-export function offerDate(date: string) { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(date)); }
+export function offerDate(date: string) { return new Intl.DateTimeFormat(locale(), { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(date)); }
 export function offerTerms(offer: Offer) {
   const terms: string[] = [];
   if (hasCoupon(offer)) {

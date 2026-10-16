@@ -18,7 +18,10 @@ import { changeRefundStatus, listOrderRefunds, listRefunds, requestRefund } from
 import { handoffOrder, collectOrderPayment } from "../controllers/orderHandoffController.js";
 import { cancelOrderRequest } from "../controllers/orderRequestController.js";
 
+import { quoteCheckout, getSlots } from '../controllers/checkoutController.js';
 const router = express.Router();
+router.get('/slots', getSlots);
+router.post('/quote', rateLimit({ windowMs: 60000, max: 60, keyPrefix: 'checkout-quote' }), optionalAuth, quoteCheckout);
 
 router
   .route("/")

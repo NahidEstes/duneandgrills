@@ -1,9 +1,9 @@
 // Public per-icon entry points avoid loading the entire icon catalog in Metro.
 export type { LucideIcon } from 'lucide-react-native';
-export { default as ArrowLeft } from 'lucide-react-native/icons/arrow-left';
-export { default as ArrowRight } from 'lucide-react-native/icons/arrow-right';
+export { ArrowLeft } from './directional-icons';
+export { ArrowRight } from './directional-icons';
 export { default as Banknote } from 'lucide-react-native/icons/banknote';
-export { default as ChevronRight } from 'lucide-react-native/icons/chevron-right';
+export { ChevronRight } from './directional-icons';
 export { default as CirclePlus } from 'lucide-react-native/icons/circle-plus';
 export { default as Home } from 'lucide-react-native/icons/house';
 export { default as MapPin } from 'lucide-react-native/icons/map-pin';

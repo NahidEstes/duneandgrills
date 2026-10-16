@@ -6,6 +6,7 @@ import { creditOrderPoints } from "./rewardService.js";
 import { calculateOrderPoints } from "../config/rewards.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
 
+import { restoreCheckoutPoints } from './checkoutService.js';
 const round = value => Number(Number(value).toFixed(6));
 // Historical deductions retain recipe component snapshots. Resolve their shares
 // from the order snapshot, never from today's editable recipe.
@@ -60,6 +61,7 @@ export const restoreRefundItems = async ({ order, items, actor, reference, sessi
 };
 
 export const reverseRefundRewards = async ({ order, refundedHalala, reference, session }) => {
+  await restoreCheckoutPoints(order, order.totalAmount > 0 ? refundedHalala / Math.round(order.totalAmount * 100) : 1, session);
   if (!order.user || order.pointsReversedAt || !order.pointsEarned) return;
   const target = Math.min(order.pointsEarned, Math.floor(order.pointsEarned * refundedHalala / Math.round(order.totalAmount * 100)));
   const entitlement = Math.max(0, target - Number(order.rewardRefundPointsReversed || 0));

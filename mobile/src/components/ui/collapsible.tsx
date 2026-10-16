@@ -1,6 +1,8 @@
+import { useLanguage } from '../../i18n/LocaleProvider';
 import { SymbolView } from 'expo-symbols';
 import { PropsWithChildren, useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { Pressable } from '../../i18n/native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
@@ -9,6 +11,9 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export function Collapsible({ children, title }: PropsWithChildren & { title: string }) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const theme = useTheme();
 

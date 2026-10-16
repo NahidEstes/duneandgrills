@@ -76,7 +76,7 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
   const customer = historical ? null : data.customer;
   const stage = data.deliveryStatus === "issue" ? data.issue?.previousStatus : data.deliveryStatus;
   const progressIndex = ["assigned", "picked_up", "delivered"].indexOf(stage);
-  const phone = !preview && customerPhoneHref(customer?.phone), map = !preview && customerMapHref(customer?.address);
+  const phone = !preview && customerPhoneHref(customer?.phone), map = !preview && customerMapHref(customer?.address, customer?.deliveryDetails?.coordinates);
   const food = riderFoodStatus(data), FoodIcon = foodIcons[food.icon];
   const ownRider = user?.role === "rider" && String(data.riderId) === String(userId);
   const canAct = !preview && !admin && ownRider && data.canOperate && (data.mode === "operational" || (rehearsal && data.mode === "rehearsal"));
@@ -103,6 +103,7 @@ export function DeliveryDetailContent({ id, preview, rehearsal, admin = false, a
       <div className={styles.detailColumn}>
         <section className={styles.detailCard}><div className={styles.detailRecipient}><span className={styles.restaurantMark} aria-hidden="true">D<span>&amp;</span>G</span><div><h3>Dune &amp; Grills</h3><p>{data.pickupInstructions || "Pickup instructions are not recorded. Contact the restaurant before collecting."}</p></div></div></section>
         <section className={styles.detailCard} aria-label="Customer delivery information"><div className={styles.detailRecipient}><span className={styles.customerIcon}><UserRound aria-hidden="true" /></span><div><h3>{historical ? "Completed delivery" : customer?.name || "Customer details unavailable"}</h3><p className={styles.customerAddress}><MapPin size={18} aria-hidden="true" />{historical ? "Historical customer contact/address is hidden." : customer?.address || "Delivery address not recorded."}</p>{!historical && data.deliveryNote && <p className={styles.deliveryNote}><strong>Delivery note</strong>{data.deliveryNote}</p>}</div></div>
+          {!historical && customer?.deliveryDetails && <div className={styles.deliveryNote}>{['building', 'apartment', 'landmark', 'instructions'].map(key => customer.deliveryDetails[key] && <p key={key}>{key}: {customer.deliveryDetails[key]}</p>)}</div>}
           {!historical && <><div className={styles.customerActions}>{phone ? <a href={phone}><Phone size={19} aria-hidden="true" />Call Customer</a> : <button type="button" disabled><Phone size={19} aria-hidden="true" />Call unavailable</button>}{map ? <a href={map} target="_blank" rel="noopener noreferrer"><MapPin size={19} aria-hidden="true" />Open Map</a> : <button type="button" disabled><MapPin size={19} aria-hidden="true" />Map unavailable</button>}</div>{(!phone || !map) && <p className={styles.contactExplanation}>{preview ? "Calls and maps are disabled in the synthetic preview." : !phone && !map ? "A valid customer phone number and address are not included in this response." : !phone ? "A valid customer phone number is not included in this response." : "A delivery address is not included in this response."}</p>}</>}
         </section>
       </div>

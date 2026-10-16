@@ -14,7 +14,7 @@ import {
   normalizeCustomizationSettings,
 } from "../services/menuCustomizationService.js";
 
-const MENU_AUDIT_FIELDS = ["name", "price", "category", "categoryRef", "isAvailable", "isFeatured", "description", "customization"];
+const MENU_AUDIT_FIELDS = ["name", "translations", "price", "category", "categoryRef", "isAvailable", "isFeatured", "description", "customization"];
 
 const refreshComboPrices = async (menuItemId) => {
   const combos = await Combo.find({ "items.menuItem": menuItemId }).populate(

@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LocaleProvider';
 import { View, type ViewProps } from 'react-native';
 
 import { ThemeColor } from '@/constants/theme';
@@ -10,6 +11,9 @@ export type ThemedViewProps = ViewProps & {
 };
 
 export function ThemedView({ style, lightColor, darkColor, type, ...otherProps }: ThemedViewProps) {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const theme = useTheme();
 
   return <View style={[{ backgroundColor: theme[type ?? 'background'] }, style]} {...otherProps} />;

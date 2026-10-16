@@ -1,3 +1,4 @@
+import { formatNumber, locale } from '../i18n/core';
 // GET /rewards/me: only the customer-facing read model is retained.
 // The existing backend returns at most the latest 100 ledger records.
 export const POINTS_HISTORY_LIMIT = 100;
@@ -5,10 +6,10 @@ export type PointsActivity = { key: string; type: string; points: number; create
 export type PointsAccount = { pointsBalance: number; pointsDebt: number; pointsPerSAR?: number; policy: { earnAfter?: string; pointsExpire?: boolean }; history: PointsActivity[] };
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 const nonnegative = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
-export const pointsNumber = (value: number) => new Intl.NumberFormat('en', { maximumFractionDigits: 20 }).format(value);
+export const pointsNumber = formatNumber;
 export const signedPoints = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${pointsNumber(Math.abs(value))} points`;
 export function pointsDate(value: string) {
-  const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date) : 'Date unavailable';
+  const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(locale(), { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date) : 'Date unavailable';
 }
 export function activityTitle(activity: PointsActivity) {
   if (activity.type === 'REVERSAL') return activity.points > 0 ? 'Points returned' : activity.points < 0 ? 'Points adjusted after a refund' : 'Points adjustment';

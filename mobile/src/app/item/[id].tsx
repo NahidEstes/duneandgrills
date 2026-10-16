@@ -1,5 +1,8 @@
+import { catalogText } from '../../i18n/core';
+import { useLanguage } from '../../i18n/LocaleProvider';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../../i18n/native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { api } from '../../services/api';
 import { useResource } from '../../hooks/useResource';
@@ -12,10 +15,16 @@ import { ShareButton } from '../../components/share';
 import { validPublicId } from '../../domain/public-links';
 import { Button, Chip, Field, FoodImage, Loading, Notice, Quantity, Screen, messageOf, styles } from '../../components/ui';
 export default function Item() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const { id, type } = useLocalSearchParams<{ id: string; type?: string }>();
   return type === 'combo' ? <Redirect href={{ pathname: '/combo/[id]', params: { id } }} /> : <ItemContents key={id} />;
 }
 function ItemContents() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const { id, type, favorite } = useLocalSearchParams<{ id: string; type?: string; favorite?: string }>(); const kind = type === 'combo' ? 'combo' : 'menuItem';
   const favorites = useFavorites();
   const { data: product, loading, error, refresh } = useResource<Product>(async signal => { if (!validPublicId(id)) throw new Error('This item link is invalid.'); return { ...(await api<{ data: Product }>(`/${kind === 'combo' ? 'combos' : 'menu'}/${encodeURIComponent(id)}`, { signal })).data, productType: kind }; }, `${kind}:${id}`);
@@ -29,7 +38,7 @@ function ItemContents() {
   const price = product && !validation ? lineFor(product, selection, quantity).unitPrice * quantity : product ? product.price * quantity : 0;
   const add = async () => { if (!product || saving) return; setSaving(true); try { await app.add(lineFor(product, selection, quantity)); router.push('/(tabs)/cart'); } catch (e) { setFailure(messageOf(e)); } finally { setSaving(false); } };
   return <Screen><Notice message={error} retry={() => void refresh()} />{loading && !product && <Loading />}{product && <>
-    <FoodImage uri={product.image} large /><View style={styles.between}><Text style={[styles.title, { flexShrink: 1 }]}>{product.name}</Text><View style={styles.row}><FavoriteButton product={product} /><ShareButton kind="item" id={product._id} title={product.name} description={product.description} /></View></View><Text style={styles.text}>{product.description}</Text>
+    <FoodImage uri={product.image} large /><View style={styles.between}><Text style={[styles.title, { flexShrink: 1 }]}>{catalogText(product)}</Text><View style={styles.row}><FavoriteButton product={product} /><ShareButton kind="item" id={product._id} title={catalogText(product)} description={catalogText(product, 'description')} /></View></View><Text style={styles.text}>{catalogText(product, 'description')}</Text>
     {favorite === 'review' && app.session && <Text style={styles.muted}>Signed in as {app.session.user.name}. Tap the heart to save this food to this account.</Text>}<Notice message={favorites.error} retry={() => void favorites.refresh()} />
     {product.items?.map((i, idx) => <Text key={idx} style={styles.muted}>{i.quantity} × {i.name}</Text>)}
     {product.customization?.enabled && <>

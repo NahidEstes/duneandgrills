@@ -1,4 +1,6 @@
-import { Text, View } from 'react-native';
+import { useLanguage } from '../i18n/LocaleProvider';
+import { View } from 'react-native';
+import { Text } from '../i18n/native';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { useFavorites } from '../state/FavoritesProvider';
@@ -6,6 +8,9 @@ import { useApp } from '../state/AppProvider';
 import { ProductCard, useProductAdder } from '../components/commerce';
 import { Button, ListScreen, Loading, Notice, Screen, styles } from '../components/ui';
 export default function Favorites() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const app = useApp(); const favorites = useFavorites(); const { refresh } = favorites; const adder = useProductAdder();
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
   if (!app.session) return <Screen><Text style={styles.title}>Favourite foods</Text><Text style={styles.text}>Sign in to see your saved foods.</Text><Button title="Sign in" onPress={() => router.push('/auth')} /></Screen>;

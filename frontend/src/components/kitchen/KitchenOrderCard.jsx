@@ -72,6 +72,7 @@ export default function KitchenOrderCard({ order, nowMs, defaultPreparationMinut
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-neutral-500">Order</p>
             <h3 className="mt-1 font-display text-2xl tracking-wide text-white">#{order.orderNumber}</h3>
+            {order.scheduledAt && <p className="mt-2 text-sm text-dune-amber">Scheduled: {new Date(order.scheduledAt).toLocaleString('en-GB', { timeZone: 'Asia/Riyadh' })} (Riyadh)</p>}
           </div>
           {order.status === "pending" && <span className="animate-pulse rounded-full border border-amber-400/40 bg-amber-500/15 px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wider text-amber-300">New Order</span>}
           {timer.overdue && <span className="flex items-center gap-1 rounded-full border border-red-400/40 bg-red-500/15 px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wider text-red-300"><AlertTriangle className="h-3 w-3" />Overdue</span>}

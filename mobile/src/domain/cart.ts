@@ -1,5 +1,6 @@
 import type { CartLine, OrderConfig, Product, Selection, Customer } from './types';
-export const money = (amount: number) => `SAR ${Number(amount).toFixed(2)}`;
+import { formatMoney } from '../i18n/core';
+export const money = formatMoney;
 export const emptySelection = (): Selection => ({ selectedAddOns: [], spiceLevel: '', note: '' });
 export const availableAddOns = (product: Product) => [...new Map([
   ...(product.addOns || []), ...(product.customization?.groups || []).flatMap(g => g.addOns),

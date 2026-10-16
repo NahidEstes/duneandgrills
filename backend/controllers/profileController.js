@@ -8,6 +8,7 @@ import Combo from "../models/Combo.js";
 import { ensurePointsBalance } from "../services/rewardService.js";
 import { comboHasAvailableItems, serializeCombo } from "../services/catalogService.js";
 
+import { normalizeDeliveryDetails } from '../services/checkoutPolicy.js';
 const publicUser = (user) => ({
   _id: user._id,
   name: user.name,
@@ -135,7 +136,7 @@ export const addAddress = async (req, res) => {
     }
 
     const user = await User.findById(req.user._id);
-    user.addresses.push({ label, fullAddress, phone, isDefault });
+    user.addresses.push({ label, fullAddress, phone, isDefault, deliveryDetails: normalizeDeliveryDetails(req.body.deliveryDetails) });
     const added = user.addresses[user.addresses.length - 1];
     if (isDefault || user.addresses.length === 1) {
       normalizeDefault(user.addresses, added._id);
@@ -164,6 +165,7 @@ export const updateAddress = async (req, res) => {
     ["label", "fullAddress", "phone"].forEach((field) => {
       if (req.body[field] !== undefined) address[field] = req.body[field];
     });
+    if (req.body.deliveryDetails !== undefined) address.deliveryDetails = normalizeDeliveryDetails(req.body.deliveryDetails);
     if (req.body.isDefault) normalizeDefault(user.addresses, address._id);
     if (address.isDefault) user.address = address.fullAddress;
     await user.save();

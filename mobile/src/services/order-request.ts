@@ -13,7 +13,7 @@ export function trackingFor(result: OrderResult, saved: Pending): Tracking {
   return { orderNumber: order.orderNumber, token: result.trackingToken, actor: saved.actor, baseUrl: saved.baseUrl,
     order: { _id: order._id, orderNumber: order.orderNumber, totalAmount: order.totalAmount, subtotal: order.subtotal,
       deliveryFee: order.deliveryFee, discountAmount: order.discountAmount, status: order.status, paymentStatus: order.paymentStatus,
-      fulfillmentType: order.fulfillmentType, createdAt: order.createdAt, estimatedPreparationMinutes: order.estimatedPreparationMinutes, items: [] } };
+      scheduledAt: order.scheduledAt, pointsDiscount: order.pointsDiscount, pointsRedeemed: order.pointsRedeemed, fulfillmentType: order.fulfillmentType, createdAt: order.createdAt, estimatedPreparationMinutes: order.estimatedPreparationMinutes, items: [] } };
 }
 // A single gate is shared by creation, retry, and reconciliation. Nothing is
 // submitted until durable storage acknowledges the exact immutable request.

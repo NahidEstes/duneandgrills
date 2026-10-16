@@ -1,5 +1,8 @@
+import { useLanguage } from '../../i18n/LocaleProvider';
+import { catalogText } from '../../i18n/core';
 import { useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable, Text, TextInput } from '../../i18n/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CirclePlus, Tag, Trash2 } from '../../components/icons';
 import { useApp } from '../../state/AppProvider';
@@ -13,8 +16,14 @@ import { browseOffer } from '../../components/offers';
 import { AddressCard, OrderSummary, PaymentCard, openMenu } from '../../components/commerce';
 import { palette } from '../../constants/design';
 import { Button, FoodImage, FulfillmentSelector, IconButton, Notice, Quantity, Screen, messageOf, styles } from '../../components/ui';
-export default function Cart() { const app = useApp(); return <CartContents key={app.actor} />; }
+export default function Cart() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage(); const app = useApp(); return <CartContents key={app.actor} />; }
 function CartContents() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const { repeatNotice } = useLocalSearchParams<{ repeatNotice?: string }>();
   const app = useApp(); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); const gate = useRef(false);
   const config = useResource(loadOrderConfig, 'cart-config'); const { customer, addresses } = useDeliveryAddress();
@@ -34,10 +43,10 @@ function CartContents() {
     {app.pending && <><Notice message="An order outcome is unresolved. Your original cart is protected until you retry or reconcile it." /><Button title="Resolve saved order" onPress={() => router.push('/checkout')} /></>}
     {!app.cart.length && <View style={styles.card}><Text style={styles.heading}>Your cart is empty.</Text><Text style={styles.muted}>Find your next favourite bite.</Text><Button title="Explore the menu" onPress={() => openMenu()} /></View>}
     {app.cart.map(c => <View key={c.key} style={styles.card}>
-      <View style={{ flexDirection: 'row', gap: 14 }}><FoodImage uri={c.product.image} style={{ width: 88, height: 88 }} /><View style={{ flex: 1, minWidth: 0, gap: 5 }}><Text style={styles.heading}>{c.product.name}</Text><Text style={[styles.heading, { color: palette.orange }]}>{money(c.unitPrice * c.quantity)}</Text><Text style={styles.muted}>{money(c.unitPrice)} each</Text></View></View>
+      <View style={{ flexDirection: 'row', gap: 14 }}><FoodImage uri={c.product.image} style={{ width: 88, height: 88 }} /><View style={{ flex: 1, minWidth: 0, gap: 5 }}><Text style={styles.heading}>{catalogText(c.product)}</Text><Text style={[styles.heading, { color: palette.orange }]}>{money(c.unitPrice * c.quantity)}</Text><Text style={styles.muted}>{money(c.unitPrice)} each</Text></View></View>
       {!!(c.selection.spiceLevel || c.selection.note) && <Text style={styles.muted}>{[c.selection.spiceLevel.replace('-', ' '), c.selection.note].filter(Boolean).join(' · ')}</Text>}
       {c.selection.selectedAddOns.map(a => <Text key={a.id} style={styles.muted}>{a.quantity} × {availableAddOns(c.product).find(b => b._id === a.id)?.name || 'Add-on'}</Text>)}
-      <View style={styles.between}><Quantity value={c.quantity} disabled={locked} change={n => void change(c.key, n)} /><IconButton icon={Trash2} label={`Remove ${c.product.name}`} disabled={locked} onPress={() => void change(c.key)} /></View>
+      <View style={styles.between}><Quantity value={c.quantity} disabled={locked} change={n => void change(c.key, n)} /><IconButton icon={Trash2} label={`Remove ${catalogText(c.product)}`} disabled={locked} onPress={() => void change(c.key)} /></View>
     </View>)}
     <Pressable accessibilityRole="button" onPress={() => openMenu()} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48 }}><CirclePlus color={palette.orange} size={25} /><Text style={[styles.text, { fontWeight: '700', color: palette.orange }]}>Add something extra</Text></Pressable>
     <Notice message={selected.error} retry={selected.error ? () => void selected.retry() : undefined} />

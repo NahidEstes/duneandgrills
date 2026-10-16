@@ -1,5 +1,7 @@
+import { useLanguage } from '../../i18n/LocaleProvider';
 import { useState } from 'react';
-import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text, Image } from '../../i18n/native';
 import { router } from 'expo-router';
 import { ShoppingBag } from '../../components/icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,6 +20,9 @@ import { AddressCard, CategoryShortcuts, ProductCard, SectionLink, openMenu, use
 import { Button, FoodImage, FulfillmentSelector, IconButton, Loading, Notice, Screen, SearchField, messageOf, styles } from '../../components/ui';
 
 export default function Home() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const app = useApp(); const catalog = useResource(loadCatalog, 'home-catalog'); const config = useResource(loadOrderConfig, 'home-config');
   const active = useActiveOrders();
   const favorites = useFavorites();

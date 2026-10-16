@@ -1,0 +1,140 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { withIsolatedMongo } from './helpers/isolatedMongo.js';
+import User from '../models/User.js';
+import MenuItem from '../models/MenuItem.js';
+import Order from '../models/Order.js';
+import OrderSlot from '../models/OrderSlot.js';
+import RestaurantSettings from '../models/RestaurantSettings.js';
+import Offer from '../models/Offer.js';
+import InventoryRecipe from '../models/InventoryRecipe.js';
+import CashMovement from '../models/CashMovement.js';
+import { getRestaurantSettingsDefaults, updateRestaurantSettings } from '../services/restaurantSettingsService.js';
+import { normalizeCheckoutPolicy } from '../services/checkoutPolicy.js';
+import { createCustomerOrder } from '../services/customerOrderService.js';
+import { transitionOrder } from '../services/orderEngineService.js';
+import { cancelCreationRequest, creationIdentity } from '../services/orderEngineService.js';
+import { listCheckoutSlots, slotKey } from '../services/checkoutService.js';
+import { listKitchenOrders } from '../services/kitchenService.js';
+import { createRefundRequest, transitionRefund } from '../services/refundService.js';
+import { addAddress, updateAddress } from '../controllers/profileController.js';
+import { quoteCheckout } from '../controllers/checkoutController.js';
+process.env.NODE_ENV = 'test'; process.env.JWT_SECRET = 'local-checkout-fixture-only'; process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = 'false';
+test('checkout lifecycle, balances and slots use owned local transactions', { timeout: 180000 }, async t => withIsolatedMongo(async () => {
+  const admin = await User.create({ name: 'Admin', email: 'admin@checkout.test', password: 'FixturePassword123!', role: 'admin' });
+  const customer = await User.create({ name: 'Customer', email: 'customer@checkout.test', password: 'FixturePassword123!', role: 'customer', pointsBalance: 1000 });
+  const dish = await MenuItem.create({ name: 'Fixture grill', description: 'Fixture', image: '/fixture.jpg', category: 'Food', price: 20, trackInventory: false });
+  await InventoryRecipe.create({ menuItem: dish._id, doNotTrack: true, ingredients: [], updatedBy: admin._id });
+  const checkout = normalizeCheckoutPolicy({ points: { enabled: true, pointsPerSAR: 100, minimumPoints: 100, maximumDiscountSAR: 20, stackWithCoupons: true, refundPolicy: 'proportional' }, delivery: { enabled: true, latitude: 24.7, longitude: 46.7, radiusKm: 5, feeSAR: 7 }, scheduling: { enabled: true, openingHoursConfirmed: true, slotMinutes: 30, capacity: 1, cutoffMinutes: 10, horizonDays: 3 } });
+  const settings = { ...getRestaurantSettingsDefaults(), checkout, openingHours: getRestaurantSettingsDefaults().openingHours.map(day => ({ ...day, periods: [{ open: '00:00', close: '23:59' }] })) };
+  await RestaurantSettings.create(settings);
+  const body = (extra = {}) => ({ idempotencyKey: randomUUID(), fulfillmentType: 'pickup', paymentOption: 'cod', customer: { name: 'عميل', phone: '+966500000000', address: 'Fixture address', deliveryDetails: { coordinates: { latitude: 24.7, longitude: 46.7 }, building: '12', apartment: '2', instructions: 'Call' } }, items: [{ productId: String(dish._id), productType: 'menuItem', quantity: 1 }], ...extra });
+  const create = payload => createCustomerOrder({ payload, actor: customer, key: payload.idempotencyKey });
+  await t.test('real quote controller verifies price and delivery without consuming points or slots', async () => {
+    let result;
+    const res = { set() { return this; }, json(value) { result = value; return this; } };
+    const count = await Order.countDocuments(); const balance = (await User.findById(customer._id)).pointsBalance;
+    const payload = body({ fulfillmentType: 'delivery', pointsToRedeem: 500, scheduledAt: (await listCheckoutSlots(settings, 'delivery'))[0] });
+    await quoteCheckout({ body: payload, user: customer }, res, error => { throw error; });
+    assert.equal(result.data.fee, 7); assert.equal(result.data.total, 22); assert.equal(result.data.pointsDiscount, 5);
+    assert.equal(await Order.countDocuments(), count); assert.equal((await User.findById(customer._id)).pointsBalance, balance);
+    assert.equal(await OrderSlot.countDocuments(), 0);
+  });
+  await t.test('insufficient points rejects atomically without an order', async () => {
+    const count = await Order.countDocuments(); await assert.rejects(create(body({ pointsToRedeem: 1500 })), /Insufficient/); assert.equal(await Order.countDocuments(), count);
+  });
+  await t.test('inventory failure after reservation rolls back points, ledger and slot consumption', async () => {
+    const before = (await User.findById(customer._id)).pointsBalance; const count = await Order.countDocuments();
+    const scheduledAt = (await listCheckoutSlots(settings, 'pickup'))[0];
+    await InventoryRecipe.updateOne({ menuItem: dish._id }, { $set: { doNotTrack: false } });
+    try { await assert.rejects(create(body({ scheduledAt, pointsToRedeem: 100 })), /recipe/i); }
+    finally { await InventoryRecipe.updateOne({ menuItem: dish._id }, { $set: { doNotTrack: true } }); }
+    const user = await User.findById(customer._id); assert.equal(user.pointsBalance, before); assert.equal(user.pointTransactions.length, 0); assert.equal(await Order.countDocuments(), count); assert.equal((await OrderSlot.findById(slotKey('pickup', scheduledAt))).used, 0);
+  });
+  await t.test('concurrent redemptions never overspend; cancellation restores once', async () => {
+    const results = await Promise.allSettled([create(body({ pointsToRedeem: 800 })), create(body({ pointsToRedeem: 800 }))]);
+    assert.equal(results.filter(row => row.status === 'fulfilled').length, 1);
+    assert.equal((await User.findById(customer._id)).pointsBalance, 200);
+    const order = results.find(row => row.status === 'fulfilled').value.order;
+    for (let i = 0; i < 2; i++) await transitionOrder({ orderId: order._id, nextStatus: 'cancelled', reason: 'Fixture cancellation', actor: admin });
+    const user = await User.findById(customer._id); assert.equal(user.pointsBalance, 1000); assert.equal(user.pointTransactions.filter(row => row.sourceKey.startsWith('CHECKOUT_RETURN:')).length, 1);
+  });
+  await t.test('combined Arabic delivery, coupon, points and schedule preserve exact replay and private recovery', async () => {
+    await Offer.create({ title: 'Fixture coupon', description: 'Fixture', image: '/fixture.jpg', promoCode: 'CHECKOUT', discountType: 'fixed', discountValue: 2, startDate: new Date(Date.now() - 60000), expiresAt: new Date(Date.now() + 86400000), isActive: true });
+    const scheduledAt = (await listCheckoutSlots(settings, 'delivery'))[1];
+    const payload = body({ fulfillmentType: 'delivery', scheduledAt, pointsToRedeem: 500, couponCode: 'CHECKOUT', deliveryFee: 0, totalAmount: 0 });
+    const results = await Promise.all(Array.from({ length: 3 }, () => create(payload)));
+    assert.equal(new Set(results.map(row => String(row.order._id))).size, 1);
+    const order = results[0].order; assert.equal(order.totalAmount, 20); assert.equal(order.discountAmount, 7); assert.equal(order.eligiblePointsAmount, 13); assert.equal(order.customer.deliveryDetails.apartment, '2');
+    assert.equal((await User.findById(customer._id)).pointsBalance, 500);
+    assert.equal((await OrderSlot.findById(slotKey('delivery', scheduledAt))).used, 1);
+    const recovery = await cancelCreationRequest({ identity: creationIdentity({ payload, key: payload.idempotencyKey, channel: 'customer', actor: customer, orderType: 'delivery' }), actor: customer });
+    assert.equal(String(recovery.order._id), String(order._id));
+    await assert.rejects(create({ ...payload, pointsToRedeem: 100 }), /different contents/);
+    await transitionOrder({ orderId: order._id, nextStatus: 'cancelled', reason: 'Fixture cancellation', actor: admin });
+  });
+  await t.test('concurrent booking respects capacity; failed booking does not debit points; cancellation releases capacity', async () => {
+    const scheduledAt = (await listCheckoutSlots(settings, 'pickup'))[2];
+    const before = (await User.findById(customer._id)).pointsBalance;
+    const outcomes = await Promise.allSettled([create(body({ scheduledAt, pointsToRedeem: 100 })), create(body({ scheduledAt, pointsToRedeem: 100 }))]);
+    assert.equal(outcomes.filter(row => row.status === 'fulfilled').length, 1);
+    const order = outcomes.find(row => row.status === 'fulfilled').value.order;
+    assert.equal((await User.findById(customer._id)).pointsBalance, before - 100);
+    assert.equal((await listCheckoutSlots(settings, 'pickup')).includes(scheduledAt), false);
+    assert.equal((await listKitchenOrders()).some(row => String(row._id) === String(order._id)), false);
+    await transitionOrder({ orderId: order._id, nextStatus: 'confirmed', actor: admin });
+    await assert.rejects(transitionOrder({ orderId: order._id, nextStatus: 'preparing', actor: admin }), /not due/);
+    const due = await listKitchenOrders({}, new Date(order.kitchenReleaseAt.getTime() + 1)); assert.ok(due.some(row => String(row._id) === String(order._id)));
+    await transitionOrder({ orderId: order._id, nextStatus: 'cancelled', reason: 'Fixture', actor: admin });
+    assert.equal((await OrderSlot.findById(slotKey('pickup', scheduledAt))).used, 0);
+    assert.equal((await User.findById(customer._id)).pointsBalance, before);
+  });
+  await t.test('past slot and out-of-area location reject; older manual addresses and guest checkout still work', async () => {
+    await assert.rejects(create(body({ scheduledAt: '2020-01-01T00:00:00.000Z' })), /unavailable/);
+    const payload = body({ fulfillmentType: 'delivery' }); payload.customer.deliveryDetails.coordinates.latitude = 0;
+    await assert.rejects(create(payload), /outside/);
+    const legacy = await updateRestaurantSettings({ checkout: { delivery: { enabled: false } } }, admin); assert.equal(legacy.checkout.delivery.enabled, false);
+    const guestBody = body({ fulfillmentType: 'delivery' }); delete guestBody.customer.deliveryDetails;
+    const guest = await createCustomerOrder({ payload: guestBody, key: guestBody.idempotencyKey }); assert.equal(guest.order.user, null); assert.equal(guest.order.deliveryFee, settings.orders.deliveryFee);
+    await assert.rejects(createCustomerOrder({ payload: body({ pointsToRedeem: 100 }) }), /Sign in/);
+  });
+  await t.test('partial and full refunds return cumulative points once, including orders with no earned points', async () => {
+    const { order } = await create(body({ pointsToRedeem: 500 }));
+    await Order.updateOne({ _id: order._id }, { $set: { paymentStatus: 'paid' } });
+    const before = (await User.findById(customer._id)).pointsBalance;
+    const makeRefund = amount => createRefundRequest({ orderId: order._id, actor: admin, payload: { idempotencyKey: randomUUID(), amount, method: 'cash', reason: 'Fixture refund', restock: false } });
+    const first = await makeRefund(7.5);
+    await transitionRefund({ refundId: first.refund._id, action: 'approve', payload: {}, actor: admin });
+    for (let i = 0; i < 2; i++) await transitionRefund({ refundId: first.refund._id, action: 'complete', payload: {}, actor: admin });
+    assert.equal((await User.findById(customer._id)).pointsBalance, before + 250);
+    const second = await makeRefund(7.5); await transitionRefund({ refundId: second.refund._id, action: 'approve', payload: {}, actor: admin }); await transitionRefund({ refundId: second.refund._id, action: 'complete', payload: {}, actor: admin });
+    assert.equal((await User.findById(customer._id)).pointsBalance, before + 500);
+  });
+  await t.test('saved addresses retain legacy rows and persist editable map coordinates and contact details', async () => {
+    let response;
+    const res = { status(code) { this.code = code; return this; }, json(value) { response = value; return this; } };
+    await addAddress({ user: customer, body: { label: 'Old home', fullAddress: 'Legacy address', phone: '+966500000000' } }, res);
+    assert.equal(res.code, 201); const old = response.data[0]; assert.equal(old.deliveryDetails?.coordinates?.latitude, undefined);
+    await updateAddress({ user: customer, params: { id: String(old._id) }, body: { deliveryDetails: { coordinates: { latitude: 24.7, longitude: 46.7 }, building: '12', apartment: '3', landmark: 'Gate', instructions: 'Call first' } } }, res);
+    assert.equal(res.code, 200); const saved = (await User.findById(customer._id)).addresses[0]; assert.equal(saved.deliveryDetails.coordinates.latitude, 24.7); assert.equal(saved.deliveryDetails.instructions, 'Call first'); assert.equal(saved.fullAddress, 'Legacy address');
+    await updateAddress({ user: customer, params: { id: String(old._id) }, body: { deliveryDetails: { coordinates: { latitude: 99, longitude: 0 } } } }, res); assert.equal(res.code, 400);
+    assert.equal((await User.findById(customer._id)).addresses[0].deliveryDetails.coordinates.latitude, 24.7);
+  });
+  await t.test('zero-payable orders support approved points-only restoration without cash movements or duplicate reservations', async () => {
+    await User.updateOne({ _id: customer._id }, { $set: { pointsBalance: 2000 } });
+    const { order } = await create(body({ pointsToRedeem: 2000 })); assert.equal(order.totalAmount, 0);
+    await Order.updateOne({ _id: order._id }, { $set: { paymentStatus: 'paid' } });
+    const beforeCash = await CashMovement.countDocuments();
+    const make = () => createRefundRequest({ orderId: order._id, actor: admin, payload: { idempotencyKey: randomUUID(), amount: 0, pointsOnly: true, method: 'other', reason: 'Fixture full points return' } });
+    const attempts = await Promise.allSettled([make(), make()]); assert.equal(attempts.filter(row => row.status === 'fulfilled').length, 1);
+    const refund = attempts.find(row => row.status === 'fulfilled').value.refund;
+    assert.equal(refund.amountHalala, 0); assert.equal(refund.pointsOnly, true);
+    await transitionRefund({ refundId: refund._id, action: 'cancel', payload: {}, actor: admin });
+    const replacement = (await make()).refund;
+    await transitionRefund({ refundId: replacement._id, action: 'approve', payload: {}, actor: admin });
+    for (let i = 0; i < 2; i++) await transitionRefund({ refundId: replacement._id, action: 'complete', payload: {}, actor: admin });
+    assert.equal((await User.findById(customer._id)).pointsBalance, 2000); assert.equal((await Order.findById(order._id)).paymentStatus, 'refunded'); assert.equal(await CashMovement.countDocuments(), beforeCash);
+    await assert.rejects(make(), /captured|unrefunded/i);
+  });
+}));

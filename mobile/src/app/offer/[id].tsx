@@ -1,4 +1,5 @@
-import { Text } from 'react-native';
+import { useLanguage } from '../../i18n/LocaleProvider';
+import { Text } from '../../i18n/native';
 import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { loadOffer } from '../../services/api';
@@ -11,6 +12,9 @@ import { ShareButton } from '../../components/share';
 import { useApp } from '../../state/AppProvider';
 import { Button, Loading, Notice, Screen, messageOf, styles } from '../../components/ui';
 export default function OfferDetails() {
+  "use no memo"; // Locale formatting reads the selected application language.
+
+  useLanguage();
   const app = useApp();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [error, setError] = useState('');
