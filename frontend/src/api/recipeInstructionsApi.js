@@ -6,6 +6,7 @@ export const fetchInstructionInventoryOptions = (search = "", options = {}) => d
 export const saveRecipeInstructionDraft = (code, payload) => data(api.put(`/kitchen/recipes/${encodeURIComponent(code)}`, payload));
 export const fetchRecipeInstruction = (code, options) => data(api.get(`/kitchen/recipes/${encodeURIComponent(code)}`, options));
 export const fetchRecipeHistory = (code, options) => data(api.get(`/kitchen/recipes/${encodeURIComponent(code)}/history`, options));
+export const fetchRecipeReadiness = (code, options) => data(api.get(`/kitchen/recipes/${encodeURIComponent(code)}/readiness`, options));
 export const fetchRecipeTrials = (code, options) => data(api.get(`/kitchen/recipes/${encodeURIComponent(code)}/trials`, options));
 export const recordRecipeTrial = (code, payload) => data(api.post(`/kitchen/recipes/${encodeURIComponent(code)}/trials`, payload));
 export const transitionRecipe = (code, action, payload) => data(api.post(`/kitchen/recipes/${encodeURIComponent(code)}/workflow/${action}`, payload));

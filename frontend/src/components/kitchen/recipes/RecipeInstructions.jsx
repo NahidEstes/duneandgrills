@@ -1,112 +1,83 @@
 "use client";
-
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, BookOpenText, ChefHat, Download, Flame, Printer, Search } from "lucide-react";
+import { BookOpenText, ChefHat, ChevronRight, Flame, Menu, RefreshCw, Search } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext.jsx";
 import { fetchRecipeInstruction, fetchRecipeInstructionManual, fetchRecipeInstructions } from "../../../api/recipeInstructionsApi.js";
-import { RECIPE_CATEGORIES, RECIPE_TABS, recipeMatches, resolveRecipe } from "./recipePresentation.js";
-import { InstructionSection, RecipeIngredients, RecipeReferences, RecipeWarnings } from "./RecipeContents.jsx";
+import { CATEGORY_LABELS, RECIPE_CATEGORIES, recipeMatches, recipeStatusLabel, resolveRecipe } from "./recipePresentation.js";
+import RecipeReader from "./RecipeReader.jsx";
 import RecipeDraftManager from "./RecipeDraftManager.jsx";
 import RecipeWorkflow from "./RecipeWorkflow.jsx";
 import "./recipeInstructions.css";
 
 export default function RecipeInstructions() {
-  const { user, logout } = useAuth();
-  const router = useRouter(), params = useSearchParams();
+  const { user, logout } = useAuth(), router = useRouter(), params = useSearchParams();
   const manager = ["admin", "manager"].includes(user?.role);
-  const view = params.get("view") === "trial" ? "trial" : params.get("view") === "published" || !manager ? "published" : "manage";
-  const requestedCode = params.get("recipe") || "B01", requestedRevision = params.get("revision");
+  const view = params.get("view") === "trial" ? "trial" : params.get("view") === "manage" && manager ? "manage" : "published";
+  const requestedCode = params.get("recipe"), requestedRevision = params.get("revision");
   const requestScope = `${user?._id}-${user?.role}-${view}`;
-  const [recipes, setRecipes] = useState(null), [error, setError] = useState("");
+  const [recipes, setRecipes] = useState(null), [error, setError] = useState(""), [loading, setLoading] = useState(true);
   const [loadedView, setLoadedView] = useState(null), [exact, setExact] = useState(null);
   const [manual, setManual] = useState(null), [manualError, setManualError] = useState(false);
-  const [search, setSearch] = useState(""), [category, setCategory] = useState("All");
-  const [tab, setTab] = useState("ingredients"), [preset, setPreset] = useState({ code: "B01", index: 0 });
-  const [refresh, setRefresh] = useState(0);
-  const titleRef = useRef(null);
-  const expired = useCallback(() => { void logout(); }, [logout]);
-  // AuthContext callbacks are not stable; avoid repeating reads on each render.
-  const expiredRef = useRef(expired);
-  useEffect(() => { expiredRef.current = expired; }, [expired]);
-  const onSessionExpired = useCallback(() => expiredRef.current(), []);
+  const [search, setSearch] = useState(""), [category, setCategory] = useState("All"), [refresh, setRefresh] = useState(0);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const expiredRef = useRef(logout);
+  const searchRef = useRef(null);
+  useEffect(() => { if (!requestedCode && window.matchMedia("(max-width: 767px)").matches) { window.scrollTo({ top: 0 }); searchRef.current?.focus({ preventScroll: true }); } }, [requestedCode]);
+  useEffect(() => { expiredRef.current = logout; }, [logout]);
+  const onSessionExpired = useCallback(() => { void expiredRef.current(); }, []);
   useEffect(() => {
-    const controller = new AbortController();
+    const controller = new AbortController(); setLoading(true);
     const options = { signal: controller.signal, params: view === "manage" ? {} : { view } };
-    Promise.all([fetchRecipeInstructions(options), requestedRevision ? fetchRecipeInstruction(requestedCode, { signal: controller.signal, params: { revision: requestedRevision, view } }) : Promise.resolve(null)]).then(([rows, selected]) => { if (!controller.signal.aborted) { setRecipes(rows); setLoadedView(requestScope); setExact(selected ? { key: `${requestScope}-${requestedCode}-${requestedRevision}`, row: selected } : null); setError(""); } }).catch(err => {
+    Promise.all([fetchRecipeInstructions(options), requestedRevision && requestedCode ? fetchRecipeInstruction(requestedCode, { signal: controller.signal, params: { revision: requestedRevision, view } }) : Promise.resolve(null)]).then(([rows, selected]) => {
+      if (!controller.signal.aborted) { setRecipes(rows); setLoadedView(requestScope); setExact(selected ? { key: `${requestScope}-${requestedCode}-${requestedRevision}`, row: selected } : null); setError(""); }
+    }).catch(err => {
       if (controller.signal.aborted) return;
       if (err.response?.status === 401) onSessionExpired();
       if ([401, 403].includes(err.response?.status)) setRecipes(null);
       setError(err.response?.data?.message || "Recipe instructions could not be loaded.");
-    });
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     if (manager) fetchRecipeInstructionManual({ signal: controller.signal }).then(value => { if (!controller.signal.aborted) { setManual(value); setManualError(false); } }).catch(err => { if (!controller.signal.aborted) { setManualError(true); if (err.response?.status === 401) onSessionExpired(); } });
     return () => controller.abort();
-  }, [manager, refresh, user?._id, onSessionExpired, view, requestedCode, requestedRevision, requestScope]);
-  const workingRecipe = loadedView === requestScope && recipes && resolveRecipe(recipes, requestedCode);
+  }, [manager, refresh, onSessionExpired, view, requestedCode, requestedRevision, requestScope]);
+  const workingRecipe = loadedView === requestScope && recipes && resolveRecipe(recipes, requestedCode || recipes[0]?.code);
   const recipe = requestedRevision ? exact?.key === `${requestScope}-${requestedCode}-${requestedRevision}` ? exact.row : null : workingRecipe;
   const visible = loadedView === requestScope ? recipes?.filter(row => recipeMatches(row, search, category)) || [] : [];
-  const navigate = (code, revision) => {
-    setPreset({ code, index: 0 }); setTab("ingredients");
-    router.push(`/kitchen/recipes?recipe=${encodeURIComponent(code)}&view=${view}${revision ? `&revision=${revision}` : ""}`, { scroll: false });
-    requestAnimationFrame(() => titleRef.current?.focus());
-  };
-  // Presets are keyed with the recipe so browser Back/Forward cannot retain an invalid index.
-  const selectedPreset = recipe && (preset.code === recipe.code ? Math.min(preset.index, recipe.presets.length - 1) : 0);
+  const navigate = (code, revision) => router.push(`/kitchen/recipes?recipe=${encodeURIComponent(code)}&view=${view}${revision ? `&revision=${revision}` : ""}`, { scroll: false });
+  const allRecipes = () => router.push(`/kitchen/recipes?view=${view}`, { scroll: false });
   const updateSaved = next => { setRecipes(current => current?.map(row => row.code === next.code ? next : row)); router.replace(`/kitchen/recipes?recipe=${next.code}&view=manage`, { scroll: false }); setRefresh(n => n + 1); };
-  const statusLabel = value => ({ draft: "Draft", trial_required: "Trial Required", approved: "Approved", published: "Published" }[value] || "Unavailable");
-  const printState = recipe ? `DUNE & GRILLS · ${recipe.code} · r${recipe.revision} · ${statusLabel(recipe.status).toUpperCase()} · ${recipe.status === "published" ? recipe.currentPublished === false ? "HISTORICAL / SUPERSEDED" : "VERIFY CURRENT SERVICE CARD" : "NOT PUBLISHED FOR REGULAR SERVICE"}` : "NO RECIPE SELECTED";
-  return <div data-recipe-status={recipe?.status || "draft"} className="recipe-workspace min-h-screen bg-[#080b0d] text-white">
+  const printState = recipe ? `DUNE & GRILLS · ${recipe.code} · r${recipe.revision} · ${recipeStatusLabel(recipe.status).toUpperCase()} · ${recipe.status === "published" ? recipe.currentPublished === false ? "HISTORICAL / SUPERSEDED" : "VERIFY CURRENT SERVICE CARD" : "NOT PUBLISHED FOR REGULAR SERVICE"}` : "NO RECIPE SELECTED";
+  return <div data-recipe-status={recipe?.status || "draft"} className={`recipe-workspace ${requestedCode ? "recipe-has-selection" : ""}`}>
     <style>{`@media print { @page recipe-instructions { @bottom-center { content: ${JSON.stringify(printState)}; } } @page recipe-approved { @bottom-center { content: ${JSON.stringify(printState)}; } } @page recipe-published { @bottom-center { content: ${JSON.stringify(printState)}; } } }`}</style>
     <aside className="recipe-sidebar recipe-no-print">
-      <Link href="/kitchen" className="mb-7 flex items-center gap-3"><Flame className="h-9 w-9 fill-dune-amber text-dune-amber" /><span><span className="font-display text-xl tracking-widest">DUNE &amp; GRILLS</span><span className="block text-[10px] tracking-[0.2em] text-neutral-400">KITCHEN WORKSPACE</span></span></Link>
-      <nav aria-label="Kitchen navigation" className="flex flex-wrap gap-2 lg:flex-col"><Link href="/kitchen" className="recipe-nav"><ChefHat className="h-5 w-5" />Kitchen Orders</Link><Link href="/kitchen/recipes" aria-current="page" className="recipe-nav border-dune-amber/40 bg-dune-amber/10 text-dune-amber"><BookOpenText className="h-5 w-5" />Recipe Instructions</Link>{manager && <Link href="/admin" className="recipe-nav">Admin Dashboard</Link>}</nav>
-      <p className="mt-6 text-xs text-neutral-500">Private access · {user?.name}</p>
+      <Link href="/kitchen" className="recipe-brand"><Flame size={30} aria-hidden="true" /><span>DUNE <b>&amp;</b> GRILLS</span></Link>
+      <button className="recipe-menu-button recipe-button" aria-expanded={navigationOpen} aria-controls="recipe-application-links" onClick={() => setNavigationOpen(value => !value)}><Menu size={20} /><span className="sr-only">Kitchen menu</span></button>
+      <div id="recipe-application-links" className="recipe-app-links" data-open={navigationOpen}>
+      <nav aria-label="Kitchen navigation"><Link href="/kitchen" className="recipe-nav"><ChefHat size={20} />Kitchen Orders</Link><Link href="/kitchen/recipes" aria-current="page" className="recipe-nav recipe-nav-current"><BookOpenText size={20} />Recipes</Link>{manager && <Link href="/admin" className="recipe-nav">Admin Dashboard</Link>}</nav>
+      <p>Private kitchen · {user?.name}</p>
+      <div id="public-app-options" />
+      </div>
     </aside>
-    <main className="recipe-main min-w-0">
-      <header className="recipe-no-print flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-5">
-        <div><h1 className="text-2xl font-bold sm:text-3xl">Recipe Instructions</h1><p className="mt-1 text-sm text-neutral-400">One standard. Every plate. · {view === "published" ? "Published service instructions" : "Restricted trial / revision review"}</p></div>
-        <div className="flex flex-wrap gap-2"><button className="recipe-button" disabled={!recipe} onClick={() => window.print()}><Printer className="h-4 w-4" />Print recipe</button>{manager && <><button disabled className="recipe-button" aria-describedby="manual-state"><BookOpenText className="h-4 w-4" />View manual</button><button disabled className="recipe-button" aria-describedby="manual-state"><Download className="h-4 w-4" />Download</button></>}</div>
-      </header>
-      <nav className="recipe-no-print my-4 flex flex-wrap gap-2" aria-label="Instruction visibility"><Link className="recipe-button" href="/kitchen/recipes?view=published">Published service view</Link><Link className="recipe-button" href="/kitchen/recipes?view=trial">Authorized trial view</Link>{manager && <Link className="recipe-button" href="/kitchen/recipes?view=manage">Manage revisions</Link>}</nav>
-      {view === "trial" && <p className="recipe-no-print recipe-warning">AUTHORIZED TRIAL VIEW — unpublished instructions must not be used for regular service.</p>}
-      {manager && <p id="manual-state" className="recipe-no-print mt-3 text-xs leading-6 text-neutral-400">{manualError ? "Manual availability could not be checked. Reload to retry." : manual ? manual.message : "Checking private manual availability…"}</p>}
-      {error && <div role="alert" className="recipe-warning mt-5">{error}{recipes && <p>Retained information may be outdated.</p>}<button className="recipe-button mt-3" onClick={() => setRefresh(n => n + 1)}>Retry / reload drafts</button></div>}
-      {(!recipes || loadedView !== requestScope) && !error && <p role="status" className="py-10 text-neutral-400">Loading recipe instructions…</p>}
-      {recipes && loadedView === requestScope && !recipes.length && <section className="recipe-card mt-6 p-8"><h2 className="text-xl font-semibold">No {view === "trial" ? "trial" : "published"} recipe instructions available</h2><p className="mt-3 text-neutral-400">The owner must save a revision, complete a qualifying kitchen trial, approve and publish it. Nothing is published automatically.</p></section>}
-      {recipes && loadedView === requestScope && recipes.length > 0 && <div className="recipe-reading-grid mt-5">
-        <section aria-label="Recipe search and list" className="recipe-list recipe-no-print min-w-0">
-          <label className="relative block"><Search className="absolute left-3 top-3 h-5 w-5 text-neutral-400" /><span className="sr-only">Search recipes</span><input value={search} onChange={e => setSearch(e.target.value)} maxLength={100} placeholder="Search names or codes…" className="recipe-input recipe-search-input" /></label>
-          <div className="my-3 flex flex-wrap gap-2" aria-label="Recipe categories">{["All", ...RECIPE_CATEGORIES].map(value => <button key={value} className={`recipe-filter ${category === value ? "border-dune-amber bg-dune-amber/15 text-dune-amber" : "border-white/10 text-neutral-400"}`} aria-pressed={category === value} onClick={() => setCategory(value)}>{value}</button>)}</div>
-          <div className="space-y-3">{visible.map(row => <button key={row.code} onClick={() => navigate(row.code)} aria-pressed={recipe?.code === row.code} className={`recipe-list-item ${recipe?.code === row.code ? "border-dune-amber bg-dune-amber/10" : "border-white/10"}`}>
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white/5 text-dune-amber"><ChefHat className="h-6 w-6" /></span><span className="min-w-0"><span className="block font-semibold">{row.name}</span><span className="mt-1 block text-xs text-neutral-400">{[row.code, ...row.aliases].join(" / ")} · {statusLabel(row.status)}</span></span>
-          </button>)}</div>
-          {!visible.length && <p className="py-6 text-sm text-neutral-400">No matching recipes or guides. Try another name, code or category.</p>}
+    <main className="recipe-main">
+      <header className="recipe-topbar recipe-no-print"><h1>Recipe Instructions</h1><button className="recipe-button" disabled={loading} onClick={() => setRefresh(n => n + 1)}><RefreshCw size={16} className={loading ? "animate-spin" : ""} />{loading ? "Refreshing…" : "Refresh"}</button></header>
+      <nav className="recipe-views recipe-no-print" aria-label="Instruction visibility">{[["published", "Service Recipes"], ["trial", "Kitchen Trials"], ...(manager ? [["manage", "Manage Recipes"]] : [])].map(([id, label]) => <Link key={id} aria-current={view === id ? "page" : undefined} href={`/kitchen/recipes?view=${id}`}>{label}</Link>)}</nav>
+      {view === "trial" && <p className="recipe-trial-notice recipe-no-print">Authorized trial view — unpublished instructions must not be used for regular service.</p>}
+      {error && <div role="alert" className="recipe-warning recipe-load-state">{error}{recipes && <p>Retained information may be outdated. Refresh before editing or reviewing.</p>}<button className="recipe-button mt-3" onClick={() => setRefresh(n => n + 1)}>Retry / reload recipes</button></div>}
+      {(!recipes || loadedView !== requestScope) && !error && <p role="status" className="recipe-load-state">Loading recipe instructions…</p>}
+      {recipes && loadedView === requestScope && !recipes.length && <section className="recipe-card recipe-empty"><BookOpenText size={32} /><h2>No {view === "trial" ? "trial" : "published"} recipe instructions available</h2><p>A revision needs a qualifying kitchen trial, approval and publication before regular service. Nothing is published automatically.</p></section>}
+      {recipes && loadedView === requestScope && recipes.length > 0 && <div className="recipe-reading-grid">
+        <section aria-label="Recipe search and list" className="recipe-list recipe-no-print">
+          <h2>Recipe library</h2><label className="recipe-search"><Search size={19} aria-hidden="true" /><span className="sr-only">Search recipes</span><input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} maxLength={100} placeholder="Search name or code" className="recipe-input" /></label>
+          <div className="recipe-categories" aria-label="Recipe categories">{["All", ...RECIPE_CATEGORIES].map(value => <button key={value} aria-pressed={category === value} className="recipe-filter" onClick={() => setCategory(value)}>{CATEGORY_LABELS[value]}</button>)}</div>
+          <div className="recipe-library-rows">{visible.map(row => <button key={row.code} onClick={() => navigate(row.code)} aria-pressed={recipe?.code === row.code} className="recipe-list-item"><span className="recipe-list-icon"><ChefHat size={24} /></span><span className="recipe-list-copy"><span className="recipe-list-code">{[row.code, ...row.aliases].join(" / ")}</span><strong>{row.name}</strong><span className={`recipe-status recipe-status-${row.status}`}>{recipeStatusLabel(row.status)}</span></span><ChevronRight size={17} /></button>)}</div>
+          {!visible.length && <p className="recipe-empty-search">No matching recipes or guides. Try another name, code or category.</p>}
         </section>
-        {!recipe ? <section className="recipe-card p-6"><h2>Recipe unavailable</h2><p className="mt-3 text-sm text-neutral-400">Select an available instruction from the list.</p></section> : <article key={recipe.code} className="min-w-0 space-y-4">
-          <header className="recipe-card relative overflow-hidden p-6 sm:p-8">
-            <p className="recipe-print-only mb-3 text-xs font-semibold">DUNE &amp; GRILLS · RECIPE INSTRUCTIONS</p>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-dune-amber">{recipe.category} · {[recipe.code, ...recipe.aliases].join(" / ")}</p>
-            <h2 ref={titleRef} tabIndex={-1} className="text-2xl font-bold outline-none sm:text-4xl">{recipe.name}</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300">{recipe.description}</p>
-            <div className="mt-4 flex flex-wrap gap-3 text-xs text-neutral-400"><span className="rounded-full border border-dune-amber/30 bg-dune-amber/10 px-3 py-1 text-dune-amber">{statusLabel(recipe.status)}</span><span>Source v{recipe.recipeVersion}</span><span>Manual pages {recipe.source.pages.join(", ")}</span><span>{recipe.persisted ? `Exact revision ${recipe.revision}${recipe.currentPublished === false && recipe.status === "published" ? " · Historical / superseded" : ""}` : "Source preview · not saved to database"}</span></div>
-            <button onClick={() => router.back()} className="recipe-no-print recipe-button mt-4"><ArrowLeft className="h-4 w-4" />Back to previous instructions</button>
-            {recipe.code !== "B01" && <button onClick={() => navigate("B01")} className="recipe-no-print recipe-button ml-2 mt-4">Return to B01</button>}
-            <p className="mt-3 text-xs text-neutral-400">{recipe.revision > 1 ? "Restaurant revision — compare history against source; original source references retained." : "Source-transcribed content — not proof of kitchen approval."}</p>
-            {manager && recipe.importProvenance && <p className="mt-2 break-all text-xs text-neutral-500">Explicit import: {recipe.importProvenance.importedAt} · source record SHA-256 {recipe.importProvenance.recordHash}</p>}
-          </header>
-          <RecipeWarnings recipe={recipe} />
-          <div className="recipe-no-print flex flex-wrap items-center gap-2"><span className="mr-2 text-xs text-neutral-400">Verified preset</span>{recipe.presets.map((option, i) => <button key={option.key} className={`recipe-filter border ${selectedPreset === i ? "border-dune-amber text-dune-amber" : "border-white/10 text-neutral-400"}`} aria-pressed={selectedPreset === i} onClick={() => setPreset({ code: recipe.code, index: i })}>{option.label}</button>)}</div>
-          <nav className="recipe-tabs recipe-no-print" aria-label="Recipe sections">{RECIPE_TABS.map(([id, label]) => <button key={id} aria-pressed={tab === id} onClick={() => setTab(id)} className={`border-b-2 px-4 py-3 text-sm ${tab === id ? "border-dune-amber text-dune-amber" : "border-transparent text-neutral-400"}`}>{label}</button>)}</nav>
-          <div className={tab === "ingredients" ? "" : "recipe-print-only"}><RecipeIngredients recipe={recipe} presetIndex={selectedPreset} /></div>
-          <div className={tab === "preparation" ? "" : "recipe-print-only"}><InstructionSection title="Preparation" rows={recipe.preparation} /></div>
-          <div className={tab === "cooking" ? "space-y-4" : "recipe-print-only space-y-4"}><InstructionSection title="Cooking" rows={recipe.cooking} /><InstructionSection title="Assembly" rows={recipe.assembly} /></div>
-          <div className={tab === "serving" ? "space-y-4" : "recipe-print-only space-y-4"}><InstructionSection title="Serving" rows={recipe.serving} /><InstructionSection title="Delivery" rows={recipe.delivery} /></div>
-          <div className={tab === "storage" ? "space-y-4" : "recipe-print-only space-y-4"}><InstructionSection title="Storage controls" rows={recipe.storage} /><InstructionSection title="Allergens" rows={recipe.allergens} /></div>
-          <RecipeReferences recipe={recipe} onNavigate={navigate} />
-          {manager && !requestedRevision && view === "manage" && <RecipeDraftManager key={`draft-${recipe.code}-${recipe.revision}-${recipe.workflowVersion}`} recipe={recipe} preparationOptions={recipes.filter(row => row.category === "Preparation Recipes")} onSaved={updateSaved} onSessionExpired={onSessionExpired} />}
-          {recipe.persisted && <RecipeWorkflow key={`workflow-${recipe.code}-${recipe.revision}-${recipe.workflowVersion}`} recipe={recipe} workingRecipe={view === "manage" || view === "trial" ? workingRecipe : null} manager={manager} view={view} onSaved={updateSaved} onChanged={() => setRefresh(n => n + 1)} onNavigate={navigate} onSessionExpired={onSessionExpired} />}
-          <p className="text-xs leading-6 text-neutral-500">Source: Dune &amp; Grills English Kitchen Recipe Manual v{recipe.source.manualVersion}, {recipe.source.manualDate}. Source facts preserved, not independently certified. Reading and printing do not record production or deduct stock.</p>
-        </article>}
+        {!recipe ? <section className="recipe-card recipe-empty"><h2>{loading ? "Loading exact revision…" : "Recipe unavailable"}</h2><p>Select an available instruction from the library.</p><button className="recipe-button recipe-no-print" onClick={allRecipes}>All Recipes</button></section> : <RecipeReader key={`${recipe.code}-${recipe.revision}-${view}`} recipe={recipe} manager={manager} manage={view === "manage"} manual={manual} manualError={manualError} onNavigate={navigate} onAllRecipes={allRecipes}>
+          {recipe.persisted && <RecipeWorkflow key={`workflow-${recipe.code}-${recipe.revision}-${recipe.workflowVersion}-${refresh}`} recipe={recipe} workingRecipe={view === "manage" || view === "trial" ? workingRecipe : null} manager={manager && view === "manage"} view={view} readOnly={Boolean(error || loading)} onSaved={updateSaved} onChanged={() => setRefresh(n => n + 1)} onNavigate={navigate} onSessionExpired={onSessionExpired} />}
+          {!recipe.persisted && manager && view === "manage" && <section className="recipe-next-action recipe-no-print"><BookOpenText size={24} /><div><h3>Save an instruction draft</h3><p>Source preview — save an explicit draft before requesting a trial or reviewing publication.</p><button className="recipe-button recipe-primary" onClick={() => { const panel = document.getElementById("recipe-edit"); if (panel) { panel.open = true; panel.querySelector("summary").focus(); panel.scrollIntoView({ block: "start" }); } }}>Open draft form</button></div></section>}
+          {manager && (!requestedRevision || recipe.revision === workingRecipe?.revision) && view === "manage" && <RecipeDraftManager key={`draft-${recipe.code}-${recipe.revision}-${recipe.workflowVersion}`} recipe={recipe} readOnly={Boolean(error || loading)} preparationOptions={recipes.filter(row => row.category === "Preparation Recipes")} onSaved={updateSaved} onSessionExpired={onSessionExpired} />}
+        </RecipeReader>}
       </div>}
     </main>
   </div>;

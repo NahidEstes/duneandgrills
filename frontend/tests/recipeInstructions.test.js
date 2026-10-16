@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { RECIPE_PILOT } from "../../backend/data/recipeInstructionPilot.js";
-import { quantityLabel, recipeMatches, resolveRecipe, RECIPE_CATEGORIES, RECIPE_TABS } from "../src/components/kitchen/recipes/recipePresentation.js";
+import { quantityLabel, recipeMatches, resolveRecipe, RECIPE_CATEGORIES, RECIPE_TABS, recipeSections } from "../src/components/kitchen/recipes/recipePresentation.js";
+import { RECIPE_LIBRARY } from "../../backend/data/recipeInstructionPilot.js";
+test("focused reading includes only actual nonempty sections; guide has no production controls", () => {
+  assert.deepEqual(recipeSections(RECIPE_PILOT[0]).map(s => s.id), ["ingredients", "preparation", "cooking", "assembly", "serving", "delivery"]);
+  const guide = RECIPE_LIBRARY.find(r => r.code === "GUIDE-SPECS");
+  assert.deepEqual(recipeSections(guide), [{ id: "preparation", label: "Preparation" }]);
+  assert.ok(!recipeSections(RECIPE_LIBRARY.find(r => r.code === "CS01")).some(s => s.id === "assembly"));
+});
 test("pilot search/category and S1 alias navigation; Kitchen Guides supported without invented data", () => {
   assert.deepEqual(RECIPE_CATEGORIES, ["Main Recipes", "Preparation Recipes", "Kitchen Guides"]);
   assert.equal(RECIPE_PILOT.filter(row => recipeMatches(row, "s1", "All")).length, 1);

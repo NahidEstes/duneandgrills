@@ -4,6 +4,12 @@ export const RECIPE_TABS = [
   ["storage", "Storage & Allergens"],
 ];
 export const RECIPE_CATEGORIES = ["Main Recipes", "Preparation Recipes", "Kitchen Guides"];
+export const CATEGORY_LABELS = { All: "All", "Main Recipes": "Dishes", "Preparation Recipes": "Preparations", "Kitchen Guides": "Guides" };
+export const recipeStatusLabel = value => ({ draft: "Draft", trial_required: "Trial required", approved: "Approved", published: "Published" }[value] || "Unavailable");
+export const recipeSections = recipe => [
+  ...(recipe.category !== "Kitchen Guides" && recipe.ingredients.length ? [{ id: "ingredients", label: "Ingredients" }] : []),
+  ...["preparation", "cooking", "assembly", "serving", "delivery"].filter(id => recipe[id]?.length).map(id => ({ id, label: id[0].toUpperCase() + id.slice(1) })),
+];
 export const recipeMatches = (recipe, search, category) =>
   (category === "All" || recipe.category === category) &&
   [recipe.name, recipe.code, ...(recipe.aliases || [])].join(" ").toLowerCase().includes(search.trim().toLowerCase());

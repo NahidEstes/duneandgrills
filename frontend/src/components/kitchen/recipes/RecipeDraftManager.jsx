@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { fetchInstructionInventoryOptions, saveRecipeInstructionDraft } from "../../../api/recipeInstructionsApi.js";
 import RecipeRevisionEditor, { editableRecipeContent } from "./RecipeRevisionEditor.jsx";
 
-export default function RecipeDraftManager({ recipe, preparationOptions, onSaved, onSessionExpired }) {
+export default function RecipeDraftManager({ recipe, preparationOptions, onSaved, onSessionExpired, readOnly = false }) {
   const [status, setStatus] = useState(["draft", "trial_required"].includes(recipe.status) ? recipe.status : "draft");
   const [content, setContent] = useState(() => editableRecipeContent(recipe));
   const [reason, setReason] = useState("");
@@ -31,7 +31,7 @@ export default function RecipeDraftManager({ recipe, preparationOptions, onSaved
     return () => { clearTimeout(timer); controller.abort(); };
   }, [search, onSessionExpired]);
   const submit = async event => {
-    event.preventDefault(); if (saving) return;
+    event.preventDefault(); if (saving || readOnly || !navigator.onLine) return;
     setSaving(true); setError(""); setSaved(false);
     try {
       const payload = { revision: recipe.revision, workflowVersion: recipe.workflowVersion || 0, reason, content, status, reviewNotes: notes, inventoryRecipe: link || null };
@@ -43,9 +43,9 @@ export default function RecipeDraftManager({ recipe, preparationOptions, onSaved
       setError(err.response?.data?.message || "Draft save failed. Reload to check the latest revision before retrying.");
     } finally { setSaving(false); }
   };
-  return <details className="recipe-card recipe-no-print p-5">
-    <summary className="cursor-pointer font-semibold text-dune-amber">Manage instruction draft · Admin / Manager</summary>
-    <form onSubmit={submit} className="mt-4 space-y-4">
+  return <details id="recipe-edit" className="recipe-card recipe-no-print p-5">
+    <summary className="cursor-pointer font-semibold">Edit recipe content · create a new revision</summary>
+    <form onSubmit={submit}><fieldset disabled={readOnly || saving} className="mt-4 min-w-0 space-y-4">
       <p className="text-xs leading-6 text-neutral-400">Save creates a new working revision. Approval/trials never transfer. Current published instructions remain available. No stock or financial changes.</p>
       <RecipeRevisionEditor content={content} setContent={setContent} recipeCode={recipe.code} preparationOptions={preparationOptions} guide={recipe.category === "Kitchen Guides"} />
       <label className="block text-sm">Change reason<input className="recipe-input mt-2" value={reason} onChange={e => setReason(e.target.value)} required maxLength={3000} /></label>
@@ -61,6 +61,6 @@ export default function RecipeDraftManager({ recipe, preparationOptions, onSaved
       {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
       {saved && <p role="status" className="text-sm text-emerald-300">New revision saved. Unpublished; available only for authorized trial/review.</p>}
       <button disabled={saving} className="recipe-button bg-dune-amber/10">{saving ? "Saving…" : recipe.persisted ? "Save draft review" : "Save instruction draft to database"}</button>
-    </form>
+    </fieldset></form>
   </details>;
 }

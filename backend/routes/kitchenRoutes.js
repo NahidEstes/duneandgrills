@@ -5,7 +5,7 @@ import { getKitchenQueue, updateKitchenOrderStatus } from "../controllers/kitche
 import { protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
 import { authorize } from "../middleware/auth.js";
-import { getInstruction, getInstructionManual, listInstructionInventoryOptions, listInstructions, saveInstruction, historyInstructions, trialInstructions, recordInstructionTrial, transitionInstruction } from "../controllers/recipeInstructionController.js";
+import { getInstruction, getInstructionManual, listInstructionInventoryOptions, listInstructions, saveInstruction, historyInstructions, trialInstructions, recordInstructionTrial, transitionInstruction, readinessInstructions } from "../controllers/recipeInstructionController.js";
 
 const router = express.Router();
 
@@ -14,6 +14,7 @@ router.get("/recipes", listInstructions);
 router.get("/recipes/manual", authorize("admin", "manager"), getInstructionManual);
 router.get("/recipes/inventory-options", authorize("admin", "manager"), listInstructionInventoryOptions);
 router.get("/recipes/:code/history", historyInstructions);
+router.get("/recipes/:code/readiness", authorize("admin", "manager"), readinessInstructions);
 router.get("/recipes/:code/trials", trialInstructions);
 router.post("/recipes/:code/trials", recordInstructionTrial);
 router.post("/recipes/:code/workflow/:action", authorize("admin", "manager"), transitionInstruction);

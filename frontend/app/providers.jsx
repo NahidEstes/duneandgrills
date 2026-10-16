@@ -19,7 +19,7 @@ export default function Providers({ children }) {
     <CartProvider>
       <AuthProvider>
         <FavoritesProvider>
-          <PwaExperience inlineOptions={/^\/(?:$|menu\/?$|login\/?$|blog(?:\/|$)|item\/|combo\/|offer\/)/.test(pathname)} />
+          <PwaExperience inlineOptions={pathname === "/kitchen/recipes" || /^\/(?:$|menu\/?$|login\/?$|blog(?:\/|$)|item\/|combo\/|offer\/)/.test(pathname)} />
           <PublicRestaurantProvider enabled={!/^\/(admin|inventory|pos|kitchen|staff-clock|tips-and-tricks)(\/|$)/.test(pathname)}>{children}</PublicRestaurantProvider>
           <DuneToaster />
         </FavoritesProvider>

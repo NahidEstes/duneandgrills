@@ -18,5 +18,5 @@ test("guide form never invents cooking measurements, links are API options, prin
   const form=await read("GuideRehearsalForm.jsx"); assert.match(form,/staffRehearsal/); assert.match(form,/retry.current.key/); assert.doesNotMatch(form,/batchValue|yieldValue|score:|costPer|stockApi/);
   const editor=await read("RecipeRevisionEditor.jsx"); assert.match(editor,/preparationOptions.map/); assert.match(editor,/!guide &&/);
   const contents=await read("RecipeContents.jsx"); assert.match(contents,/dependencyPins\?\.find/); assert.match(contents,/Shared source guide/);
-  const page=await read("RecipeInstructions.jsx"); assert.match(page,/router.back/); assert.match(page,/No matching recipes or guides/); assert.match(page,/Private|private/);
+  const page=await read("RecipeInstructions.jsx"); assert.match(page,/router.push/); assert.match(page,/No matching recipes or guides/); assert.match(page,/Private|private/);
 });

@@ -2,7 +2,11 @@
 
 Expo SDK 57 / React Native customer app with native Home, Menu, Orders and Profile tabs and the existing Cart route. It uses the existing restaurant API, customer accounts and unified ordering engine.
 
-Source now includes Arabic/English, transactional checkout points redemption, delivery pins and scheduled pickup/delivery. See [configuration, contracts and local verification](CHECKOUT-FEATURES.md). New financial/service policies remain disabled until an administrator supplies and approves their values. No new installable/cloud build or deployment was performed.
+**Latest Android APK: version 1.0.0 / build 9 (2026-10-16).** [Download APK](https://expo.dev/artifacts/eas/ix9yBIQPuwUUowu2vjdZu--lse3O0y1OPW37ZAdHuZQ.apk). Signed standalone staging build; Android emulator installation, launch and Arabic/English persistence checks passed. See [build details and remaining configuration](APK-BUILD-9.md).
+
+Source now includes Arabic/English, transactional checkout points redemption, delivery pins and scheduled pickup/delivery. See [configuration, contracts and local verification](CHECKOUT-FEATURES.md). New financial/service policies remain disabled until an administrator supplies and approves their values. No backend deployment was performed during this APK build.
+
+## Earlier feature and build records
 
 Profile includes **My points**: current available points, server earning policy and recent signed activity with Riyadh dates, local 10-record loading and account-safe refresh/stale/error states. See [My points contract, behavior and verification](POINTS.md). This read-only source update has no new APK/cloud build.
 
@@ -19,7 +23,7 @@ The source now includes the dark/orange [customer UI redesign](../docs/mobile-re
 Run from `mobile/`:
 
 ```powershell
-Set-Location 'F:\My Projects\duneandgrills\mobile'
+Set-Location 'D:\My Projects\duneandgrills\mobile'
 npm ci
 npx eas-cli@latest login
 npx eas-cli@latest whoami
@@ -33,9 +37,9 @@ $env:EAS_SKIP_AUTO_FINGERPRINT = '1' # Optional local fingerprint stalls on this
 npx eas-cli@latest build --platform android --profile preview
 ```
 
-Open the [final APK download](https://expo.dev/artifacts/eas/kC9ipPvEHEmM2CrtJaxEALjDx3MGtqSERpZRho7fq9E.apk) on an Android 7.0+ phone, download it, allow browser installation when prompted and install. It runs without Metro or Expo Go. Keep the same signing key for later updates; do not uninstall/clear an existing app holding unresolved orders to resolve a signing mismatch.
+Open the [latest APK download](https://expo.dev/artifacts/eas/ix9yBIQPuwUUowu2vjdZu--lse3O0y1OPW37ZAdHuZQ.apk) on an Android 7.0+ phone, download it, allow browser installation when prompted and install. It runs without Metro or Expo Go. Keep the same signing key for later updates; do not uninstall/clear an existing app holding unresolved orders to resolve a signing mismatch.
 
-SHA-256: `f23ff4000d92db6ce5e1ad946f08b058503cf85cb4d58a63d576571411dddff1`. Size: 103,512,871 bytes. Package: `com.duneandgrills.customer`; minimum Android API 24, target 36.
+Build 9 SHA-256: `001dcd015d34e60691e2f05f56181d024066d2919f44bfcd29e8f7e7a8fff6d0`. Size: 113,705,408 bytes. Package: `com.duneandgrills.customer`; minimum Android API 24, target 36.
 
 ## Profiles and environment
 
@@ -96,6 +100,6 @@ Current conveniences verification: **65 mobile tests**, TypeScript/lint, Android
 
 Earlier Phase B verification: **37 mobile tests**, **49 selected isolated backend tests**, TypeScript/lint, compatible dependencies, Expo Doctor **21/21**, Android native generation/config inspection and Android/iOS Hermes/web exports. Fixture Chrome smoke passed at **320/390/768px**, including outage/retry, image failure, cart reload, checkout draft navigation, validation/coupons and the native-storage send gate. Run `node tests/browser-smoke.cjs` after export with `PLAYWRIGHT_MODULE` pointing to installed Playwright and Chrome available. The script starts/stops its own server/browser; screenshots/logs/config/audit artifacts are ignored.
 
-**No physical Android/iOS or emulator runtime testing. No APK/IPA.** Export and browser checks cannot prove native secure storage, lifecycle, keyboard/back or installation. Dependency audit still reports **29 advisories (11 moderate, 18 high)**; incompatible forced fixes were not applied. Resolve compatible remediation before production release.
+**Earlier Phase B verification did not include native runtime testing.** Build 9 now has the limited Android emulator checks recorded in [APK-BUILD-9.md](APK-BUILD-9.md); physical Android/iOS, native authentication and real checkout remain unverified. Dependency audit previously reported **29 advisories (11 moderate, 18 high)**; incompatible forced fixes were not applied. Resolve compatible remediation before production release.
 
 See [Phase B record and build/install handoff](../docs/mobile-phase-b.md) and [Phase A API/recovery design](../docs/mobile-phase-a.md). Rewards, advanced offers, push, online payment, multilingual work and store publication remain outside this phase.

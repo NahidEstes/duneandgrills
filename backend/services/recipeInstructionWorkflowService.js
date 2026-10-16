@@ -71,7 +71,7 @@ export async function recordRecipeTrial(code, payload, actor) {
     return serializeTrial(trial);
   });
 }
-async function dependencyPins(content, session) {
+async function dependencyPins(content, session, lock = true) {
   const pins = [], visited = new Set();
   const visit = async (recipe, path, frozenPins = null) => {
     for (const code of recipe.linkedPreparationCodes) {
@@ -81,12 +81,38 @@ async function dependencyPins(content, session) {
       const dependency = pinnedRevision && await Revision.findOne({ code, revision: pinnedRevision, status: "published" }).session(session);
       if (!dependency?.approval) fail(`${code} must be approved and published first.`);
       // Write-lock dependency aggregate; publication and review cannot read a torn graph.
-      if (!visited.has(code)) { anchor.workflowVersion += 1; await anchor.save({ session }); visited.add(code); }
+      if (lock && !visited.has(code)) { anchor.workflowVersion += 1; await anchor.save({ session }); visited.add(code); }
       if (path.length === 1) pins.push({ code, revision: dependency.revision });
       await visit(dependency.content, [...path, code], dependency.dependencyPins);
     }
   };
   await visit(content, [content.code]); return pins;
+}
+// Read-only advisory snapshot. Mutations still revalidate inside their transaction.
+export async function recipeWorkflowReadiness(code, actor, query = {}) {
+  requireRecipeManager(actor);
+  const canonical = resolveCode(code), revision = validRevision(Number(query.revision));
+  const anchor = await RecipeInstruction.findOne({ code: canonical }).lean();
+  const row = await Revision.findOne({ code: canonical, revision }).lean();
+  const content = row?.content || (anchor?.revision === revision ? serializeInstruction(anchor) : null);
+  if (!content) fail("Recipe revision unavailable.", 404);
+  const status = row?.status || anchor.status, currentWorking = anchor?.revision === revision;
+  const trials = await Trial.find({ code: canonical, revision }).select("record").lean();
+  const qualifyingTrialIds = trials.filter(trial => qualifyingTrial(trial.record, content)).map(trial => String(trial._id));
+  const approvalReasons = [], publishReasons = [];
+  if (!currentWorking) { approvalReasons.push("Only the current working revision can be approved."); publishReasons.push("Only the current working revision can be published."); }
+  if (status !== "trial_required") approvalReasons.push("Request a kitchen trial for this revision before approval.");
+  if (!qualifyingTrialIds.length) approvalReasons.push(content.category === "Kitchen Guides" ? "A qualifying passed staff rehearsal for this exact revision is required." : "A qualifying passed trial for this exact revision is required: measured ingredients/yield, tested quality, safety passed, core taste/texture average ≥4, and a 10-serving dish trial.");
+  let dependencies = [];
+  try { dependencies = await dependencyPins(content, null, false); } catch (error) { if (!error.status) throw error; approvalReasons.push(error.message); }
+  if (status !== "approved") publishReasons.push("Approve this exact revision before publication.");
+  if (!row?.approval || !CHECKS.every(key => row.checklist?.[key] === true)) publishReasons.push("Recorded approval and every review check are required.");
+  for (const pin of row?.dependencyPins || []) {
+    if (!await Revision.exists({ code: pin.code, revision: pin.revision, status: "published", approval: { $ne: null } })) publishReasons.push(`Pinned ${pin.code} revision is not published.`);
+  }
+  return { revision, workflowVersion: anchor.workflowVersion || 0, status, currentWorking, publishedRevision: anchor.publishedRevision || null, qualifyingTrialIds, requiredChecks: CHECKS, dependencies,
+    submit: { allowed: currentWorking && status === "draft", reasons: currentWorking && status === "draft" ? [] : ["Only the current draft can request a kitchen trial."] },
+    approve: { allowed: !approvalReasons.length, reasons: approvalReasons }, publish: { allowed: !publishReasons.length, reasons: publishReasons } };
 }
 export async function recipeLifecycle(code, action, payload, actor) {
   requireRecipeManager(actor);
