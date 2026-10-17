@@ -29,12 +29,12 @@ export function Screen({ children, refreshing, onRefresh, top = false, footer }:
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={palette.orange} /> : undefined}>{children}</ScrollView>{footer}
   </KeyboardAvoidingView></SafeAreaView>;
 }
-export function ListScreen<T>({ children, footer, data, renderItem, keyExtractor, refreshing, onRefresh }: React.PropsWithChildren<{ footer?: React.ReactNode; data: T[]; renderItem: ListRenderItem<T>; keyExtractor: (item: T) => string; refreshing: boolean; onRefresh: () => void }>) {
+export function ListScreen<T>({ children, footer, data, renderItem, keyExtractor, refreshing, onRefresh, columns = 1 }: React.PropsWithChildren<{ footer?: React.ReactNode; data: T[]; renderItem: ListRenderItem<T>; keyExtractor: (item: T) => string; refreshing: boolean; onRefresh: () => void; columns?: number }>) {
   "use no memo"; // Locale formatting reads the selected application language.
 
   useLanguage();
-  return <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}><FlatList data={data} renderItem={renderItem} keyExtractor={keyExtractor}
-    contentContainerStyle={styles.content} ListHeaderComponent={<View style={{ gap: 16, paddingBottom: 16 }}>{children}</View>} ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+  return <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}><FlatList key={columns} numColumns={columns} columnWrapperStyle={columns > 1 ? { justifyContent: 'space-between', alignItems: 'stretch' } : undefined} data={data} renderItem={renderItem} keyExtractor={keyExtractor}
+    contentContainerStyle={[styles.content, { gap: 0 }]} ListHeaderComponent={<View style={{ gap: 16, paddingBottom: 20 }}>{children}</View>} ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
     initialNumToRender={6} maxToRenderPerBatch={6} windowSize={7} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshing={refreshing} onRefresh={onRefresh} />{footer}</SafeAreaView>;
 }
 export function Button({ title, onPress, disabled, secondary, label }: { title: string; onPress: () => void; disabled?: boolean; secondary?: boolean; label?: string }) {
@@ -59,7 +59,7 @@ export function SearchField(props: TextInputProps & { label: string }) {
   "use no memo"; // Locale formatting reads the selected application language.
 
   useLanguage();
-  return <View style={[styles.field, { flexDirection: 'row', gap: 12, alignItems: 'center', borderRadius: 28 }]}><Search color={palette.muted} size={23} /><TextInput {...props} accessibilityLabel={props.label} placeholderTextColor={palette.muted} selectionColor={palette.orange} style={[styles.text, { flex: 1, minWidth: 0, padding: 0 }, props.style]} returnKeyType="search" /></View>;
+  return <View style={[styles.field, { flexDirection: 'row', gap: 12, alignItems: 'center', borderRadius: 28 }]}><Search color={palette.muted} size={23} /><TextInput {...props} accessibilityLabel={props.label} placeholderTextColor={palette.muted} selectionColor={palette.orange} style={[styles.text, { flex: 1, minWidth: 0, padding: 0, borderWidth: 0, backgroundColor: 'transparent' }, props.style]} returnKeyType="search" /></View>;
 }
 export function Notice({ message, retry }: { message: string; retry?: () => void }) {
   "use no memo"; // Locale formatting reads the selected application language.

@@ -3,7 +3,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const http = require('node:http'); const fs = require('node:fs'); const path = require('node:path');
-const root = path.resolve(__dirname, '../dist'); const artifacts = path.resolve(__dirname, '../artifacts');
+const root = path.resolve(__dirname, process.env.MOBILE_EXPORT_DIR || '../dist'); const artifacts = path.resolve(__dirname, '../artifacts');
 const addon = { _id: 'sauce', name: 'Garlic sauce', price: 2 };
 const dish = { _id: 'grill', name: 'Chicken Grill', description: 'Fresh grilled chicken with rice', image: 'https://image.fixture.test/unavailable.png', price: 20, category: 'Grills', isAvailable: true, addOns: [addon], customization: { enabled: true, spice: { enabled: true, options: ['mild', 'hot'], default: 'mild' }, groups: [{ name: 'Choose sauce', selectionType: 'single', minSelections: 1, maxSelections: 1, addOns: [addon] }] } };
 const config = { websiteOrderingEnabled: true, minimumDeliveryOrder: 30, paymentOptions: [{ code: 'cod', enabled: true }], orderTypes: [{ value: 'delivery', label: 'Delivery', deliveryFee: 10 }, { value: 'pickup', label: 'Pickup', deliveryFee: 0 }] };
@@ -45,7 +45,7 @@ async function main() {
     await page.goto(base); await page.getByText('The restaurant service is temporarily unavailable. Please try again shortly.').waitFor();
     assert.equal(await page.getByText('PRIVATE_DATABASE_DETAIL').count(), 0); catalogFailure = false;
     await page.getByRole('button', { name: 'Retry', exact: true }).click(); await page.getByRole('button', { name: 'View Chicken Grill' }).waitFor();
-    await page.getByText('Menu', { exact: true }).filter({visible:true}).last().click(); await page.getByText('Our menu', { exact: true }).filter({visible:true}).waitFor();
+    await page.getByText('Menu', { exact: true }).filter({visible:true}).last().click(); await page.getByText('Explore the menu', { exact: true }).filter({visible:true}).waitFor();
     await page.getByRole('textbox', { name: 'Search the menu' }).fill('no match'); await page.getByText('No dishes match your search.').waitFor();
     await page.getByRole('textbox', { name: 'Search the menu' }).fill('');
     await page.screenshot({ path: path.join(artifacts, 'menu-390.png'), fullPage: true });

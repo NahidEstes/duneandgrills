@@ -2,6 +2,19 @@
 // Catalog and customer input stay in their original language without a translation.
 export const arabic: Record<string, string> = Object.fromEntries(String.raw`
 Home|الرئيسية
+Search for dishes…|ابحث عن الأطباق…
+Fresh off\nthe grill.|طازج من\nالشواية.
+Dune Rewards|مكافآت ديون
+View rewards|عرض المكافآت
+Use coupon|استخدم القسيمة
+CURRENT ORDERS|الطلبات الحالية
+PAST ORDERS|الطلبات السابقة
+SAVED ORDERS|الطلبات المحفوظة
+Track order|تتبع الطلب
+Track order {0}|تتبع الطلب {0}
+Preparation estimate · {0} min|الوقت التقديري للتحضير · {0} دقيقة
+This item is currently unavailable.|هذا الصنف غير متاح حاليًا.
+Back|رجوع
 Menu|القائمة
 Orders|الطلبات
 Profile|الملف الشخصي

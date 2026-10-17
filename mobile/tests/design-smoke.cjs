@@ -56,7 +56,7 @@ async function main() {
     await shot('redesign-home-390');
     await page.getByRole('button', {name:`Add ${dish.name}`,exact:true}).scrollIntoViewIfNeeded(); await shot('redesign-home-picks-390');
     await page.getByRole('textbox', {name:'Search your favourites'}).fill(dish.name); await page.getByRole('button', {name:'Search menu',exact:true}).click();
-    await page.getByText('Our menu', {exact:true}).filter({visible:true}).waitFor(); assert.equal(await page.getByRole('textbox', {name:'Search the menu'}).inputValue(),dish.name);
+    await page.getByText('Explore the menu', {exact:true}).filter({visible:true}).waitFor(); assert.equal(await page.getByRole('textbox', {name:'Search the menu'}).inputValue(),dish.name);
     await page.getByRole('button', {name:`Add ${dish.name}`,exact:true}).click(); await page.getByRole('button', {name:/View cart, 1 items/}).waitFor(); await shot('redesign-menu-390');
     await page.getByRole('button', {name:/View cart, 1 items/}).click(); await page.getByText('Your cart', {exact:true}).filter({visible:true}).waitFor();
     await page.getByRole('button', {name:/Choose delivery address/}).click(); await page.getByRole('textbox', {name:'Delivery address',exact:true}).fill('Owned layout fixture address'); await page.getByRole('textbox', {name:'Phone',exact:true}).fill('+966500000000');
@@ -76,13 +76,13 @@ async function main() {
     await page.goto(base + '/order/missing?guest=1'); await page.getByText('Private tracking is not saved for this account on this device',{exact:true}).filter({visible:true}).waitFor();
     for (const width of [320,768]) {
       await page.setViewportSize({width,height:844}); await page.goto(base + '/home'); await page.getByText('What are you craving?',{exact:true}).filter({visible:true}).waitFor(); await page.getByRole('button',{name:`Browse ${dish.category}`,exact:true}).waitFor(); await shot(`redesign-home-${width}`);
-      await page.getByRole('button',{name:`Browse ${dish.category}`,exact:true}).click(); await page.getByText('Our menu',{exact:true}).filter({visible:true}).waitFor(); assert.equal(await page.getByRole('button',{name:dish.category,exact:true}).evaluate(el => getComputedStyle(el).backgroundColor),'rgb(255, 122, 24)'); await shot(`redesign-menu-${width}`);
+      await page.getByRole('button',{name:`Browse ${dish.category}`,exact:true}).click(); await page.getByText('Explore the menu',{exact:true}).filter({visible:true}).waitFor(); assert.equal(await page.getByRole('button',{name:dish.category,exact:true}).evaluate(el => getComputedStyle(el).backgroundColor),'rgb(255, 122, 24)'); await shot(`redesign-menu-${width}`);
       await page.getByRole('button',{name:/View cart, 2 items/}).click(); await page.getByText('Your cart',{exact:true}).filter({visible:true}).waitFor(); await shot(`redesign-cart-${width}`);
       await page.getByRole('button',{name:'Continue to checkout',exact:true}).scrollIntoViewIfNeeded(); await shot(`redesign-cart-summary-${width}`);
     }
     // Layout stress fixture: lengthy catalog content, enough rows to exercise
     // virtualization, and 130% web text sizing (not native Dynamic Type evidence).
-    dense = true; await page.setViewportSize({width:320,height:844}); await page.goto(base + '/home'); await page.getByRole('button',{name:'Explore menu',exact:true}).click(); await page.getByText('Our menu',{exact:true}).filter({visible:true}).waitFor();
+    dense = true; await page.setViewportSize({width:320,height:844}); await page.goto(base + '/home'); await page.getByRole('button',{name:'Explore menu',exact:true}).click(); await page.getByText('Explore the menu',{exact:true}).filter({visible:true}).waitFor();
     await page.getByRole('button', {name:`Details for ${dish.name} 0 with a long descriptive catalog name`,exact:true}).waitFor();
     await page.mouse.move(160, 420);
     for (let step = 0; step < 10; step++) {

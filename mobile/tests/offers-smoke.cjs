@@ -56,6 +56,13 @@ async function main() {
     }
     if (key === 'combos') return reply([combo]);
     if (key.startsWith('combos/')) return reply(combo);
+    if (key === 'orders/slots') return reply({ enabled: false, slots: [] });
+    if (key === 'orders/quote') {
+      const body = req.postDataJSON();
+      const sub = body.items.reduce((sum, line) => sum + (line.productType === 'combo' ? combo.comboPrice : items.find(p => p._id === line.productId)?.price || 0) * line.quantity, 0);
+      const fee = body.fulfillmentType === 'delivery' ? snapshot['orders/config'].orderTypes.find(type => type.value === 'delivery')?.deliveryFee || 0 : 0;
+      return reply({ subtotal: sub, discount: 0, pointsDiscount: 0, fee, total: sub + fee });
+    }
     if (key === 'offers/validate-coupon') {
       if (expireCoupon) { expireCoupon = false; return reply('Expired fixture session', 401); }
       const body = req.postDataJSON(); assert.ok(body.items.length);
@@ -86,9 +93,12 @@ async function main() {
     await button('Pickup').click(); await button('Continue to checkout').click(); await page.getByRole('textbox', { name: 'Customer name', exact: true }).fill('Fixture Customer'); await page.getByRole('textbox', { name: 'Phone', exact: true }).fill('+966501234567'); await button('Review order').click(); await button(/Place cash order/).waitFor(); assert.equal(writes.filter(w => w.key === 'orders').length, 0);
     // Empty coupon suggestion, category navigation, then server eligibility.
     await reset('/cart?offer=fixture-coupon'); await text('Your cart is empty.').waitFor(); await page.waitForFunction(() => document.querySelector('[aria-label="Coupon code"]')?.value === 'FIXTURE15'); assert.equal(await text('Coupon applied. Confirmed again at checkout.').count(), 0); assert.ok(await button('Apply').isDisabled()); await shot('offers-empty-coupon-390');
-    await button('Browse eligible products').click(); await text('Our menu').waitFor(); await button(`Add ${items[0].name}`).click(); await page.getByRole('button', { name: /View cart, 1 items/ }).click(); await text('Your cart').waitFor();
+    await button('Browse eligible products').click(); await text('Explore the menu').waitFor(); await button(`Add ${items[0].name}`).click(); await page.getByRole('button', { name: /View cart, 1 items/ }).click(); await text('Your cart').waitFor();
     // Quantity reaches minimum and manual revalidation works without claiming success early.
     while ((await page.evaluate(() => JSON.parse(localStorage.getItem('dg.cart.v1.guest'))))[0].quantity * items[0].price < 20) await button('Increase quantity').click();
+    // An eligible selected coupon is auto-applied. Changing quantity invalidates
+    // that quote and exposes the explicit Apply action in the redesigned cart.
+    await button('Increase quantity').click();
     await button('Apply').click(); await text('Coupon applied. Confirmed again at checkout.').waitFor(); await button('Increase quantity').click(); assert.equal(await text('Coupon applied. Confirmed again at checkout.').count(), 0); await button('Decrease quantity').click(); assert.equal(await text('Coupon applied. Confirmed again at checkout.').count(), 0, 'Returning to prior quantities does not revive an old quote'); await button('Apply').click(); await text('Coupon applied. Confirmed again at checkout.').waitFor();
     await button('Remove coupon').click(); assert.equal(await page.getByRole('textbox', { name: 'Coupon code', exact: true }).inputValue(), '');
     const beforeReuse = writes.filter(w => w.key === 'offers/validate-coupon').length;
@@ -121,7 +131,7 @@ async function main() {
       for (const { node, size, line } of values) { node.style.fontSize = `${size}px`; node.style.lineHeight = `${line}px`; }
     }); await text('Quantity').scrollIntoViewIfNeeded(); await shot('offers-combo-large-text-390');
     const largeFooter = await button('Add to cart').boundingBox(); const largeQuantity = await text('Quantity').boundingBox(); assert.ok(largeQuantity.y + largeQuantity.height <= largeFooter.y && largeFooter.y + largeFooter.height <= 844, 'Enlarged text stays above the measured footer');
-    assert.deepEqual(errors, []); assert.ok(writes.every(w => w.key === 'offers/validate-coupon' || w.key.startsWith('auth/mobile/')), 'No order/profile writes');
+    assert.deepEqual(errors, []); assert.ok(writes.every(w => w.key === 'offers/validate-coupon' || w.key === 'orders/quote' || w.key.startsWith('auth/mobile/')), 'No order creation/profile writes');
     console.log('Offers diagnostic passed: navigation, dual filters, authoritative combo line, coupon eligibility/login/account, stale/expired/unavailable, recovery lock, small/typical/large text footer. All API writes intercepted.');
   } catch (e) { await page.screenshot({ path: path.join(artifacts, 'offers-smoke-failure.png'), fullPage: true }); console.error(await page.locator('body').innerText()); throw e; }
   finally { await context.close(); await browser.close(); await new Promise(resolve => server.close(resolve)); }

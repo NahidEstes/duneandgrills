@@ -4,6 +4,7 @@ import { Pressable, Text } from '../i18n/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronRight, type LucideIcon } from './icons';
 import { Button, Notice, colors, styles } from './ui';
+import { palette } from '../constants/design';
 
 export function ProfileBrand() {
   "use no memo"; // Locale formatting reads the selected application language.
@@ -22,7 +23,7 @@ export function ProfileTile({ icon: Icon, title, onPress }: { icon: LucideIcon; 
   "use no memo"; // Locale formatting reads the selected application language.
 
   useLanguage();
-  return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [styles.card, profileStyles.tile, pressed && { opacity: 0.65 }]}><Icon color={colors.accent} size={30} accessible={false} /><Text style={[styles.text, { textAlign: 'center', fontWeight: '600' }]}>{title}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [styles.card, profileStyles.tile, pressed && { opacity: 0.65 }]}><Icon color={colors.muted} size={24} accessible={false} /><Text style={[styles.text, { fontSize: 14, flexShrink: 1, fontWeight: '600' }]}>{title}</Text><ChevronRight size={18} color={colors.muted} accessible={false} /></Pressable>;
 }
 export function DeleteAddressDialog({ label, busy, error, onCancel, onDelete }: { label: string | null; busy: boolean; error: string; onCancel: () => void; onDelete: () => void }) {
   "use no memo"; // Locale formatting reads the selected application language.
@@ -36,12 +37,12 @@ export const profileStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 18, paddingHorizontal: 16, minHeight: 64 },
   group: { ...styles.card, padding: 0, gap: 0, overflow: 'hidden' },
   divider: { height: 1, backgroundColor: colors.line, marginHorizontal: 16 },
-  tile: { flex: 1, minWidth: 120, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, gap: 10 },
-  section: { ...styles.muted, marginTop: 4, fontSize: 15 },
+  tile: { flex: 1, minWidth: 120, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, minHeight: 70, gap: 8 },
+  section: { ...styles.muted, marginTop: 8, fontSize: 12, fontWeight: '700', letterSpacing: 1.8, textTransform: 'uppercase' },
   identity: { ...styles.card, flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 14 },
-  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: palette.orangeTint, borderWidth: 1, borderColor: '#79502D', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   initials: { color: colors.ink, fontSize: 27, fontWeight: '800' },
   edit: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
-  logout: { borderWidth: 1.5, borderColor: colors.accent, borderRadius: 16, minHeight: 52, padding: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },
+  logout: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white, borderRadius: 16, minHeight: 56, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', alignItems: 'center', justifyContent: 'center', padding: 20 },
 });

@@ -1,0 +1,320 @@
+{
+  "pdf": "D:\\My Projects\\duneandgrills\\output\\pdf\\dune-grills-admin-inventory-guideline-bn.pdf",
+  "source": "D:\\My Projects\\duneandgrills\\output\\pdf\\dune-grills-admin-inventory-guideline-bn.md",
+  "pages": 65,
+  "chapters": [
+    {
+      "title": "০১ | বইটি কীভাবে ব্যবহার করবেন",
+      "page": 4,
+      "anchor": "chapter-1"
+    },
+    {
+      "title": "০২ | কে কোন কাজ করতে পারবেন",
+      "page": 5,
+      "anchor": "chapter-2"
+    },
+    {
+      "title": "০৩ | প্রবেশ, প্রস্তুতি ও কাজের মানচিত্র",
+      "page": 6,
+      "anchor": "chapter-3"
+    },
+    {
+      "title": "০৪ | Dashboard: ব্যবসার সারসংক্ষেপ",
+      "page": 7,
+      "anchor": "chapter-4"
+    },
+    {
+      "title": "০৫ | Operations, order alert ও shift summary",
+      "page": 8,
+      "anchor": "chapter-5"
+    },
+    {
+      "title": "০৬ | Search ও Search by ID",
+      "page": 9,
+      "anchor": "chapter-6"
+    },
+    {
+      "title": "০৭ | Orders: অর্ডার দেখা ও অগ্রগতি",
+      "page": 10,
+      "anchor": "chapter-7"
+    },
+    {
+      "title": "০৮ | Order payment, refund ও stock return",
+      "page": 11,
+      "anchor": "chapter-8"
+    },
+    {
+      "title": "০৯ | POS / New Sale",
+      "page": 12,
+      "anchor": "chapter-9"
+    },
+    {
+      "title": "১০ | POS discount, customer, held sale ও shortcuts",
+      "page": 13,
+      "anchor": "chapter-10"
+    },
+    {
+      "title": "১১ | POS shift ও cash closing",
+      "page": 14,
+      "anchor": "chapter-11"
+    },
+    {
+      "title": "১২ | POS History, reprint, repeat, void ও refund",
+      "page": 15,
+      "anchor": "chapter-12"
+    },
+    {
+      "title": "১৩ | Quick Delivery Order: platform history লেখা",
+      "page": 16,
+      "anchor": "chapter-13"
+    },
+    {
+      "title": "১৪ | Deliveries: rider assignment ও issue",
+      "page": 17,
+      "anchor": "chapter-14"
+    },
+    {
+      "title": "১৫ | Deliveries: Cash & Settlement ও History",
+      "page": 18,
+      "anchor": "chapter-15"
+    },
+    {
+      "title": "১৬ | Menu Items: খাবার ও দাম",
+      "page": 19,
+      "anchor": "chapter-16"
+    },
+    {
+      "title": "১৭ | Menu customization: add-on, choice ও spice",
+      "page": 20,
+      "anchor": "chapter-17"
+    },
+    {
+      "title": "১৮ | Combos: প্যাকেজ তৈরি ও প্রকাশ",
+      "page": 21,
+      "anchor": "chapter-18"
+    },
+    {
+      "title": "১৯ | Admin Categories: Menu ও Blog আলাদা",
+      "page": 22,
+      "anchor": "chapter-19"
+    },
+    {
+      "title": "২০ | Customers: তথ্য, অর্ডার ও internal note",
+      "page": 23,
+      "anchor": "chapter-20"
+    },
+    {
+      "title": "২১ | Offers: প্রচার, coupon ও schedule",
+      "page": 24,
+      "anchor": "chapter-21"
+    },
+    {
+      "title": "২২ | Rewards: points দিয়ে পুরস্কার",
+      "page": 25,
+      "anchor": "chapter-22"
+    },
+    {
+      "title": "২৩ | Blog ও Reviews: প্রকাশনা ও moderation",
+      "page": 26,
+      "anchor": "chapter-23"
+    },
+    {
+      "title": "২৪ | Analytics ও রিপোর্টের সঠিক অর্থ",
+      "page": 27,
+      "anchor": "chapter-24"
+    },
+    {
+      "title": "২৫ | Audit Log: কে কী বদলেছেন",
+      "page": 28,
+      "anchor": "chapter-25"
+    },
+    {
+      "title": "২৬ | Staff: account ও প্রবেশাধিকার",
+      "page": 29,
+      "anchor": "chapter-26"
+    },
+    {
+      "title": "২৭ | Attendance, Shifts, Leave ও Staff Clock",
+      "page": 30,
+      "anchor": "chapter-27"
+    },
+    {
+      "title": "২৮ | Finance & Expenses: খরচ লেখা",
+      "page": 31,
+      "anchor": "chapter-28"
+    },
+    {
+      "title": "২৯ | Expense archive, cancellation, recurring ও reports",
+      "page": 32,
+      "anchor": "chapter-29"
+    },
+    {
+      "title": "৩০ | Restaurant Settings: সময় ও customer checkout",
+      "page": 33,
+      "anchor": "chapter-30"
+    },
+    {
+      "title": "৩১ | Settings: order, notification ও preparation",
+      "page": 34,
+      "anchor": "chapter-31"
+    },
+    {
+      "title": "৩২ | Settings: POS policy, terminal ও PIN",
+      "page": 35,
+      "anchor": "chapter-32"
+    },
+    {
+      "title": "৩৩ | Settings: procurement, receipt, contact ও Rider",
+      "page": 36,
+      "anchor": "chapter-33"
+    },
+    {
+      "title": "৩৪ | Inventory Overview ও স্বাস্থ্য",
+      "page": 37,
+      "anchor": "chapter-34"
+    },
+    {
+      "title": "৩৫ | Inventory Categories ও Suppliers",
+      "page": 38,
+      "anchor": "chapter-35"
+    },
+    {
+      "title": "৩৬ | Stock Items: ingredient record",
+      "page": 39,
+      "anchor": "chapter-36"
+    },
+    {
+      "title": "৩৭ | Unit, conversion, cost ও brand",
+      "page": 40,
+      "anchor": "chapter-37"
+    },
+    {
+      "title": "৩৮ | Batches / Lots, expiry ও FEFO",
+      "page": 41,
+      "anchor": "chapter-38"
+    },
+    {
+      "title": "৩৯ | Purchase Orders: draft থেকে ordered",
+      "page": 42,
+      "anchor": "chapter-39"
+    },
+    {
+      "title": "৪০ | Receive PO: মাল গ্রহণ ও retry",
+      "page": 43,
+      "anchor": "chapter-40"
+    },
+    {
+      "title": "৪১ | Supplier Invoices: বিল ও তিনভাবে মিল",
+      "page": 44,
+      "anchor": "chapter-41"
+    },
+    {
+      "title": "৪২ | Supplier payment, reversal ও aging",
+      "page": 45,
+      "anchor": "chapter-42"
+    },
+    {
+      "title": "৪৩ | Purchase Prices: কেনার দামের ইতিহাস",
+      "page": 46,
+      "anchor": "chapter-43"
+    },
+    {
+      "title": "৪৪ | Reorder Suggestions: কী পরিমাণ কিনবেন",
+      "page": 47,
+      "anchor": "chapter-44"
+    },
+    {
+      "title": "৪৫ | Purchasing Actions: করণীয়গুলোর তালিকা",
+      "page": 48,
+      "anchor": "chapter-45"
+    },
+    {
+      "title": "৪৬ | Stock In, Stock Out ও Adjustment",
+      "page": 49,
+      "anchor": "chapter-46"
+    },
+    {
+      "title": "৪৭ | Stock Movements: সব পরিবর্তনের খাতা",
+      "page": 50,
+      "anchor": "chapter-47"
+    },
+    {
+      "title": "৪৮ | Waste / Damaged: নষ্ট মাল",
+      "page": 51,
+      "anchor": "chapter-48"
+    },
+    {
+      "title": "৪৯ | Recipes ও Add-on Recipes",
+      "page": 52,
+      "anchor": "chapter-49"
+    },
+    {
+      "title": "৫০ | Inventory Count: হাতে গুনে stock মিল",
+      "page": 53,
+      "anchor": "chapter-50"
+    },
+    {
+      "title": "৫১ | Expiry Tracking ও Low Stock Alerts",
+      "page": 54,
+      "anchor": "chapter-51"
+    },
+    {
+      "title": "৫২ | Inventory Reports ও CSV export",
+      "page": 55,
+      "anchor": "chapter-52"
+    },
+    {
+      "title": "৫৩ | Inventory Settings",
+      "page": 56,
+      "anchor": "chapter-53"
+    },
+    {
+      "title": "৫৪ | Admin থেকে অন্য workspace-এর লিংক",
+      "page": 57,
+      "anchor": "chapter-54"
+    },
+    {
+      "title": "৫৫ | শুরু থেকে শেষ: চারটি কাজের উদাহরণ",
+      "page": 58,
+      "anchor": "chapter-55"
+    },
+    {
+      "title": "৫৬ | সংশোধন, archive ও পুনরায় submission",
+      "page": 59,
+      "anchor": "chapter-56"
+    },
+    {
+      "title": "৫৭ | সমস্যা হলে কোথা থেকে শুরু করবেন",
+      "page": 60,
+      "anchor": "chapter-57"
+    },
+    {
+      "title": "৫৮ | দৈনিক ও সাপ্তাহিক চেকলিস্ট",
+      "page": 61,
+      "anchor": "chapter-58"
+    },
+    {
+      "title": "৫৯ | সাধারণ প্রশ্ন ও সহজ শব্দার্থ",
+      "page": 62,
+      "anchor": "chapter-59"
+    },
+    {
+      "title": "৬০ | Status-গুলোর দ্রুত ব্যাখ্যা",
+      "page": 63,
+      "anchor": "chapter-60"
+    },
+    {
+      "title": "৬১ | বর্তমান সীমাবদ্ধতা ও যাচাইয়ের সীমা",
+      "page": 64,
+      "anchor": "chapter-61"
+    },
+    {
+      "title": "৬২ | উৎস ও হালনাগাদের নির্দেশনা",
+      "page": 65,
+      "anchor": "chapter-62"
+    }
+  ],
+  "source_commit": "2f854d5",
+  "date": "2026-10-17",
+  "timezone": "Asia/Riyadh"
+}

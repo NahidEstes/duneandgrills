@@ -1,6 +1,8 @@
 # Dune & Grills customer mobile
 
-Expo SDK 57 / React Native customer app with native Home, Menu, Orders and Profile tabs and the existing Cart route. It uses the existing restaurant API, customer accounts and unified ordering engine.
+**17 October 2026 — Dark Premium UI:** the seven customer screens now follow the approved design concepts, including a visible Offers tab, two-column menu, fixed purchase footers, coupon/rewards cards and order progress/history. See [implementation and local verification](PREMIUM-UI.md). This source update is newer than the APK linked below; no new APK or OTA release was published.
+
+Expo SDK 57 / React Native customer app with native Home, Menu, Offers, Orders and Profile tabs and the existing Cart route. It uses the existing restaurant API, customer accounts and unified ordering engine.
 
 **Latest Android APK: version 1.0.0 / build 9 (2026-10-16).** [Download APK](https://expo.dev/artifacts/eas/ix9yBIQPuwUUowu2vjdZu--lse3O0y1OPW37ZAdHuZQ.apk). Signed standalone staging build; Android emulator installation, launch and Arabic/English persistence checks passed. See [build details and remaining configuration](APK-BUILD-9.md).
 
@@ -36,6 +38,15 @@ Reuse the linked project and its managed Android signing key. Inspect credential
 $env:EAS_SKIP_AUTO_FINGERPRINT = '1' # Optional local fingerprint stalls on this Windows host
 npx eas-cli@latest build --platform android --profile preview
 ```
+
+For subsequent APK builds, the same preview build is available through a short npm command:
+
+```powershell
+Set-Location -LiteralPath 'D:\My Projects\duneandgrills\mobile'
+npm run build:apk
+```
+
+This uses the existing `preview` profile and its testing API. Sign in with `npx eas-cli@latest login` if needed; the script uses the latest EAS CLI without requiring a global installation.
 
 Open the [latest APK download](https://expo.dev/artifacts/eas/ix9yBIQPuwUUowu2vjdZu--lse3O0y1OPW37ZAdHuZQ.apk) on an Android 7.0+ phone, download it, allow browser installation when prompted and install. It runs without Metro or Expo Go. Keep the same signing key for later updates; do not uninstall/clear an existing app holding unresolved orders to resolve a signing mismatch.
 
