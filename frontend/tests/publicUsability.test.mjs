@@ -30,7 +30,7 @@ test("public destinations are real, cross-page anchors wait for DOM instead of a
   assert.match(nav,/href: "\/menu"/); assert.match(nav,/label: "Contact", hash: "visit"/); assert.doesNotMatch(nav,/setTimeout|scrollToSection/);
   assert.match(anchors,/MutationObserver/); assert.match(nav,/aria-expanded=\{mobileOpen\}/); assert.match(nav,/aria-controls="public-mobile-navigation"/);
   assert.doesNotMatch(footer,/https:\/\/(www\.)?(instagram|facebook|x)\.com|href="#"|Privacy Policy|Terms of Service|type="email"/);
-  assert.match(footer,/"Contact","\/#visit"/);
+  assert.match(footer,/"Contact",\s*"\/#visit"/);
 });
 test("named native dialogs hide closed cart controls and retain pending order protections", async () => {
   const cart = await read("../src/components/CartDrawer.jsx"), item = await read("../src/components/ItemModal.jsx"), login = await read("../src/components/LoginPromptModal.jsx"), hook = await read("../src/hooks/useCustomerDialog.js");
