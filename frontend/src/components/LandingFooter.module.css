@@ -30,15 +30,15 @@
 }
 
 .flame {
-  width: 38px;
-  height: 44px;
+  width: 28px;
+  height: 34px;
   flex-shrink: 0;
   color: #f59e0b;
 }
 
 .wordmark {
   font-family: var(--font-bebas-neue), sans-serif;
-  font-size: 40px;
+  font-size: 1.75rem;
   line-height: 1;
   letter-spacing: 2px;
   white-space: nowrap;
@@ -51,7 +51,7 @@
 .tagline {
   max-width: 285px;
   margin-top: 22px;
-  font-size: 18px;
+  font-size: 0.875rem;
   line-height: 1.65;
 }
 
@@ -89,7 +89,7 @@ a.socialIcon:hover {
   margin-block: 2px 20px;
   color: #f4f0e9;
   font-family: var(--font-bebas-neue), sans-serif;
-  font-size: 32px;
+  font-size: 1.375rem;
   font-weight: 400;
   line-height: 1.35;
   letter-spacing: 0.6px;
@@ -106,7 +106,7 @@ a.socialIcon:hover {
   min-height: 38px;
   width: fit-content;
   align-items: center;
-  font-size: 18px;
+  font-size: 0.875rem;
   transition: color 160ms ease;
 }
 
@@ -130,15 +130,15 @@ a.socialIcon:hover {
 }
 
 .detailIcon {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   color: #f59e0b;
 }
 
 .address {
   min-width: 0;
-  font-size: 18px;
+  font-size: 0.875rem;
   font-style: normal;
   line-height: 1.65;
   overflow-wrap: anywhere;
@@ -152,7 +152,7 @@ a.socialIcon:hover {
   min-height: 32px;
   align-items: center;
   color: #f59e0b;
-  font-size: 18px;
+  font-size: 0.875rem;
   line-height: 1.5;
 }
 
@@ -167,7 +167,7 @@ a.socialIcon:hover {
   gap: 14px;
   margin-top: -10px;
   color: #e0e0e0;
-  font-size: 16px;
+  font-size: 0.875rem;
 }
 
 .directions span {
@@ -190,7 +190,7 @@ a.socialIcon:hover {
 .hours {
   min-width: 0;
   flex: 1;
-  font-size: 18px;
+  font-size: 0.875rem;
   line-height: 1.65;
 }
 
@@ -225,7 +225,7 @@ a.socialIcon:hover {
 
 .copyright {
   color: #a3a3a3;
-  font-size: 14px;
+  font-size: 0.75rem;
   line-height: 1.6;
 }
 
@@ -248,7 +248,7 @@ a.socialIcon:hover {
   background: transparent;
   color: #b9b9b9;
   box-shadow: none;
-  font-size: 14px;
+  font-size: 0.8125rem;
 }
 
 .appOptions :global(button[aria-controls="pwa-options"]:hover) {
@@ -309,12 +309,12 @@ a.socialIcon:hover {
   }
 
   .wordmark {
-    font-size: 30px;
+    font-size: 1.5rem;
   }
 
   .heading {
     margin-bottom: 16px;
-    font-size: 26px;
+    font-size: 1.25rem;
   }
 
   .socials {
