@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+dist/
+.test-build/
+artifacts/
+android/
+ios/
+expo-env.d.ts
+*.tsbuildinfo
+.env*
+!.env.example
+credentials.json
+*.jks
+*.p12
+*.key

@@ -1,0 +1,30 @@
+export type Rider = { _id: string; name: string; employeeId?: string; email?: string; phone?: string; role: 'rider' };
+export type Session = { user: Rider; token: string; expiresAt: number; origin: string };
+export type Action = 'availability' | 'pickup' | 'deliver' | 'issue' | 'report_cash';
+export type CashState = 'collection_pending' | 'awaiting_confirmation' | 'discrepancy' | 'confirmed' | 'no_collection' | 'unavailable';
+export type Delivery = {
+  id: string; orderNumber: string; riderId: string | null; revision: number; orderRevision: number;
+  deliveryStatus: 'unassigned' | 'assigned' | 'picked_up' | 'delivered' | 'issue'; restaurantStatus: string;
+  canOperate: boolean; eligibilityWarning?: string; synthetic?: boolean;
+  customerName?: string; customerAddress?: string; paymentStatus: string; cashState: CashState;
+  customerCollectionHalala: number | null; reportedCashHalala?: number | null;
+  cashReport: { status: 'none' | 'unconfirmed' | 'discrepancy' | 'confirmed'; amount: number | null; reportedAt?: string | null; confirmedAt?: string | null; acknowledgedAt?: string | null };
+  issue?: { reason: string; previousStatus: string; reportedAt?: string | null } | null;
+  assignedAt?: string | null; pickedUpAt?: string | null; deliveredAt?: string | null;
+  pickupInstructions?: string; deliveryNote?: string; orderTotal?: number;
+  customer?: { name: string; phone: string; address: string; deliveryDetails?: { building?: string; apartment?: string; landmark?: string; instructions?: string; coordinates?: { latitude: number; longitude: number } } } | null;
+  items?: { name: string; quantity: number; lineTotal: number; selectedAddOns?: { name: string; quantity: number }[]; spiceLevel?: string; itemNote?: string }[];
+  restaurantContact?: { phone?: string }; cashConfirmationGap?: string;
+  riderTimeline?: { steps: { label: string; at: string | null }[]; events: { label: string; at: string; reason?: string; previousStatus?: string }[] };
+};
+export type Filters = { status?: string; history?: boolean; page?: number; search?: string; datePeriod?: string; cashStatus?: string; from?: string; to?: string };
+export type Portal = {
+  success: boolean; mode: 'operational' | 'disabled'; operationalEnabled: boolean;
+  profile: { id: string; name: string; employeeId?: string; email?: string; phone?: string; role: string };
+  availability: boolean | null; availabilityRevision?: number;
+  counts: { active: number | null; deliveredToday: number | null }; assignmentCount?: number;
+  deliveries: Delivery[]; pagination?: { page: number; limit: number; total: number };
+  restaurantContact?: { phone?: string };
+  pendingCash?: { groups: Record<'collection_pending' | 'awaiting_confirmation' | 'discrepancy', { count: number; amountHalala: number }>; deliveries: Delivery[] };
+};
+export type Pending = { version: 1; userId: string; origin: string; action: Action; deliveryId?: string; orderNumber?: string; payload: Record<string, string | number | boolean>; createdAt: string };

@@ -102,7 +102,7 @@ export const login = async (req, res) => {
     }
 
     const user = await User.findOne({ email }).select("+password +sessionVersion");
-    if (!user || user.isActive === false || (req.mobileAuth && user.role !== "customer") || !(await user.comparePassword(password))) {
+    if (!user || user.isActive === false || (req.mobileAuth && user.role !== req.mobileAuthRole) || !(await user.comparePassword(password))) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid email or password" });
@@ -148,8 +148,10 @@ const sendAuthResponse = (req, res, signingUser, publicUser, status) => {
     ...(req.mobileAuth ? { token, expiresAt: jwt.decode(token).exp * 1000 } : {}) });
 };
 
-export const mobileAuth = handler => (req, res) => {
+export const mobileAuth = (handler, role = "customer") => (req, res) => {
   req.mobileAuth = true;
+  // The server route selects the role; request bodies cannot opt into staff auth.
+  req.mobileAuthRole = role;
   return handler(req, res);
 };
 

@@ -1,0 +1,28 @@
+import { useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
+import { usePortal } from '../../../hooks/usePortal';
+import type { Filters } from '../../../domain/types';
+import { cashLabels } from '../../../domain/rider';
+import { Brand, Button, Card, colors, Field, Notice, ReadStatus, Screen, styles } from '../../../components/ui';
+import DeliveryCard from '../../../components/DeliveryCard';
+function Chips({ options, value, change }: { options: [string, string][]; value: string; change: (value: string) => void }) { return <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{options.map(([id, label]) => <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: value === id }} onPress={() => change(id)} style={{ paddingHorizontal: 13, minHeight: 44, paddingVertical: 11, borderRadius: 23, borderWidth: 1, borderColor: id === value ? colors.amber : colors.border, backgroundColor: id === value ? '#3b2d17' : colors.card }}><Text style={{ color: id === value ? colors.amber : colors.text, fontSize: 13 }}>{label}</Text></Pressable>)}</View>; }
+export default function Deliveries() {
+  const params = useLocalSearchParams<{ history?: string; cashStatus?: string }>();
+  return <DeliveryList key={`${params.history}:${params.cashStatus}`} initialHistory={params.history === '1'} initialCash={params.cashStatus || 'all'} />;
+}
+function DeliveryList({ initialHistory, initialCash }: { initialHistory: boolean; initialCash: string }) {
+  const [filters, setFilters] = useState<Filters>({ history: initialHistory, cashStatus: initialHistory ? initialCash : 'all', page: 1 });
+  const [draft, setDraft] = useState<Filters>({ search: '', datePeriod: 'all', cashStatus: initialCash, from: '', to: '' }), [showFilters, setShowFilters] = useState(initialHistory), [error, setError] = useState('');
+  const read = usePortal(filters), data = read.data, history = !!filters.history;
+  const change = (patch: Filters) => { setError(''); setFilters(f => ({ ...f, ...patch, page: 1 })); };
+  const apply = () => {
+    if (draft.datePeriod === 'custom' && (!/^\d{4}-\d{2}-\d{2}$/.test(draft.from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(draft.to || '') || draft.from! > draft.to!)) { setError('Enter valid From / To dates in YYYY-MM-DD format.'); return; }
+    change(draft);
+  };
+  return <Screen refresh={() => void read.refresh()} refreshing={read.loading}><Brand /><View><Text style={styles.title}>My deliveries</Text><Text style={styles.muted}>Your assigned restaurant deliveries</Text></View><View style={styles.row}><View style={{ flex: 1 }}><Button title={`Active${data?.counts.active == null ? '' : ` ${data.counts.active}`}`} outline={history} onPress={() => { setFilters({ history: false, page: 1 }); setShowFilters(false); }} /></View><View style={{ flex: 1 }}><Button title="Completed" outline={!history} onPress={() => { setFilters({ history: true, page: 1 }); setShowFilters(true); }} /></View></View>
+    {!history && <Chips options={[["all", "All"], ["assigned", "Awaiting pickup"], ["picked_up", "Picked up"], ["issue", "Issues"]]} value={filters.status || 'all'} change={status => change({ status })} />}
+    <Button title={showFilters ? 'Hide search / filters' : 'Search / filters'} outline onPress={() => setShowFilters(!showFilters)} />
+    {showFilters && <Card><Field label="Order number" placeholder="Search order number" maxLength={80} value={draft.search || ''} onChangeText={search => setDraft(d => ({ ...d, search }))} />{history && <><Text style={styles.muted}>Delivered date · Riyadh</Text><Chips options={[["all", "All dates"], ["today", "Today"], ["yesterday", "Yesterday"], ["custom", "Custom"]]} value={draft.datePeriod || 'all'} change={datePeriod => setDraft(d => ({ ...d, datePeriod }))} />{draft.datePeriod === 'custom' && <><Field label="From (YYYY-MM-DD)" value={draft.from || ''} maxLength={10} onChangeText={from => setDraft(d => ({ ...d, from }))} /><Field label="To (YYYY-MM-DD)" value={draft.to || ''} maxLength={10} onChangeText={to => setDraft(d => ({ ...d, to }))} /></>}<Text style={styles.muted}>Cash status</Text><Chips options={[["all", "All cash states"], ...Object.entries(cashLabels)]} value={draft.cashStatus || 'all'} change={cashStatus => setDraft(d => ({ ...d, cashStatus }))} /></>}<Notice text={error} danger /><Button title="Search / Apply" onPress={apply} /><Button title="Reset" outline onPress={() => { setDraft({ search: '', datePeriod: 'all', cashStatus: 'all', from: '', to: '' }); setFilters({ history, page: 1 }); setError(''); }} /></Card>}
+    {data?.mode === 'disabled' && <Notice text="Delivery rider is disabled. Ask your administrator to enable it in Restaurant Settings." />}{data?.deliveries.map(row => <DeliveryCard key={row.id} row={row} />)}{data && !data.deliveries.length && <Card><Text style={styles.heading}>{history ? 'No completed deliveries' : 'No matching assignments'}</Text><Text style={styles.muted}>Try another filter or refresh your workspace.</Text></Card>}{history && <Text style={styles.muted}>Customer contact details are hidden in history.</Text>}{data?.pagination && <View style={styles.spread}><Button title="Previous" outline disabled={read.loading || data.pagination.page <= 1} onPress={() => setFilters(f => ({ ...f, page: (f.page || 1) - 1 }))} /><Text style={styles.muted}>Page {data.pagination.page}</Text><Button title="Next" outline disabled={read.loading || data.pagination.page * data.pagination.limit >= data.pagination.total} onPress={() => setFilters(f => ({ ...f, page: (f.page || 1) + 1 }))} /></View>}<ReadStatus {...read} refresh={() => void read.refresh()} /></Screen>;
+}

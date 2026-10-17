@@ -1,0 +1,10 @@
+import { router } from 'expo-router';
+import { Text, View } from 'react-native';
+import { Banknote, CircleCheck, MapPin, UtensilsCrossed } from 'lucide-react-native';
+import { cashLabels, halala, stage, stamp } from '../domain/rider';
+import type { Delivery } from '../domain/types';
+import { Badge, Button, Card, colors, LinkRow, Notice, styles } from './ui';
+export default function DeliveryCard({ row }: { row: Delivery }) {
+  const label = stage(row), completed = row.deliveryStatus === 'delivered';
+  return <Card><View style={[styles.spread, { flexWrap: 'wrap' }]}><Text style={styles.heading}>{row.orderNumber}</Text><Badge text={label.text} tone={label.tone} /></View><LinkRow title="Dune & Grills" subtitle={completed ? 'Restaurant' : 'Restaurant pickup'} icon={<UtensilsCrossed size={22} color={colors.text} />} /><View style={styles.divider}>{completed ? <LinkRow title="Delivered" subtitle={stamp(row.deliveredAt)} icon={<CircleCheck size={22} color={colors.green} />} /> : <LinkRow title={row.customerName || 'Customer'} subtitle={row.customerAddress || 'Open delivery details for the location.'} icon={<MapPin size={22} color={colors.text} />} />}</View><View style={[styles.row, styles.divider]}><Banknote size={22} color={colors.text} /><View style={{ flex: 1 }}><Text style={styles.muted}>{row.cashState === 'collection_pending' && !completed ? 'Cash to collect' : cashLabels[row.cashState]}</Text><Text style={[styles.text, { fontWeight: '800' }]}>{halala(row.cashState === 'collection_pending' ? row.customerCollectionHalala : row.cashState === 'no_collection' ? 0 : row.reportedCashHalala)}</Text></View></View>{row.deliveryStatus === 'assigned' && row.restaurantStatus !== 'ready' && <Text style={styles.muted}>Pickup available when the kitchen marks this order Ready.</Text>}{row.issue && <Notice text="Awaiting manager review. Do not resume until the issue is resolved." danger />}<Button title="View delivery →" onPress={() => router.push({ pathname: '/deliveries/[id]', params: { id: row.id } })} /></Card>;
+}

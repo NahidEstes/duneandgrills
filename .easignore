@@ -1,6 +1,7 @@
-# EAS archives this Git repository. Only the self-contained mobile app is needed.
+# EAS archives this Git repository. Include only the self-contained mobile apps.
 /*
 !/mobile
+!/rider-mobile
 
 # Mirror mobile/.gitignore; keep generated CNG projects out of cloud builds.
 mobile/node_modules
@@ -30,4 +31,24 @@ mobile/android
 mobile/.test-build
 mobile/artifacts
 mobile/credentials.json
+
+# Independent private rider app (never include credentials or generated outputs).
+rider-mobile/node_modules
+rider-mobile/.expo
+rider-mobile/dist
+rider-mobile/.test-build
+rider-mobile/artifacts
+rider-mobile/android
+rider-mobile/ios
+rider-mobile/expo-env.d.ts
+rider-mobile/.env*
+!rider-mobile/.env.example
+rider-mobile/credentials.json
+rider-mobile/*.jks
+rider-mobile/*.p12
+rider-mobile/*.p8
+rider-mobile/*.key
+rider-mobile/*.pem
+rider-mobile/*.mobileprovision
+rider-mobile/*.tsbuildinfo
 
