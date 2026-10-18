@@ -84,6 +84,16 @@ const userSchema = new mongoose.Schema(
       riderAvailable: { type: Boolean, default: false },
       riderAvailabilityRevision: { type: Number, default: 0, min: 0 },
     sessionVersion: { type: Number, default: 0, min: 0, select: false },
+    // Missing/false means a legacy account remains usable without a live migration.
+    emailVerificationRequired: { type: Boolean, default: false },
+    emailVerifiedAt: { type: Date, default: null },
+    accountEmailRequestedAt: { type: Date, select: false },
+    passwordResetTokenHash: { type: String, select: false },
+    passwordResetExpiresAt: { type: Date, select: false },
+    passwordResetRequestId: { type: mongoose.Schema.Types.ObjectId, select: false },
+    emailVerificationTokenHash: { type: String, select: false },
+    emailVerificationExpiresAt: { type: Date, select: false },
+    emailVerificationRequestId: { type: mongoose.Schema.Types.ObjectId, select: false },
     deactivatedAt: { type: Date, default: null },
     employeeId: { type: String, trim: true, uppercase: true, maxlength: 30 },
     joiningDate: { type: Date, default: null },
@@ -118,6 +128,8 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ employeeId: 1 }, { unique: true, partialFilterExpression: { employeeId: { $type: "string" } } });
+userSchema.index({ passwordResetTokenHash: 1 }, { unique: true, partialFilterExpression: { passwordResetTokenHash: { $type: "string" } } });
+userSchema.index({ emailVerificationTokenHash: 1 }, { unique: true, partialFilterExpression: { emailVerificationTokenHash: { $type: "string" } } });
 userSchema.index({ pinLookup: 1 }, { unique: true, partialFilterExpression: { pinLookup: { $type: "string" } } });
 
 userSchema.pre("save", async function (next) {

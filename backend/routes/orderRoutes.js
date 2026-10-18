@@ -14,6 +14,7 @@ import {
 import { optionalAuth, protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
 import { rateLimit } from "../middleware/security.js";
+import { trackingIngressLimit } from "../middleware/guestTrackingProtection.js";
 import { changeRefundStatus, listOrderRefunds, listRefunds, requestRefund } from "../controllers/refundController.js";
 import { handoffOrder, collectOrderPayment } from "../controllers/orderHandoffController.js";
 import { cancelOrderRequest } from "../controllers/orderRequestController.js";
@@ -37,7 +38,7 @@ router.get("/my", protect, getMyOrders);
 router.get("/stats", protect, requireCapability(CAPABILITIES.ORDERS_READ_ALL), getOrderStats);
 router.get("/refunds", protect, requireCapability(CAPABILITIES.REFUNDS_READ), listRefunds);
 router.patch("/bulk-status", protect, requireCapability(CAPABILITIES.ORDERS_MANAGE), bulkUpdateOrderStatus);
-router.get("/track/:orderNumber", rateLimit({ windowMs: 15 * 60_000, max: 30, keyPrefix: "order-track" }), trackGuestOrder);
+router.get("/track/:orderNumber", trackingIngressLimit, trackGuestOrder);
 router.get("/:id/refunds", protect, requireCapability(CAPABILITIES.REFUNDS_READ), listOrderRefunds);
 router.post("/:id/refunds", protect, requireCapability(CAPABILITIES.REFUNDS_REQUEST), requestRefund);
 router.post("/refunds/:refundId/approve", protect, requireCapability(CAPABILITIES.REFUNDS_APPROVE), changeRefundStatus("approve"));

@@ -1,3 +1,8 @@
+"use client";
+import { withLocale } from "../../i18n/LocaleProvider.jsx";
+
+
+
 import { Clock3, Flame, Gem, Star } from "lucide-react";
 
 const BadgeIcon = ({ badge = "" }) => {
@@ -16,11 +21,8 @@ const BadgeIcon = ({ badge = "" }) => {
   return <Clock3 className={iconClass} aria-hidden="true" />;
 };
 
-const OfferBadge = ({ children }) => (
-  <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-dune-amber/60 bg-black/75 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-dune-amber backdrop-blur-sm">
+const OfferBadge = ({ children }) =>
+<span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-dune-amber/60 bg-black/75 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-dune-amber backdrop-blur-sm">
     <BadgeIcon badge={children} />
     {children}
-  </span>
-);
-
-export default OfferBadge;
+  </span>;export default withLocale(OfferBadge);

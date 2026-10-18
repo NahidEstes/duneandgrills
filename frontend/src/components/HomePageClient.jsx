@@ -1,4 +1,8 @@
 "use client";
+import { withLocale } from "../i18n/LocaleProvider.jsx";
+
+
+
 
 import { useState } from "react";
 import Navbar from "./Navbar.jsx";
@@ -19,7 +23,7 @@ const HomePageClient = ({
   initialMenuItems = [],
   initialCombos = [],
   initialOffers = [],
-  restaurantSettings = null,
+  restaurantSettings = null
 }) => {
   const [cartOpen, setCartOpen] = useState(false);
   const { settings } = usePublicRestaurant();
@@ -32,20 +36,20 @@ const HomePageClient = ({
         <Hero />
         <MenuSection
           initialItems={initialMenuItems}
-          initialCombos={initialCombos}
-        />
+          initialCombos={initialCombos} />
+
         <OffersSection
           initialOffers={initialOffers}
-          onCartOpen={() => setCartOpen(true)}
-        />
+          onCartOpen={() => setCartOpen(true)} />
+
         <About />
         {SHOW_CONTACT_SECTION && <Contact settings={restaurantSettings} />}
         <VisitUs settings={settings || restaurantSettings} />
       </main>
       <LandingFooter />
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
-    </div>
-  );
+    </div>);
+
 };
 
-export default HomePageClient;
+export default withLocale(HomePageClient);

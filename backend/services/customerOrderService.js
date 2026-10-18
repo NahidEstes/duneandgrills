@@ -21,6 +21,7 @@ export const createCustomerOrder = async ({ payload, actor, channel = "customer"
   const trackingToken = identity.idempotencyKey ? trackingTokenForIdentity(identity) : crypto.randomBytes(32).toString("base64url");
   const previous = await findCreationReplay(identity);
   if (previous) return { order: previous, duplicate: true, trackingToken };
+  if (channel === "customer" && actor?.role === "customer" && actor.emailVerificationRequired === true && !actor.emailVerifiedAt) throw new OrderEngineError("Verify your email before placing an account order. Your cart has been kept.", 403);
   const settings = await getEffectiveRestaurantSettings();
   const source = channel === "admin" ? "phone" : "website";
   if (!settings.orders.channels[source]) throw new OrderEngineError(`${channel === "admin" ? "Phone" : "Online"} ordering is currently unavailable`, 503);

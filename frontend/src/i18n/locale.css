@@ -1,0 +1,15 @@
+html[data-customer-locale="ar"] body { font-family: Arial, Tahoma, sans-serif; }
+html[data-customer-locale="ar"] :is(h1,h2,h3,h4,.font-display) { font-family: Arial, Tahoma, sans-serif; letter-spacing: normal; line-height: 1.35; }
+html[data-customer-locale="ar"] :is(.tracking-widest,.tracking-wide,.eyebrow) { letter-spacing: normal; }
+html[data-customer-locale="ar"] :is(input[type=email],input[type=tel],input[type=password],[data-order-number]) { direction: ltr; text-align: start; unicode-bidi: isolate; }
+html[data-customer-locale="ar"] :is(.text-left,[class~="text-left"]) { text-align: right; }
+html[data-customer-locale="ar"] :is(.text-right,[class~="text-right"]) { text-align: left; }
+html[data-customer-locale="ar"] :is(.lucide-arrow-left,.lucide-arrow-right,.lucide-chevron-left,.lucide-chevron-right) { transform: scaleX(-1); }
+html[data-customer-locale="ar"] .border-l-2 { border-left-width: 0; border-right-width: 2px; }
+html[data-customer-locale="ar"] input[type=number] { direction: ltr; }
+html[data-customer-locale="ar"] :is(a[href^="tel:"],a[href^="mailto:"]) { direction: ltr; unicode-bidi: isolate; }
+.customer-language-switch { flex-shrink: 0; font-family: Arial, sans-serif; }
+html[data-customer-locale="ar"] .customer-cart-dialog { left: 0; right: auto; border-left: 0; border-right: 1px solid #303030; }
+html[data-customer-locale="ar"] .customer-item-actions { right: auto; left: 12px; }
+html[data-customer-locale="ar"] .pr-9 { padding-right: 12px; padding-left: 36px; }
+@media(max-width: 390px) { .customer-language-switch { padding-inline: 8px; font-size: 12px; } [data-customer-locale] .customer-nav-brand { font-size: 16px !important; letter-spacing: 0; } }

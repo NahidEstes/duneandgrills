@@ -258,8 +258,8 @@ export const fetchOrders = async (filters = {}, options = {}) => {
   return data.data;
 };
 
-export const trackGuestOrder = async (orderNumber, trackingToken) => {
-  const { data } = await api.get(`/orders/track/${encodeURIComponent(orderNumber)}`, { headers: { "X-Order-Tracking-Token": trackingToken } });
+export const trackGuestOrder = async (orderNumber, trackingToken, options = {}) => {
+  const { data } = await api.get(`/orders/track/${encodeURIComponent(orderNumber)}`, { ...options, headers: { "X-Order-Tracking-Token": trackingToken } });
   return data.data;
 };
 

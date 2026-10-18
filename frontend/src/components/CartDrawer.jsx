@@ -1,4 +1,9 @@
 "use client";
+import { t, catalogText } from "../i18n/core.js";
+import { LanguageSwitcher, withLocale } from "../i18n/LocaleProvider.jsx";
+
+
+import { EmailVerificationNotice } from "./account/CustomerAccountAccess.jsx";
 
 import React, { useEffect, useRef, useState } from "react";
 import { submitCustomerOrder, retryCustomerOrder, pendingCustomerOrder, reconcileCustomerOrder } from "../utils/customerOrderSubmission.js";
@@ -19,8 +24,8 @@ import {
   Truck,
   UtensilsCrossed,
   TicketPercent,
-  CircleCheck,
-} from "lucide-react";
+  CircleCheck } from
+"lucide-react";
 import { formatPrice } from "../utils/currency.js";
 import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -30,8 +35,8 @@ import {
   placeOrder,
   cancelCustomerOrderRequest,
   updateMe,
-  validateCoupon,
-} from "../api/api.js";
+  validateCoupon } from
+"../api/api.js";
 import LoginPromptModal from "./LoginPromptModal.jsx";
 import SmartImage from "./SmartImage.jsx";
 import ItemModal from "./ItemModal.jsx";
@@ -41,38 +46,38 @@ import { usePublicRestaurant } from "../context/PublicRestaurantContext.jsx";
 const ORDER_TYPE_ICONS = {
   "dine-in": UtensilsCrossed,
   pickup: PackageCheck,
-  delivery: Truck,
+  delivery: Truck
 };
 
-const OrderTypeSelector = ({ options, value, onChange, disabled = false }) => (
-  <fieldset disabled={disabled}>
-    <legend className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-400">
-      Order Type
-    </legend>
+const OrderTypeSelector = ({ options, value, onChange, disabled = false }) =>
+<fieldset disabled={disabled}>
+    <legend className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-400">{t(" Order Type ")}
+
+  </legend>
     <div className="grid grid-cols-3 gap-2">
       {options.map((option) => {
-        const Icon = ORDER_TYPE_ICONS[option.value] || ShoppingBag;
-        const selected = value === option.value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            aria-pressed={selected}
-            className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-              selected
-                ? "border-dune-amber bg-dune-amber/10 text-dune-amber"
-                : "border-dune-border bg-black/30 text-neutral-400 hover:border-dune-amber/60 hover:text-dune-amber"
-            }`}
-          >
+      const Icon = ORDER_TYPE_ICONS[option.value] || ShoppingBag;
+      const selected = value === option.value;
+      return (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          aria-pressed={selected}
+          className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+          selected ?
+          "border-dune-amber bg-dune-amber/10 text-dune-amber" :
+          "border-dune-border bg-black/30 text-neutral-400 hover:border-dune-amber/60 hover:text-dune-amber"}`
+          }>
+
             <Icon className="h-4 w-4" />
-            {option.label}
-          </button>
-        );
-      })}
+            {t(option.label)}
+          </button>);
+
+    })}
     </div>
-  </fieldset>
-);
+  </fieldset>;
+
 
 const CartDrawer = ({ open, onClose }) => {
   const {
@@ -89,7 +94,7 @@ const CartDrawer = ({ open, onClose }) => {
     dismissCartError,
     suggestedCouponCode,
     suggestCoupon,
-    removeSuggestedCoupon,
+    removeSuggestedCoupon
   } = useCart();
   const { user, setUser } = useAuth();
   const router = useRouter();
@@ -99,7 +104,7 @@ const CartDrawer = ({ open, onClose }) => {
   const [customer, setCustomer] = useState({
     name: "",
     phone: "",
-    address: "",
+    address: ""
   });
   const [editPhone, setEditPhone] = useState(false);
   const [editAddress, setEditAddress] = useState(false);
@@ -116,13 +121,13 @@ const CartDrawer = ({ open, onClose }) => {
   const [couponError, setCouponError] = useState("");
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [validatedCartKey, setValidatedCartKey] = useState("");
-  const [editing, setEditing] = useState(null), [loadingEdit, setLoadingEdit] = useState(false);
+  const [editing, setEditing] = useState(null),[loadingEdit, setLoadingEdit] = useState(false);
   const dialog = useCustomerDialog(open);
-  const actor = user?._id || "guest", actorRef = useRef(actor), cartSnapshot = useRef(cart), submitLock = useRef(false);
-  useEffect(() => { actorRef.current = actor; cartSnapshot.current = cart; }, [actor, cart]);
+  const actor = user?._id || "guest",actorRef = useRef(actor),cartSnapshot = useRef(cart),submitLock = useRef(false);
+  useEffect(() => {actorRef.current = actor;cartSnapshot.current = cart;}, [actor, cart]);
 
   useEffect(() => {
-    if (orderConfig) setOrderType(current => orderConfig.orderTypes.some(option => option.value === current) ? current : orderConfig.defaultOrderType);
+    if (orderConfig) setOrderType((current) => orderConfig.orderTypes.some((option) => option.value === current) ? current : orderConfig.defaultOrderType);
   }, [orderConfig]);
 
   const selectedOrderType = orderConfig?.orderTypes.find(
@@ -136,14 +141,14 @@ const CartDrawer = ({ open, onClose }) => {
   const orderTotal = Number(
     (Math.max(0, subtotal - discountAmount) + deliveryFee).toFixed(2)
   );
-  const cartKey = cart
-    .filter((line) => !line.isReward)
-    .map(
-      (line) =>
-        `${line.productType || "menuItem"}:${line._id}:${line.customizationKey || ""}:${line.quantity}:${line.price}`
-    )
-    .sort()
-    .join("|");
+  const cartKey = cart.
+  filter((line) => !line.isReward).
+  map(
+    (line) =>
+    `${line.productType || "menuItem"}:${line._id}:${line.customizationKey || ""}:${line.quantity}:${line.price}`
+  ).
+  sort().
+  join("|");
 
   useEffect(() => {
     if (!appliedCoupon && suggestedCouponCode) {
@@ -157,16 +162,16 @@ const CartDrawer = ({ open, onClose }) => {
       setCouponError("Your cart changed. Please apply the coupon again.");
     }
   }, [appliedCoupon, cartKey, validatedCartKey]);
-  useEffect(() => { setAppliedCoupon(null); setValidatedCartKey(""); setCouponError(""); setEditing(null); setPlacedOrder(null); setStep(value => value === "success" ? "cart" : value); if (actor === "guest") setCustomer({ name: "", phone: "", address: "" }); }, [actor]);
+  useEffect(() => {setAppliedCoupon(null);setValidatedCartKey("");setCouponError("");setEditing(null);setPlacedOrder(null);setStep((value) => value === "success" ? "cart" : value);if (actor === "guest") setCustomer({ name: "", phone: "", address: "" });}, [actor]);
   useEffect(() => {
     if (!open) return;
     try {
       const pending = pendingCustomerOrder(window.sessionStorage, actor === "guest" ? undefined : actor);
       setHasPendingOrder(!!pending);
       if (pending) {
-        setStep("checkout"); setError("Your previous order still needs confirmation. Check the original order before placing another one.");
+        setStep("checkout");setError("Your previous order still needs confirmation. Check the original order before placing another one.");
       }
-    } catch { setHasPendingOrder(true); setStep("checkout"); setError("Your saved order request could not be read. Do not place another order until the restaurant has checked it."); }
+    } catch {setHasPendingOrder(true);setStep("checkout");setError("Your saved order request could not be read. Do not place another order until the restaurant has checked it.");}
   }, [open, actor]);
 
   // Prefill checkout fields from the logged-in user's saved profile
@@ -175,7 +180,7 @@ const CartDrawer = ({ open, onClose }) => {
       setCustomer({
         name: user.name || "",
         phone: user.phone || "",
-        address: user.address || "",
+        address: user.address || ""
       });
     }
   }, [user, step]);
@@ -199,25 +204,25 @@ const CartDrawer = ({ open, onClose }) => {
   };
 
   const checkoutItems = () =>
-    cart
-      .filter((line) => !line.isReward)
-      .map((line) => ({
-        productId: line._id,
-        productType: line.productType || "menuItem",
-        quantity: line.quantity,
-        ...(line.customizationKey
-          ? {
-              customization: {
-                selectedAddOns: (line.selectedAddOns || []).map((addOn) => ({
-                  id: addOn._id,
-                  quantity: addOn.quantity || 1,
-                })),
-                spiceLevel: line.spiceLevel || "",
-                note: line.note || "",
-              },
-            }
-          : {}),
-      }));
+  cart.
+  filter((line) => !line.isReward).
+  map((line) => ({
+    productId: line._id,
+    productType: line.productType || "menuItem",
+    quantity: line.quantity,
+    ...(line.customizationKey ?
+    {
+      customization: {
+        selectedAddOns: (line.selectedAddOns || []).map((addOn) => ({
+          id: addOn._id,
+          quantity: addOn.quantity || 1
+        })),
+        spiceLevel: line.spiceLevel || "",
+        note: line.note || ""
+      }
+    } :
+    {})
+  }));
 
   const handleApplyCoupon = async () => {
     if (!couponInput.trim()) {
@@ -240,7 +245,7 @@ const CartDrawer = ({ open, onClose }) => {
       setAppliedCoupon(null);
       setCouponError(
         requestError.response?.data?.message ||
-          "This coupon could not be applied."
+        "This coupon could not be applied."
       );
     } finally {
       setApplyingCoupon(false);
@@ -279,36 +284,36 @@ const CartDrawer = ({ open, onClose }) => {
     }
     setSubmitting(true);
     submitLock.current = true;
-    const submittedActor = actor, submittedCart = JSON.stringify(cart);
+    const submittedActor = actor,submittedCart = JSON.stringify(cart);
     setError("");
     try {
       const order = await submitCustomerOrder({ storage: window.sessionStorage, actorId: user?._id, send: placeOrder, payload: {
-        customer: {
-          ...customer,
-          address: orderType === "delivery" ? customer.address : "",
-        },
-        orderType,
-        paymentOption: "cod",
-        kitchenNotes,
-        items: checkoutItems(),
-        couponCode: appliedCoupon?.code || undefined,
-        rewardRedemptionId:
-          cart.find((line) => line.isReward)?.rewardRedemptionId || undefined,
-      } });
+          customer: {
+            ...customer,
+            address: orderType === "delivery" ? customer.address : ""
+          },
+          orderType,
+          paymentOption: "cod",
+          kitchenNotes,
+          items: checkoutItems(),
+          couponCode: appliedCoupon?.code || undefined,
+          rewardRedemptionId:
+          cart.find((line) => line.isReward)?.rewardRedemptionId || undefined
+        } });
       if (submittedActor !== actorRef.current) return;
       setPlacedOrder(order);
-      try { rememberTracking(window.sessionStorage, order); } catch { /* The confirmation still provides the private code. */ }
-      if (submittedCart === JSON.stringify(cartSnapshot.current)) clearCart();
-      else toast.info("Order confirmed. Your updated cart has been kept.");
+      try {rememberTracking(window.sessionStorage, order);} catch {/* The confirmation still provides the private code. */}
+      if (submittedCart === JSON.stringify(cartSnapshot.current)) clearCart();else
+      toast.info(t("Order confirmed. Your updated cart has been kept."));
       setStep("success");
     } catch (err) {
       if (submittedActor === actorRef.current) {
         let pending = true;
-        try { pending = !!pendingCustomerOrder(window.sessionStorage, user?._id); } catch { /* Unknown persisted state must not be treated as a safe new order. */ }
+        try {pending = !!pendingCustomerOrder(window.sessionStorage, user?._id);} catch {/* Unknown persisted state must not be treated as a safe new order. */}
         setHasPendingOrder(pending);
-        setError([400, 422].includes(err.response?.status) ? err.response?.data?.message || "Please check your order details." : pending
-          ? "We couldn’t confirm this request. It may already have placed your order. Check the original order before trying another order."
-          : "Your order was not sent. Check your connection and try again; keep this page open if your browser cannot save the request.");
+        setError([400, 422].includes(err.response?.status) ? err.response?.data?.message || "Please check your order details." : pending ?
+        "We couldn’t confirm this request. It may already have placed your order. Check the original order before trying another order." :
+        "Your order was not sent. Check your connection and try again; keep this page open if your browser cannot save the request.");
       }
     } finally {
       setSubmitting(false);
@@ -316,7 +321,7 @@ const CartDrawer = ({ open, onClose }) => {
     }
   };
 
-  const handleRecovery = async stopWaiting => {
+  const handleRecovery = async (stopWaiting) => {
     if (submitLock.current) return;
     const owner = actor;
     submitLock.current = true;
@@ -328,10 +333,10 @@ const CartDrawer = ({ open, onClose }) => {
         setError("There is no pending order to check. Review your checkout details and try again.");
         return;
       }
-      const question = stopWaiting
-        ? "Stop waiting for this request? An existing order will not be cancelled: its confirmation will be recovered instead. If no order exists, the original request will be blocked and your cart kept."
-        : `Check the original order for ${saved.customer?.name || "Guest"}? We will use the same saved request, not create a second order. Your current cart stays available.`;
-      if (!window.confirm(question)) return;
+      const question = stopWaiting ?
+      "Stop waiting for this request? An existing order will not be cancelled: its confirmation will be recovered instead. If no order exists, the original request will be blocked and your cart kept." :
+      `Check the original order for ${saved.customer?.name || "Guest"}? We will use the same saved request, not create a second order. Your current cart stays available.`;
+      if (!window.confirm(t(question))) return;
       let order;
       if (stopWaiting) {
         const result = await reconcileCustomerOrder({ storage: window.sessionStorage, actorId: user?._id, send: cancelCustomerOrderRequest });
@@ -339,7 +344,7 @@ const CartDrawer = ({ open, onClose }) => {
         if (result.cancelled) {
           setHasPendingOrder(false);
           setError("");
-          toast.success("Request stopped. No existing order was cancelled. Review your checkout before trying again.");
+          toast.success(t("Request stopped. No existing order was cancelled. Review your checkout before trying again."));
           return;
         }
         order = { ...result.data, trackingToken: result.trackingToken };
@@ -349,7 +354,7 @@ const CartDrawer = ({ open, onClose }) => {
       if (owner !== actorRef.current) return;
       setHasPendingOrder(false);
       setPlacedOrder(order);
-      try { rememberTracking(window.sessionStorage, order); } catch { /* Confirmation retains its private code. */ }
+      try {rememberTracking(window.sessionStorage, order);} catch {/* Confirmation retains its private code. */}
       setStep("success");
     } catch {
       if (owner === actorRef.current) setError("We still couldn’t confirm your original order. Keep this request saved and check again when the connection returns, or contact the restaurant before placing another order.");
@@ -363,16 +368,16 @@ const CartDrawer = ({ open, onClose }) => {
     if (line.isReward && line.rewardRedemptionId) {
       try {
         await cancelRewardRedemption(line.rewardRedemptionId);
-        toast.success("Reward removed and your points were returned.");
+        toast.success(t("Reward removed and your points were returned."));
       } catch (requestError) {
         if ([404, 409].includes(requestError.response?.status)) {
           removeFromCart(line);
-          toast.info("This reward reservation is no longer active.");
+          toast.info(t("This reward reservation is no longer active."));
           return;
         }
-        toast.error(
+        toast.error(t(
           requestError.response?.data?.message ||
-            "The reward could not be removed from your cart."
+          "The reward could not be removed from your cart.")
         );
         return;
       }
@@ -381,431 +386,433 @@ const CartDrawer = ({ open, onClose }) => {
   };
 
   const reset = () => {
-    setEditing(null); setShowLoginModal(false);
-    if (!submitting) { setStep("cart"); setEditPhone(false); setEditAddress(false); setError(""); }
+    setEditing(null);setShowLoginModal(false);
+    if (!submitting) {setStep("cart");setEditPhone(false);setEditAddress(false);setError("");}
     onClose();
   };
 
-  const startEdit = async line => {
-    const owner = actor; setLoadingEdit(true);
+  const startEdit = async (line) => {
+    const owner = actor;setLoadingEdit(true);
     try {
-      const product = (await fetchMenuItems()).find(row => row._id === line._id);
+      const product = (await fetchMenuItems()).find((row) => row._id === line._id);
       if (!product?.customization?.enabled || product.isAvailable === false) throw new Error("Customization for this item is currently unavailable.");
       if (owner === actorRef.current) setEditing({ product, original: line });
-    } catch (error) { toast.error(error.response?.data?.message || error.message || "Item options could not be loaded. Please retry."); }
-    finally { setLoadingEdit(false); }
+    } catch (error) {toast.error(t(error.response?.data?.message || error.message || "Item options could not be loaded. Please retry."));} finally
+    {setLoadingEdit(false);}
   };
 
   return (
     <>
-      <dialog ref={dialog} aria-modal="true" aria-labelledby="customer-cart-title" onCancel={event => { event.preventDefault(); reset(); }} className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-none w-full max-w-none sm:w-[420px] flex-col border-l border-dune-border bg-dune-ink p-0 text-white [overflow-wrap:anywhere] backdrop:bg-black/70 backdrop:backdrop-blur-sm`}>
+      <dialog ref={dialog} aria-modal="true" aria-labelledby="customer-cart-title" onCancel={(event) => {event.preventDefault();reset();}} className={`${open ? "flex" : "hidden"} customer-cart-dialog fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-none w-full max-w-none sm:w-[420px] flex-col border-l border-dune-border bg-dune-ink p-0 text-white [overflow-wrap:anywhere] backdrop:bg-black/70 backdrop:backdrop-blur-sm`}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-dune-border">
+          <LanguageSwitcher />
           <h2 id="customer-cart-title" className="font-display text-2xl text-white tracking-wide">
-            {step === "checkout"
-              ? "Checkout"
-              : step === "success"
-              ? "Order Placed"
-              : "Your Cart"}
+            {t(step === "checkout" ?
+            "Checkout" :
+            step === "success" ?
+            "Order Placed" :
+            "Your Cart")}
           </h2>
           <button
             onClick={reset}
-            aria-label="Close cart"
-            className="grid min-h-11 min-w-11 place-items-center text-neutral-300 hover:text-white"
-          >
+            aria-label={t("Close cart")}
+            className="grid min-h-11 min-w-11 place-items-center text-neutral-300 hover:text-white">
+
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {step === "cart" && (
-          <>
+        {step === "cart" &&
+        <>
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              {syncError && (
-                <div
-                  role="alert"
-                  className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-3 text-xs text-red-200"
-                >
+              <EmailVerificationNotice />
+              {syncError &&
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-3 text-xs text-red-200">
+
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p className="min-w-0 flex-1">{syncError}</p>
+                  <p className="min-w-0 flex-1">{t(syncError)}</p>
                   <button
-                    type="button"
-                    onClick={dismissCartError}
-                    aria-label="Dismiss cart error"
-                    className="text-red-300 hover:text-white"
-                  >
+                type="button"
+                onClick={dismissCartError}
+                aria-label={t("Dismiss cart error")}
+                className="text-red-300 hover:text-white">
+
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
-              )}
+            }
 
-              {!cartReady ? (
-                <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-neutral-400">
+              {t(!cartReady ?
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-neutral-400">
                   <LoaderCircle className="h-8 w-8 animate-spin text-dune-amber" />
-                  <p>Loading your saved cart...</p>
-                </div>
-              ) : cart.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center text-neutral-400 gap-3">
+                  <p>{t("Loading your saved cart...")}</p>
+                </div> :
+            cart.length === 0 ?
+            <div className="flex flex-col items-center justify-center h-full text-center text-neutral-400 gap-3">
                   <ShoppingBag className="w-10 h-10" />
-                  <p>Your cart is empty. Add something delicious.</p>
-                  <button type="button" onClick={() => { reset(); router.push("/menu"); }} className="min-h-12 rounded-full border border-dune-amber px-6 text-dune-amber">View Menu</button>
-                </div>
-              ) : (
-                cart.map((line) => (
-                  <div
-                    key={line.cartLineId || `${line.productType || "menuItem"}-${line._id}-${line.customizationKey || ""}`}
-                    className="flex gap-4 border-b border-dune-border pb-5"
-                  >
+                  <p>{t("Your cart is empty. Add something delicious.")}</p>
+                  <button type="button" onClick={() => {reset();router.push("/menu");}} className="min-h-12 rounded-full border border-dune-amber px-6 text-dune-amber">{t("View Menu")}</button>
+                </div> :
+
+            cart.map((line) =>
+            <div
+              key={line.cartLineId || `${line.productType || "menuItem"}-${line._id}-${line.customizationKey || ""}`}
+              className="flex gap-4 border-b border-dune-border pb-5">
+
                     <SmartImage
-                      src={line.image}
-                      alt={line.name}
-                      width={128}
-                      height={128}
-                      sizes="64px"
-                      className="w-16 h-16 rounded-lg object-cover shrink-0"
-                    />
+                src={line.image}
+                alt={catalogText(line, "name")}
+                width={128}
+                height={128}
+                sizes="64px"
+                className="w-16 h-16 rounded-lg object-cover shrink-0" />
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="break-words text-sm font-medium text-white">
-                          {line.name}
+                          {catalogText(line, "name")}
                         </h3>
                         <button
-                          onClick={() => handleRemoveLine(line)}
-                          disabled={submitting || syncing} className="grid min-h-11 min-w-11 place-items-center text-neutral-300 hover:text-red-300 shrink-0"
-                          aria-label={`Remove ${line.name}`}
-                        >
+                    onClick={() => handleRemoveLine(line)}
+                    disabled={submitting || syncing} className="grid min-h-11 min-w-11 place-items-center text-neutral-300 hover:text-red-300 shrink-0"
+                    aria-label={t("Remove {0}", [catalogText(line, "name")])}>
+
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                       {/* <p className="text-dune-amber text-sm mt-1">
-                        ${line.price.toFixed(2)}
-                      </p> */}
+                  ${line.price.toFixed(2)}
+                  </p> */}
                       <p className="text-dune-amber text-sm mt-1">
-                        {line.isReward ? "Points Reward · FREE" : `Unit price: ${formatPrice(line.price)}`}
+                        {t(line.isReward ? "Points Reward · FREE" : `Unit price: ${formatPrice(line.price)}`)}
                       </p>
-                      <p className="mt-1 text-sm text-neutral-200">{line.quantity} × unit price · Line total: {formatPrice(line.price * line.quantity)}</p>
-                      {!line.isReward && line.productType !== "combo" && (line.customizationEnabled || line.customizationKey) && <button type="button" disabled={loadingEdit || syncing || submitting} onClick={() => startEdit(line)} className="inline-flex min-h-11 items-center gap-2 text-sm text-dune-amber"><Pencil size={16} />Edit options</button>}
-                      {line.productType === "combo" && line.includedItems?.length > 0 && (
-                        <p className="mt-1 text-xs leading-4 text-neutral-400">
-                          {line.includedItems
-                            .map(
-                              (entry) =>
-                                `${entry.menuItem?.name || "Item"} ×${entry.quantity}`
-                            )
-                            .join(" · ")}
+                      <p className="mt-1 text-sm text-neutral-200">{t(line.quantity)}{t(" × unit price · Line total: ")}{formatPrice(line.price * line.quantity)}</p>
+                      {!line.isReward && line.productType !== "combo" && (line.customizationEnabled || line.customizationKey) && <button type="button" disabled={loadingEdit || syncing || submitting} onClick={() => startEdit(line)} className="inline-flex min-h-11 items-center gap-2 text-sm text-dune-amber"><Pencil size={16} />{t("Edit options")}</button>}
+                      {line.productType === "combo" && line.includedItems?.length > 0 &&
+                <p className="mt-1 text-xs leading-4 text-neutral-400">
+                          {t(line.includedItems.
+                  map(
+                    (entry) =>
+                    `${catalogText(entry.menuItem, "name") || "Item"} ×${entry.quantity}`
+                  ).
+                  join(" · "))}
                         </p>
-                      )}
+                }
 
-                      {line.selectedAddOns?.length > 0 && (
-                        <p className="mt-1 text-xs leading-4 text-neutral-400">
-                          Add-ons: {line.selectedAddOns.map((addOn) => `${addOn.name}${(addOn.quantity || 1) > 1 ? ` ×${addOn.quantity}` : ""}`).join(" · ")}
+                      {line.selectedAddOns?.length > 0 &&
+                <p className="mt-1 text-xs leading-4 text-neutral-400">{t(" Add-ons: ")}
+                  {t(line.selectedAddOns.map((addOn) => `${catalogText(addOn, "name")}${(addOn.quantity || 1) > 1 ? ` ×${addOn.quantity}` : ""}`).join(" · "))}
                         </p>
-                      )}
-                      {line.spiceLevel && (
-                        <p className="mt-1 text-xs capitalize text-neutral-400">
-                          Spice: {line.spiceLevel.replaceAll("-", " ")}
+                }
+                      {line.spiceLevel &&
+                <p className="mt-1 text-xs capitalize text-neutral-400">{t(" Spice: ")}
+                  {t(line.spiceLevel.replaceAll("-", " "))}
                         </p>
-                      )}
-                      {line.note && (
-                        <p className="mt-1 text-xs italic text-neutral-400">
-                          “{line.note}”
-                        </p>
-                      )}
+                }
+                      {line.note &&
+                <p className="mt-1 text-xs italic text-neutral-400">{t(" “")}
+                  {line.note}{t("” ")}
+                </p>
+                }
 
                       {!line.isReward && <div className="mt-2 flex items-center gap-3">
                         <button
-                          onClick={() => decrementItem(line)}
-                          disabled={submitting || syncing} aria-label={`Decrease ${line.name} quantity`} className="w-11 h-11 flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white"
-                        >
+                    onClick={() => decrementItem(line)}
+                    disabled={submitting || syncing} aria-label={t("Decrease {0} quantity", [catalogText(line, "name")])} className="w-11 h-11 flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white">
+
                           <Minus className="w-3.5 h-3.5" />
                         </button>
                         <span className="text-white text-sm min-w-6 text-center">
-                          {line.quantity}
+                          {t(line.quantity)}
                         </span>
                         <button
-                          onClick={() => incrementItem(line)}
-                          disabled={submitting || syncing || line.quantity >= 99} aria-label={`Increase ${line.name} quantity`} className="w-11 h-11 flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white"
-                        >
+                    onClick={() => incrementItem(line)}
+                    disabled={submitting || syncing || line.quantity >= 99} aria-label={t("Increase {0} quantity", [catalogText(line, "name")])} className="w-11 h-11 flex items-center justify-center rounded-full border border-dune-border hover:border-dune-amber text-white">
+
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>}
                     </div>
                   </div>
-                ))
-              )}
+            ))
+            }
             </div>
 
-            {cartReady && cart.length > 0 && (
-              <div className="max-h-[55dvh] shrink-0 overflow-y-auto space-y-4 border-t border-dune-border px-6 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-                {configLoading && (
-                  <p className="flex items-center gap-2 text-xs text-neutral-400">
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-dune-amber" />
-                    Loading order options...
-                  </p>
-                )}
-                {configError && (
-                  <div className="flex items-center justify-between gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-3 text-xs text-red-200">
-                    <span>{configError}</span>
+            {cartReady && cart.length > 0 &&
+          <div className="max-h-[55dvh] shrink-0 overflow-y-auto space-y-4 border-t border-dune-border px-6 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+                {configLoading &&
+            <p className="flex items-center gap-2 text-xs text-neutral-400">
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-dune-amber" />{t(" Loading order options... ")}
+
+            </p>
+            }
+                {configError &&
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-3 text-xs text-red-200">
+                    <span>{t(configError)}</span>
                     <button
-                      type="button"
-                      onClick={loadOrderConfig}
-                      className="shrink-0 font-semibold text-dune-amber hover:text-dune-amberLight"
-                    >
-                      Retry
-                    </button>
+                type="button"
+                onClick={loadOrderConfig}
+                className="shrink-0 font-semibold text-dune-amber hover:text-dune-amberLight">{t(" Retry ")}
+
+
+              </button>
                   </div>
-                )}
-                {orderConfig && (
-                  <OrderTypeSelector
-                    options={orderConfig.orderTypes}
-                    value={orderType}
-                    onChange={setOrderType}
-                    disabled={submitting}
-                  />
-                )}
-                {!websiteOrderingEnabled && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200">Online ordering is currently unavailable. Please contact the restaurant.</p>}
-                {belowDeliveryMinimum && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200">Add {formatPrice(minimumDeliveryOrder - subtotal)} more to reach the {formatPrice(minimumDeliveryOrder)} delivery minimum.</p>}
+            }
+                {orderConfig &&
+            <OrderTypeSelector
+              options={orderConfig.orderTypes}
+              value={orderType}
+              onChange={setOrderType}
+              disabled={submitting} />
+
+            }
+                {!websiteOrderingEnabled && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200">{t("Online ordering is currently unavailable. Please contact the restaurant.")}</p>}
+                {belowDeliveryMinimum && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200">{t("Add ")}{formatPrice(minimumDeliveryOrder - subtotal)}{t(" more to reach the ")}{formatPrice(minimumDeliveryOrder)}{t(" delivery minimum.")}</p>}
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between text-neutral-400">
-                    <span>Subtotal</span>
+                    <span>{t("Subtotal")}</span>
                     <span>{formatPrice(subtotal)}</span>
                   </div>
-                  {discountAmount > 0 && <div className="flex items-center justify-between text-emerald-300"><span>Discount ({appliedCoupon.code})</span><span>-{formatPrice(discountAmount)}</span></div>}
-                  {deliveryFee > 0 && (
-                    <div className="flex items-center justify-between text-neutral-400">
-                      <span>Delivery fee</span>
+                  {discountAmount > 0 && <div className="flex items-center justify-between text-emerald-300"><span>{t("Discount (")}{t(appliedCoupon.code)}{t(")")}</span><span>{t("-")}{formatPrice(discountAmount)}</span></div>}
+                  {deliveryFee > 0 &&
+              <div className="flex items-center justify-between text-neutral-400">
+                      <span>{t("Delivery fee")}</span>
                       <span>{formatPrice(deliveryFee)}</span>
                     </div>
-                  )}
+              }
                   <div className="flex items-center justify-between border-t border-dune-border pt-3 text-white">
-                    <span>Total</span>
+                    <span>{t("Total")}</span>
                     <span className="font-display text-2xl text-dune-amber">
                       {formatPrice(orderTotal)}
                     </span>
                   </div>
                 </div>
-                {syncing && (
-                  <p className="flex items-center justify-end gap-1.5 text-xs text-neutral-400">
-                    <LoaderCircle className="h-3 w-3 animate-spin" /> Saving cart...
-                  </p>
-                )}
+                {syncing &&
+            <p className="flex items-center justify-end gap-1.5 text-xs text-neutral-400">
+                    <LoaderCircle className="h-3 w-3 animate-spin" />{t(" Saving cart... ")}
+            </p>
+            }
                 <button
-                  onClick={handleProceed}
-                  disabled={!orderConfig || configLoading || !websiteOrderingEnabled || belowDeliveryMinimum}
-                  className="w-full rounded-full bg-dune-amber py-3.5 font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Proceed to Checkout
-                </button>
-              </div>
-            )}
-          </>
-        )}
+              onClick={handleProceed}
+              disabled={!orderConfig || configLoading || !websiteOrderingEnabled || belowDeliveryMinimum}
+              className="w-full rounded-full bg-dune-amber py-3.5 font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-50">{t(" Proceed to Checkout ")}
 
-        {step === "checkout" && (
-          <form
-            onSubmit={handleCheckout}
-            aria-busy={submitting}
-            className="flex-1 overflow-y-auto px-6 py-5 flex flex-col"
-          >
+
+            </button>
+              </div>
+          }
+          </>
+        }
+
+        {step === "checkout" &&
+        <form
+          onSubmit={handleCheckout}
+          aria-busy={submitting}
+          className="flex-1 overflow-y-auto px-6 py-5 flex flex-col">
+
             <fieldset disabled={submitting} className="min-w-0 space-y-5 flex-1">
-              {orderConfig && (
-                <OrderTypeSelector
-                  options={orderConfig.orderTypes}
-                  value={orderType}
-                  onChange={setOrderType}
-                  disabled={submitting}
-                />
-              )}
-              {!websiteOrderingEnabled && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">Online ordering is currently unavailable. Please contact the restaurant.</p>}
-              {belowDeliveryMinimum && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">Delivery requires a minimum subtotal of {formatPrice(minimumDeliveryOrder)}. Add {formatPrice(minimumDeliveryOrder - subtotal)} more.</p>}
+              {orderConfig &&
+            <OrderTypeSelector
+              options={orderConfig.orderTypes}
+              value={orderType}
+              onChange={setOrderType}
+              disabled={submitting} />
+
+            }
+              {!websiteOrderingEnabled && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">{t("Online ordering is currently unavailable. Please contact the restaurant.")}</p>}
+              {belowDeliveryMinimum && <p role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">{t("Delivery requires a minimum subtotal of ")}{formatPrice(minimumDeliveryOrder)}{t(". Add ")}{formatPrice(minimumDeliveryOrder - subtotal)}{t(" more.")}</p>}
 
               {/* Name — always read-only, tied to the account */}
               <div>
-                <label htmlFor="checkout-name" className="block text-sm text-neutral-300 mb-1.5">
-                  Full Name
-                </label>
+                <label htmlFor="checkout-name" className="block text-sm text-neutral-300 mb-1.5">{t(" Full Name ")}
+
+              </label>
                 <input
-                  id="checkout-name" name="name" autoComplete="name" aria-describedby={error ? "checkout-error" : undefined}
-                  required maxLength={100} disabled={Boolean(user)}
-                  value={customer.name}
-                  aria-label="Customer name"
-                  onChange={event => setCustomer({ ...customer, name: event.target.value })}
-                  className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white disabled:bg-white/5 disabled:text-neutral-400 disabled:cursor-not-allowed"
-                />
+                id="checkout-name" name="name" autoComplete="name" aria-describedby={error ? "checkout-error" : undefined}
+                required maxLength={100} disabled={Boolean(user)}
+                value={customer.name}
+                aria-label={t("Customer name")}
+                onChange={(event) => setCustomer({ ...customer, name: event.target.value })}
+                className="w-full rounded-lg bg-black border border-dune-border px-4 py-3 text-white disabled:bg-white/5 disabled:text-neutral-400 disabled:cursor-not-allowed" />
+
               </div>
 
               {/* Phone — editable via Edit/Save toggle */}
               <div>
-                <label htmlFor="checkout-phone" className="block text-sm text-neutral-300 mb-1.5">
-                  Phone Number
-                </label>
+                <label htmlFor="checkout-phone" className="block text-sm text-neutral-300 mb-1.5">{t(" Phone Number ")}
+
+              </label>
                 <input
-                  id="checkout-phone" type="tel" name="phone" autoComplete="tel" aria-describedby={error ? "checkout-error" : undefined}
-                  required
-                  disabled={Boolean(user) && !editPhone && Boolean(customer.phone)} maxLength={30}
-                  value={customer.phone}
-                  aria-label="Customer phone"
-                  onChange={(e) =>
-                    setCustomer({ ...customer, phone: e.target.value })
-                  }
-                  className={`w-full rounded-lg border px-4 py-3 outline-none transition-colors ${
-                    editPhone
-                      ? "bg-black border-dune-amber text-white"
-                      : "bg-black border-dune-border text-white disabled:bg-white/5 disabled:text-neutral-400 disabled:cursor-not-allowed"
-                  }`}
-                />
+                id="checkout-phone" type="tel" name="phone" autoComplete="tel" aria-describedby={error ? "checkout-error" : undefined}
+                required
+                disabled={Boolean(user) && !editPhone && Boolean(customer.phone)} maxLength={30}
+                value={customer.phone}
+                aria-label={t("Customer phone")}
+                onChange={(e) =>
+                setCustomer({ ...customer, phone: e.target.value })
+                }
+                className={`w-full rounded-lg border px-4 py-3 outline-none transition-colors ${
+                editPhone ?
+                "bg-black border-dune-amber text-white" :
+                "bg-black border-dune-border text-white disabled:bg-white/5 disabled:text-neutral-400 disabled:cursor-not-allowed"}`
+                } />
+
                 {user && <div className="flex justify-end mt-1.5">
                   <button
-                    type="button"
-                    disabled={savingField}
-                    onClick={() =>
-                      editPhone ? handleFieldSave("phone") : setEditPhone(true)
-                    }
-                    className="inline-flex items-center gap-1 text-xs text-dune-amber hover:text-dune-amberLight"
-                  >
-                    {editPhone ? (
-                      <>
+                  type="button"
+                  disabled={savingField}
+                  onClick={() =>
+                  editPhone ? handleFieldSave("phone") : setEditPhone(true)
+                  }
+                  className="inline-flex items-center gap-1 text-xs text-dune-amber hover:text-dune-amberLight">
+
+                    {t(editPhone ?
+                  <>
                         <Check className="w-3 h-3" />{" "}
-                        {savingField ? "Saving..." : "Save"}
-                      </>
-                    ) : (
-                      <>
-                        <Pencil className="w-3 h-3" /> Edit
-                      </>
-                    )}
+                        {t(savingField ? "Saving..." : "Save")}
+                      </> :
+
+                  <>
+                        <Pencil className="w-3 h-3" />{t(" Edit ")}
+                  </>)
+                  }
                   </button>
                 </div>}
               </div>
 
               {/* Delivery address is only needed for delivery orders. */}
               {orderType === "delivery" && <div>
-                <label htmlFor="checkout-address" className="block text-sm text-neutral-300 mb-1.5">
-                  Delivery Address
-                </label>
+                <label htmlFor="checkout-address" className="block text-sm text-neutral-300 mb-1.5">{t(" Delivery Address ")}
+
+              </label>
                 <textarea
-                  id="checkout-address" name="address" autoComplete="street-address" aria-describedby={error ? "checkout-error" : undefined}
-                  required
-                  rows={3}
-                  disabled={Boolean(user) && !editAddress && Boolean(customer.address)} maxLength={500}
-                  value={customer.address}
-                  aria-label="Delivery address"
-                  onChange={(e) =>
-                    setCustomer({ ...customer, address: e.target.value })
-                  }
-                  className={`w-full rounded-lg border px-4 py-3 outline-none resize-none transition-colors ${
-                    editAddress
-                      ? "bg-black border-dune-amber text-white"
-                      : "bg-black border-dune-border text-white disabled:bg-white/5 disabled:text-neutral-400 disabled:cursor-not-allowed"
-                  }`}
-                />
+                id="checkout-address" name="address" autoComplete="street-address" aria-describedby={error ? "checkout-error" : undefined}
+                required
+                rows={3}
+                disabled={Boolean(user) && !editAddress && Boolean(customer.address)} maxLength={500}
+                value={customer.address}
+                aria-label={t("Delivery address")}
+                onChange={(e) =>
+                setCustomer({ ...customer, address: e.target.value })
+                }
+                className={`w-full rounded-lg border px-4 py-3 outline-none resize-none transition-colors ${
+                editAddress ?
+                "bg-black border-dune-amber text-white" :
+                "bg-black border-dune-border text-white disabled:bg-white/5 disabled:text-neutral-400 disabled:cursor-not-allowed"}`
+                } />
+
                 {user && <div className="flex justify-end mt-1.5">
                   <button
-                    type="button"
-                    disabled={savingField}
-                    onClick={() =>
-                      editAddress
-                        ? handleFieldSave("address")
-                        : setEditAddress(true)
-                    }
-                    className="inline-flex items-center gap-1 text-xs text-dune-amber hover:text-dune-amberLight"
-                  >
-                    {editAddress ? (
-                      <>
+                  type="button"
+                  disabled={savingField}
+                  onClick={() =>
+                  editAddress ?
+                  handleFieldSave("address") :
+                  setEditAddress(true)
+                  }
+                  className="inline-flex items-center gap-1 text-xs text-dune-amber hover:text-dune-amberLight">
+
+                    {t(editAddress ?
+                  <>
                         <Check className="w-3 h-3" />{" "}
-                        {savingField ? "Saving..." : "Save"}
-                      </>
-                    ) : (
-                      <>
-                        <Pencil className="w-3 h-3" /> Edit
-                      </>
-                    )}
+                        {t(savingField ? "Saving..." : "Save")}
+                      </> :
+
+                  <>
+                        <Pencil className="w-3 h-3" />{t(" Edit ")}
+                  </>)
+                  }
                   </button>
                 </div>}
               </div>}
 
-              {!user && <p className="text-sm text-neutral-400">Checkout as a guest, or <button type="button" onClick={() => setShowLoginModal(true)} className="text-dune-amber underline">sign in</button> for rewards and order history.</p>}
-              <label className="block text-sm text-neutral-400">Kitchen notes<textarea maxLength={500} value={kitchenNotes} onChange={event => setKitchenNotes(event.target.value)} className="mt-2 w-full rounded-lg border border-dune-border bg-black p-3 text-white" /></label>
-              <section className="rounded-xl border border-dune-border p-4"><h3 className="font-semibold text-white">{orderType === "delivery" ? "Cash at delivery" : orderType === "dine-in" ? "Pay at the restaurant" : "Cash at pickup"}</h3><p className="mt-1 text-sm text-neutral-300">Payment is collected by the restaurant for this order type. Online payment is not available.</p></section>
+              {!user && <p className="text-sm text-neutral-400">{t("Checkout as a guest, or ")}<button type="button" onClick={() => setShowLoginModal(true)} className="text-dune-amber underline">{t("sign in")}</button>{t(" for rewards and order history.")}</p>}
+              <label className="block text-sm text-neutral-400">{t("Kitchen notes")}<textarea maxLength={500} value={kitchenNotes} onChange={(event) => setKitchenNotes(event.target.value)} className="mt-2 w-full rounded-lg border border-dune-border bg-black p-3 text-white" /></label>
+              <section className="rounded-xl border border-dune-border p-4"><h3 className="font-semibold text-white">{t(orderType === "delivery" ? "Cash at delivery" : orderType === "dine-in" ? "Pay at the restaurant" : "Cash at pickup")}</h3><p className="mt-1 text-sm text-neutral-300">{t("Payment is collected by the restaurant for this order type. Online payment is not available.")}</p></section>
               <section
-                aria-labelledby="coupon-heading"
-                className="rounded-xl border border-dune-border bg-black/35 p-4"
-              >
+              aria-labelledby="coupon-heading"
+              className="rounded-xl border border-dune-border bg-black/35 p-4">
+
                 <div className="mb-3 flex items-center gap-2">
                   <TicketPercent className="h-4 w-4 text-dune-amber" />
                   <h3
-                    id="coupon-heading"
-                    className="text-sm font-semibold text-white"
-                  >
-                    Coupon code
-                  </h3>
+                  id="coupon-heading"
+                  className="text-sm font-semibold text-white">{t(" Coupon code ")}
+
+
+                </h3>
                 </div>
 
-                {appliedCoupon ? (
-                  <div className="space-y-3">
+                {t(appliedCoupon ?
+              <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-400">
-                          <CircleCheck className="h-4 w-4" /> Coupon applied
-                        </p>
+                          <CircleCheck className="h-4 w-4" />{t(" Coupon applied ")}
+                    </p>
                         <p className="mt-1 text-xs text-neutral-400">
-                          {appliedCoupon.code} · {appliedCoupon.title}
+                          {t(appliedCoupon.code)}{t(" · ")}{t(appliedCoupon.title)}
                         </p>
                       </div>
                       <button
-                        type="button"
-                        onClick={handleRemoveCoupon}
-                        className="text-xs font-semibold text-dune-amber hover:text-dune-amberLight"
-                      >
-                        Remove
-                      </button>
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="text-xs font-semibold text-dune-amber hover:text-dune-amberLight">{t(" Remove ")}
+
+
+                  </button>
                     </div>
                     <div className="flex items-center justify-between text-sm text-neutral-300">
-                      <span>Discount</span>
-                      <span className="font-semibold text-emerald-400">
-                        -{formatPrice(discountAmount)}
+                      <span>{t("Discount")}</span>
+                      <span className="font-semibold text-emerald-400">{t(" -")}
+                    {formatPrice(discountAmount)}
                       </span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
+                  </div> :
+
+              <div className="flex gap-2">
                     <input
-                      aria-describedby={couponError ? "coupon-error" : undefined}
-                      value={couponInput}
-                      onChange={(event) => {
-                        setCouponInput(event.target.value.toUpperCase());
-                        setCouponError("");
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          handleApplyCoupon();
-                        }
-                      }}
-                      placeholder="e.g. SHAWARMA1"
-                      aria-label="Coupon code"
-                      className="min-w-0 flex-1 rounded-lg border border-dune-border bg-black px-3 py-2.5 text-sm uppercase text-white outline-none placeholder:normal-case placeholder:text-neutral-400 focus:border-dune-amber"
-                    />
+                  aria-describedby={couponError ? "coupon-error" : undefined}
+                  value={couponInput}
+                  onChange={(event) => {
+                    setCouponInput(event.target.value.toUpperCase());
+                    setCouponError("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleApplyCoupon();
+                    }
+                  }}
+                  placeholder={t("e.g. SHAWARMA1")}
+                  aria-label={t("Coupon code")}
+                  className="min-w-0 flex-1 rounded-lg border border-dune-border bg-black px-3 py-2.5 text-sm uppercase text-white outline-none placeholder:normal-case placeholder:text-neutral-400 focus:border-dune-amber" />
+
                     <button
-                      type="button"
-                      onClick={handleApplyCoupon}
-                      disabled={applyingCoupon}
-                      className="rounded-lg bg-dune-amber px-4 py-2.5 text-xs font-bold text-black transition hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {applyingCoupon ? "Applying..." : "Apply"}
+                  type="button"
+                  onClick={handleApplyCoupon}
+                  disabled={applyingCoupon}
+                  className="rounded-lg bg-dune-amber px-4 py-2.5 text-xs font-bold text-black transition hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-60">
+
+                      {t(applyingCoupon ? "Applying..." : "Apply")}
                     </button>
-                  </div>
-                )}
-                {couponError && (
-                  <p id="coupon-error" role="alert" className="mt-2 text-sm text-red-300">
-                    {couponError}
+                  </div>)
+              }
+                {couponError &&
+              <p id="coupon-error" role="alert" className="mt-2 text-sm text-red-300">
+                    {t(couponError)}
                   </p>
-                )}
+              }
               </section>
 
               {error && <div id="checkout-error" role="alert" className="text-sm text-red-300">
-                <p>{error}</p>
+                <p>{t(error)}</p>
                 {hasPendingOrder && <>
-                  <p className="mt-2 text-neutral-300">Recovery checks the saved original order details to avoid duplicates. Stopping the request does not cancel an existing order.</p>
-                  <button type="button" disabled={submitting} className="min-h-11 mt-2 underline" onClick={() => handleRecovery(false)}>Check original order</button>
-                  <button type="button" disabled={submitting} className="min-h-11 ml-3 mt-2 underline" onClick={() => handleRecovery(true)}>Stop waiting for request</button>
+                  <p className="mt-2 text-neutral-300">{t("Recovery checks the saved original order details to avoid duplicates. Stopping the request does not cancel an existing order.")}</p>
+                  <button type="button" disabled={submitting} className="min-h-11 mt-2 underline" onClick={() => handleRecovery(false)}>{t("Check original order")}</button>
+                  <button type="button" disabled={submitting} className="min-h-11 ml-3 mt-2 underline" onClick={() => handleRecovery(true)}>{t("Stop waiting for request")}</button>
                 </>}
               </div>}
             </fieldset>
@@ -813,88 +820,88 @@ const CartDrawer = ({ open, onClose }) => {
             <div className="sticky bottom-0 mt-5 border-t border-dune-border bg-dune-ink pt-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <div className="mb-4 space-y-2 text-sm">
                 <div className="flex items-center justify-between text-neutral-400">
-                  <span>Subtotal</span>
+                  <span>{t("Subtotal")}</span>
                   <span>{formatPrice(subtotal)}</span>
                 </div>
-                {discountAmount > 0 && (
-                  <div className="flex items-center justify-between text-emerald-400">
-                    <span>Discount ({appliedCoupon.code})</span>
-                    <span>-{formatPrice(discountAmount)}</span>
+                {discountAmount > 0 &&
+              <div className="flex items-center justify-between text-emerald-400">
+                    <span>{t("Discount (")}{t(appliedCoupon.code)}{t(")")}</span>
+                    <span>{t("-")}{formatPrice(discountAmount)}</span>
                   </div>
-                )}
-                {deliveryFee > 0 && (
-                  <div className="flex items-center justify-between text-neutral-400">
-                    <span>Delivery fee</span>
+              }
+                {deliveryFee > 0 &&
+              <div className="flex items-center justify-between text-neutral-400">
+                    <span>{t("Delivery fee")}</span>
                     <span>{formatPrice(deliveryFee)}</span>
                   </div>
-                )}
+              }
                 <div className="flex items-center justify-between border-t border-dune-border pt-3 text-white">
-                  <span>Total</span>
+                  <span>{t("Total")}</span>
                   <span className="font-display text-2xl text-dune-amber">
                     {formatPrice(orderTotal)}
                   </span>
                 </div>
               </div>
               <button
-                type="submit"
-                disabled={submitting || hasPendingOrder || syncing || configLoading || !orderConfig || !websiteOrderingEnabled || belowDeliveryMinimum}
-                className="w-full bg-dune-amber hover:bg-dune-amberLight disabled:opacity-60 text-black font-semibold py-3.5 rounded-full transition-colors"
-              >
-                {submitting ? "Placing Order..." : "Place Order"}
+              type="submit"
+              disabled={submitting || hasPendingOrder || syncing || configLoading || !orderConfig || !websiteOrderingEnabled || belowDeliveryMinimum}
+              className="w-full bg-dune-amber hover:bg-dune-amberLight disabled:opacity-60 text-black font-semibold py-3.5 rounded-full transition-colors">
+
+                {t(submitting ? "Placing Order..." : "Place Order")}
               </button>
               <button
-                type="button"
-                onClick={() => setStep("cart")}
-                className="w-full mt-3 text-sm text-neutral-400 hover:text-white"
-              >
-                Back to cart
-              </button>
+              type="button"
+              onClick={() => setStep("cart")}
+              className="w-full mt-3 text-sm text-neutral-400 hover:text-white">{t(" Back to cart ")}
+
+
+            </button>
             </div>
           </form>
-        )}
+        }
 
-        {step === "success" && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-8 gap-4">
+        {step === "success" &&
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-8 gap-4">
             <div className="w-16 h-16 rounded-full bg-dune-amber/10 border border-dune-amber flex items-center justify-center">
               <ShoppingBag className="w-7 h-7 text-dune-amber" />
             </div>
-            <h3 className="text-xl font-semibold text-white">
-              Thanks — your order is in!
-            </h3>
-            {placedOrder && (
-              <p className="text-dune-amber text-sm font-medium">
-                Order #{placedOrder.orderNumber}
+            <h3 className="text-xl font-semibold text-white">{t(" Thanks — your order is in! ")}
+
+          </h3>
+            {placedOrder &&
+          <p className="text-dune-amber text-sm font-medium">{t(" Order #")}
+            {placedOrder.orderNumber}
               </p>
-            )}
-            <p className="text-neutral-400 text-sm">
-              Your order request is confirmed. Check its status using your private tracking details below.
-            </p>
-            {placedOrder?.trackingToken && <><button type="button" onClick={() => { onClose(); router.push(trackingHref(placedOrder.orderNumber)); }} className="text-dune-amber underline">Track this order</button><label className="w-full text-left text-xs text-neutral-400">Private tracking code — save for another device<input readOnly value={placedOrder.trackingToken} className="mt-2 w-full rounded border border-dune-border bg-black p-2 text-xs text-white" onFocus={event => event.target.select()} /></label></>}
+          }
+            <p className="text-neutral-400 text-sm">{t(" Your order request is confirmed. Check its status using your private tracking details below. ")}
+
+          </p>
+            {placedOrder?.trackingToken && <><button type="button" onClick={() => {onClose();router.push(trackingHref(placedOrder.orderNumber));}} className="text-dune-amber underline">{t("Track this order")}</button><label className="w-full text-left text-xs text-neutral-400">{t("Private tracking code — save for another device")}<input readOnly value={placedOrder.trackingToken} className="mt-2 w-full rounded border border-dune-border bg-black p-2 text-xs text-white" onFocus={(event) => event.target.select()} /></label></>}
             <button
-              onClick={reset}
-              className="mt-2 bg-dune-amber hover:bg-dune-amberLight text-black font-semibold px-6 py-3 rounded-full transition-colors"
-            >
-              Done
-            </button>
+            onClick={reset}
+            className="mt-2 bg-dune-amber hover:bg-dune-amberLight text-black font-semibold px-6 py-3 rounded-full transition-colors">{t(" Done ")}
+
+
+          </button>
           </div>
-        )}
+        }
       </dialog>
 
-      {editing && open && <ItemModal item={editing.product} initialLine={editing.original} onClose={() => setEditing(null)} onSave={replacement => editCartItem(editing.original, replacement)} />}
+      {editing && open && <ItemModal item={editing.product} initialLine={editing.original} onClose={() => setEditing(null)} onSave={(replacement) => editCartItem(editing.original, replacement)} />}
 
-      {showLoginModal && open && (
-        <LoginPromptModal
-          onClose={() => setShowLoginModal(false)}
-          onSuccess={handleLoginSuccess}
-          onGoRegister={() => {
-            setShowLoginModal(false);
-            onClose();
-            router.push("/login");
-          }}
-        />
-      )}
-    </>
-  );
+      {showLoginModal && open &&
+      <LoginPromptModal
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={handleLoginSuccess}
+        onGoRegister={() => {
+          setShowLoginModal(false);
+          onClose();
+          router.push("/login");
+        }} />
+
+      }
+    </>);
+
 };
 
-export default CartDrawer;
+export default withLocale(CartDrawer);

@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import { orderAttentionFilter } from "../services/operationalAttentionService.js";
 import Order from "../models/Order.js";
 import crypto from "crypto";
+import { invalidTrackingLimit, validTrackingLimit } from "../middleware/guestTrackingProtection.js";
 import { getPublicOrderConfig } from "../config/orders.js";
 import { PAYMENT_METHODS, SALES_SOURCES } from "../config/sales.js";
 import { ADMIN_DAY_MS, parseRiyadhDate, startOfRiyadhDay } from "../utils/adminDate.js";
@@ -231,13 +232,17 @@ export const getOrderById = async (req, res) => {
 
 export const trackGuestOrder = async (req, res) => {
   try {
+    res.set("Cache-Control", "private, no-store");
     const token = String(req.headers["x-order-tracking-token"] || "");
-    const tokenHash = token ? crypto.createHash("sha256").update(token).digest("hex") : "";
+    const tokenHash = token && token.length <= 200 && String(req.params.orderNumber).length <= 100 ? crypto.createHash("sha256").update(token).digest("hex") : "";
     const order = tokenHash ? await Order.findOne({ orderNumber: req.params.orderNumber, trackingTokenHash: tokenHash }).select("+trackingTokenHash") : null;
-    if (!order) return res.status(404).json({ success: false, message: "Order could not be found" });
-    res.json({ success: true, data: serializeGuestTrackingOrder(order) });
+    const unavailable = () => res.status(503).json({ success: false, message: "Tracking temporarily unavailable. Please retry." });
+    // Production budgets are persisted. A failed budget lookup must not turn
+    // an error callback into authorization to send an unlimited response.
+    if (!order) return invalidTrackingLimit(req, res, error => error ? unavailable() : res.status(404).json({ success: false, message: "Order could not be found" }));
+    return validTrackingLimit(req, res, error => error ? unavailable() : res.json({ success: true, data: serializeGuestTrackingOrder(order) }));
   } catch (_error) {
-    res.status(404).json({ success: false, message: "Order could not be found" });
+    res.status(503).json({ success: false, message: "Tracking temporarily unavailable. Please retry." });
   }
 };
 

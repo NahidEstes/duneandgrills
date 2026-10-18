@@ -35,9 +35,9 @@ export const csrfProtection = (req, res, next) => {
 };
 
 const stores = new Map();
-export const rateLimit = ({ windowMs = 60_000, max = 20, keyPrefix = "global" } = {}) => (req, res, next) => {
+export const rateLimit = ({ windowMs = 60_000, max = 20, keyPrefix = "global", identity: identify } = {}) => (req, res, next) => {
   const now = Date.now();
-  const identity = req.verifiedClientIp || req.ip || req.socket?.remoteAddress || "unknown";
+  const identity = identify ? identify(req) : req.verifiedClientIp || req.ip || req.socket?.remoteAddress || "unknown";
   const key = `${keyPrefix}:${identity}`;
   if (process.env.NODE_ENV === "production") {
     const windowStart = Math.floor(now / windowMs) * windowMs;

@@ -30,6 +30,7 @@ const orderItemSchema = new mongoose.Schema(
       default: null,
     },
     name: { type: String, required: true },
+    translations: { ar: { name: { type: String, maxlength: 160 }, description: { type: String, maxlength: 1000 } }, en: { name: { type: String, maxlength: 160 }, description: { type: String, maxlength: 1000 } } },
     category: { type: String, default: "" },
     kitchenStation: { type: String, default: "" },
     image: { type: String, default: "" },

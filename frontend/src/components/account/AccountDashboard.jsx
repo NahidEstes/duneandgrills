@@ -1,4 +1,9 @@
 "use client";
+import { withLocale } from "../../i18n/LocaleProvider.jsx";
+import { t, catalogText, formatDate, formatNumber } from "../../i18n/core.js";
+
+
+import { EmailVerificationNotice } from "./CustomerAccountAccess.jsx";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -26,8 +31,8 @@ import {
   ShoppingBag,
   Star,
   Trash2,
-  UserRound,
-} from "lucide-react";
+  UserRound } from
+"lucide-react";
 import Navbar from "../Navbar.jsx";
 import CartDrawer from "../CartDrawer.jsx";
 import SmartImage from "../SmartImage.jsx";
@@ -41,8 +46,8 @@ import {
   PersonalForm,
   ProfileForm,
   ReviewForm,
-  secondaryButton,
-} from "./AccountForms.jsx";
+  secondaryButton } from
+"./AccountForms.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useCart } from "../../context/CartContext.jsx";
 import { useFavorites } from "../../context/FavoritesContext.jsx";
@@ -55,21 +60,21 @@ import {
   fetchProfileDashboard,
   removeSavedBlogPost,
   setDefaultAddress,
-  setDefaultPaymentMethod,
-} from "../../api/api.js";
+  setDefaultPaymentMethod } from
+"../../api/api.js";
 import { formatPrice } from "../../utils/currency.js";
 import { formatOrderType } from "../../utils/order.js";
 
 const NAV_ITEMS = [
-  ["profile", "Profile", UserRound],
-  ["orders", "My Orders", ShoppingBag],
-  ["favorites", "Favorites", Heart],
-  ["rewards", "Dune Rewards", Award],
-  ["addresses", "Addresses", MapPin],
-  ["payments", "Payment Methods", CreditCard],
-  ["reviews", "Reviews", Star],
-  ["settings", "Settings", Settings],
-];
+["profile", "Profile", UserRound],
+["orders", "My Orders", ShoppingBag],
+["favorites", "Favorites", Heart],
+["rewards", "Dune Rewards", Award],
+["addresses", "Addresses", MapPin],
+["payments", "Payment Methods", CreditCard],
+["reviews", "Reviews", Star],
+["settings", "Settings", Settings]];
+
 
 const ACCOUNT_ROUTES = {
   profile: "/profile",
@@ -79,7 +84,7 @@ const ACCOUNT_ROUTES = {
   addresses: "/profile/addresses",
   payments: "/profile/payment-methods",
   reviews: "/profile/reviews",
-  settings: "/profile/settings",
+  settings: "/profile/settings"
 };
 
 const SHOW_REORDER_ACTIONS = true;
@@ -89,39 +94,39 @@ const configuredOrderStatusPollSeconds = Number(
   process.env.NEXT_PUBLIC_ORDER_STATUS_POLL_SECONDS
 );
 const ORDER_STATUS_POLL_INTERVAL_MS =
-  (Number.isFinite(configuredOrderStatusPollSeconds) &&
-  configuredOrderStatusPollSeconds > 0
-    ? Math.max(
-        MIN_ORDER_STATUS_POLL_SECONDS,
-        configuredOrderStatusPollSeconds
-      )
-    : DEFAULT_ORDER_STATUS_POLL_SECONDS) * 1000;
+(Number.isFinite(configuredOrderStatusPollSeconds) &&
+configuredOrderStatusPollSeconds > 0 ?
+Math.max(
+  MIN_ORDER_STATUS_POLL_SECONDS,
+  configuredOrderStatusPollSeconds
+) :
+DEFAULT_ORDER_STATUS_POLL_SECONDS) * 1000;
 
 const compactOutline =
-  "inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#414141] px-3 text-xs font-medium text-white transition-colors hover:border-dune-amber hover:text-dune-amber";
+"inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#414141] px-3 text-xs font-medium text-white transition-colors hover:border-dune-amber hover:text-dune-amber";
 const compactAmber =
-  "inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-[#df7400] to-[#f58a00] px-4 text-xs font-semibold text-white shadow-[0_0_18px_-8px_rgba(245,158,11,0.9)] transition hover:brightness-110";
+"inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-[#df7400] to-[#f58a00] px-4 text-xs font-semibold text-white shadow-[0_0_18px_-8px_rgba(245,158,11,0.9)] transition hover:brightness-110";
 
-const Card = ({ children, className = "" }) => (
-  <section
-    className={`overflow-hidden rounded-[10px] border border-[#2b2b2b] bg-[linear-gradient(135deg,#151515_0%,#0c0c0c_100%)] ${className}`}
-  >
+const Card = ({ children, className = "" }) =>
+<section
+  className={`overflow-hidden rounded-[10px] border border-[#2b2b2b] bg-[linear-gradient(135deg,#151515_0%,#0c0c0c_100%)] ${className}`}>
+
     {children}
-  </section>
-);
+  </section>;
 
-const CardHeader = ({ title, action, border = false }) => (
-  <div
-    className={`flex h-12 items-center justify-between gap-4 px-[18px] ${
-      border ? "border-b border-[#2b2b2b]" : ""
-    }`}
-  >
+
+const CardHeader = ({ title, action, border = false }) =>
+<div
+  className={`flex h-12 items-center justify-between gap-4 px-[18px] ${
+  border ? "border-b border-[#2b2b2b]" : ""}`
+  }>
+
     <h2 className="text-[18px] font-bold uppercase tracking-[0.1em] text-[#f58700]">
-      {title}
+      {t(title)}
     </h2>
-    {action}
-  </div>
-);
+    {t(action)}
+  </div>;
+
 
 const AccountDashboard = () => {
   const { setUser, logout } = useAuth();
@@ -140,8 +145,8 @@ const AccountDashboard = () => {
   const [savedBlogsLoading, setSavedBlogsLoading] = useState(false);
   const [savedBlogsError, setSavedBlogsError] = useState("");
   const active =
-    Object.entries(ACCOUNT_ROUTES).find(([, route]) => route === pathname)?.[0] ||
-    "profile";
+  Object.entries(ACCOUNT_ROUTES).find(([, route]) => route === pathname)?.[0] ||
+  "profile";
 
   const navigateToSection = useCallback(
     (section) => {
@@ -166,7 +171,7 @@ const AccountDashboard = () => {
     } catch (requestError) {
       setError(
         requestError.response?.data?.message ||
-          "We could not load your account dashboard."
+        "We could not load your account dashboard."
       );
     } finally {
       setLoading(false);
@@ -189,8 +194,8 @@ const AccountDashboard = () => {
         recentOrders: latestOrders.slice(0, 3),
         stats: {
           ...current.stats,
-          orders: latestOrders.length,
-        },
+          orders: latestOrders.length
+        }
       };
     });
 
@@ -215,11 +220,11 @@ const AccountDashboard = () => {
       try {
         await refreshOrders();
       } catch {
+
+
+
         // Keep the last successful order data during a background refresh.
-      } finally {
-        requestInFlight = false;
-      }
-    };
+      } finally {requestInFlight = false;}};
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshVisibleOrders();
@@ -245,21 +250,21 @@ const AccountDashboard = () => {
     let cancelled = false;
     setSavedBlogsLoading(true);
     setSavedBlogsError("");
-    fetchSavedBlogPosts()
-      .then((posts) => {
-        if (!cancelled) setSavedBlogPosts(posts);
-      })
-      .catch((requestError) => {
-        if (!cancelled) {
-          setSavedBlogsError(
-            requestError.response?.data?.message ||
-              "We could not load your favorite blogs."
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setSavedBlogsLoading(false);
-      });
+    fetchSavedBlogPosts().
+    then((posts) => {
+      if (!cancelled) setSavedBlogPosts(posts);
+    }).
+    catch((requestError) => {
+      if (!cancelled) {
+        setSavedBlogsError(
+          requestError.response?.data?.message ||
+          "We could not load your favorite blogs."
+        );
+      }
+    }).
+    finally(() => {
+      if (!cancelled) setSavedBlogsLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -284,21 +289,21 @@ const AccountDashboard = () => {
       ...current,
       [key]: value,
       stats:
-        key === "favorites"
-          ? { ...current.stats, favorites: value.length }
-          : current.stats,
+      key === "favorites" ?
+      { ...current.stats, favorites: value.length } :
+      current.stats
     }));
   };
 
   const handleRewardBalanceChanged = useCallback((pointsBalance) => {
     setData((current) =>
-      current
-        ? {
-            ...current,
-            user: { ...current.user, pointsBalance },
-            stats: { ...current.stats, pointsBalance },
-          }
-        : current
+    current ?
+    {
+      ...current,
+      user: { ...current.user, pointsBalance },
+      stats: { ...current.stats, pointsBalance }
+    } :
+    current
     );
   }, []);
 
@@ -306,9 +311,9 @@ const AccountDashboard = () => {
     try {
       const result = await repeatCustomerOrder(order._id);
       if (!result.data.length) return notify(result.warnings.join(" · ") || "These items are no longer available.");
-      addItemsToCart(result.data); setModal(null); setCartOpen(true);
+      addItemsToCart(result.data);setModal(null);setCartOpen(true);
       notify(result.warnings.length ? `Available items added at current prices. ${result.warnings.join(" · ")}` : "Items added at current prices.");
-    } catch (error) { notify(error.response?.data?.message || "Unable to reorder. Please retry."); }
+    } catch (error) {notify(error.response?.data?.message || "Unable to reorder. Please retry.");}
   };
 
   const handleLogout = () => {
@@ -320,46 +325,46 @@ const AccountDashboard = () => {
     const reviewed = new Set(
       data.reviews.map(
         (review) =>
-          `${review.order?._id || review.order}:${
-            review.menuItem?._id || review.menuItem
-          }`
+        `${review.order?._id || review.order}:${
+        review.menuItem?._id || review.menuItem}`
+
       )
     );
 
-    return data.orders
-      .filter((order) => order.status === "delivered")
-      .flatMap((order) => order.items.map((item) => ({ order, item })))
-      .filter(
-        ({ order, item }) =>
-          item.menuItem?._id &&
-          !reviewed.has(`${order._id}:${item.menuItem._id}`)
-      )
-      .map(({ order, item }) => ({
-        value: `${order._id}:${item.menuItem._id}`,
-        orderId: order._id,
-        menuItemId: item.menuItem._id,
-        label: `${item.name} — Order #${order.orderNumber}`,
-      }));
+    return data.orders.
+    filter((order) => order.status === "delivered").
+    flatMap((order) => order.items.map((item) => ({ order, item }))).
+    filter(
+      ({ order, item }) =>
+      item.menuItem?._id &&
+      !reviewed.has(`${order._id}:${item.menuItem._id}`)
+    ).
+    map(({ order, item }) => ({
+      value: `${order._id}:${item.menuItem._id}`,
+      orderId: order._id,
+      menuItemId: item.menuItem._id,
+      label: `${item.name} — Order #${order.orderNumber}`
+    }));
   }, [data]);
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-neutral-400">
-        <LoaderCircle className="mr-3 h-5 w-5 animate-spin text-dune-amber" />
-        Loading your account...
-      </div>
-    );
+        <LoaderCircle className="mr-3 h-5 w-5 animate-spin text-dune-amber" />{t(" Loading your account... ")}
+
+      </div>);
+
   }
 
   if (error || !data) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black px-5 text-center">
-        <p className="text-red-400">{error}</p>
-        <button type="button" onClick={load} className={secondaryButton}>
-          Try Again
+        <p className="text-red-400">{t(error)}</p>
+        <button type="button" onClick={load} className={secondaryButton}>{t(" Try Again ")}
+
         </button>
-      </div>
-    );
+      </div>);
+
   }
 
   const {
@@ -370,77 +375,77 @@ const AccountDashboard = () => {
     favorites,
     addresses,
     paymentMethods,
-    reviews,
+    reviews
   } = data;
-  const memberYear = user.createdAt
-    ? new Date(user.createdAt).getFullYear()
-    : new Date().getFullYear();
+  const memberYear = user.createdAt ?
+  new Date(user.createdAt).getFullYear() :
+  new Date().getFullYear();
   const firstName = user.name?.split(" ")[0] || "Member";
   const defaultAddress =
-    addresses.find((entry) => entry.isDefault) || addresses[0];
+  addresses.find((entry) => entry.isDefault) || addresses[0];
   const defaultPayment =
-    paymentMethods.find((method) => method.isDefault) || paymentMethods[0];
+  paymentMethods.find((method) => method.isDefault) || paymentMethods[0];
 
-  const ordersView = (list, compact = false) => (
-    <div
-      className={
-        compact
-          ? "divide-y divide-[#292929] px-[18px]"
-          : "divide-y divide-[#292929] px-5"
-      }
-    >
-      {!list.length && (
-        <p className="py-10 text-center text-sm text-neutral-500">
-          No orders yet.
-        </p>
-      )}
+  const ordersView = (list, compact = false) =>
+  <div
+    className={
+    compact ?
+    "divide-y divide-[#292929] px-[18px]" :
+    "divide-y divide-[#292929] px-5"
+    }>
+
+      {!list.length &&
+    <p className="py-10 text-center text-sm text-neutral-500">{t(" No orders yet. ")}
+
+    </p>
+    }
       {list.map((order) => {
-        const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
-        const image =
-          order.items[0]?.menuItem?.image ||
-          order.items[0]?.combo?.image ||
-          order.items[0]?.image;
+      const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
+      const image =
+      order.items[0]?.menuItem?.image ||
+      order.items[0]?.combo?.image ||
+      order.items[0]?.image;
 
-        return (
-          <div
-            key={order._id}
-            className={`flex flex-col gap-3 sm:flex-row sm:items-center ${
-              compact ? "min-h-[67px] py-2" : "py-4"
-            }`}
-          >
+      return (
+        <div
+          key={order._id}
+          className={`flex flex-col gap-3 sm:flex-row sm:items-center ${
+          compact ? "min-h-[67px] py-2" : "py-4"}`
+          }>
+
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              {image ? (
-                <SmartImage
-                  src={image}
-                  alt=""
-                  width={96}
-                  height={96}
-                  sizes={compact ? "54px" : "60px"}
-                  className={`${
-                    compact ? "h-[54px] w-[54px]" : "h-[60px] w-[60px]"
-                  } shrink-0 rounded-[7px] object-cover`}
-                />
-              ) : (
-                <div
-                  className={`${
-                    compact ? "h-[54px] w-[54px]" : "h-[60px] w-[60px]"
-                  } flex shrink-0 items-center justify-center rounded-[7px] bg-black text-neutral-500`}
-                >
+              {t(image ?
+            <SmartImage
+              src={image}
+              alt={t("")}
+              width={96}
+              height={96}
+              sizes={compact ? "54px" : "60px"}
+              className={`${
+              compact ? "h-[54px] w-[54px]" : "h-[60px] w-[60px]"} shrink-0 rounded-[7px] object-cover`
+              } /> :
+
+
+            <div
+              className={`${
+              compact ? "h-[54px] w-[54px]" : "h-[60px] w-[60px]"} flex shrink-0 items-center justify-center rounded-[7px] bg-black text-neutral-500`
+              }>
+
                   <Package className="h-5 w-5" />
-                </div>
-              )}
+                </div>)
+            }
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-semibold text-white">
-                  Order #{order.orderNumber}
+                <p className="truncate text-[13px] font-semibold text-white">{t(" Order #")}
+                {order.orderNumber}
                 </p>
                 <p className="mt-1 text-[11px] text-neutral-500">
-                  {new Date(order.createdAt).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}{" "}
-                  · {count} item{count === 1 ? "" : "s"} ·{" "}
-                  {formatOrderType(order.orderType)}
+                  {formatDate(order.createdAt, { dateStyle: "medium" })
+
+
+
+                }{" "}{t(" · ")}
+                {t(count)}{t(" item")}{t(count === 1 ? "" : "s")}{t(" ·")}{" "}
+                  {t(formatOrderType(order.orderType))}
                 </p>
                 <div className="mt-1.5 sm:hidden">
                   <OrderStatusBadge status={order.status} />
@@ -458,130 +463,130 @@ const AccountDashboard = () => {
                 </div>
               </div>
               <button
-                type="button"
-                onClick={() => setModal({ type: "order", order })}
-                className={`${compactOutline} flex-1 sm:flex-none`}
-              >
-                <Eye className="h-3.5 w-3.5 sm:hidden" />
-                View Details
-              </button>
-              {SHOW_REORDER_ACTIONS && (
-                <button
-                  type="button"
-                  onClick={() => reorder(order)}
-                  className={`${compactAmber} flex-1 sm:flex-none`}
-                >
-                  Reorder
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+              type="button"
+              onClick={() => setModal({ type: "order", order })}
+              className={`${compactOutline} flex-1 sm:flex-none`}>
 
-  const favoritesView = (list, compact = false) => (
-    <div
-      className={`grid gap-4 px-[18px] pb-4 ${
-        compact ? "grid-cols-1 sm:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3"
-      }`}
-    >
-      {!list.length && (
-        <p className="col-span-full py-8 text-center text-sm text-neutral-500">
-          Your favorite dishes will appear here.
-        </p>
-      )}
-      {list.map((item) => (
-        <article key={item._id} className="group min-w-0">
-          <div
-            className={`relative overflow-hidden rounded-[7px] border border-[#383838] ${
-              compact ? "h-[98px]" : "h-32"
-            }`}
-          >
-            <SmartImage
-              src={item.image}
-              alt={item.name}
-              width={360}
-              height={224}
-              sizes="220px"
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
+                <Eye className="h-3.5 w-3.5 sm:hidden" />{t(" View Details ")}
+
+            </button>
+              {SHOW_REORDER_ACTIONS &&
             <button
               type="button"
-              onClick={async () => {
-                await toggleFavorite(item);
-                updateCollection(
-                  "favorites",
-                  favorites.filter((entry) => entry._id !== item._id)
-                );
-              }}
-              aria-label={`Remove ${item.name} from favorites`}
-              className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur-sm hover:text-dune-amber"
-            >
+              onClick={() => reorder(order)}
+              className={`${compactAmber} flex-1 sm:flex-none`}>{t(" Reorder ")}
+
+
+            </button>
+            }
+            </div>
+          </div>);
+
+    })}
+    </div>;
+
+
+  const favoritesView = (list, compact = false) =>
+  <div
+    className={`grid gap-4 px-[18px] pb-4 ${
+    compact ? "grid-cols-1 sm:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3"}`
+    }>
+
+      {!list.length &&
+    <p className="col-span-full py-8 text-center text-sm text-neutral-500">{t(" Your favorite dishes will appear here. ")}
+
+    </p>
+    }
+      {list.map((item) =>
+    <article key={item._id} className="group min-w-0">
+          <div
+        className={`relative overflow-hidden rounded-[7px] border border-[#383838] ${
+        compact ? "h-[98px]" : "h-32"}`
+        }>
+
+            <SmartImage
+          src={item.image}
+          alt={catalogText(item, "name")}
+          width={360}
+          height={224}
+          sizes="220px"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+
+            <button
+          type="button"
+          onClick={async () => {
+            await toggleFavorite(item);
+            updateCollection(
+              "favorites",
+              favorites.filter((entry) => entry._id !== item._id)
+            );
+          }}
+          aria-label={t("Remove {0} from favorites", [catalogText(item, "name")])}
+          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur-sm hover:text-dune-amber">
+
               <Heart className="h-4 w-4" fill="currentColor" />
             </button>
           </div>
           <p className="mt-2 truncate text-[13px] font-semibold text-white">
-            {item.name}
+            {catalogText(item, "name")}
           </p>
           <p className="mt-0.5 text-[13px] font-semibold text-[#f58700]">
             {formatPrice(item.price)}
           </p>
         </article>
-      ))}
-    </div>
-  );
+    )}
+    </div>;
 
-  const desktopOrdersView = (list) => (
-    <div className="divide-y divide-[#292929] px-5 pb-1">
-      {!list.length && (
-        <div className="grid min-h-[280px] place-items-center text-center">
+
+  const desktopOrdersView = (list) =>
+  <div className="divide-y divide-[#292929] px-5 pb-1">
+      {!list.length &&
+    <div className="grid min-h-[280px] place-items-center text-center">
           <div>
             <Package className="mx-auto h-7 w-7 text-neutral-700" />
-            <p className="mt-3 text-sm text-neutral-500">No orders yet.</p>
+            <p className="mt-3 text-sm text-neutral-500">{t("No orders yet.")}</p>
           </div>
         </div>
-      )}
+    }
       {list.map((order) => {
-        const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
-        const image =
-          order.items[0]?.menuItem?.image ||
-          order.items[0]?.combo?.image ||
-          order.items[0]?.image;
+      const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
+      const image =
+      order.items[0]?.menuItem?.image ||
+      order.items[0]?.combo?.image ||
+      order.items[0]?.image;
 
-        return (
-          <article
-            key={order._id}
-            className="flex min-h-[91px] items-center gap-3 py-3"
-          >
-            {image ? (
-              <SmartImage
-                src={image}
-                alt=""
-                width={128}
-                height={128}
-                sizes="64px"
-                className="h-16 w-16 shrink-0 rounded-lg border border-white/[0.08] object-cover"
-              />
-            ) : (
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-black text-neutral-600">
+      return (
+        <article
+          key={order._id}
+          className="flex min-h-[91px] items-center gap-3 py-3">
+
+            {t(image ?
+          <SmartImage
+            src={image}
+            alt={t("")}
+            width={128}
+            height={128}
+            sizes="64px"
+            className="h-16 w-16 shrink-0 rounded-lg border border-white/[0.08] object-cover" /> :
+
+
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-black text-neutral-600">
                 <Package className="h-5 w-5" />
-              </div>
-            )}
+              </div>)
+          }
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">
-                Order #{order.orderNumber}
+              <p className="truncate text-sm font-semibold text-white">{t(" Order #")}
+              {order.orderNumber}
               </p>
               <p className="mt-1 text-[11px] text-neutral-500">
-                {new Date(order.createdAt).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}{" "}
-                · {count} item{count === 1 ? "" : "s"} ·{" "}
-                {formatOrderType(order.orderType)}
+                {formatDate(order.createdAt, { dateStyle: "medium" })
+
+
+
+              }{" "}{t(" · ")}
+              {t(count)}{t(" item")}{t(count === 1 ? "" : "s")}{t(" ·")}{" "}
+                {t(formatOrderType(order.orderType))}
               </p>
             </div>
 
@@ -596,211 +601,211 @@ const AccountDashboard = () => {
 
             <div className="flex shrink-0 gap-2">
               <button
-                type="button"
-                onClick={() => setModal({ type: "order", order })}
-                className={compactOutline}
-              >
-                View Details
-              </button>
-              {SHOW_REORDER_ACTIONS && (
-                <button
-                  type="button"
-                  onClick={() => reorder(order)}
-                  className={compactAmber}
-                >
-                  Reorder
-                </button>
-              )}
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
+              type="button"
+              onClick={() => setModal({ type: "order", order })}
+              className={compactOutline}>{t(" View Details ")}
 
-  const desktopFavoritesView = (list) => (
-    <div className="divide-y divide-[#292929] px-5 pb-1">
-      {!list.length && (
-        <div className="grid min-h-[280px] place-items-center text-center">
+
+            </button>
+              {SHOW_REORDER_ACTIONS &&
+            <button
+              type="button"
+              onClick={() => reorder(order)}
+              className={compactAmber}>{t(" Reorder ")}
+
+
+            </button>
+            }
+            </div>
+          </article>);
+
+    })}
+    </div>;
+
+
+  const desktopFavoritesView = (list) =>
+  <div className="divide-y divide-[#292929] px-5 pb-1">
+      {!list.length &&
+    <div className="grid min-h-[280px] place-items-center text-center">
           <div>
             <Heart className="mx-auto h-7 w-7 text-neutral-700" />
-            <p className="mt-3 text-sm text-neutral-500">
-              Your favorite dishes will appear here.
-            </p>
+            <p className="mt-3 text-sm text-neutral-500">{t(" Your favorite dishes will appear here. ")}
+
+        </p>
           </div>
         </div>
-      )}
-      {list.map((item) => (
-        <article
-          key={item._id}
-          className="group flex min-h-[91px] items-center gap-4 py-3"
-        >
+    }
+      {list.map((item) =>
+    <article
+      key={item._id}
+      className="group flex min-h-[91px] items-center gap-4 py-3">
+
           <SmartImage
-            src={item.image}
-            alt={item.name}
-            width={236}
-            height={148}
-            sizes="118px"
-            className="h-[68px] w-[110px] shrink-0 rounded-lg border border-white/[0.08] object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-          />
+        src={item.image}
+        alt={catalogText(item, "name")}
+        width={236}
+        height={148}
+        sizes="118px"
+        className="h-[68px] w-[110px] shrink-0 rounded-lg border border-white/[0.08] object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
+
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">
-              {item.name}
+              {catalogText(item, "name")}
             </p>
             <p className="mt-1 text-[13px] font-semibold text-[#f58700]">
               {formatPrice(item.price)}
             </p>
           </div>
           <button
-            type="button"
-            onClick={async () => {
-              try {
-                await toggleFavorite(item);
-                updateCollection(
-                  "favorites",
-                  favorites.filter((entry) => entry._id !== item._id)
-                );
-                notify(`${item.name} was removed from your favorites.`);
-              } catch (requestError) {
-                notify(
-                  requestError.response?.data?.message ||
-                    "This favorite could not be updated."
-                );
-              }
-            }}
-            aria-label={`Remove ${item.name} from favorites`}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#373737] text-white transition hover:border-dune-amber hover:text-dune-amber"
-          >
+        type="button"
+        onClick={async () => {
+          try {
+            await toggleFavorite(item);
+            updateCollection(
+              "favorites",
+              favorites.filter((entry) => entry._id !== item._id)
+            );
+            notify(`${item.name} was removed from your favorites.`);
+          } catch (requestError) {
+            notify(
+              requestError.response?.data?.message ||
+              "This favorite could not be updated."
+            );
+          }
+        }}
+        aria-label={t("Remove {0} from favorites", [catalogText(item, "name")])}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#373737] text-white transition hover:border-dune-amber hover:text-dune-amber">
+
             <Heart className="h-5 w-5" fill="currentColor" />
           </button>
         </article>
-      ))}
+    )}
+    </div>;
+
+
+  const favoriteBlogsView = () =>
+  <div className="divide-y divide-[#292929] px-5 pb-1">
+      {savedBlogsLoading &&
+    <div className="flex min-h-[280px] items-center justify-center gap-2 text-sm text-neutral-500">
+          <LoaderCircle className="h-4 w-4 animate-spin text-dune-amber" />{t(" Loading favorite blogs... ")}
+
     </div>
-  );
+    }
 
-  const favoriteBlogsView = () => (
-    <div className="divide-y divide-[#292929] px-5 pb-1">
-      {savedBlogsLoading && (
-        <div className="flex min-h-[280px] items-center justify-center gap-2 text-sm text-neutral-500">
-          <LoaderCircle className="h-4 w-4 animate-spin text-dune-amber" />
-          Loading favorite blogs...
-        </div>
-      )}
-
-      {!savedBlogsLoading && savedBlogsError && (
-        <div className="grid min-h-[280px] place-items-center px-5 text-center">
+      {!savedBlogsLoading && savedBlogsError &&
+    <div className="grid min-h-[280px] place-items-center px-5 text-center">
           <div>
-            <p className="text-sm text-red-400">{savedBlogsError}</p>
+            <p className="text-sm text-red-400">{t(savedBlogsError)}</p>
             <button
-              type="button"
-              onClick={async () => {
-                setSavedBlogsLoading(true);
-                setSavedBlogsError("");
-                try {
-                  setSavedBlogPosts(await fetchSavedBlogPosts());
-                } catch (requestError) {
-                  setSavedBlogsError(
-                    requestError.response?.data?.message ||
-                      "We could not load your favorite blogs."
-                  );
-                } finally {
-                  setSavedBlogsLoading(false);
-                }
-              }}
-              className={`${compactOutline} mt-4`}
-            >
-              Try Again
-            </button>
+          type="button"
+          onClick={async () => {
+            setSavedBlogsLoading(true);
+            setSavedBlogsError("");
+            try {
+              setSavedBlogPosts(await fetchSavedBlogPosts());
+            } catch (requestError) {
+              setSavedBlogsError(
+                requestError.response?.data?.message ||
+                "We could not load your favorite blogs."
+              );
+            } finally {
+              setSavedBlogsLoading(false);
+            }
+          }}
+          className={`${compactOutline} mt-4`}>{t(" Try Again ")}
+
+
+        </button>
           </div>
         </div>
-      )}
+    }
 
-      {!savedBlogsLoading && !savedBlogsError && !savedBlogPosts.length && (
-        <div className="grid min-h-[280px] place-items-center px-5 text-center">
+      {!savedBlogsLoading && !savedBlogsError && !savedBlogPosts.length &&
+    <div className="grid min-h-[280px] place-items-center px-5 text-center">
           <div>
             <Bookmark className="mx-auto h-7 w-7 text-neutral-700" />
-            <p className="mt-3 text-sm text-neutral-500">
-              Your favorite blogs will appear here.
-            </p>
-            <Link href="/blog" className={`${compactOutline} mt-4`}>
-              Browse Blogs
-            </Link>
+            <p className="mt-3 text-sm text-neutral-500">{t(" Your favorite blogs will appear here. ")}
+
+        </p>
+            <Link href="/blog" className={`${compactOutline} mt-4`}>{t(" Browse Blogs ")}
+
+        </Link>
           </div>
         </div>
-      )}
+    }
 
-      {!savedBlogsLoading &&
-        !savedBlogsError &&
-        savedBlogPosts.map((post) => (
-          <article
-            key={post._id}
-            className="group flex min-h-[112px] items-center gap-4 py-3"
-          >
+      {t(!savedBlogsLoading &&
+    !savedBlogsError &&
+    savedBlogPosts.map((post) =>
+    <article
+      key={post._id}
+      className="group flex min-h-[112px] items-center gap-4 py-3">
+
             <Link
-              href={`/blog/${post.slug}`}
-              className="relative h-[72px] w-20 shrink-0 overflow-hidden rounded-lg border border-white/[0.08] sm:h-[82px] sm:w-[126px]"
-            >
+        href={`/blog/${post.slug}`}
+        className="relative h-[72px] w-20 shrink-0 overflow-hidden rounded-lg border border-white/[0.08] sm:h-[82px] sm:w-[126px]">
+
               <SmartImage
-                src={post.coverImage}
-                alt={post.title}
-                width={252}
-                height={164}
-                sizes="126px"
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
+          src={post.coverImage}
+          alt={t(post.title)}
+          width={252}
+          height={164}
+          sizes="126px"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+
             </Link>
 
             <div className="min-w-0 flex-1">
               <Link
-                href={`/blog/${post.slug}`}
-                className="line-clamp-1 text-sm font-semibold text-white transition hover:text-dune-amber"
-              >
-                {post.title}
+          href={`/blog/${post.slug}`}
+          className="line-clamp-1 text-sm font-semibold text-white transition hover:text-dune-amber">
+
+                {t(post.title)}
               </Link>
               <p className="mt-1 text-[11px] text-neutral-500">
-                {post.category} ·{" "}
-                {new Date(post.createdAt).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
+                {t(post.category)}{t(" ·")}{" "}
+                {formatDate(post.createdAt, { dateStyle: "medium" })
+
+
+
+          }
               </p>
               <p className="mt-1.5 line-clamp-2 text-[11px] leading-[17px] text-neutral-400">
-                {post.excerpt}
+                {t(post.excerpt)}
               </p>
             </div>
 
             <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await removeSavedBlogPost(post._id);
-                  setSavedBlogPosts((current) =>
-                    current.filter((entry) => entry._id !== post._id)
-                  );
-                  notify(`${post.title} was removed from your favorite blogs.`);
-                } catch (requestError) {
-                  notify(
-                    requestError.response?.data?.message ||
-                      "This favorite blog could not be updated."
-                  );
-                }
-              }}
-              aria-label={`Remove ${post.title} from favorite blogs`}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#373737] text-white transition hover:border-dune-amber hover:text-dune-amber"
-            >
+        type="button"
+        onClick={async () => {
+          try {
+            await removeSavedBlogPost(post._id);
+            setSavedBlogPosts((current) =>
+            current.filter((entry) => entry._id !== post._id)
+            );
+            notify(`${post.title} was removed from your favorite blogs.`);
+          } catch (requestError) {
+            notify(
+              requestError.response?.data?.message ||
+              "This favorite blog could not be updated."
+            );
+          }
+        }}
+        aria-label={t("Remove {0} from favorite blogs", [post.title])}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#373737] text-white transition hover:border-dune-amber hover:text-dune-amber">
+
               <Bookmark className="h-5 w-5" fill="currentColor" />
             </button>
           </article>
-        ))}
-    </div>
-  );
+    ))}
+    </div>;
 
-  const addressCard = (entry, editable = false) => (
-    <div
-      key={entry._id}
-      className="rounded-[7px] border border-[#333] bg-black/15 p-4"
-    >
+
+  const addressCard = (entry, editable = false) =>
+  <div
+    key={entry._id}
+    className="rounded-[7px] border border-[#333] bg-black/15 p-4">
+
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -808,649 +813,650 @@ const AccountDashboard = () => {
             <p className="text-[13px] font-semibold text-white">
               {entry.label}
             </p>
-            {entry.isDefault && (
-              <span className="rounded-full border border-[#8c4b00] bg-[#2b1803] px-2 py-0.5 text-[9px] font-semibold text-[#f58700]">
-                Default
-              </span>
-            )}
+            {entry.isDefault &&
+          <span className="rounded-full border border-[#8c4b00] bg-[#2b1803] px-2 py-0.5 text-[9px] font-semibold text-[#f58700]">{t(" Default ")}
+
+          </span>
+          }
           </div>
           <p className="mt-2 pl-[26px] text-[12px] leading-5 text-neutral-400">
             {entry.fullAddress}
           </p>
-          {entry.phone && (
-            <p className="mt-0.5 pl-[26px] text-[12px] text-neutral-400">
-              Phone: {entry.phone}
+          {entry.phone &&
+        <p className="mt-0.5 pl-[26px] text-[12px] text-neutral-400">{t(" Phone: ")}
+          {entry.phone}
             </p>
-          )}
+        }
         </div>
-        {editable ? (
-          <div className="flex shrink-0">
+        {t(editable ?
+      <div className="flex shrink-0">
             <button
-              type="button"
-              onClick={() => setModal({ type: "address", address: entry })}
-              aria-label={`Edit ${entry.label}`}
-              className="p-2 text-neutral-500 hover:text-white"
-            >
+          type="button"
+          onClick={() => setModal({ type: "address", address: entry })}
+          aria-label={t("Edit {0}", [entry.label])}
+          className="p-2 text-neutral-500 hover:text-white">
+
               <Edit3 className="h-4 w-4" />
             </button>
             <button
-              type="button"
-              onClick={async () => {
-                if (window.confirm(`Delete ${entry.label} address?`)) {
-                  updateCollection("addresses", await deleteAddress(entry._id));
-                }
-              }}
-              aria-label={`Delete ${entry.label}`}
-              className="p-2 text-neutral-500 hover:text-red-400"
-            >
+          type="button"
+          onClick={async () => {
+            if (window.confirm(t("Delete {0} address?", [entry.label]))) {
+              updateCollection("addresses", await deleteAddress(entry._id));
+            }
+          }}
+          aria-label={t("Delete {0}", [entry.label])}
+          className="p-2 text-neutral-500 hover:text-red-400">
+
               <Trash2 className="h-4 w-4" />
             </button>
-          </div>
-        ) : (
-          <Link
-            href={ACCOUNT_ROUTES.addresses}
-            aria-label="Manage saved addresses"
-            className="p-1 text-neutral-400 hover:text-white"
-          >
+          </div> :
+
+      <Link
+        href={ACCOUNT_ROUTES.addresses}
+        aria-label={t("Manage saved addresses")}
+        className="p-1 text-neutral-400 hover:text-white">
+
             <Ellipsis className="h-5 w-5" />
-          </Link>
-        )}
+          </Link>)
+      }
       </div>
-      {editable && !entry.isDefault && (
-        <button
-          type="button"
-          onClick={async () =>
-            updateCollection("addresses", await setDefaultAddress(entry._id))
-          }
-          className="mt-3 pl-[26px] text-xs font-medium text-dune-amber"
-        >
-          Set as default
-        </button>
-      )}
-    </div>
-  );
+      {editable && !entry.isDefault &&
+    <button
+      type="button"
+      onClick={async () =>
+      updateCollection("addresses", await setDefaultAddress(entry._id))
+      }
+      className="mt-3 pl-[26px] text-xs font-medium text-dune-amber">{t(" Set as default ")}
 
-  const addressesView = (compact = false) => (
-    <div className={compact ? "px-[18px] pb-[18px]" : "space-y-3 p-5"}>
-      {!addresses.length && (
-        <p className="py-8 text-center text-sm text-neutral-500">
-          No saved delivery addresses.
-        </p>
-      )}
-      {(compact ? (defaultAddress ? [defaultAddress] : []) : addresses).map(
-        (entry) => addressCard(entry, !compact)
-      )}
-    </div>
-  );
 
-  const paymentRow = (method, editable = false) => (
-    <div
-      key={method._id}
-      className={`flex flex-col gap-3 ${
-        editable
-          ? "rounded-lg border border-[#333] bg-black/20 p-4 sm:flex-row sm:items-center"
-          : "sm:flex-row sm:items-center"
-      }`}
-    >
+    </button>
+    }
+    </div>;
+
+
+  const addressesView = (compact = false) =>
+  <div className={compact ? "px-[18px] pb-[18px]" : "space-y-3 p-5"}>
+      {!addresses.length &&
+    <p className="py-8 text-center text-sm text-neutral-500">{t(" No saved delivery addresses. ")}
+
+    </p>
+    }
+      {(compact ? defaultAddress ? [defaultAddress] : [] : addresses).map(
+      (entry) => addressCard(entry, !compact)
+    )}
+    </div>;
+
+
+  const paymentRow = (method, editable = false) =>
+  <div
+    key={method._id}
+    className={`flex flex-col gap-3 ${
+    editable ?
+    "rounded-lg border border-[#333] bg-black/20 p-4 sm:flex-row sm:items-center" :
+    "sm:flex-row sm:items-center"}`
+    }>
+
       <div className="flex h-11 w-[62px] shrink-0 items-center justify-center rounded-[5px] bg-gradient-to-br from-[#123a86] to-[#071d4e] px-1 text-center text-[14px] font-black uppercase italic text-white">
-        {method.cardBrand}
+        {t(method.cardBrand)}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[12px] font-semibold text-white">
-            {method.cardBrand} ending in {method.lastFourDigits}
+            {t(method.cardBrand)}{t(" ending in ")}{t(method.lastFourDigits)}
           </p>
-          {method.isDefault && (
-            <span className="rounded-full border border-[#8c4b00] bg-[#2b1803] px-2 py-0.5 text-[9px] font-semibold text-[#f58700]">
-              Default
-            </span>
-          )}
+          {method.isDefault &&
+        <span className="rounded-full border border-[#8c4b00] bg-[#2b1803] px-2 py-0.5 text-[9px] font-semibold text-[#f58700]">{t(" Default ")}
+
+        </span>
+        }
         </div>
-        <p className="mt-1 text-[11px] text-neutral-500">
-          Expires {String(method.expiryMonth).padStart(2, "0")}/
-          {String(method.expiryYear).slice(-2)}
+        <p className="mt-1 text-[11px] text-neutral-500">{t(" Expires ")}
+        {t(String(method.expiryMonth).padStart(2, "0"))}{t("/ ")}
+        {t(String(method.expiryYear).slice(-2))}
         </p>
       </div>
-      {editable && (
-        <div className="flex items-center">
-          {!method.isDefault && (
-            <button
-              type="button"
-              onClick={async () =>
-                updateCollection(
-                  "paymentMethods",
-                  await setDefaultPaymentMethod(method._id)
-                )
-              }
-              className="px-2 text-xs font-medium text-dune-amber"
-            >
-              Set default
-            </button>
-          )}
+      {editable &&
+    <div className="flex items-center">
+          {!method.isDefault &&
+      <button
+        type="button"
+        onClick={async () =>
+        updateCollection(
+          "paymentMethods",
+          await setDefaultPaymentMethod(method._id)
+        )
+        }
+        className="px-2 text-xs font-medium text-dune-amber">{t(" Set default ")}
+
+
+      </button>
+      }
           <button
-            type="button"
-            onClick={() => setModal({ type: "payment", method })}
-            aria-label="Edit payment method"
-            className="p-2 text-neutral-500 hover:text-white"
-          >
+        type="button"
+        onClick={() => setModal({ type: "payment", method })}
+        aria-label={t("Edit payment method")}
+        className="p-2 text-neutral-500 hover:text-white">
+
             <Edit3 className="h-4 w-4" />
           </button>
           <button
-            type="button"
-            onClick={async () => {
-              if (window.confirm("Delete this demo payment method?")) {
-                updateCollection(
-                  "paymentMethods",
-                  await deletePaymentMethod(method._id)
-                );
-              }
-            }}
-            aria-label="Delete payment method"
-            className="p-2 text-neutral-500 hover:text-red-400"
-          >
+        type="button"
+        onClick={async () => {
+          if (window.confirm(t("Delete this demo payment method?"))) {
+            updateCollection(
+              "paymentMethods",
+              await deletePaymentMethod(method._id)
+            );
+          }
+        }}
+        aria-label={t("Delete payment method")}
+        className="p-2 text-neutral-500 hover:text-red-400">
+
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
-      )}
-    </div>
-  );
+    }
+    </div>;
 
-  const paymentsView = () => (
-    <div className="space-y-3 p-5">
-      {!paymentMethods.length && (
-        <p className="py-8 text-center text-sm text-neutral-500">
-          No demo payment methods saved.
-        </p>
-      )}
+
+  const paymentsView = () =>
+  <div className="space-y-3 p-5">
+      {!paymentMethods.length &&
+    <p className="py-8 text-center text-sm text-neutral-500">{t(" No demo payment methods saved. ")}
+
+    </p>
+    }
       {paymentMethods.map((method) => paymentRow(method, true))}
-      <p className="text-xs text-neutral-600">
-        Decorative demo only. No full card numbers, CVVs, or payment credentials
-        are collected.
-      </p>
-    </div>
-  );
+      <p className="text-xs text-neutral-600">{t(" Decorative demo only. No full card numbers, CVVs, or payment credentials are collected. ")}
 
-  const reviewsView = () => (
-    <div className="space-y-3 p-5">
-      {!reviews.length && (
-        <p className="py-8 text-center text-sm text-neutral-500">
-          You have not reviewed an order yet.
-        </p>
-      )}
-      {reviews.map((review) => (
-        <article
-          key={review._id}
-          className="rounded-lg border border-[#333] bg-black/20 p-4"
-        >
+
+    </p>
+    </div>;
+
+
+  const reviewsView = () =>
+  <div className="space-y-3 p-5">
+      {!reviews.length &&
+    <p className="py-8 text-center text-sm text-neutral-500">{t(" You have not reviewed an order yet. ")}
+
+    </p>
+    }
+      {reviews.map((review) =>
+    <article
+      key={review._id}
+      className="rounded-lg border border-[#333] bg-black/20 p-4">
+
           <div className="flex items-start gap-3">
-            {review.menuItem?.image && (
-              <SmartImage
-                src={review.menuItem.image}
-                alt=""
-                width={80}
-                height={80}
-                sizes="48px"
-                className="h-12 w-12 rounded-lg object-cover"
-              />
-            )}
+            {review.menuItem?.image &&
+        <SmartImage
+          src={review.menuItem.image}
+          alt={t("")}
+          width={80}
+          height={80}
+          sizes="48px"
+          className="h-12 w-12 rounded-lg object-cover" />
+
+        }
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-semibold text-white">
-                  {review.menuItem?.name || "Menu item"}
+                  {catalogText(review.menuItem) || t("Menu item")}
                 </p>
-                <p className="text-xs text-neutral-500">
-                  Order #{review.order?.orderNumber}
+                <p className="text-xs text-neutral-500">{t(" Order #")}
+              {review.order?.orderNumber}
                 </p>
               </div>
               <div className="mt-1 flex text-dune-amber">
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <Star
-                    key={value}
-                    className="h-3.5 w-3.5"
-                    fill={value <= review.rating ? "currentColor" : "none"}
-                  />
-                ))}
+                {[1, 2, 3, 4, 5].map((value) =>
+            <Star
+              key={value}
+              className="h-3.5 w-3.5"
+              fill={value <= review.rating ? "currentColor" : "none"} />
+
+            )}
               </div>
               <p className="mt-2 text-sm leading-relaxed text-neutral-400">
-                {review.comment}
+                {t(review.comment)}
               </p>
             </div>
           </div>
         </article>
-      ))}
-    </div>
-  );
+    )}
+    </div>;
 
-  const personalCard = (
-    <Card className="hidden min-h-[272px] lg:block">
+
+  const personalCard =
+  <Card className="hidden min-h-[272px] lg:block">
       <CardHeader
-        title="Personal Information"
-        action={
-          <button
-            type="button"
-            onClick={() => setModal({ type: "personal" })}
-            className={compactOutline}
-          >
-            Edit Information
-          </button>
-        }
-      />
+      title={t("Personal Information")}
+      action={
+      <button
+        type="button"
+        onClick={() => setModal({ type: "personal" })}
+        className={compactOutline}>{t(" Edit Information ")}
+
+
+      </button>
+      } />
+
       <div className="px-[18px]">
         {[
-          [UserRound, "Full Name", user.name],
-          [Mail, "Email", user.email],
-          [Phone, "Phone", user.phone || "Not provided"],
-          [MapPin, "Location", user.address || "Not provided"],
-        ].map(([Icon, label, value]) => (
-          <div
-            key={label}
-            className="grid min-h-[52px] grid-cols-[minmax(130px,0.8fr)_1.2fr] items-center gap-4 border-b border-[#2d2d2d] last:border-0"
-          >
+      [UserRound, "Full Name", user.name],
+      [Mail, "Email", user.email],
+      [Phone, "Phone", user.phone || t("Not provided")],
+      [MapPin, "Location", user.address || t("Not provided")]].
+      map(([Icon, label, value]) =>
+      <div
+        key={label}
+        className="grid min-h-[52px] grid-cols-[minmax(130px,0.8fr)_1.2fr] items-center gap-4 border-b border-[#2d2d2d] last:border-0">
+
             <div className="flex items-center gap-3 text-[12px] text-neutral-300">
               <Icon className="h-4 w-4 text-neutral-500" />
-              {label}
+              {t(label)}
             </div>
             <p className="truncate text-right text-[12px] text-neutral-400">
-              {value}
+              <bdi>{value}</bdi>
             </p>
           </div>
-        ))}
+      )}
       </div>
-    </Card>
-  );
+    </Card>;
 
-  const profileHeader = (
-    <Card className="min-h-[190px] p-4 lg:p-[18px]">
+
+  const profileHeader =
+  <Card className="min-h-[190px] p-4 lg:p-[18px]">
+      <EmailVerificationNotice showStatus />
       <div className="flex h-full flex-col gap-6 xl:flex-row xl:items-center">
         <div className="flex min-w-0 flex-1 flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex h-[138px] w-[138px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#333] bg-black">
-            {user.avatar ? (
-              <SmartImage
-                src={user.avatar}
-                alt={`${user.name} avatar`}
-                width={276}
-                height={276}
-                sizes="138px"
-                priority
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <CircleUserRound className="h-16 w-16 text-neutral-600" />
-            )}
+            {t(user.avatar ?
+          <SmartImage
+            src={user.avatar}
+            alt={t("{0} avatar", [user.name])}
+            width={276}
+            height={276}
+            sizes="138px"
+            priority
+            className="h-full w-full object-cover" /> :
+
+
+          <CircleUserRound className="h-16 w-16 text-neutral-600" />)
+          }
           </div>
           <div className="min-w-0">
             <h1 className="font-body text-[29px] font-bold leading-none text-white">
-              {firstName}
+              <bdi>{firstName}</bdi>
             </h1>
-            <p className="mt-3 text-[12px] text-neutral-400">
-              Food Lover <span className="mx-1">•</span> Member since{" "}
-              {memberYear}
+            <p className="mt-3 text-[12px] text-neutral-400">{t(" Food Lover ")}
+            <span className="mx-1">{t("•")}</span>{t(" Member since")}{" "}
+              {t(memberYear)}
             </p>
             <p className="mt-3 max-w-[360px] truncate text-[12px] text-neutral-400">
-              {user.bio || "Good food, good mood."}
+              {user.bio || t("Good food, good mood.")}
             </p>
             <button
-              type="button"
-              onClick={() => setModal({ type: "profile" })}
-              className={`${compactOutline} mt-4`}
-            >
-              <Edit3 className="h-3.5 w-3.5" />
-              Edit Profile
-            </button>
+            type="button"
+            onClick={() => setModal({ type: "profile" })}
+            className={`${compactOutline} mt-4`}>
+
+              <Edit3 className="h-3.5 w-3.5" />{t(" Edit Profile ")}
+
+          </button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 xl:min-w-[530px]">
           {[
-            [ShoppingBag, stats.orders, "Orders", "orders"],
-            [Heart, stats.favorites, "Favorites", "favorites"],
-            [Award, stats.pointsBalance, "Reward Points", "rewards"],
-            [MessageSquareText, stats.reviews, "Reviews", "reviews"],
-          ].map(([Icon, value, label, section], index) => (
-            <Link
-              key={label}
-              href={ACCOUNT_ROUTES[section]}
-              className={`min-h-[98px] px-3 text-center transition hover:bg-white/[0.025] ${
-                index % 2 === 1
-                  ? "border-l border-dashed border-[#343434]"
-                  : ""
-              } ${
-                index >= 2
-                  ? "border-t border-dashed border-[#343434] sm:border-t-0"
-                  : ""
-              } ${index === 2 ? "sm:border-l" : ""}`}
-            >
+        [ShoppingBag, stats.orders, "Orders", "orders"],
+        [Heart, stats.favorites, "Favorites", "favorites"],
+        [Award, stats.pointsBalance, "Reward Points", "rewards"],
+        [MessageSquareText, stats.reviews, "Reviews", "reviews"]].
+        map(([Icon, value, label, section], index) =>
+        <Link
+          key={label}
+          href={ACCOUNT_ROUTES[section]}
+          className={`min-h-[98px] px-3 text-center transition hover:bg-white/[0.025] ${
+          index % 2 === 1 ?
+          "border-l border-dashed border-[#343434]" :
+          ""} ${
+
+          index >= 2 ?
+          "border-t border-dashed border-[#343434] sm:border-t-0" :
+          ""} ${
+          index === 2 ? "sm:border-l" : ""}`}>
+
               <Icon className="mx-auto h-5 w-5 text-neutral-500" />
               <span className="mt-3 block font-body text-[23px] font-bold leading-none text-[#f58700]">
-                {Number(value).toLocaleString()}
+                {formatNumber(value)}
               </span>
               <span className="mt-2 block text-[11px] text-neutral-400">
-                {label}
+                {t(label)}
               </span>
             </Link>
-          ))}
+        )}
         </div>
       </div>
-    </Card>
-  );
+    </Card>;
 
-  const sidebar = (
-    <aside className="hidden self-start lg:sticky lg:top-[98px] lg:block">
+
+  const sidebar =
+  <aside className="hidden self-start lg:sticky lg:top-[98px] lg:block">
       <Card className="min-h-[406px]">
-        <p className="px-[18px] pb-4 pt-[18px] text-[12px] font-bold uppercase tracking-[0.13em] text-[#f58700]">
-          My Account
-        </p>
-        <nav className="space-y-0.5 pb-3" aria-label="Account navigation">
-          {NAV_ITEMS.map(([id, label, Icon]) => (
-            <Link
-              key={id}
-              href={ACCOUNT_ROUTES[id]}
-              aria-current={active === id ? "page" : undefined}
-              className={`relative flex h-[43px] w-full items-center gap-3 px-[20px] text-left text-[13px] transition-colors ${
-                active === id
-                  ? "bg-[linear-gradient(90deg,#303030_0%,#242424_100%)] text-white before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#f58700]"
-                  : "text-neutral-300 hover:bg-white/[0.04] hover:text-white"
-              }`}
-            >
+        <p className="px-[18px] pb-4 pt-[18px] text-[12px] font-bold uppercase tracking-[0.13em] text-[#f58700]">{t(" My Account ")}
+
+      </p>
+        <nav className="space-y-0.5 pb-3" aria-label={t("Account navigation")}>
+          {NAV_ITEMS.map(([id, label, Icon]) =>
+        <Link
+          key={id}
+          href={ACCOUNT_ROUTES[id]}
+          aria-current={active === id ? "page" : undefined}
+          className={`relative flex h-[43px] w-full items-center gap-3 px-[20px] text-left text-[13px] transition-colors ${
+          active === id ?
+          "bg-[linear-gradient(90deg,#303030_0%,#242424_100%)] text-white before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#f58700]" :
+          "text-neutral-300 hover:bg-white/[0.04] hover:text-white"}`
+          }>
+
               <Icon
-                className={`h-[19px] w-[19px] ${
-                  active === id ? "text-[#f58700]" : "text-neutral-500"
-                }`}
-              />
-              {label}
+            className={`h-[19px] w-[19px] ${
+            active === id ? "text-[#f58700]" : "text-neutral-500"}`
+            } />
+
+              {t(label)}
             </Link>
-          ))}
+        )}
           <button
-            type="button"
-            onClick={handleLogout}
-            className="flex h-[43px] w-full items-center gap-3 px-[20px] text-left text-[13px] text-neutral-300 transition-colors hover:bg-red-500/5 hover:text-red-400"
-          >
-            <LogOut className="h-[19px] w-[19px] text-neutral-500" />
-            Logout
-          </button>
+          type="button"
+          onClick={handleLogout}
+          className="flex h-[43px] w-full items-center gap-3 px-[20px] text-left text-[13px] text-neutral-300 transition-colors hover:bg-red-500/5 hover:text-red-400">
+
+            <LogOut className="h-[19px] w-[19px] text-neutral-500" />{t(" Logout ")}
+
+        </button>
         </nav>
       </Card>
-    </aside>
-  );
+    </aside>;
 
-  const overview = (
-    <>
+
+  const overview =
+  <>
       <div className="grid gap-[14px] xl:grid-cols-[5fr_7fr]">
-        {personalCard}
+        {t(personalCard)}
         <Card className="min-h-[272px]">
           <CardHeader
-            title="Recent Orders"
-            border
-            action={
-              <Link
-                href={ACCOUNT_ROUTES.orders}
-                className="text-[11px] text-neutral-300 hover:text-dune-amber"
-              >
-                View All Orders
-              </Link>
-            }
-          />
-          {ordersView(recentOrders.slice(0, 3), true)}
+          title={t("Recent Orders")}
+          border
+          action={
+          <Link
+            href={ACCOUNT_ROUTES.orders}
+            className="text-[11px] text-neutral-300 hover:text-dune-amber">{t(" View All Orders ")}
+
+
+          </Link>
+          } />
+
+          {t(ordersView(recentOrders.slice(0, 3), true))}
         </Card>
       </div>
 
       <div className="grid gap-[14px] xl:grid-cols-[1.08fr_0.92fr]">
         <Card className="min-h-[218px]">
           <CardHeader
-            title="Favorite Dishes"
-            action={
-              <Link
-                href={ACCOUNT_ROUTES.favorites}
-                className="text-[11px] text-neutral-400 hover:text-dune-amber"
-              >
-                View All
-              </Link>
-            }
-          />
-          {favoritesView(favorites.slice(0, 3), true)}
+          title={t("Favorite Dishes")}
+          action={
+          <Link
+            href={ACCOUNT_ROUTES.favorites}
+            className="text-[11px] text-neutral-400 hover:text-dune-amber">{t(" View All ")}
+
+
+          </Link>
+          } />
+
+          {t(favoritesView(favorites.slice(0, 3), true))}
         </Card>
 
         <Card className="min-h-[218px]">
           <CardHeader
-            title="Saved Addresses"
-            action={
-              <Link
-                href={ACCOUNT_ROUTES.addresses}
-                className="text-[11px] text-neutral-400 hover:text-dune-amber"
-              >
-                Manage Addresses
-              </Link>
-            }
-          />
-          {addressesView(true)}
+          title={t("Saved Addresses")}
+          action={
+          <Link
+            href={ACCOUNT_ROUTES.addresses}
+            className="text-[11px] text-neutral-400 hover:text-dune-amber">{t(" Manage Addresses ")}
+
+
+          </Link>
+          } />
+
+          {t(addressesView(true))}
         </Card>
       </div>
-    </>
-  );
+    </>;
 
-  const desktopOverview = (
-    <div className="space-y-[14px]">
+
+  const desktopOverview =
+  <div className="space-y-[14px]">
       <div className="grid gap-[14px] xl:grid-cols-[1.22fr_0.88fr]">
         <Card className="min-h-[345px]">
           <CardHeader
-            title="Recent Orders"
-            border
-            action={
-              <Link
-                href={ACCOUNT_ROUTES.orders}
-                className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber"
-              >
-                View All Orders <ChevronRight className="h-3.5 w-3.5" />
+          title={t("Recent Orders")}
+          border
+          action={
+          <Link
+            href={ACCOUNT_ROUTES.orders}
+            className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber">{t(" View All Orders ")}
+
+            <ChevronRight className="h-3.5 w-3.5" />
               </Link>
-            }
-          />
-          {desktopOrdersView(recentOrders.slice(0, 3))}
+          } />
+
+          {t(desktopOrdersView(recentOrders.slice(0, 3)))}
         </Card>
 
         <Card className="min-h-[345px]">
           <CardHeader
-            title="Favorite Dishes"
-            border
-            action={
-              <Link
-                href={ACCOUNT_ROUTES.favorites}
-                className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber"
-              >
-                View All <ChevronRight className="h-3.5 w-3.5" />
+          title={t("Favorite Dishes")}
+          border
+          action={
+          <Link
+            href={ACCOUNT_ROUTES.favorites}
+            className="inline-flex items-center gap-1 text-[11px] text-neutral-300 transition hover:text-dune-amber">{t(" View All ")}
+
+            <ChevronRight className="h-3.5 w-3.5" />
               </Link>
-            }
-          />
-          {desktopFavoritesView(favorites.slice(-3).reverse())}
+          } />
+
+          {t(desktopFavoritesView(favorites.slice(-3).reverse()))}
         </Card>
       </div>
 
       <DuneRewards
-        profileDesktop
-        onBalanceChanged={handleRewardBalanceChanged}
-        onOpenCart={() => setCartOpen(true)}
-        onViewAll={() => navigateToSection("rewards")}
-      />
-    </div>
-  );
+      profileDesktop
+      onBalanceChanged={handleRewardBalanceChanged}
+      onOpenCart={() => setCartOpen(true)}
+      onViewAll={() => navigateToSection("rewards")} />
+
+    </div>;
+
 
   const sectionContent = {
-    orders: (
-      <Card>
+    orders:
+    <Card>
         <CardHeader
-          title="My Orders"
-          border
-          action={
-            <button
-              type="button"
-              onClick={load}
-              className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-dune-amber"
-            >
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh
-            </button>
-          }
-        />
-        {ordersView(orders)}
-      </Card>
-    ),
-    favorites: (
-      <div className="grid gap-[14px] xl:grid-cols-2">
+        title={t("My Orders")}
+        border
+        action={
+        <button
+          type="button"
+          onClick={load}
+          className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-dune-amber">
+
+              <RefreshCw className="h-3.5 w-3.5" />{t(" Refresh ")}
+        </button>
+        } />
+
+        {t(ordersView(orders))}
+      </Card>,
+
+    favorites:
+    <div className="grid gap-[14px] xl:grid-cols-2">
         <Card>
           <CardHeader
-            title="Favorite Dishes"
-            border
-            action={
-              <button
-                type="button"
-                onClick={() => router.push("/menu")}
-                className="text-xs text-neutral-300 hover:text-dune-amber"
-              >
-                Browse Menu
-              </button>
-            }
-          />
-          <div className="xl:hidden">{favoritesView(favorites)}</div>
-          <div className="hidden xl:block">
-            {desktopFavoritesView(favorites)}
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader title="Favorite Blogs" border />
-          {favoriteBlogsView()}
-        </Card>
-      </div>
-    ),
-    rewards: (
-      <DuneRewards
-        onBalanceChanged={handleRewardBalanceChanged}
-        onOpenCart={() => setCartOpen(true)}
-      />
-    ),
-    addresses: (
-      <Card>
-        <CardHeader
-          title="Saved Addresses"
+          title={t("Favorite Dishes")}
           border
           action={
-            <button
-              type="button"
-              onClick={() => setModal({ type: "address", address: null })}
-              className={compactAmber}
-            >
-              <Plus className="h-4 w-4" /> Add Address
-            </button>
-          }
-        />
-        {addressesView()}
-      </Card>
-    ),
-    payments: (
-      <Card>
-        <CardHeader
-          title="Payment Methods"
-          border
-          action={
-            <button
-              type="button"
-              onClick={() => setModal({ type: "payment", method: null })}
-              className={compactAmber}
-            >
-              <Plus className="h-4 w-4" /> Add New Card
-            </button>
-          }
-        />
-        {paymentsView()}
-      </Card>
-    ),
-    reviews: (
-      <Card>
-        <CardHeader
-          title="My Reviews"
-          border
-          action={
-            <button
-              type="button"
-              disabled={!reviewOptions.length}
-              onClick={() => setModal({ type: "review" })}
-              className={compactAmber}
-            >
-              <Plus className="h-4 w-4" /> Write Review
-            </button>
-          }
-        />
-        {reviewsView()}
-        {!reviewOptions.length && (
-          <p className="px-5 pb-5 text-xs text-neutral-600">
-            New reviews become available after a delivered order.
-          </p>
-        )}
-      </Card>
-    ),
-    settings: (
-      <div className="space-y-[14px]">
-        {personalCard}
-        <Card>
-          <CardHeader title="Profile Settings" border />
-          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium text-white">Public account details</p>
-              <p className="mt-1 text-sm text-neutral-500">
-                Update your display name, avatar, and short bio.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setModal({ type: "profile" })}
-              className={compactOutline}
-            >
-              <Edit3 className="h-4 w-4" /> Edit Profile
-            </button>
-          </div>
-        </Card>
-      </div>
-    ),
-  };
-
-  const bottomOverview = (
-    <div className="grid gap-[14px] lg:col-span-2 lg:grid-cols-[1.66fr_1fr]">
-      <DuneRewards
-        compact
-        onBalanceChanged={handleRewardBalanceChanged}
-        onOpenCart={() => setCartOpen(true)}
-      />
-      <Card className="min-h-[150px]">
-        <CardHeader
-          title="Payment Methods"
-          action={
-            <Link
-              href={ACCOUNT_ROUTES.payments}
-              className="text-[11px] text-neutral-400 hover:text-dune-amber"
-            >
-              Manage
-            </Link>
-          }
-        />
-        <div className="flex flex-col gap-3 px-[18px] pb-[18px] sm:flex-row sm:items-center">
-          <div className="min-w-0 flex-1">
-            {defaultPayment ? (
-              paymentRow(defaultPayment)
-            ) : (
-              <p className="text-sm text-neutral-500">
-                No demo payment method saved.
-              </p>
-            )}
-          </div>
           <button
             type="button"
-            onClick={() => setModal({ type: "payment", method: null })}
-            className={`${compactOutline} shrink-0`}
-          >
-            <Plus className="h-4 w-4" /> Add New Card
+            onClick={() => router.push("/menu")}
+            className="text-xs text-neutral-300 hover:text-dune-amber">{t(" Browse Menu ")}
+
+
           </button>
+          } />
+
+          <div className="xl:hidden">{t(favoritesView(favorites))}</div>
+          <div className="hidden xl:block">
+            {t(desktopFavoritesView(favorites))}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title={t("Favorite Blogs")} border />
+          {t(favoriteBlogsView())}
+        </Card>
+      </div>,
+
+    rewards:
+    <DuneRewards
+      onBalanceChanged={handleRewardBalanceChanged}
+      onOpenCart={() => setCartOpen(true)} />,
+
+
+    addresses:
+    <Card>
+        <CardHeader
+        title={t("Saved Addresses")}
+        border
+        action={
+        <button
+          type="button"
+          onClick={() => setModal({ type: "address", address: null })}
+          className={compactAmber}>
+
+              <Plus className="h-4 w-4" />{t(" Add Address ")}
+        </button>
+        } />
+
+        {t(addressesView())}
+      </Card>,
+
+    payments:
+    <Card>
+        <CardHeader
+        title={t("Payment Methods")}
+        border
+        action={
+        <button
+          type="button"
+          onClick={() => setModal({ type: "payment", method: null })}
+          className={compactAmber}>
+
+              <Plus className="h-4 w-4" />{t(" Add New Card ")}
+        </button>
+        } />
+
+        {t(paymentsView())}
+      </Card>,
+
+    reviews:
+    <Card>
+        <CardHeader
+        title={t("My Reviews")}
+        border
+        action={
+        <button
+          type="button"
+          disabled={!reviewOptions.length}
+          onClick={() => setModal({ type: "review" })}
+          className={compactAmber}>
+
+              <Plus className="h-4 w-4" />{t(" Write Review ")}
+        </button>
+        } />
+
+        {t(reviewsView())}
+        {!reviewOptions.length &&
+      <p className="px-5 pb-5 text-xs text-neutral-600">{t(" New reviews become available after a delivered order. ")}
+
+      </p>
+      }
+      </Card>,
+
+    settings:
+    <div className="space-y-[14px]">
+        {t(personalCard)}
+        <Card>
+          <CardHeader title={t("Profile Settings")} border />
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium text-white">{t("Public account details")}</p>
+              <p className="mt-1 text-sm text-neutral-500">{t(" Update your display name, avatar, and short bio. ")}
+
+            </p>
+            </div>
+            <button
+            type="button"
+            onClick={() => setModal({ type: "profile" })}
+            className={compactOutline}>
+
+              <Edit3 className="h-4 w-4" />{t(" Edit Profile ")}
+          </button>
+          </div>
+        </Card>
+      </div>
+
+  };
+
+  const bottomOverview =
+  <div className="grid gap-[14px] lg:col-span-2 lg:grid-cols-[1.66fr_1fr]">
+      <DuneRewards
+      compact
+      onBalanceChanged={handleRewardBalanceChanged}
+      onOpenCart={() => setCartOpen(true)} />
+
+      <Card className="min-h-[150px]">
+        <CardHeader
+        title={t("Payment Methods")}
+        action={
+        <Link
+          href={ACCOUNT_ROUTES.payments}
+          className="text-[11px] text-neutral-400 hover:text-dune-amber">{t(" Manage ")}
+
+
+        </Link>
+        } />
+
+        <div className="flex flex-col gap-3 px-[18px] pb-[18px] sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            {t(defaultPayment ?
+          paymentRow(defaultPayment) :
+
+          <p className="text-sm text-neutral-500">{t(" No demo payment method saved. ")}
+
+          </p>)
+          }
+          </div>
+          <button
+          type="button"
+          onClick={() => setModal({ type: "payment", method: null })}
+          className={`${compactOutline} shrink-0`}>
+
+            <Plus className="h-4 w-4" />{t(" Add New Card ")}
+        </button>
         </div>
       </Card>
-    </div>
-  );
+    </div>;
+
 
   return (
     <div className="min-h-screen bg-black font-body text-neutral-200">
@@ -1461,135 +1467,135 @@ const AccountDashboard = () => {
         accountMenuItems={NAV_ITEMS.map(([id, label, icon]) => ({
           id,
           label,
-          icon,
+          icon
         }))}
         activeAccountItem={active}
         onAccountItemClick={navigateToSection}
-        onAccountLogout={handleLogout}
-      />
+        onAccountLogout={handleLogout} />
+
 
       <main className="mx-auto grid max-w-[1440px] gap-[14px] px-4 pb-12 pt-[92px] sm:px-6 lg:grid-cols-[266px_minmax(0,1fr)] lg:px-8 lg:pt-[98px]">
-        {sidebar}
+        {t(sidebar)}
 
         <div className="min-w-0 space-y-[14px]">
-          {profileHeader}
-          {active === "profile" ? (
-            isDesktop ? (
-              desktopOverview
-            ) : (
-              <div className="space-y-[14px]">{overview}</div>
-            )
-          ) : (
-            sectionContent[active]
-          )}
+          {t(profileHeader)}
+          {t(active === "profile" ?
+          isDesktop ?
+          desktopOverview :
+
+          <div className="space-y-[14px]">{t(overview)}</div> :
+
+
+          sectionContent[active])
+          }
         </div>
 
-        {active === "profile" && !isDesktop && bottomOverview}
+        {t(active === "profile" && !isDesktop && bottomOverview)}
       </main>
 
-      {notice && (
-        <div
-          role="status"
-          className="fixed bottom-5 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-dune-amber/40 bg-[#17110a] px-5 py-3 text-sm text-white shadow-xl"
-        >
-          {notice}
+      {notice &&
+      <div
+        role="status"
+        className="fixed bottom-5 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-dune-amber/40 bg-[#17110a] px-5 py-3 text-sm text-white shadow-xl">
+
+          {t(notice)}
         </div>
-      )}
+      }
 
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
 
-      {modal?.type === "profile" && (
-        <AccountModal
-          title="Edit Profile"
-          description="Update your account header details."
-          onClose={() => setModal(null)}
-        >
+      {modal?.type === "profile" &&
+      <AccountModal
+        title={t("Edit Profile")}
+        description={t("Update your account header details.")}
+        onClose={() => setModal(null)}>
+
           <ProfileForm
-            user={user}
-            onClose={() => setModal(null)}
-            onSaved={updateUser}
-          />
-        </AccountModal>
-      )}
-
-      {modal?.type === "personal" && (
-        <AccountModal
-          title="Edit Information"
-          description="These details are saved to your account."
-          maxWidth="max-w-2xl"
+          user={user}
           onClose={() => setModal(null)}
-        >
+          onSaved={updateUser} />
+
+        </AccountModal>
+      }
+
+      {modal?.type === "personal" &&
+      <AccountModal
+        title={t("Edit Information")}
+        description={t("These details are saved to your account.")}
+        maxWidth="max-w-2xl"
+        onClose={() => setModal(null)}>
+
           <PersonalForm
-            user={user}
-            onClose={() => setModal(null)}
-            onSaved={updateUser}
-          />
-        </AccountModal>
-      )}
-
-      {modal?.type === "address" && (
-        <AccountModal
-          title={modal.address ? "Edit Address" : "Add Address"}
+          user={user}
           onClose={() => setModal(null)}
-        >
+          onSaved={updateUser} />
+
+        </AccountModal>
+      }
+
+      {modal?.type === "address" &&
+      <AccountModal
+        title={t(modal.address ? "Edit Address" : "Add Address")}
+        onClose={() => setModal(null)}>
+
           <AddressForm
-            address={modal.address}
-            onClose={() => setModal(null)}
-            onSaved={(value) => updateCollection("addresses", value)}
-          />
-        </AccountModal>
-      )}
-
-      {modal?.type === "payment" && (
-        <AccountModal
-          title={
-            modal.method ? "Edit Payment Method" : "Add Demo Payment Method"
-          }
-          description="For dashboard demonstration only—do not enter real payment credentials."
-          maxWidth="max-w-2xl"
+          address={modal.address}
           onClose={() => setModal(null)}
-        >
+          onSaved={(value) => updateCollection("addresses", value)} />
+
+        </AccountModal>
+      }
+
+      {modal?.type === "payment" &&
+      <AccountModal
+        title={t(
+          modal.method ? "Edit Payment Method" : "Add Demo Payment Method")
+        }
+        description={t("For dashboard demonstration only—do not enter real payment credentials.")}
+        maxWidth="max-w-2xl"
+        onClose={() => setModal(null)}>
+
           <PaymentForm
-            method={modal.method}
-            onClose={() => setModal(null)}
-            onSaved={(value) => updateCollection("paymentMethods", value)}
-          />
-        </AccountModal>
-      )}
-
-      {modal?.type === "review" && (
-        <AccountModal
-          title="Write a Review"
-          description="Share feedback about an item from a delivered order."
+          method={modal.method}
           onClose={() => setModal(null)}
-        >
+          onSaved={(value) => updateCollection("paymentMethods", value)} />
+
+        </AccountModal>
+      }
+
+      {modal?.type === "review" &&
+      <AccountModal
+        title={t("Write a Review")}
+        description={t("Share feedback about an item from a delivered order.")}
+        onClose={() => setModal(null)}>
+
           <ReviewForm
-            options={reviewOptions}
-            onClose={() => setModal(null)}
-            onSaved={(review) =>
-              setData((current) => ({
-                ...current,
-                reviews: [review, ...current.reviews],
-                stats: {
-                  ...current.stats,
-                  reviews: current.stats.reviews + 1,
-                },
-              }))
-            }
-          />
-        </AccountModal>
-      )}
-
-      {modal?.type === "order" && (
-        <OrderDetails
-          order={modal.order}
+          options={reviewOptions}
           onClose={() => setModal(null)}
-          onReorder={reorder}
-          showReorder={SHOW_REORDER_ACTIONS}
-        />
-      )}
-    </div>
-  );
+          onSaved={(review) =>
+          setData((current) => ({
+            ...current,
+            reviews: [review, ...current.reviews],
+            stats: {
+              ...current.stats,
+              reviews: current.stats.reviews + 1
+            }
+          }))
+          } />
+
+        </AccountModal>
+      }
+
+      {modal?.type === "order" &&
+      <OrderDetails
+        order={modal.order}
+        onClose={() => setModal(null)}
+        onReorder={reorder}
+        showReorder={SHOW_REORDER_ACTIONS} />
+
+      }
+    </div>);
+
 };
 
-export default AccountDashboard;
+export default withLocale(AccountDashboard);

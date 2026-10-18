@@ -1,25 +1,30 @@
+"use client";
+import { withLocale } from "../i18n/LocaleProvider.jsx";
+import { t } from "../i18n/core.js";
+
+
 import React from "react";
 import { Flame, Clock, MapPin } from "lucide-react";
 import DuneDivider from "./DuneDivider.jsx";
 import SmartImage from "./SmartImage.jsx";
 
 const FEATURES = [
-  {
-    icon: Flame,
-    title: "Open-Flame Grilling",
-    text: "Every protein passes over real fire — never a shortcut, never microwaved.",
-  },
-  {
-    icon: Clock,
-    title: "Fresh Daily",
-    text: "Ingredients are sourced and prepped each morning, never held over.",
-  },
-  {
-    icon: MapPin,
-    title: "Rooted Locally",
-    text: "A neighborhood kitchen serving bold, desert-inspired flavor since day one.",
-  },
-];
+{
+  icon: Flame,
+  title: "Open-Flame Grilling",
+  text: "Every protein passes over real fire — never a shortcut, never microwaved."
+},
+{
+  icon: Clock,
+  title: "Fresh Daily",
+  text: "Ingredients are sourced and prepped each morning, never held over."
+},
+{
+  icon: MapPin,
+  title: "Rooted Locally",
+  text: "A neighborhood kitchen serving bold, desert-inspired flavor since day one."
+}];
+
 
 const About = () => {
   return (
@@ -29,48 +34,48 @@ const About = () => {
           <div className="rounded-2xl overflow-hidden border border-dune-border">
             <SmartImage
               src="https://images.unsplash.com/photo-1544148103-0773bf10d330?auto=format&fit=crop&w=1000&q=80"
-              alt="Chef grilling skewers over open flame"
+              alt={t("Chef grilling skewers over open flame")}
               width={1000}
               height={840}
               sizes="(min-width: 768px) 50vw, 100vw"
               className="w-full h-[420px] object-cover"
-              loading="lazy"
-            />
+              loading="lazy" />
+
           </div>
           <div className="absolute -bottom-6 -right-6 hidden md:block bg-dune-amber text-black rounded-2xl px-6 py-4 shadow-amberGlow">
-            <p className="font-display text-3xl leading-none">100%</p>
-            <p className="text-xs font-semibold uppercase tracking-wide mt-1">
-              Flame Grilled
+            <p className="font-display text-3xl leading-none">{t("100%")}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide mt-1">{t(" Flame Grilled ")}
+
             </p>
           </div>
         </div>
 
         <div>
-          <p className="eyebrow">Our Story</p>
-          <h2 className="mt-3 text-4xl md:text-5xl text-white leading-tight">
-            BORN FROM FIRE,
+          <p className="eyebrow">{t("Our Story")}</p>
+          <h2 className="mt-3 text-4xl md:text-5xl text-white leading-tight">{t(" BORN FROM FIRE, ")}
+
             <br />
-            <span className="text-gradient-amber">SHAPED BY THE DUNES.</span>
+            <span className="text-gradient-amber">{t("SHAPED BY THE DUNES.")}</span>
           </h2>
-          <p className="mt-5 text-neutral-400 leading-relaxed">
-            Dune &amp; Grills started with a simple idea: take the boldest
-            grilling traditions of the desert and pair them with modern,
-            craveable comfort food. Every burger, wrap and skewer is
-            char-grilled to order and finished with house-made sauces.
+          <p className="mt-5 text-neutral-400 leading-relaxed">{t(" Dune & Grills started with a simple idea: take the boldest grilling traditions of the desert and pair them with modern, craveable comfort food. Every burger, wrap and skewer is char-grilled to order and finished with house-made sauces. ")}
+
+
+
+
           </p>
 
           <div className="mt-9 space-y-6">
-            {FEATURES.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="flex gap-4">
+            {FEATURES.map(({ icon: Icon, title, text }) =>
+            <div key={title} className="flex gap-4">
                 <div className="shrink-0 w-11 h-11 rounded-full bg-dune-amber/10 border border-dune-amber/40 flex items-center justify-center">
                   <Icon className="w-5 h-5 text-dune-amber" />
                 </div>
                 <div>
-                  <h3 className="text-white font-semibold">{title}</h3>
-                  <p className="text-sm text-neutral-400 mt-1">{text}</p>
+                  <h3 className="text-white font-semibold">{t(title)}</h3>
+                  <p className="text-sm text-neutral-400 mt-1">{t(text)}</p>
                 </div>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
@@ -78,8 +83,8 @@ const About = () => {
       <div className="mt-20">
         <DuneDivider />
       </div>
-    </section>
-  );
+    </section>);
+
 };
 
-export default About;
+export default withLocale(About);

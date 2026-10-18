@@ -82,7 +82,7 @@ export const AuthProvider = ({ children, readOnlyStaff = false }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, setUser, loading, sessionError, retrySession: () => setRestoreVersion(value => value + 1), login, register, logout }}
+      value={{ user, setUser, loading, sessionError, retrySession: () => setRestoreVersion(value => value + 1), login, register, logout, endCustomerSession: () => { clearCartOnLogout(user?._id); localStorage.removeItem("dg_token"); setUser(null); setSessionError(""); } }}
     >
       {children}
     </AuthContext.Provider>

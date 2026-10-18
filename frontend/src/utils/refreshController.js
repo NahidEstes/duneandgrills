@@ -1,13 +1,20 @@
 // One in-flight request, one scheduler and one lifecycle generation per authenticated resource.
 // Injected clocks/events make race, offline and cleanup behavior testable without a browser.
 export const SUMMARY_REFRESH_MS = 60_000;
+export function retryAfterMs(headers, now = Date.now()) {
+  const value = headers?.get?.("retry-after") ?? headers?.["retry-after"] ?? headers?.["Retry-After"];
+  if (value == null || value === "") return 0;
+  const seconds = Number(value);
+  return Math.max(0, Number.isFinite(seconds) ? seconds * 1000 : (Date.parse(value) || now) - now);
+}
 
 export function createRefreshController({ fetcher, onState, onData, onUnauthorized, intervalMs = SUMMARY_REFRESH_MS,
-  retryBaseMs = 15_000, retryMaxMs = 300_000, pauseWhenHidden = true,
+  retryBaseMs = 15_000, retryMaxMs = 300_000, pauseWhenHidden = true, stopWhen,
   target = window, documentTarget = document, online = () => navigator.onLine !== false,
   now = Date.now, schedule = setTimeout, cancel = clearTimeout }) {
   let state = { data: null, refreshing: false, error: null, errorKind: null, lastSuccessAt: null, offline: !online(), status: "loading", failures: 0 };
   let disposed = false, stopped = false, generation = 0, timer, inFlight, abort, queuedMutation = false, mutationPending = false, lastStart = -Infinity, retryAt = 0;
+  let throttledUntil = 0;
   const emit = patch => { if (!disposed) { state = { ...state, ...patch }; onState?.(state); } };
   const clearTimer = () => { cancel(timer); timer = undefined; };
   const hidden = () => pauseWhenHidden && documentTarget.hidden;
@@ -19,6 +26,7 @@ export function createRefreshController({ fetcher, onState, onData, onUnauthoriz
     if (disposed || stopped) return Promise.resolve();
     if (reason === "mutation" && inFlight) queuedMutation = true;
     if (inFlight) return inFlight;
+    if (now() < throttledUntil) { arm(throttledUntil - now()); return Promise.resolve(); }
     if (reason === "mutation") { mutationPending = true; arm(250); return Promise.resolve(); }
     if (hidden()) return Promise.resolve();
     if (!online()) {
@@ -36,21 +44,24 @@ export function createRefreshController({ fetcher, onState, onData, onUnauthoriz
     }).then(data => {
       if (disposed || stopped || requestGeneration !== generation) return;
       emit({ data, lastSuccessAt: now(), refreshing: false, error: null, errorKind: null, status: "success", failures: 0 });
+      stopped = Boolean(stopWhen?.(data));
+      emit({ complete: stopped, retryAt: null });
       onData?.(data);
     }).catch(error => {
       if (disposed || stopped || requestGeneration !== generation) return;
       const status = error.response?.status;
-      const errorKind = !online() ? "offline" : status === 401 ? "session" : status === 403 ? "permission" : "server";
+      const errorKind = !online() ? "offline" : status === 429 ? "throttled" : status === 401 ? "session" : status === 403 ? "permission" : "server";
       const message = errorKind === "offline" ? "Browser is offline. Reconnect to update." : errorKind === "session" ? "Session expired. Please sign in again." : errorKind === "permission" ? "Access is no longer available." : error.response?.data?.message || "API/server unavailable. Retained data may be outdated.";
       stopped = status === 401 || status === 403;
-      retryAt = now() + Math.min(retryMaxMs, retryBaseMs * 2 ** Math.min(state.failures, 10));
-      emit({ refreshing: false, offline: errorKind === "offline", errorKind, error: message, failures: state.failures + 1, status: state.data === null ? "error" : "stale" });
+      if (status === 429) throttledUntil = now() + Math.max(1_000, retryAfterMs(error.response?.headers, now()));
+      retryAt = Math.max(throttledUntil, now() + Math.min(retryMaxMs, retryBaseMs * 2 ** Math.min(state.failures, 10)));
+      emit({ refreshing: false, offline: errorKind === "offline", errorKind, error: message, retryAt, failures: state.failures + 1, status: state.data === null ? "error" : "stale" });
       if (stopped) onUnauthorized?.(error);
     }).finally(() => {
       if (disposed || requestGeneration !== generation) return;
       inFlight = null;
       if (queuedMutation && !stopped) { queuedMutation = false; arm(1_000); }
-      else arm(state.failures ? Math.min(retryMaxMs, retryBaseMs * 2 ** Math.min(state.failures - 1, 10)) : intervalMs);
+      else arm(state.failures ? Math.max(1, retryAt - now()) : intervalMs);
     });
     return inFlight;
   }

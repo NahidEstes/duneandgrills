@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createRefreshController } from "../src/utils/refreshController.js";
+import { createRefreshController, retryAfterMs } from "../src/utils/refreshController.js";
 import { dashboardMoney, dashboardNumber, successfulUpdateLabel } from "../src/components/admin/dashboardFreshness.js";
 
 const flush = async () => { for (let n = 0; n < 12; n++) await Promise.resolve(); };
@@ -114,4 +114,13 @@ test("hidden failures retain backoff but recover promptly when visible after ret
 test("successful timestamps carry exact accessible Riyadh dates and honest relative text", () => {
   const stamp = Date.parse("2026-10-07T21:01:02Z"), label = successfulUpdateLabel(stamp, stamp + 120_000);
   assert.equal(label.relative, "2 min ago"); assert.match(label.exact, /0?8 Oct 2026/); assert.match(label.exact, /12:01:02 am/); assert.match(label.exact, /Asia\/Riyadh/); assert.equal(label.iso, "2026-10-07T21:01:02.000Z");
+});
+test("429 honours delta/date Retry-After through manual, focus, visibility and offline recovery", async () => {
+  assert.equal(retryAfterMs({"Retry-After":"120"},0),120_000);assert.equal(retryAfterMs({"retry-after":new Date(120_000).toUTCString()},60_000),60_000);
+  let calls=0;const h=harness(async()=>{calls++;if(calls===1)throw{response:{status:429,headers:{"retry-after":"120"},data:{}}};return{status:"ready"};},{intervalMs:10_000});
+  await h.controller.start();for(let n=0;n<20;n++){await h.controller.refresh("manual");h.event("focus");}h.hidden(true);h.hidden(false);h.online(false);h.online(true);await h.advance(119_999);assert.equal(calls,1);await h.advance(1);assert.equal(calls,2);assert.equal(h.controller.getState().status,"success");h.controller.dispose();
+});
+test("long tracking pauses hidden and permanently stops its regular polling at terminal status", async () => {
+  let calls=0,done=false;const h=harness(async()=>({status:done?"delivered":"preparing",count:++calls}),{intervalMs:10_000,stopWhen:order=>order.status==="delivered"});
+  await h.controller.start();await h.advance(15*60_000);assert.equal(calls,91);h.hidden(true);await h.advance(60_000);assert.equal(calls,91);done=true;h.hidden(false);await flush();assert.equal(calls,92);assert.equal(h.controller.getState().complete,true);await h.advance(60*60_000);h.event("focus");await h.controller.refresh();assert.equal(calls,92);assert.equal(h.timers.size,0);h.controller.dispose();
 });

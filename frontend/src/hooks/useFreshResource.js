@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRefreshController } from "../utils/refreshController.js";
 
-export function useFreshResource({ identity, fetcher, onData, onUnauthorized, intervalMs, retryBaseMs, retryMaxMs, pauseWhenHidden = true }) {
+export function useFreshResource({ identity, fetcher, onData, onUnauthorized, stopWhen, intervalMs, retryBaseMs, retryMaxMs, pauseWhenHidden = true }) {
   const callbacks = useRef({ fetcher, onData, onUnauthorized });
-  useEffect(() => { callbacks.current = { fetcher, onData, onUnauthorized }; }, [fetcher, onData, onUnauthorized]);
+  useEffect(() => { callbacks.current = { fetcher, onData, onUnauthorized, stopWhen }; }, [fetcher, onData, onUnauthorized, stopWhen]);
   const controller = useRef(null);
   const [resource, setResource] = useState({ data: null, refreshing: false, status: "loading", lastSuccessAt: null, error: null });
   useEffect(() => {
     if (!identity) return undefined;
     const instance = createRefreshController({ intervalMs, retryBaseMs, retryMaxMs, pauseWhenHidden,
+      stopWhen: data => callbacks.current.stopWhen?.(data),
       fetcher: options => callbacks.current.fetcher(options), onData: data => callbacks.current.onData?.(data),
       onUnauthorized: error => callbacks.current.onUnauthorized?.(error), onState: next => setResource({ ...next, identity }) });
     controller.current = instance; instance.start();

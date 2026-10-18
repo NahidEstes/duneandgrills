@@ -20,6 +20,7 @@ const publicUser = (user) => ({
   avatar: user.avatar,
   pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
   createdAt: user.createdAt,
+  ...(user.role === "customer" ? { emailVerifiedAt: user.emailVerifiedAt || null, emailVerificationRequired: user.emailVerificationRequired === true } : {}),
 });
 
 const findUser = (id) =>

@@ -7,23 +7,24 @@ import PwaExperience from "@/src/components/pwa/PwaExperience.jsx";
 import DuneToaster from "@/src/components/ui/DuneToaster.jsx";
 import { usePathname } from "next/navigation";
 import { PublicRestaurantProvider } from "@/src/context/PublicRestaurantContext.jsx";
+import { LocaleProvider } from "@/src/i18n/LocaleProvider.jsx";
 
 export default function Providers({ children }) {
   const pathname = usePathname();
   // The read-only second monitor must not load auth, cart, or customer data.
-  if (pathname === "/pos/customer-display") return <><PwaExperience />{children}</>;
+  if (pathname === "/pos/customer-display") return <LocaleProvider><PwaExperience />{children}</LocaleProvider>;
   if (pathname === "/rider" || pathname.startsWith("/rider/")) return (
-    <CartProvider><AuthProvider readOnlyStaff>{children}<DuneToaster /></AuthProvider></CartProvider>
+    <LocaleProvider><CartProvider><AuthProvider readOnlyStaff>{children}<DuneToaster /></AuthProvider></CartProvider></LocaleProvider>
   );
   return (
-    <CartProvider>
+    <LocaleProvider><CartProvider>
       <AuthProvider>
         <FavoritesProvider>
-          <PwaExperience inlineOptions={pathname === "/kitchen/recipes" || /^\/(?:$|menu\/?$|login\/?$|blog(?:\/|$)|item\/|combo\/|offer\/)/.test(pathname)} />
+          <PwaExperience inlineOptions={pathname === "/kitchen/recipes" || /^\/(?:$|menu\/?$|login\/?$|forgot-password\/?$|reset-password\/?$|verify-email\/?$|resend-verification\/?$|verification-pending\/?$|blog(?:\/|$)|item\/|combo\/|offer\/)/.test(pathname)} />
           <PublicRestaurantProvider enabled={!/^\/(admin|inventory|pos|kitchen|staff-clock|tips-and-tricks)(\/|$)/.test(pathname)}>{children}</PublicRestaurantProvider>
           <DuneToaster />
         </FavoritesProvider>
       </AuthProvider>
-    </CartProvider>
+    </CartProvider></LocaleProvider>
   );
 }

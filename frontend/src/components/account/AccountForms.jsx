@@ -1,4 +1,6 @@
 "use client";
+import { t, catalogText, formatDate } from "../../i18n/core.js";
+
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 
@@ -12,8 +14,8 @@ import {
   createReview,
   updateAddress,
   updateMe,
-  updatePaymentMethod,
-} from "../../api/api.js";
+  updatePaymentMethod } from
+"../../api/api.js";
 import { formatPrice } from "../../utils/currency.js";
 import { formatOrderType, getOrderSubtotal } from "../../utils/order.js";
 import OrderStatusBadge from "./OrderStatusBadge.jsx";
@@ -23,22 +25,22 @@ export const inputClass = "w-full rounded-lg border border-dune-border bg-black 
 export const primaryButton = "inline-flex items-center justify-center gap-2 rounded-lg bg-dune-amber px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-60";
 export const secondaryButton = "inline-flex items-center justify-center gap-2 rounded-lg border border-dune-border px-4 py-2.5 text-sm font-medium text-neutral-200 transition-colors hover:border-dune-amber hover:text-dune-amber";
 
-const Field = ({ label, children }) => (
-  <label className="block">
-    <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</span>
+const Field = ({ label, children }) =>
+<label className="block">
+    <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-neutral-500">{t(label)}</span>
     {children}
-  </label>
-);
+  </label>;
 
-const Actions = ({ saving, onCancel, label }) => (
-  <div className="mt-6 flex justify-end gap-3">
-    <button type="button" onClick={onCancel} className={secondaryButton}>Cancel</button>
+
+const Actions = ({ saving, onCancel, label }) =>
+<div className="mt-6 flex justify-end gap-3">
+    <button type="button" onClick={onCancel} className={secondaryButton}>{t("Cancel")}</button>
     <button type="submit" disabled={saving} className={primaryButton}>
       {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}
-      {saving ? "Saving..." : label}
+      {t(saving ? "Saving..." : label)}
     </button>
-  </div>
-);
+  </div>;
+
 
 const useFormRequest = () => {
   const [saving, setSaving] = useState(false);
@@ -64,17 +66,17 @@ export const ProfileForm = ({ user, onClose, onSaved }) => {
   const submit = async (event) => {
     event.preventDefault();
     const updated = await run(() => updateMe(form));
-    if (updated) { onSaved(updated); onClose(); }
+    if (updated) {onSaved(updated);onClose();}
   };
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Field label="Full Name"><input required className={inputClass} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
-      <Field label="Short Bio"><textarea rows={3} maxLength={240} className={`${inputClass} resize-none`} value={form.bio} onChange={(event) => setForm({ ...form, bio: event.target.value })} /></Field>
-      <Field label="Avatar Image URL"><input type="url" className={inputClass} value={form.avatar} onChange={(event) => setForm({ ...form, avatar: event.target.value })} placeholder="https://images.example.com/avatar.jpg" /></Field>
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <Actions saving={saving} onCancel={onClose} label="Save Changes" />
-    </form>
-  );
+      <Field label={t("Full Name")}><input required className={inputClass} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
+      <Field label={t("Short Bio")}><textarea rows={3} maxLength={240} className={`${inputClass} resize-none`} value={form.bio} onChange={(event) => setForm({ ...form, bio: event.target.value })} /></Field>
+      <Field label={t("Avatar Image URL")}><input type="url" className={inputClass} value={form.avatar} onChange={(event) => setForm({ ...form, avatar: event.target.value })} placeholder={t("https://images.example.com/avatar.jpg")} /></Field>
+      {error && <p className="text-sm text-red-400">{t(error)}</p>}
+      <Actions saving={saving} onCancel={onClose} label={t("Save Changes")} />
+    </form>);
+
 };
 
 export const PersonalForm = ({ user, onClose, onSaved }) => {
@@ -83,18 +85,18 @@ export const PersonalForm = ({ user, onClose, onSaved }) => {
   const submit = async (event) => {
     event.preventDefault();
     const updated = await run(() => updateMe(form));
-    if (updated) { onSaved(updated); onClose(); }
+    if (updated) {onSaved(updated);onClose();}
   };
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Full Name"><input required className={inputClass} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
-      <Field label="Email"><input required type="email" className={inputClass} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>
-      <Field label="Phone"><input className={inputClass} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></Field>
-      <Field label="Location"><input className={inputClass} value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></Field>
-      {error && <p className="text-sm text-red-400 sm:col-span-2">{error}</p>}
-      <div className="sm:col-span-2"><Actions saving={saving} onCancel={onClose} label="Save Information" /></div>
-    </form>
-  );
+      <Field label={t("Full Name")}><input required className={inputClass} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
+      <Field label={t("Email")}><input required type="email" className={inputClass} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>
+      <Field label={t("Phone")}><input type="tel" dir="ltr" className={inputClass} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></Field>
+      <Field label={t("Location")}><input className={inputClass} value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></Field>
+      {error && <p className="text-sm text-red-400 sm:col-span-2">{t(error)}</p>}
+      <div className="sm:col-span-2"><Actions saving={saving} onCancel={onClose} label={t("Save Information")} /></div>
+    </form>);
+
 };
 
 export const AddressForm = ({ address, onClose, onSaved }) => {
@@ -103,18 +105,18 @@ export const AddressForm = ({ address, onClose, onSaved }) => {
   const submit = async (event) => {
     event.preventDefault();
     const values = await run(() => address ? updateAddress(address._id, form) : addAddress(form));
-    if (values) { onSaved(values); onClose(); }
+    if (values) {onSaved(values);onClose();}
   };
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Field label="Label"><input required className={inputClass} value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} placeholder="Home or Work" /></Field>
-      <Field label="Full Delivery Address"><textarea required rows={3} className={`${inputClass} resize-none`} value={form.fullAddress} onChange={(event) => setForm({ ...form, fullAddress: event.target.value })} /></Field>
-      <Field label="Phone"><input className={inputClass} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></Field>
-      <label className="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} className="accent-amber-500" />Make this my default delivery address</label>
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <Actions saving={saving} onCancel={onClose} label={address ? "Update Address" : "Add Address"} />
-    </form>
-  );
+      <Field label={t("Label")}><input required className={inputClass} value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} placeholder={t("Home or Work")} /></Field>
+      <Field label={t("Full Delivery Address")}><textarea required rows={3} className={`${inputClass} resize-none`} value={form.fullAddress} onChange={(event) => setForm({ ...form, fullAddress: event.target.value })} /></Field>
+      <Field label={t("Phone")}><input type="tel" dir="ltr" className={inputClass} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></Field>
+      <label className="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} className="accent-amber-500" />{t("Make this my default delivery address")}</label>
+      {error && <p className="text-sm text-red-400">{t(error)}</p>}
+      <Actions saving={saving} onCancel={onClose} label={t(address ? "Update Address" : "Add Address")} />
+    </form>);
+
 };
 
 export const PaymentForm = ({ method, onClose, onSaved }) => {
@@ -124,21 +126,21 @@ export const PaymentForm = ({ method, onClose, onSaved }) => {
     event.preventDefault();
     const payload = { ...form, expiryMonth: Number(form.expiryMonth), expiryYear: Number(form.expiryYear) };
     const values = await run(() => method ? updatePaymentMethod(method._id, payload) : addPaymentMethod(payload));
-    if (values) { onSaved(values); onClose(); }
+    if (values) {onSaved(values);onClose();}
   };
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Card Brand"><DarkSelect className={inputClass} value={form.cardBrand} onChange={(event) => setForm({ ...form, cardBrand: event.target.value })}>{["Visa", "Mastercard", "Mada", "American Express"].map((brand) => <option key={brand}>{brand}</option>)}</DarkSelect></Field>
-      <Field label="Last 4 Digits"><input required inputMode="numeric" pattern="\d{4}" maxLength={4} className={inputClass} value={form.lastFourDigits} onChange={(event) => setForm({ ...form, lastFourDigits: event.target.value.replace(/\D/g, "") })} placeholder="4242" /></Field>
-      <Field label="Expiry Month"><input required type="number" min="1" max="12" className={inputClass} value={form.expiryMonth} onChange={(event) => setForm({ ...form, expiryMonth: event.target.value })} /></Field>
-      <Field label="Expiry Year"><input required type="number" min="2026" max="2200" className={inputClass} value={form.expiryYear} onChange={(event) => setForm({ ...form, expiryYear: event.target.value })} /></Field>
-      <div className="sm:col-span-2"><Field label="Cardholder Name"><input required className={inputClass} value={form.cardholderName} onChange={(event) => setForm({ ...form, cardholderName: event.target.value })} /></Field></div>
-      <label className="flex items-center gap-2 text-sm text-neutral-300 sm:col-span-2"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} className="accent-amber-500" />Make this my default demo payment method</label>
-      <p className="text-xs leading-relaxed text-neutral-500 sm:col-span-2">Demo display only. Only the brand, last four digits, expiry, and cardholder name are stored—never a full card number or CVV.</p>
-      {error && <p className="text-sm text-red-400 sm:col-span-2">{error}</p>}
-      <div className="sm:col-span-2"><Actions saving={saving} onCancel={onClose} label={method ? "Update Method" : "Add Demo Card"} /></div>
-    </form>
-  );
+      <Field label={t("Card Brand")}><DarkSelect className={inputClass} value={form.cardBrand} onChange={(event) => setForm({ ...form, cardBrand: event.target.value })}>{["Visa", "Mastercard", "Mada", "American Express"].map((brand) => <option key={brand}>{t(brand)}</option>)}</DarkSelect></Field>
+      <Field label={t("Last 4 Digits")}><input required inputMode="numeric" pattern="\d{4}" maxLength={4} className={inputClass} value={form.lastFourDigits} onChange={(event) => setForm({ ...form, lastFourDigits: event.target.value.replace(/\D/g, "") })} placeholder={t("4242")} /></Field>
+      <Field label={t("Expiry Month")}><input required type="number" min="1" max="12" className={inputClass} value={form.expiryMonth} onChange={(event) => setForm({ ...form, expiryMonth: event.target.value })} /></Field>
+      <Field label={t("Expiry Year")}><input required type="number" min="2026" max="2200" className={inputClass} value={form.expiryYear} onChange={(event) => setForm({ ...form, expiryYear: event.target.value })} /></Field>
+      <div className="sm:col-span-2"><Field label={t("Cardholder Name")}><input required className={inputClass} value={form.cardholderName} onChange={(event) => setForm({ ...form, cardholderName: event.target.value })} /></Field></div>
+      <label className="flex items-center gap-2 text-sm text-neutral-300 sm:col-span-2"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} className="accent-amber-500" />{t("Make this my default demo payment method")}</label>
+      <p className="text-xs leading-relaxed text-neutral-500 sm:col-span-2">{t("Demo display only. Only the brand, last four digits, expiry, and cardholder name are stored—never a full card number or CVV.")}</p>
+      {error && <p className="text-sm text-red-400 sm:col-span-2">{t(error)}</p>}
+      <div className="sm:col-span-2"><Actions saving={saving} onCancel={onClose} label={t(method ? "Update Method" : "Add Demo Card")} /></div>
+    </form>);
+
 };
 
 export const ReviewForm = ({ options, onClose, onSaved }) => {
@@ -151,65 +153,64 @@ export const ReviewForm = ({ options, onClose, onSaved }) => {
     const selected = options.find((option) => option.value === selection);
     if (!selected) return;
     const review = await run(() => createReview({ order: selected.orderId, menuItem: selected.menuItemId, rating, comment }));
-    if (review) { onSaved(review); onClose(); }
+    if (review) {onSaved(review);onClose();}
   };
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Field label="Delivered Item"><DarkSelect required className={inputClass} value={selection} onChange={(event) => setSelection(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</DarkSelect></Field>
-      <Field label="Rating"><div className="flex gap-2">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" onClick={() => setRating(value)} aria-label={`${value} stars`} className="text-dune-amber"><Star className="h-7 w-7" fill={value <= rating ? "currentColor" : "none"} /></button>)}</div></Field>
-      <Field label="Comment"><textarea required rows={4} maxLength={1000} className={`${inputClass} resize-none`} value={comment} onChange={(event) => setComment(event.target.value)} /></Field>
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <Actions saving={saving} onCancel={onClose} label="Submit Review" />
-    </form>
-  );
+      <Field label={t("Delivered Item")}><DarkSelect required className={inputClass} value={selection} onChange={(event) => setSelection(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{t(option.label)}</option>)}</DarkSelect></Field>
+      <Field label={t("Rating")}><div className="flex gap-2">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" onClick={() => setRating(value)} aria-label={t("{0} stars", [value])} className="text-dune-amber"><Star className="h-7 w-7" fill={value <= rating ? "currentColor" : "none"} /></button>)}</div></Field>
+      <Field label={t("Comment")}><textarea required rows={4} maxLength={1000} className={`${inputClass} resize-none`} value={comment} onChange={(event) => setComment(event.target.value)} /></Field>
+      {error && <p className="text-sm text-red-400">{t(error)}</p>}
+      <Actions saving={saving} onCancel={onClose} label={t("Submit Review")} />
+    </form>);
+
 };
 
 export const OrderDetails = ({
   order,
   onClose,
   onReorder,
-  showReorder = false,
-}) => (
-  <AccountModal title={`Order #${order.orderNumber}`} description={new Date(order.createdAt).toLocaleString()} onClose={onClose}>
+  showReorder = false
+}) =>
+<AccountModal title={t("Order #{0}", [order.orderNumber])} description={formatDate(order.createdAt, { dateStyle: "medium", timeStyle: "short" })} onClose={onClose}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <OrderStatusBadge status={order.status} />
       <span className="text-xs font-medium text-neutral-400">
-        {formatOrderType(order.orderType)}
+        {t(formatOrderType(order.orderType))}
       </span>
     </div>
     <div className="my-5 space-y-3 border-y border-dune-border py-4">
       {order.items.map((item, index) => {
-        const image = item.menuItem?.image || item.combo?.image || item.image;
-        return <div key={`${item.productType || "menuItem"}-${item.menuItem?._id || item.combo?._id || index}`} className="flex items-center gap-3">{image ? <SmartImage src={image} alt={item.name} width={80} height={80} sizes="48px" className="h-12 w-12 rounded-lg object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-black text-neutral-500"><Package className="h-5 w-5" /></div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{item.name}</p><p className="text-xs text-neutral-500">{item.productType === "combo" ? "Combo package · " : ""}Quantity {item.quantity}</p>{item.productType === "combo" && item.comboItems?.length > 0 && <p className="mt-1 line-clamp-1 text-[11px] text-neutral-600">{item.comboItems.map((entry) => `${entry.name} ×${entry.quantity}`).join(" · ")}</p>}<OrderItemCustomization item={item} /></div><p className="text-sm font-semibold text-dune-amber">{formatPrice(item.price * item.quantity)}</p></div>;
-      })}
+      const image = item.menuItem?.image || item.combo?.image || item.image;
+      return <div key={`${item.productType || "menuItem"}-${item.menuItem?._id || item.combo?._id || index}`} className="flex items-center gap-3">{t(image ? <SmartImage src={image} alt={catalogText(item, "name")} width={80} height={80} sizes="48px" className="h-12 w-12 rounded-lg object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-black text-neutral-500"><Package className="h-5 w-5" /></div>)}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{catalogText(item, "name")}</p><p className="text-xs text-neutral-500">{t(item.productType === "combo" ? "Combo package · " : "")}{t("Quantity ")}{t(item.quantity)}</p>{item.productType === "combo" && item.comboItems?.length > 0 && <p className="mt-1 line-clamp-1 text-[11px] text-neutral-600">{t(item.comboItems.map((entry) => `${entry.name} ×${entry.quantity}`).join(" · "))}</p>}<OrderItemCustomization item={item} /></div><p className="text-sm font-semibold text-dune-amber">{formatPrice(item.price * item.quantity)}</p></div>;
+    })}
     </div>
     <div className="space-y-2 text-sm">
       <div className="flex items-center justify-between text-neutral-400">
-        <span>Subtotal</span>
+        <span>{t("Subtotal")}</span>
         <span>{formatPrice(getOrderSubtotal(order))}</span>
       </div>
-      {Number(order.discountAmount) > 0 && (
-        <div className="flex items-center justify-between text-emerald-400">
-          <span>
-            Discount{order.couponCode ? ` (${order.couponCode})` : ""}
+      {Number(order.discountAmount) > 0 &&
+    <div className="flex items-center justify-between text-emerald-400">
+          <span>{t(" Discount")}
+        {t(order.couponCode ? ` (${order.couponCode})` : "")}
           </span>
-          <span>-{formatPrice(order.discountAmount)}</span>
+          <span>{t("-")}{formatPrice(order.discountAmount)}</span>
         </div>
-      )}
-      {Number(order.deliveryFee) > 0 && (
-        <div className="flex items-center justify-between text-neutral-400">
-          <span>Delivery fee</span>
+    }
+      {Number(order.deliveryFee) > 0 &&
+    <div className="flex items-center justify-between text-neutral-400">
+          <span>{t("Delivery fee")}</span>
           <span>{formatPrice(order.deliveryFee)}</span>
         </div>
-      )}
+    }
       <div className="flex items-center justify-between border-t border-dune-border pt-3">
-        <span className="text-neutral-300">Order total</span>
+        <span className="text-neutral-300">{t("Order total")}</span>
         <span className="font-display text-2xl text-dune-amber">{formatPrice(order.totalAmount)}</span>
       </div>
     </div>
     {order.customer?.address && <p className="mt-4 flex items-start gap-2 text-sm text-neutral-400"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-dune-amber" />{order.customer.address}</p>}
-    {showReorder && (
-      <button type="button" onClick={() => onReorder(order)} className={`${primaryButton} mt-5 w-full`}><RefreshCw className="h-4 w-4" />Reorder These Items</button>
-    )}
-  </AccountModal>
-);
+    {showReorder &&
+  <button type="button" onClick={() => onReorder(order)} className={`${primaryButton} mt-5 w-full`}><RefreshCw className="h-4 w-4" />{t("Reorder These Items")}</button>
+  }
+  </AccountModal>;

@@ -2,6 +2,8 @@
 
 Private Expo SDK 57 / React Native app for the restaurant's employed riders in Riyadh. English UI, SAR amounts, Asia/Riyadh timestamps, and the approved charcoal/amber design. The Android application ID is `com.duneandgrills.rider`; the existing customer app and its package/signing project are separate.
 
+The reference-design refinement adds the compact wordmark/avatar header, charcoal gradient cards, amber gradient buttons, icon status badges, connected delivery progress, grouped cash cards, profile field icons and modal date/cash selectors. The cash-report panel appears directly after delivery completion. Existing permissions, actions and accounting rules are unchanged. Screenshots for this revision are in `artifacts/screenshots/reference-v2-final/`; rebuilding the APK is required to install these source changes. TypeScript, ESLint, the 10 app tests, compatible dependency check, nine-screen fixture workflow at 320/390/820px, modal filter selection/reset, and Android/iOS/web exports passed for this refinement. No cloud build or deployment was initiated.
+
 ## Implemented
 
 - Staff rider sign-in, native secure session restoration, expiry handling and sign-out.
@@ -68,11 +70,10 @@ Unset `EXPO_PUBLIC_RIDER_DEMO` and restart the bundler before testing actual sta
 
 ## Build an APK later
 
-`eas.json` includes an internal Android APK profile and a production profile. Link **a new Rider EAS project**, with separate managed signing credentials; do not reuse the customer app's EAS project ID, Android package or signing configuration. No EAS project was created or linked in this change.
+`eas.json` includes an internal Android APK profile and a production profile. The existing Rider project `@nahidestes/dune-and-grills-rider` is now linked in the dynamic `app.config.js` through `extra.eas.projectId = 3b82d000-eb94-4f18-9f92-e101b24d1046`, using the project identity shown in the owner's EAS setup output. Keep its managed signing credentials separate from the customer app. EAS cannot automatically write a project ID into this dynamic config.
 
 ```powershell
 npx eas-cli@latest login
-npx eas-cli@latest init
 npm run build:apk
 ```
 

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const demo = process.argv.includes('--demo');
 const root = path.resolve(__dirname, demo ? '../artifacts/demo-dist' : '../dist');
-const output = path.resolve(__dirname, '../artifacts/screenshots'); fs.mkdirSync(output, { recursive: true });
+const output = path.resolve(__dirname, process.env.RIDER_SCREENSHOTS_DIR || '../artifacts/screenshots'); fs.mkdirSync(output, { recursive: true });
 const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.png': 'image/png', '.ttf': 'font/ttf' };
 const server = http.createServer((req, res) => {
   const pathname = decodeURIComponent(new URL(req.url, 'http://fixture.local').pathname);
@@ -54,6 +54,18 @@ async function main() {
         await page.getByRole('button', { name: 'Hide search / filters', exact: true }).waitFor();
         assert.equal(await page.getByText('Omar A.', { exact: true }).count(), 0);
         await shot('history');
+        await page.getByRole('button', { name: 'Delivered date · Riyadh: All dates', exact: true }).click();
+        await page.getByRole('button', { name: 'Today', exact: true }).click();
+        await page.getByRole('button', { name: 'Close options', exact: true }).waitFor({ state: 'hidden' });
+        await page.getByRole('button', { name: 'Delivered date · Riyadh: Today', exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Cash status: All cash states', exact: true }).click();
+        await page.getByRole('button', { name: 'Awaiting cashier', exact: true }).click();
+        await page.getByRole('button', { name: 'Close options', exact: true }).waitFor({ state: 'hidden' });
+        await page.getByRole('button', { name: 'Search / Apply', exact: true }).click();
+        await page.getByText('DG-1045', { exact: true }).waitFor();
+        assert.equal(await page.getByText('DG-1047', { exact: true }).count(), 0);
+        await page.getByRole('button', { name: 'Reset', exact: true }).click();
+        await page.getByText('DG-1047', { exact: true }).waitFor();
         await page.getByRole('button', { name: 'View delivery →', exact: true }).first().click();
         await page.getByText('Delivery completed', { exact: true }).waitFor();
         assert.equal(await page.getByRole('button', { name: 'Call Customer', exact: true }).count(), 0);

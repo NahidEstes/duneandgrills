@@ -17,6 +17,7 @@ export const serializeAdminOrder = (order, now = new Date()) => {
 
 const serializeItem = (item) => ({
   name: item.name,
+  ...(item.translations ? { translations: { ar: { name: item.translations.ar?.name, description: item.translations.ar?.description }, en: { name: item.translations.en?.name, description: item.translations.en?.description } } } : {}),
   image: item.image || "",
   quantity: item.quantity,
   price: item.price,

@@ -2,15 +2,18 @@
 
 import { CircleCheckBig, CircleX, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { Toaster } from "sonner";
+import { useLanguage } from "../../i18n/LocaleProvider.jsx";
 
 const iconClass = "h-[1.125rem] w-[1.125rem]";
 
 export default function DuneToaster() {
+  const language = useLanguage();
   return (
     <Toaster
       className="dune-toaster"
       position="top-right"
       theme="dark"
+      dir={language === "ar" ? "rtl" : "ltr"}
       closeButton
       gap={10}
       offset={{ top: "calc(env(safe-area-inset-top, 0px) + 5.75rem)", right: "1.25rem" }}

@@ -1,4 +1,8 @@
 "use client";
+import { withLocale } from "../i18n/LocaleProvider.jsx";
+import { t, catalogText } from "../i18n/core.js";
+
+
 
 import React from "react";
 import { useRouter } from "next/navigation";
@@ -22,91 +26,91 @@ const MenuCard = ({ item, onSelect }) => {
 
   return (
     <div
-      className="group relative flex flex-col rounded-2xl border border-dune-border bg-dune-surface overflow-hidden hover:border-dune-amber/60 hover:-translate-y-1 hover:shadow-amberGlow transition-all duration-300 cursor-pointer"
-    >
+      className="group relative flex flex-col rounded-2xl border border-dune-border bg-dune-surface overflow-hidden hover:border-dune-amber/60 hover:-translate-y-1 hover:shadow-amberGlow transition-all duration-300 cursor-pointer">
+
       <div className="relative h-52 overflow-hidden">
-        <button type="button" aria-label={`View ${item.name}`} onClick={() => onSelect(item)} className="h-full w-full"><SmartImage
-          src={item.image}
-          alt={item.name}
-          width={800}
-          height={416}
-          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-          loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-        /></button>
+        <button type="button" aria-label={t("View {0}", [catalogText(item, "name")])} onClick={() => onSelect(item)} className="h-full w-full"><SmartImage
+            src={item.image}
+            alt={catalogText(item, "name")}
+            width={800}
+            height={416}
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+        </button>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-dune-surface via-transparent to-transparent" />
-        {isBestseller && (
-          <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-black/70 backdrop-blur px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide text-dune-amber border border-dune-amber/40">
-            <Flame className="w-3 h-3" /> Bestseller
-          </span>
-        )}
-        {isCombo && (
-          <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full border border-dune-amber/40 bg-black/75 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-dune-amber backdrop-blur">
-            <Flame className="h-3 w-3" /> Combo Package
-          </span>
-        )}
+        {isBestseller &&
+        <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-black/70 backdrop-blur px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide text-dune-amber border border-dune-amber/40">
+            <Flame className="w-3 h-3" />{t(" Bestseller ")}
+        </span>
+        }
+        {isCombo &&
+        <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full border border-dune-amber/40 bg-black/75 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-dune-amber backdrop-blur">
+            <Flame className="h-3 w-3" />{t(" Combo Package ")}
+        </span>
+        }
         <button
           type="button"
           onClick={handleFavorite}
-          aria-label={
-            isFavorite
-              ? `Remove ${item.name} from favorites`
-              : `Add ${item.name} to favorites`
+          aria-label={t(
+            isFavorite ?
+            `Remove ${catalogText(item, "name")} from favorites` :
+            `Add ${catalogText(item, "name")} to favorites`)
           }
           aria-pressed={isFavorite}
-          className="absolute top-3 right-3 z-10 w-11 h-11 rounded-full border border-white/20 bg-black/70 backdrop-blur flex items-center justify-center text-white hover:border-dune-amber hover:text-dune-amber transition-colors"
-        >
+          className="absolute top-3 right-3 z-10 w-11 h-11 rounded-full border border-white/20 bg-black/70 backdrop-blur flex items-center justify-center text-white hover:border-dune-amber hover:text-dune-amber transition-colors">
+
           <Heart
             className="w-4 h-4"
-            fill={isFavorite ? "currentColor" : "none"}
-          />
+            fill={isFavorite ? "currentColor" : "none"} />
+
         </button>
       </div>
 
       <div className="flex flex-col flex-1 p-5">
         <div className="flex items-start justify-between gap-3">
           <h3 className="min-w-0 break-words text-xl font-bold text-white leading-snug">
-            {item.name}
+            {catalogText(item, "name")}
           </h3>
           {/* <span className="shrink-0 font-display text-xl text-dune-amber">
-            ${item.price.toFixed(2)}
-          </span> */}
+               ${item.price.toFixed(2)}
+              </span> */}
           <span className="shrink-0 text-right">
             <span className="block font-display text-2xl text-dune-amber">
               {formatPrice(item.price)}
             </span>
-            {isCombo && item.discountAmount > 0 && (
-              <span className="block text-sm text-neutral-200 line-through">
+            {isCombo && item.discountAmount > 0 &&
+            <span className="block text-sm text-neutral-200 line-through">
                 {formatPrice(item.regularPrice)}
               </span>
-            )}
+            }
           </span>
         </div>
         <p className="mt-2 text-sm text-neutral-400 leading-relaxed flex-1">
-          {item.description}
+          {catalogText(item, "description")}
         </p>
-        {isCombo && item.includedItems?.length > 0 && (
-          <div className="mt-3 space-y-1 border-t border-dune-border pt-3">
-            {item.includedItems.slice(0, 4).map((entry) => (
-              <p
-                key={entry.menuItem?._id || entry.menuItem}
-                className="flex justify-between gap-3 text-xs text-neutral-400"
-              >
+        {isCombo && item.includedItems?.length > 0 &&
+        <div className="mt-3 space-y-1 border-t border-dune-border pt-3">
+            {item.includedItems.slice(0, 4).map((entry) =>
+          <p
+            key={entry.menuItem?._id || entry.menuItem}
+            className="flex justify-between gap-3 text-xs text-neutral-400">
+
                 <span className="truncate">
-                  {entry.menuItem?.name || "Menu item"}
+                  {t(catalogText(entry.menuItem, "name") || "Menu item")}
                 </span>
-                <span className="shrink-0 text-dune-amber">
-                  ×{entry.quantity}
+                <span className="shrink-0 text-dune-amber">{t(" ×")}
+              {t(entry.quantity)}
                 </span>
               </p>
-            ))}
-            {item.discountAmount > 0 && (
-              <p className="pt-1 text-xs font-semibold text-emerald-400">
-                Save {formatPrice(item.discountAmount)}
+          )}
+            {item.discountAmount > 0 &&
+          <p className="pt-1 text-xs font-semibold text-emerald-400">{t(" Save ")}
+            {formatPrice(item.discountAmount)}
               </p>
-            )}
+          }
           </div>
-        )}
+        }
 
         <button
           type="button" disabled={item.isAvailable === false}
@@ -114,14 +118,14 @@ const MenuCard = ({ item, onSelect }) => {
             e.stopPropagation();
             onSelect(item);
           }}
-          className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 w-full py-2.5 rounded-full border border-dune-amber/60 text-dune-amber font-medium hover:bg-dune-amber hover:text-black transition-colors duration-300 disabled:opacity-50"
-        >
+          className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 w-full py-2.5 rounded-full border border-dune-amber/60 text-dune-amber font-medium hover:bg-dune-amber hover:text-black transition-colors duration-300 disabled:opacity-50">
+
           <Plus className="w-4 h-4" />
-          {item.isAvailable === false ? "Unavailable" : "Customize & Add"}
+          {t(item.isAvailable === false ? "Unavailable" : "Customize & Add")}
         </button>
       </div>
-    </div>
-  );
+    </div>);
+
 };
 
-export default MenuCard;
+export default withLocale(MenuCard);

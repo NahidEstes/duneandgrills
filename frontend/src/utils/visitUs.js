@@ -1,3 +1,4 @@
+import { formatDate, getLanguage } from "../i18n/core.js";
 export const OPENING_HOUR_GROUPS = [
   {
     id: "sat-thu",
@@ -11,6 +12,7 @@ export const OPENING_HOUR_GROUPS = [
 export const displayOpeningTime = (value = "") => {
   const [hours, minutes] = value.split(":").map(Number);
   if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return value;
+  if (getLanguage() === "ar") return formatDate(Date.UTC(2000, 0, 1, hours - 3, minutes), { hour: "numeric", minute: "2-digit", hour12: true });
   return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
 };
 

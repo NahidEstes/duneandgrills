@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { ensurePointsBalance } from "../services/rewardService.js";
 import { clearSessionCookies, issueSessionCookies } from "../utils/httpCookies.js";
+import { accountEmailConfiguration, queueAccountEmail } from "../services/customerAccountEmailService.js";
 
 const signToken = (user) =>
   jwt.sign({ id: user._id, role: user.role, sv: Number(user.sessionVersion || 0) }, process.env.JWT_SECRET, {
@@ -25,6 +26,7 @@ const sanitize = (user) => user.role === "rider" ? ({
   pointsBalance: Math.max(0, Number(user.pointsBalance) || 0),
   createdAt: user.createdAt,
   isActive: user.isActive !== false,
+  ...(user.role === "customer" ? { emailVerifiedAt: user.emailVerifiedAt || null, emailVerificationRequired: user.emailVerificationRequired === true } : {}),
 });
 
 export const validateNewPassword = (password) => {
@@ -37,7 +39,8 @@ export const validateNewPassword = (password) => {
 // @route POST /api/auth/register
 export const register = async (req, res) => {
   try {
-    const { name, email, password, phone, address } = req.body;
+    const { name, password, phone, address } = req.body;
+    const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
     if (!name || !email || !password) {
       return res
         .status(400)
@@ -48,6 +51,7 @@ export const register = async (req, res) => {
     }
     const passwordError = validateNewPassword(password);
     if (passwordError) return res.status(400).json({ success: false, message: passwordError });
+    if (typeof name !== "string" || name.trim().length > 100 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ success: false, message: "Enter a valid name and email address." });
 
     const existing = await User.findOne({ email });
     if (existing) {
@@ -79,8 +83,12 @@ export const register = async (req, res) => {
         : [],
       role: "customer",
       pointsBalance: 0,
+      emailVerificationRequired: true,
+      emailVerifiedAt: null,
     });
-    sendAuthResponse(req, res, user, user, 201);
+    let emailDelivery = "unavailable";
+    if (accountEmailConfiguration().configured) { try { await queueAccountEmail(email, "verify", req.body.language); emailDelivery = "queued"; } catch { /* Account exists; never claim a delivery or invite duplicate registration. */ } }
+    sendAuthResponse(req, res, user, user, 201, { emailDelivery });
   } catch (err) {
     res
       .status(err.status === 503 ? 503 : 500)
@@ -101,7 +109,7 @@ export const login = async (req, res) => {
         .json({ success: false, message: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email }).select("+password +sessionVersion");
+    const user = await User.findOne({ email: typeof email === "string" ? email.trim().toLowerCase() : "" }).select("+password +sessionVersion");
     if (!user || user.isActive === false || (req.mobileAuth && user.role !== req.mobileAuthRole) || !(await user.comparePassword(password))) {
       return res
         .status(401)
@@ -140,11 +148,11 @@ export const getSession = (req, res) => res.json({ success: true, user: sanitize
 
 // Native clients deliberately do not establish browser cookies. Use the same
 // credentials, signing, sanitization and middleware sessionVersion contract.
-const sendAuthResponse = (req, res, signingUser, publicUser, status) => {
+const sendAuthResponse = (req, res, signingUser, publicUser, status, metadata = {}) => {
   const token = signToken(signingUser);
   res.set("Cache-Control", "private, no-store");
   if (!req.mobileAuth) issueSessionCookies(res, token);
-  res.status(status).json({ success: true, user: sanitize(publicUser),
+  res.status(status).json({ success: true, user: sanitize(publicUser), ...metadata,
     ...(req.mobileAuth ? { token, expiresAt: jwt.decode(token).exp * 1000 } : {}) });
 };
 
@@ -159,10 +167,16 @@ export const mobileAuth = (handler, role = "customer") => (req, res) => {
 export const updateMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
+    const emailChanged = user.role === "customer" && typeof req.body.email === "string" && req.body.email.trim().toLowerCase() !== user.email;
     const allowedFields = ["name", "email", "phone", "address", "bio", "avatar"];
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) user[field] = req.body[field];
     });
+    if (emailChanged) {
+      if (user.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) return res.status(400).json({ success: false, message: "Enter a valid email address." });
+      user.emailVerifiedAt = null; user.emailVerificationRequired = true;
+      for (const field of ["passwordResetTokenHash", "passwordResetExpiresAt", "passwordResetRequestId", "emailVerificationTokenHash", "emailVerificationExpiresAt", "emailVerificationRequestId"]) { user.set(field, undefined); user.markModified(field); }
+    }
 
     if (req.body.address !== undefined) {
       const defaultAddress = user.addresses.find((entry) => entry.isDefault);
@@ -170,6 +184,7 @@ export const updateMe = async (req, res) => {
     }
 
     await user.save();
+    if (emailChanged && accountEmailConfiguration().configured) { try { await queueAccountEmail(user.email, "verify", req.body.language); } catch { /* Pending page offers a deliberate resend. */ } }
     await ensurePointsBalance(user._id);
     const currentUser = await User.findById(user._id);
     res.status(200).json({ success: true, user: sanitize(currentUser) });

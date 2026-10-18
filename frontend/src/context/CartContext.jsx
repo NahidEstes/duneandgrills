@@ -66,6 +66,7 @@ const normalizeLine = (line) => {
     name: typeof line.name === "string" ? line.name : "Menu item",
     description:
       typeof line.description === "string" ? line.description : "",
+    translations: line.translations && typeof line.translations === "object" ? line.translations : undefined,
     price: Number.isFinite(Number(line.price)) ? Number(line.price) : 0,
     basePrice: Number.isFinite(Number(line.basePrice))
       ? Number(line.basePrice)
@@ -103,6 +104,7 @@ const normalizeLine = (line) => {
           .map((addOn) => ({
             _id: addOnId(addOn),
             name: typeof addOn?.name === "string" ? addOn.name : "Add-on",
+            translations: addOn?.translations,
             image: typeof addOn?.image === "string" ? addOn.image : "",
             price: Number(addOn?.price) || 0,
             quantity: Math.max(1, Math.min(99, Number(addOn?.quantity) || 1)),
