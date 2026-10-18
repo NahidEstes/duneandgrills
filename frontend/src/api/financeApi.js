@@ -1,6 +1,7 @@
 import api from "./api.js";
 
 const unwrap = (request) => request.then(({ data }) => data);
+export const fetchProfitReport = (params = {}, options = {}) => unwrap(api.get("/expenses/profit-report", { ...options, params })).then(row => row.data);
 
 export const fetchExpenseDashboard = (params = {}) => unwrap(api.get("/expenses/dashboard", { params })).then((row) => row.data);
 export const fetchExpenseReports = (params = {}) => unwrap(api.get("/expenses/reports", { params })).then((row) => row.data);

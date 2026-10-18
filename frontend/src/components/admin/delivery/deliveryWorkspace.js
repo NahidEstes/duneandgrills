@@ -1,4 +1,10 @@
 export const emptyDeliveryQuery = (workspace = "all") => ({ workspace, search: "", status: "all", attention: "all", cashStatus: "all", datePeriod: "all", dateBasis: ["cash", "history"].includes(workspace) ? "delivered" : "enrolled", from: "", to: "", riderId: "all", sort: ["cash", "history"].includes(workspace) ? "delivered_newest" : "newest", page: 1 });
+// Dashboard links narrow the existing workspace; they never submit a mutation.
+export function deliveryQueryFromLink(search, role) {
+  const params = new URLSearchParams(search), requested = params.get("workspace");
+  const workspace = role === "cashier" ? "cash" : ["active","cash","history"].includes(requested) ? requested : "active";
+  return { ...emptyDeliveryQuery(workspace), search: (params.get("search") || "").slice(0,80) };
+}
 const fingerprint = row => JSON.stringify([row.revision, row.orderRevision, row.deliveryStatus, row.restaurantStatus, row.riderId, row.canOperate, row.paymentStatus, row.ledgerOutstandingHalala, row.cashReport]);
 
 // Explicit commands only: no timers, subscriptions to browser focus, or draft inputs.

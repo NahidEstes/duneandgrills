@@ -32,5 +32,25 @@ test("expense PDF uses recognized server values and retains archived/legacy-canc
     { title: "Cancelled unpaid", totalAmount: 100, recognizedAmount: 0, recognizedVat: 0, amountPaid: 0, recordStatus: "cancelled", paymentStatus: "unpaid" },
     { title: "Legacy cancelled partial", totalAmount: 100, recognizedAmount: 40, amountPaid: 40, recordStatus: "cancelled", paymentStatus: "partially_paid" },
   ] });
-  assert.match(html, /140\.00/); assert.doesNotMatch(html, /300\.00/); assert.match(html, /Archived · Paid/); assert.match(html, /Cancelled · Unpaid/); assert.match(html, /Recognized expense/);
+  assert.match(html, /140\.00/); assert.doesNotMatch(html, /300\.00/); assert.match(html, /Recognized expense/);
+  // Read semantic table cells, independent of span/small wrappers, classes,
+  // whitespace and the presentation order of payment versus record status.
+  const text = value => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const cells = row => [...row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(match => text(match[1]));
+  const headings = cells(html.match(/<thead\b[^>]*>([\s\S]*?)<\/thead>/i)[1]);
+  const rows = [...html.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/i)[1].matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map(match => cells(match[1]));
+  const statusColumn = headings.indexOf("Status"), totalColumn = headings.findIndex(heading => heading.startsWith("Total")), paidColumn = headings.indexOf("Paid");
+  assert.ok(statusColumn >= 0 && totalColumn >= 0 && paidColumn >= 0);
+  for (const [title, amount, record, payment] of [
+    ["Archived valid expense", "100.00", "Archived", "Paid"],
+    ["Cancelled unpaid", "0.00", "Cancelled", "Unpaid"],
+    ["Legacy cancelled partial", "40.00", "Cancelled", "Partially Paid"],
+  ]) {
+    const row = rows.find(values => values.some(value => value.includes(title)));
+    assert.ok(row, `Report retains ${title}`);
+    assert.equal(row[totalColumn].split(" ")[0], amount, `${title}: recognized amount`);
+    assert.equal(row[paidColumn], amount, `${title}: paid history`);
+    assert.deepEqual(row[statusColumn].match(/\b(?:Archived|Cancelled|Active)\b/g), [record]);
+    assert.deepEqual(row[statusColumn].match(/\b(?:Partially Paid|Unpaid|Paid)\b/g), [payment]);
+  }
 });

@@ -21,6 +21,7 @@ import {
 } from "../controllers/expenseController.js";
 import { protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
+import { getProfitReport } from "../controllers/profitReportController.js";
 
 const router = express.Router();
 const writeAccess = requireCapability(CAPABILITIES.FINANCE_WRITE);
@@ -28,6 +29,7 @@ const writeAccess = requireCapability(CAPABILITIES.FINANCE_WRITE);
 router.use(protect, requireCapability(CAPABILITIES.FINANCE_READ));
 router.get("/dashboard", getExpenseDashboard);
 router.get("/reports", getExpenseReports);
+router.get("/profit-report", requireCapability(CAPABILITIES.INVENTORY_READ), getProfitReport);
 router.get("/entries/export", exportExpenses);
 router.route("/entries").get(listExpenses).post(writeAccess, createExpense);
 router.post("/entries/:id/archive", writeAccess, archiveExpense);

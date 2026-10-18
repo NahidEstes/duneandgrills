@@ -62,7 +62,7 @@ export function calculateInventoryHealth(items, batches, { now = new Date(), exp
 // Constant query count, not one stock lookup per item. Keep depleted batch history for legacy safety.
 export async function getInventoryHealth({ items = null, now = new Date() } = {}) {
   const [rows, settings] = await Promise.all([
-    items || InventoryItem.find({ isActive: true }).select("currentStock reorderLevel tracksExpiry expiryDate isActive unit").lean(),
+    items || InventoryItem.find({ isActive: true }).select("name sku currentStock reorderLevel tracksExpiry expiryDate isActive unit").lean(),
     InventorySettings.findOne({ key: "default" }).select("expiryAlertDays").lean(),
   ]);
   const batches = rows.length ? await InventoryBatch.find({ item: { $in: rows.map(item => item._id) } }).select("item remainingQuantity expiryDate qualityStatus").lean() : [];

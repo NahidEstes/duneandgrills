@@ -9,6 +9,23 @@ const panel = "rounded-xl border border-white/10 bg-white/[0.025] p-4 sm:p-5";
 const link = "rounded text-dune-amber hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-dune-amber";
 const unavailable = <p role="status" className="mt-3 text-xs text-amber-300">Unavailable · not verified clear. Retry operations.</p>;
 
+function PriorityActions({ data, orderHref }) {
+  return <div className={panel}><h2 className="flex items-center gap-2 text-base font-semibold text-white"><AlertTriangle aria-hidden="true" className="h-5 w-5 text-dune-amber" />Priority actions <span className="text-neutral-400">({data.total ?? `${data.knownTotal}+`})</span></h2>
+    <p className="mt-2 text-xs leading-6 text-neutral-400">Unique affected records. Multiple reasons on one order or stock item count once. Review the latest destination details before acting.</p>
+    {!data.complete&&<p role="alert" className="mt-3 rounded-lg border border-amber-500/30 p-3 text-xs text-amber-200">Some sources are unavailable; this count is incomplete. Retry operations. {Object.entries(data.sources).filter(([,source])=>source.status!=="success").map(([name])=>name).join(", ")}</p>}
+    {!data.deliveryEnabled&&<p className="mt-2 text-xs text-neutral-500">Delivery workflow is disabled. No delivery setting was changed.</p>}
+    {data.complete&&data.total===0?<p className="mt-4 text-sm text-emerald-300">No unresolved priority actions at this update.</p>:<ul className="mt-4 grid gap-3 sm:grid-cols-2">{data.items.map(item=><li key={item.key} className="flex min-w-0 flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2"><p className="break-all text-sm font-semibold text-white">{item.recordNumber || "Identifier unavailable"}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${item.priority===0?"border-red-400/30 text-red-200":"border-amber-400/30 text-amber-200"}`}>{["Critical","High","Medium"][item.priority] || "Review"} priority</span></div>
+      {item.name&&<p className="text-xs text-neutral-300">{item.name}</p>}<ul className="list-disc space-y-1 ps-4 text-xs leading-6 text-neutral-300">{item.reasons.map(reason=><li key={reason}>{reason}</li>)}</ul>
+      <p className="text-xs text-neutral-400">{item.since?`Waiting ${orderAgeLabel(item.since)} · Since ${orderDateLabel(item.since)}`:"Onset not recorded · observed in this snapshot"}</p>
+      {item.reportedCashHalala!=null&&<p className="text-xs text-neutral-300">Rider reported: {dashboardMoney(item.reportedCashHalala/100)} · Receipt unconfirmed</p>}
+      {item.ledgerOutstandingHalala!=null&&<p className="text-xs text-neutral-400">Order ledger outstanding: {dashboardMoney(item.ledgerOutstandingHalala/100)} · not another cash collection</p>}
+      <a className="mt-auto inline-flex min-h-11 items-center justify-center rounded-lg border border-dune-amber/40 px-3 py-2 text-center text-sm font-semibold text-dune-amber focus-visible:outline focus-visible:outline-2 focus-visible:outline-dune-amber" href={item.action.label==="Review order"&&orderHref?orderHref(item.recordId):item.action.href}>{item.action.label}</a>
+    </li>)}</ul>}
+    <p className="mt-3 text-xs text-neutral-500">Showing {data.items.length} of {data.total ?? `at least ${data.knownTotal}`} · up to {data.limit} records. Refresh updates resolved records and counts.</p>
+  </div>;
+}
+
 function AttentionCategory({ category, data, pendingMinutes, orderHref }) {
   const definition = ATTENTION_LABELS[category];
   if (data?.status === "restricted") return null;
@@ -63,7 +80,7 @@ export default function OperationsOverview({ resource, orderHref }) {
     </div>
     {error && <p role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200">{status === "stale" ? "Operations may be outdated. " : "Operations unavailable. "}{error}</p>}
     {!visible && status === "loading" ? <p role="status" className={panel}>Loading operational overview…</p> : <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <div className={panel}><h2 className="flex items-center gap-2 text-base font-semibold text-white"><AlertTriangle aria-hidden="true" className="h-5 w-5 text-dune-amber" />Needs Attention</h2><p className="mt-1 text-xs text-neutral-400">Counts are unique records per category; one order can have two different reasons. Old snapshots are not confirmation of current clearance.</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{Object.keys(ATTENTION_LABELS).map(category => <AttentionCategory key={category} category={category} data={visible?.categories?.[category]} pendingMinutes={visible?.pendingAttentionMinutes} orderHref={orderHref} />)}</div></div>
+      {visible?.priorityActions?<PriorityActions data={visible.priorityActions} orderHref={orderHref}/>:<div className={panel}><h2 className="flex items-center gap-2 text-base font-semibold text-white"><AlertTriangle aria-hidden="true" className="h-5 w-5 text-dune-amber" />Needs Attention</h2><p className="mt-1 text-xs text-neutral-400">Counts are unique records per category; one order can have two different reasons. Old snapshots are not confirmation of current clearance.</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{Object.keys(ATTENTION_LABELS).map(category => <AttentionCategory key={category} category={category} data={visible?.categories?.[category]} pendingMinutes={visible?.pendingAttentionMinutes} orderHref={orderHref} />)}</div></div>}
       <div className={panel}><h2 className="flex items-center gap-2 text-base font-semibold text-white"><Banknote aria-hidden="true" className="h-5 w-5 text-dune-amber" />POS Shift Overview</h2><ShiftOverview data={visible?.shifts} /></div>
     </div>}
   </section>;

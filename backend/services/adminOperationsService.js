@@ -9,6 +9,7 @@ import { invoiceOutstandingAmount, overdueInvoiceFilter } from "./supplierInvoic
 import { expectedCashForShifts } from "./posShiftService.js";
 import { toHalala } from "../utils/money.js";
 import { ValidationError } from "../utils/inventoryValidation.js";
+import { getPriorityActions } from "./adminPriorityActionsService.js";
 
 export const OPERATIONS_LIST_LIMIT = 3;
 const limited = async (model, filter, projection, sort) => {
@@ -67,6 +68,8 @@ export async function getAdminOperations({ role, now = new Date() }) {
       };
     }),
   ]);
+  const categories = { pending_age, preparation_overdue, purchase_approval, invoice_review, invoice_overdue };
+  const priorityActions = await getPriorityActions({ role, settings, categories, now });
   return { generatedAt: now, pendingAttentionMinutes: settings.preparation.pendingAttentionMinutes,
-    categories: { pending_age, preparation_overdue, purchase_approval, invoice_review, invoice_overdue }, shifts };
+    categories, shifts, priorityActions };
 }

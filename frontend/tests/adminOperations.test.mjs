@@ -20,6 +20,17 @@ const stamp = "2028-03-01T09:00:00.000Z";
 const snapshot = () => ({ generatedAt: stamp, pendingAttentionMinutes: 5, categories: Object.fromEntries(Object.keys(operations.ATTENTION_LABELS).map(key => [key, { status: "success", total: 0, items: [], limit: 3 }])), shifts: { status: "success", enabled: false } });
 const render = resource => renderToStaticMarkup(React.createElement(Panel, { resource, orderHref: (id, attention) => orders.adminOrdersHref("period=month&recentStatus=pending", { tab: "orders", order: id, attention, status: null }) }));
 
+test("unified priority records replace overlapping category counts, link precisely, and update on resolution", () => {
+  const data = snapshot(); data.priorityActions = { total: 2, knownTotal: 2, complete: true, limit: 12, sources: {}, deliveryEnabled: true, items: [
+    { key:"order:one",recordId:"one",recordNumber:"TEST-ONE",priority:1,since:stamp,reasons:["Pending threshold", "Preparation late"],action:{label:"Review order",href:"/admin?tab=orders&order=one"} },
+    { key:"order:cash",recordId:"cash",recordNumber:"TEST-CASH",priority:0,since:stamp,reasons:["Discrepancy acknowledged; receipt not confirmed"],reportedCashHalala:1200,action:{label:"Review cash",href:"/admin/deliveries?workspace=cash&search=TEST-CASH"} },
+  ] };
+  const html=render({status:"success",data});assert.match(html,/Priority actions/);assert.match(html,/Showing 2 of 2/);assert.match(html,/order=one/);assert.match(html,/period=month/);assert.match(html,/workspace=cash/);assert.match(html,/receipt not confirmed/);assert.doesNotMatch(html,/Needs Attention/);
+  const stale=render({status:"stale",data,error:"API failed"});assert.match(stale,/may be outdated/);assert.match(stale,/TEST-CASH/);
+  data.priorityActions={...data.priorityActions,total:0,knownTotal:0,items:[]};const resolved=render({status:"success",data});assert.match(resolved,/No unresolved priority actions/);assert.doesNotMatch(resolved,/TEST-CASH/);
+  const forbidden=render({status:"error",data,errorKind:"permission",error:"Access denied"});assert.doesNotMatch(forbidden,/TEST-CASH/);
+});
+
 test("initial loading/error, partial category failure and genuine empty results are distinct", () => {
   assert.match(render({ status: "loading" }), /Loading operational overview/);
   const failed = render({ status: "error", error: "Server failed" });

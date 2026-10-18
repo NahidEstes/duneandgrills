@@ -169,7 +169,8 @@ need isolated staging verification with non-customer test inboxes. No local
 MongoDB daemon was available, and existing integration scripts that may load
 cloud database configuration were deliberately not run.
 
-The full frontend unit run currently has one pre-existing Finance PDF assertion
-failure in `adminReportingAccuracy.test.mjs`: it expects combined `Archived · Paid`
-text while the committed export renders payment and record state in separate
-elements. Neither that test nor the finance export was changed for this task.
+Historical note: the customer-account task found a Finance PDF assertion expecting
+adjacent `Archived · Paid` text. The subsequent reporting task reproduced it and
+corrected the test to assert payment/record states semantically, retaining 140.00
+recognition checks. The export design was not changed. See
+[profit and priority actions](profit-and-priority-actions.md).

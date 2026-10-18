@@ -1,6 +1,6 @@
 "use client";
 import { useId, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Info, Plus, RefreshCw, Search, Truck } from "lucide-react";
 import ProtectedRoute from "@/src/components/ProtectedRoute.jsx";
 import AdminShell from "@/src/components/admin/AdminShell.jsx";
@@ -32,7 +32,7 @@ function ManagementContent({ preview, rehearsal }) {
   const canManage = ["admin", "manager"].includes(user?.role);
   const view = useDeliveryManagement({ preview, rehearsal });
   const { data, loading, error, stamp, selected, changed, detailError, detailLoading, query, dataQuery } = view;
-  const [draft, setDraft] = useState(() => emptyDeliveryQuery(canManage ? "active" : "cash"));
+  const [draft, setDraft] = useState(() => view.query);
   const [riderId, setRiderId] = useState(""), [reason, setReason] = useState(""), [terminal, setTerminal] = useState("MAIN");
   const [previewNotice, setPreviewNotice] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false), [confirmation, setConfirmation] = useState(null);
@@ -141,5 +141,6 @@ function ManagementContent({ preview, rehearsal }) {
 }
 export default function DeliveryManagement(props) {
   const { user } = useAuth();
-  return <ProtectedRoute roles={["admin", "manager", "cashier"]}><ManagementContent key={`${user?._id || user?.id}:${user?.role}:${props.preview}:${props.rehearsal}`} {...props} rehearsal={props.rehearsal && !props.preview} /></ProtectedRoute>;
+  const linkSearch = useSearchParams().toString();
+  return <ProtectedRoute roles={["admin", "manager", "cashier"]}><ManagementContent key={`${user?._id || user?.id}:${user?.role}:${props.preview}:${props.rehearsal}:${linkSearch}`} {...props} rehearsal={props.rehearsal && !props.preview} /></ProtectedRoute>;
 }

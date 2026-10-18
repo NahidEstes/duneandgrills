@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { BarChart3, Download, FileText, Percent, ReceiptText, RefreshCw, RotateCcw, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { fetchAdminAnalytics } from "../../api/api.js";
@@ -53,6 +54,7 @@ export default function AnalyticsView() {
   };
 
   return <div className="space-y-4">
+    <Link href="/admin/expenses/profit" className="inline-flex min-h-11 items-center rounded-lg border border-dune-amber/30 px-4 text-sm text-dune-amber">Open Profit &amp; Cost Report</Link>
     <section className={`${CARD} p-4`}>
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap gap-2">{periods.map(([value, label]) => <button key={value} type="button" onClick={() => setPeriod(value)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${period === value ? "border-dune-amber bg-dune-amber text-black" : "border-white/10 text-neutral-400 hover:border-dune-amber/50 hover:text-white"}`}>{label}</button>)}</div>

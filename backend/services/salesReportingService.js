@@ -66,17 +66,8 @@ function dashboardCandidates(range, previous) {
   ];
 }
 
-export async function buildSalesReport({ query = {}, range = null, orderFilter = {}, dashboardPeriods = null, dashboardMode = false } = {}) {
-  const seriesRange = dashboardPeriods?.current || range;
-  const activityRange = seriesRange;
-  const periodMatch = period => [{ $match: { reportOrderAt: { $gte: period.start, $lt: period.end } } }];
-  const cohortMatch = range ? [{ $match: { reportOrderAt: { $gte: range.start, $lt: range.end } } }] : [];
-  const breakdown = (field) => [...cohortMatch, { $group: { _id: field, orders: { $sum: 1 }, ...metrics } }, { $sort: { netSales: -1 } }];
-  const candidates = dashboardMode && range ? dashboardCandidates(range, dashboardPeriods?.previous) : [];
-  const [result] = await Order.aggregate([
-    ...candidates,
-    { $match: { $and: [salesSourceFilter(query), orderFilter] } },
-    { $project: { source: 1, orderType: 1, status: 1, createdAt: 1, orderOccurredAt: 1, totalAmount: 1, paymentStatus: 1, deliveryPaymentType: 1, voidedAt: 1, paymentMethod: 1, paymentRecords: 1, refundedAmountHalala: 1, refundedAmount: 1, discountAmount: 1, "items.productType": 1, "items.menuItem": 1, "items.combo": 1, "items.name": 1, "items.quantity": 1, "items.price": 1 } },
+// Shared authoritative capture/refund/void recognition for sales and profit.
+export const salesRecognitionStages = activityRange => [
     { $lookup: {
       from: Refund.collection.name, let: { orderId: "$_id" }, as: "reportRefunds",
       pipeline: [
@@ -111,6 +102,20 @@ export async function buildSalesReport({ query = {}, range = null, orderFilter =
       reportPaymentAt: { $cond: ["$reportCaptured", { $ifNull: [{ $first: "$paymentRecords.recordedAt" }, { $cond: [{ $eq: ["$source", "pos"] }, "$createdAt", null] }] }, null] },
     } },
     { $set: { reportNet: { $subtract: [{ $subtract: ["$reportGross", "$reportRefund"] }, "$reportVoid"] } } },
+];
+
+export async function buildSalesReport({ query = {}, range = null, orderFilter = {}, dashboardPeriods = null, dashboardMode = false } = {}) {
+  const seriesRange = dashboardPeriods?.current || range;
+  const activityRange = seriesRange;
+  const periodMatch = period => [{ $match: { reportOrderAt: { $gte: period.start, $lt: period.end } } }];
+  const cohortMatch = range ? [{ $match: { reportOrderAt: { $gte: range.start, $lt: range.end } } }] : [];
+  const breakdown = (field) => [...cohortMatch, { $group: { _id: field, orders: { $sum: 1 }, ...metrics } }, { $sort: { netSales: -1 } }];
+  const candidates = dashboardMode && range ? dashboardCandidates(range, dashboardPeriods?.previous) : [];
+  const [result] = await Order.aggregate([
+    ...candidates,
+    { $match: { $and: [salesSourceFilter(query), orderFilter] } },
+    { $project: { source: 1, orderType: 1, status: 1, createdAt: 1, orderOccurredAt: 1, totalAmount: 1, paymentStatus: 1, deliveryPaymentType: 1, voidedAt: 1, paymentMethod: 1, paymentRecords: 1, refundedAmountHalala: 1, refundedAmount: 1, discountAmount: 1, "items.productType": 1, "items.menuItem": 1, "items.combo": 1, "items.name": 1, "items.quantity": 1, "items.price": 1 } },
+    ...salesRecognitionStages(activityRange),
     { $facet: {
       summary: [...cohortMatch, { $group: { _id: null, totalOrders: { $sum: 1 }, capturedOrders: { $sum: { $cond: ["$reportCaptured", 1, 0] } }, ...metrics } }],
       series: seriesRange ? [...periodMatch(seriesRange), { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$reportOrderAt", timezone: ADMIN_TIMEZONE } }, orders: { $sum: 1 }, ...metrics } }, { $sort: { _id: 1 } }] : [{ $match: { _id: null } }],

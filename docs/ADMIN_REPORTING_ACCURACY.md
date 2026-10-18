@@ -1,5 +1,10 @@
 # Phase 3 — Reporting accuracy and cashier workflow
 
+Follow-up (2026-10-18): [Profit and priority actions](profit-and-priority-actions.md)
+adds a separate cost-aware report and unified operational actions while preserving
+the sales/expense/cash definitions below. Historical scope statements in this
+phase document describe that earlier phase.
+
 ## Shared sales definitions
 
 `backend/services/salesReportingService.js` is authoritative for Dashboard, Analytics, daily series and source/type breakdowns. CSV/PDF use those returned values, not independent revenue formulas. Compatibility keys `totalRevenue` and `revenue` now mean **net sales**, not collections or profit.
