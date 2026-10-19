@@ -2,6 +2,7 @@
 /*
 !/mobile
 !/rider-mobile
+!/notebook-mobile
 
 # Mirror mobile/.gitignore; keep generated CNG projects out of cloud builds.
 mobile/node_modules
@@ -51,4 +52,25 @@ rider-mobile/*.key
 rider-mobile/*.pem
 rider-mobile/*.mobileprovision
 rider-mobile/*.tsbuildinfo
+
+# Independent staff notebook app.
+notebook-mobile/node_modules
+notebook-mobile/.expo
+notebook-mobile/dist
+notebook-mobile/dist-fixture
+notebook-mobile/.test-build
+notebook-mobile/artifacts
+notebook-mobile/android
+notebook-mobile/ios
+notebook-mobile/expo-env.d.ts
+notebook-mobile/.env*
+!notebook-mobile/.env.example
+notebook-mobile/credentials.json
+notebook-mobile/*.jks
+notebook-mobile/*.p12
+notebook-mobile/*.p8
+notebook-mobile/*.key
+notebook-mobile/*.pem
+notebook-mobile/*.mobileprovision
+notebook-mobile/*.tsbuildinfo
 

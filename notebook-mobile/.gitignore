@@ -1,0 +1,17 @@
+node_modules/
+.expo/
+dist/
+dist-fixture/
+.test-build/
+artifacts/
+expo-env.d.ts
+.env
+.env*.local
+android/
+ios/
+*.tsbuildinfo
+credentials.json
+*.jks
+*.pem
+*.p12
+*.p8

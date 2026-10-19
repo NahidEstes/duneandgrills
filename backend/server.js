@@ -29,6 +29,7 @@ import expenseRoutes from "./routes/expenseRoutes.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
 import deliveryOrderRoutes from "./routes/deliveryOrderRoutes.js";
 import recordSearchRoutes from "./routes/recordSearchRoutes.js";
+import notebookRoutes from "./routes/notebookRoutes.js";
 import { csrfProtection, requestCorrelation, securityHeaders, verifyProxyIdentity, validateRequestStructure, safeErrorResponses } from "./middleware/security.js";
 import { validateEnvironment } from "./config/environment.js";
 import { verifyReleaseIndexes } from "./services/releaseReadinessService.js";
@@ -78,6 +79,8 @@ app.use(cors({
     return callback(error);
   },
 }));
+// Only notebook receipts need a larger JSON body; all other APIs retain 100 KB.
+app.use("/api/notebook", express.json({ limit: "1mb" }));
 app.use(express.json({ limit: "100kb" }));
 app.use(validateRequestStructure);
 app.use(rejectClientRecordNumbers);
@@ -96,6 +99,7 @@ app.use(csrfProtection);
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/notebook", notebookRoutes);
 app.use("/api/rider", riderRoutes);
 app.use("/api/deliveries", deliveryRoutes);
 app.use("/api/menu", menuRoutes);
