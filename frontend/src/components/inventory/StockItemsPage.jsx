@@ -58,6 +58,7 @@ export default function StockItemsPage({ initialStatus = "" }) {
   );
 
   const openCreate = () => { setEditing(null); setModalOpen(true); };
+  const closeForm = () => { if (!submitting) { setModalOpen(false); setEditing(null); } };
   const submit = async (payload) => {
     setSubmitting(true);
     try {
@@ -100,6 +101,6 @@ export default function StockItemsPage({ initialStatus = "" }) {
       {loading ? <LoadingState /> : <DataTable columns={columns} rows={data?.data} empty={<EmptyState title="No stock items found" description="Add an item or change the current filters." action={<Button onClick={openCreate}><Plus className="h-4 w-4" />Add first item</Button>} />} />}
       <Pagination pagination={data?.pagination} onPageChange={setPage} />
     </section>
-    <Modal open={modalOpen} onClose={() => { setModalOpen(false); setEditing(null); }} title={editing ? `Edit ${editing.name}` : "Add stock item"} description="Stable SKUs and timestamps keep every record ready for future integrations." maxWidth="max-w-3xl"><StockItemForm item={editing} categories={metadata.categories} suppliers={metadata.suppliers} onSubmit={submit} submitting={submitting} /></Modal>
+    <Modal open={modalOpen} onClose={closeForm} title={editing ? `Edit ${editing.name}` : "Add stock item"} description="Create and maintain an inventory item." maxWidth="max-w-3xl"><StockItemForm item={editing} categories={metadata.categories} suppliers={metadata.suppliers} onSubmit={submit} onCancel={closeForm} submitting={submitting} /></Modal>
   </div>;
 }
