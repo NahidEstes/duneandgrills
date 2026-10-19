@@ -8,6 +8,7 @@
     "web": "expo start --web",
     "preview": "node scripts/preview.cjs",
     "android": "expo run:android",
+    "build:apk": "npx eas-cli@latest build --platform android --profile apk",
     "ios": "expo run:ios",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",

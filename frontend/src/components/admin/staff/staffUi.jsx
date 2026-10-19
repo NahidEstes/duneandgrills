@@ -26,14 +26,18 @@ export const monthRiyadh = () => todayRiyadh().slice(0, 7);
 
 export function StaffDialog({ title, open, onClose, children, maxWidth = "max-w-2xl" }) {
   const dialogRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  // Form edits can replace onClose; only opening/closing should move focus.
   useEffect(() => {
     if (!open) return undefined;
     const previous = document.activeElement;
     dialogRef.current?.focus();
-    const handleKey = (event) => { if (event.key === "Escape") onClose(); };
+    const handleKey = (event) => { if (event.key === "Escape" && !event.defaultPrevented) onCloseRef.current(); };
     document.addEventListener("keydown", handleKey);
     return () => { document.removeEventListener("keydown", handleKey); previous?.focus?.(); };
-  }, [onClose, open]);
+  }, [open]);
   if (!open) return null;
-  return <div className="fixed inset-0 z-[140] grid place-items-center overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-5"><button type="button" className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`relative z-10 my-auto max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-2xl border border-white/10 bg-[#101416] p-5 shadow-2xl outline-none ${maxWidth}`}><div className="mb-5 flex items-center justify-between gap-4"><h2 className="font-body text-lg font-semibold text-white">{title}</h2><button type="button" onClick={onClose} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white" aria-label="Close"><X className="h-4 w-4" /></button></div>{children}</section></div>;
+  return <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-5"><button type="button" className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`relative z-10 my-auto max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-2xl border border-white/10 bg-[#101416] p-5 shadow-2xl outline-none ${maxWidth}`}><div className="mb-5 flex items-center justify-between gap-4"><h2 className="font-body text-lg font-semibold text-white">{title}</h2><button type="button" onClick={onClose} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white" aria-label="Close"><X className="h-4 w-4" /></button></div>{children}</section></div>;
 }

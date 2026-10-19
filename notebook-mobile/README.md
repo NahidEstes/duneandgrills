@@ -28,7 +28,25 @@ This is a notebook, not an accounting posting system. Neither saving nor marking
 
 Open http://127.0.0.1:8128. The browser is a diagnostic preview of the native app; it is not an installable offline PWA. The exported preview needs its local server when opening/reloading the app, while already-loaded screens can capture notes offline.
 
-For native development, run npm start and use a matching SDK 57 Expo Go installation or a development build. A new native binary must be built from this independent app for installation outside Expo Go. No EAS project, APK, store submission, OTA update or deployment was created for this implementation.
+For native development, run npm start and use a matching SDK 57 Expo Go installation or a development build. A new native binary must be built from this independent app for installation outside Expo Go. No APK, store submission, OTA update or deployment has been created.
+
+## Android APK build setup
+
+The app is linked to [@nahidestes/dune-and-grills-notebook](https://expo.dev/accounts/nahidestes/projects/dune-and-grills-notebook), project ID e9044780-2aa6-40bc-82f3-11c969f2fa52. Its Android package is com.duneandgrills.notebook.
+
+The apk profile in eas.json creates an internal release APK with automatic remote Android version increments. It uses the EAS preview environment and the app's staging configuration. Cloud backup requires an explicitly configured HTTPS EXPO_PUBLIC_API_URL and the deployed notebook API; without a configured API the app remains device-only.
+
+Run these commands in Windows PowerShell, from this app's directory:
+
+    Set-Location -LiteralPath 'D:\My Projects\duneandgrills\notebook-mobile'
+    npx.cmd eas-cli@latest login
+    npx.cmd eas-cli@latest build --platform android --profile apk
+
+If already logged in as nahidestes, login is unnecessary. The equivalent short build command is:
+
+    npm run build:apk
+
+Use this Notebook project's Android signing credentials for future updates. Customer and rider apps use different package IDs and EAS projects. Project linking/configuration does not start a cloud build.
 
 ## Optional cloud backup
 

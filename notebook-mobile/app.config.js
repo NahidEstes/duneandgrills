@@ -8,13 +8,13 @@ module.exports = () => {
     if (environment !== 'development' && url.protocol !== 'https:') throw new Error('Release sync requires HTTPS.');
   }
   return {
-    name: 'Dune & Grills Notebook', slug: 'dune-and-grills-notebook', version: '1.0.0',
+    name: 'Dune & Grills Notebook', slug: 'dune-and-grills-notebook', owner: 'nahidestes', version: '1.0.0',
     scheme: 'dunegrillsnotebook', orientation: 'portrait', userInterfaceStyle: 'dark',
     icon: './assets/brand.png',
     ios: { bundleIdentifier: 'com.duneandgrills.notebook', supportsTablet: true, config: { usesNonExemptEncryption: false } },
     android: { package: 'com.duneandgrills.notebook', softwareKeyboardLayoutMode: 'resize', blockedPermissions: ['android.permission.RECORD_AUDIO'] },
     web: { output: 'static', favicon: './assets/brand.png' },
     plugins: ['expo-router', 'expo-sqlite', 'expo-secure-store', ['expo-image-picker', { cameraPermission: 'Take a photo of your restaurant receipt.', photosPermission: 'Attach a receipt from your photos.', microphonePermission: false }]],
-    extra: { appEnvironment: environment, apiUrl },
+    extra: { appEnvironment: environment, apiUrl, eas: { projectId: 'e9044780-2aa6-40bc-82f3-11c969f2fa52' } },
   };
 };
