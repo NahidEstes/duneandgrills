@@ -5,6 +5,7 @@ import { calculateCoupon } from '../services/couponService.js';
 import { checkoutQuote, listCheckoutSlots } from '../services/checkoutService.js';
 import { ensurePointsBalance } from '../services/rewardService.js';
 import { OrderEngineError } from '../config/orderContract.js';
+import { validateTableContext } from '../services/tableOrderingService.js';
 export const getSlots = async (req, res, next) => {
   try {
     const settings = await getEffectiveRestaurantSettings();
@@ -15,7 +16,8 @@ export const quoteCheckout = async (req, res, next) => {
   try {
     const settings = await getEffectiveRestaurantSettings();
     if (!settings.orders.channels.website) throw new OrderEngineError('Online ordering is currently unavailable', 503);
-    if (!['delivery', 'pickup'].includes(req.body.fulfillmentType)) throw new OrderEngineError('Invalid fulfillment type');
+    if (!['delivery', 'pickup', 'dine_in', 'dine-in'].includes(req.body.fulfillmentType)) throw new OrderEngineError('Invalid fulfillment type');
+    await validateTableContext(req.body, ['dine_in', 'dine-in'].includes(req.body.fulfillmentType) ? 'dine-in' : req.body.fulfillmentType);
     const lines = await resolveCartLines(req.body.items || []);
     const subtotal = calculateCartSubtotal(lines);
     if (req.body.fulfillmentType === 'delivery' && subtotal < settings.orders.minimumDeliveryOrder) throw new OrderEngineError('Minimum delivery order has not been reached');

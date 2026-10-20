@@ -15,6 +15,7 @@ import CartDrawer from "./CartDrawer.jsx";
 import { fetchCategories, fetchCombos, fetchMenuItems } from "../api/api.js";
 import { filterMenu } from "../utils/menuFilters.js";
 import GuestOrderTracking from "./GuestOrderTracking.jsx";
+import TableOrderingBanner from "./TableOrderingBanner.jsx";
 import DarkSelect from "./ui/DarkSelect.jsx";
 import { usePublicRestaurant } from "../context/PublicRestaurantContext.jsx";
 
@@ -98,6 +99,7 @@ const FullMenuPage = ({
       <Navbar onCartClick={() => setCartOpen(true)} />
 
       <div className="max-w-7xl mx-auto px-5 md:px-8 pt-28 pb-20 md:pb-28">
+          <TableOrderingBanner />
         <Link
           href="/"
           className="inline-flex items-center gap-2 text-neutral-400 hover:text-white text-sm mb-8">

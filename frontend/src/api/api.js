@@ -91,6 +91,7 @@ export const fetchFeaturedMenuItem = async () => {
   const items = await fetchMenuItems();
   return items.find((item) => item.isFeatured) || items[0] || null;
 };
+export const fetchMenuItemById = async id => (await api.get(`/menu/${id}`)).data.data;
 
 export const createMenuItem = async (payload) => {
   const { data } = await api.post("/menu", payload);
@@ -787,3 +788,23 @@ export const deleteBlogPost = async (id) => {
 };
 
 export default api;
+
+export const fetchPlanner = async (params, options = {}) => (await api.get("/planner", { ...options, params })).data;
+export const fetchPlannerTask = async id => (await api.get(`/planner/${id}`)).data.data;
+export const createPlannerReminder = async payload => (await api.post("/planner", payload)).data;
+export const editPlannerReminder = async (id, payload) => (await api.patch(`/planner/${id}`, payload)).data;
+export const updatePlannerProgress = async (id, payload) => (await api.patch(`/planner/${id}/progress`, payload)).data;
+export const deletePlannerReminder = async (id, revision) => (await api.delete(`/planner/${id}`, { data: { revision } })).data;
+export const fetchPlannerReferences = async (type, search = "", options = {}) => (await api.get("/planner/references", { ...options, params: { type, search } })).data.data;
+
+export const fetchOrderSupport = async (number, token, options = {}) => (await api.get(`/support/orders/${encodeURIComponent(number)}`, { ...options, headers: { ...(token ? { "X-Order-Tracking-Token": token } : {}) } })).data.data;
+export const createOrderSupport = async (number, payload, token) => (await api.post(`/support/orders/${encodeURIComponent(number)}`, payload, { headers: token ? { "X-Order-Tracking-Token": token } : {} })).data.data;
+export const replyOrderSupport = async (number, payload, token) => (await api.post(`/support/orders/${encodeURIComponent(number)}/messages`, payload, { headers: token ? { "X-Order-Tracking-Token": token } : {} })).data.data;
+export const fetchSupportCases = async params => (await api.get("/support", { params })).data;
+export const fetchSupportCase = async id => (await api.get(`/support/${id}`)).data.data;
+export const updateSupportCase = async (id, payload) => (await api.post(`/support/${id}/messages`, payload)).data.data;
+export const fetchDiningTables = async () => (await api.get("/tables")).data.data;
+export const saveDiningTable = async (id, payload) => (await (id ? api.patch(`/tables/${id}`, payload) : api.post("/tables", payload))).data.data;
+export const fetchTableQr = async id => (await api.get(`/tables/${id}/qr`)).data.data;
+export const resolveTableQr = async (token, options = {}) => (await api.post("/tables/resolve", { token }, options)).data.data;
+export const fetchCartSuggestions = async (items, options = {}) => (await api.post("/menu/suggestions", { items }, options)).data.data;

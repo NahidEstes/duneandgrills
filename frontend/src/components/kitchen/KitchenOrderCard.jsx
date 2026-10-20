@@ -79,7 +79,7 @@ export default function KitchenOrderCard({ order, nowMs, defaultPreparationMinut
         </div>
         <div className="mt-3 flex flex-wrap gap-2 text-[0.68rem] font-semibold">
           <span className="rounded-md bg-white/[0.06] px-2 py-1 text-neutral-300">{sourceLabel(order.source)}</span>
-          <span className="rounded-md bg-dune-amber/10 px-2 py-1 text-dune-amberLight">{typeLabel(order.orderType)}</span>
+          <span className="rounded-md bg-dune-amber/10 px-2 py-1 text-dune-amberLight">{typeLabel(order.orderType)}</span>{order.diningTable?.code && <span className="rounded-md bg-dune-amber/10 px-2 py-1 text-dune-amberLight">Table {order.diningTable.code} · {order.diningTable.name}</span>}
           <span className="rounded-md bg-white/[0.06] px-2 py-1 text-neutral-400">{new Date(order.createdAt).toLocaleTimeString("en-SA", { hour: "2-digit", minute: "2-digit" })}</span>
         </div>
       </header>

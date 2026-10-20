@@ -40,6 +40,9 @@ import {
 import LoginPromptModal from "./LoginPromptModal.jsx";
 import SmartImage from "./SmartImage.jsx";
 import ItemModal from "./ItemModal.jsx";
+import CartSuggestions from "./CartSuggestions.jsx";
+import { TableContextNotice } from "./TableOrderingBanner.jsx";
+import { useTableOrdering } from "../context/TableOrderingContext.jsx";
 import useCustomerDialog from "../hooks/useCustomerDialog.js";
 import { usePublicRestaurant } from "../context/PublicRestaurantContext.jsx";
 
@@ -97,6 +100,7 @@ const CartDrawer = ({ open, onClose }) => {
     removeSuggestedCoupon
   } = useCart();
   const { user, setUser } = useAuth();
+  const { token: tableToken, status: tableStatus, clearTable } = useTableOrdering();
   const router = useRouter();
 
   const [step, setStep] = useState("cart"); // cart | checkout | success
@@ -116,6 +120,12 @@ const CartDrawer = ({ open, onClose }) => {
   const [kitchenNotes, setKitchenNotes] = useState("");
   const { orderConfig, configLoading, configError, refresh: loadOrderConfig } = usePublicRestaurant();
   const [orderType, setOrderType] = useState("");
+  useEffect(() => { if (tableStatus === "ready") setOrderType("dine-in"); }, [tableToken, tableStatus]);
+  const changeOrderType = value => {
+    if (value !== "dine-in" && tableToken) clearTable();
+    setOrderType(value);
+  };
+  const tableUnavailable = Boolean(tableToken && tableStatus !== "ready");
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
@@ -186,6 +196,7 @@ const CartDrawer = ({ open, onClose }) => {
   }, [user, step]);
 
   const handleProceed = () => {
+    if (tableUnavailable) { setError("Verify the table or continue without a table before checkout."); return; }
     if (!orderConfig || !orderType) return;
     if (!websiteOrderingEnabled) {
       setError("Online ordering is currently unavailable. Please contact the restaurant.");
@@ -278,6 +289,7 @@ const CartDrawer = ({ open, onClose }) => {
   const handleCheckout = async (e) => {
     e.preventDefault();
     if (submitLock.current) return;
+    if (tableUnavailable) { setError("Verify the table or continue without a table before ordering."); return; }
     if (!websiteOrderingEnabled || belowDeliveryMinimum) {
       setError(!websiteOrderingEnabled ? "Online ordering is currently unavailable. Please contact the restaurant." : `Minimum delivery order is ${formatPrice(minimumDeliveryOrder)}.`);
       return;
@@ -293,6 +305,7 @@ const CartDrawer = ({ open, onClose }) => {
             address: orderType === "delivery" ? customer.address : ""
           },
           orderType,
+          ...(tableToken && orderType === "dine-in" ? { tableToken } : {}),
           paymentOption: "cod",
           kitchenNotes,
           items: checkoutItems(),
@@ -426,6 +439,7 @@ const CartDrawer = ({ open, onClose }) => {
         <>
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
               <EmailVerificationNotice />
+              <TableContextNotice />
               {syncError &&
             <div
               role="alert"
@@ -538,6 +552,7 @@ const CartDrawer = ({ open, onClose }) => {
                   </div>
             ))
             }
+              {open && <CartSuggestions />}
             </div>
 
             {cartReady && cart.length > 0 &&
@@ -564,7 +579,7 @@ const CartDrawer = ({ open, onClose }) => {
             <OrderTypeSelector
               options={orderConfig.orderTypes}
               value={orderType}
-              onChange={setOrderType}
+              onChange={changeOrderType}
               disabled={submitting} />
 
             }
@@ -596,7 +611,7 @@ const CartDrawer = ({ open, onClose }) => {
             }
                 <button
               onClick={handleProceed}
-              disabled={!orderConfig || configLoading || !websiteOrderingEnabled || belowDeliveryMinimum}
+              disabled={!orderConfig || configLoading || !websiteOrderingEnabled || belowDeliveryMinimum || tableUnavailable}
               className="w-full rounded-full bg-dune-amber py-3.5 font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-50">{t(" Proceed to Checkout ")}
 
 
@@ -613,11 +628,12 @@ const CartDrawer = ({ open, onClose }) => {
           className="flex-1 overflow-y-auto px-6 py-5 flex flex-col">
 
             <fieldset disabled={submitting} className="min-w-0 space-y-5 flex-1">
+              <TableContextNotice />
               {orderConfig &&
             <OrderTypeSelector
               options={orderConfig.orderTypes}
               value={orderType}
-              onChange={setOrderType}
+              onChange={changeOrderType}
               disabled={submitting} />
 
             }
@@ -844,7 +860,7 @@ const CartDrawer = ({ open, onClose }) => {
               </div>
               <button
               type="submit"
-              disabled={submitting || hasPendingOrder || syncing || configLoading || !orderConfig || !websiteOrderingEnabled || belowDeliveryMinimum}
+              disabled={submitting || hasPendingOrder || syncing || configLoading || !orderConfig || !websiteOrderingEnabled || belowDeliveryMinimum || tableUnavailable}
               className="w-full bg-dune-amber hover:bg-dune-amberLight disabled:opacity-60 text-black font-semibold py-3.5 rounded-full transition-colors">
 
                 {t(submitting ? "Placing Order..." : "Place Order")}
@@ -873,6 +889,7 @@ const CartDrawer = ({ open, onClose }) => {
             {placedOrder.orderNumber}
               </p>
           }
+            {placedOrder?.diningTable?.code && <p lang="en" dir="ltr" className="text-sm text-dune-amber">Table {placedOrder.diningTable.code} · {placedOrder.diningTable.name}</p>}
             <p className="text-neutral-400 text-sm">{t(" Your order request is confirmed. Check its status using your private tracking details below. ")}
 
           </p>

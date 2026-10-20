@@ -10,6 +10,7 @@ import { useFreshResource } from "../hooks/useFreshResource.js";
 import { savedTrackingToken, rememberTracking } from "../utils/guestTracking.js";
 import { formatPrice } from "../utils/currency.js";
 import OrderStatusBadge from "./account/OrderStatusBadge.jsx";
+import OrderSupportPanel from "./account/OrderSupportPanel.jsx";
 
 function GuestOrderTracking() {
   const trackingNumber = useSearchParams().get("track") || "";
@@ -37,6 +38,7 @@ function GuestOrderTracking() {
     {request && resource.status === "loading" && <p role="status" className="mt-4 text-neutral-400">{t("Loading order…")}</p>}
     {resource.error && <p role="alert" className="mt-4 text-amber-300">{t(resource.errorKind === "throttled" ? "Too many tracking attempts. Updates will resume after the server cooldown." : order ? "Updates unavailable; showing the last synchronized order." : "Unable to track this order. Check the number and private code, then retry.")}<button type="button" onClick={() => resource.refresh("manual")} className="ml-3 underline">{t("Retry")}</button></p>}
     {order && <div className="mt-4 space-y-3" aria-live="polite"><p className="text-white">{t("Order #")}<bdi>{order.orderNumber}</bdi>{t(" · ")}<OrderStatusBadge status={order.status} /></p><ul className="text-sm text-neutral-300">{order.items.map((item, index) => <li key={index}>{t(item.quantity)}{t(" × ")}{catalogText(item, "name")}</li>)}</ul><p className="text-dune-amber">{formatPrice(order.totalAmount)}</p><p className="text-sm text-neutral-400">{t("Last synchronized ")}{formatDate(resource.lastSuccessAt, { timeStyle: "medium" })}{t(" Riyadh · ")}{t(resource.complete ? "Final order status · automatic updates stopped" : "Updates every 10 seconds while this page is visible")}</p></div>}
+    {order && request && <><OrderSupportPanel key={`${request.number}:${request.token}`} order={order} token={request.token} />{order.diningTable?.code && <p lang="en" dir="ltr" className="mt-3 text-sm text-dune-amber">Table {order.diningTable.code} · {order.diningTable.name}</p>}</>}
     </div>}
   </section>;
 }

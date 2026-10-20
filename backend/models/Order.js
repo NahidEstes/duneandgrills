@@ -117,6 +117,7 @@ const orderSchema = new mongoose.Schema(
     totalDifference: { type: Number, default: 0 },
     differenceReason: { type: String, trim: true, maxlength: 300, default: "" },
     scheduledAt: { type: Date, default: null, index: true },
+    diningTable: { table: { type: mongoose.Schema.Types.ObjectId, ref: "DiningTable" }, code: String, name: String },
     kitchenReleaseAt: { type: Date, default: null, index: true },
     slotReleasedAt: { type: Date, default: null },
     pointsRedemption: { points: Number, discount: Number, returnedPoints: { type: Number, default: 0 }, pointsPerSAR: Number, refundPolicy: String },

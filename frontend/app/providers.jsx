@@ -8,6 +8,7 @@ import DuneToaster from "@/src/components/ui/DuneToaster.jsx";
 import { usePathname } from "next/navigation";
 import { PublicRestaurantProvider } from "@/src/context/PublicRestaurantContext.jsx";
 import { LocaleProvider } from "@/src/i18n/LocaleProvider.jsx";
+import { TableOrderingProvider } from "@/src/context/TableOrderingContext.jsx";
 
 export default function Providers({ children }) {
   const pathname = usePathname();
@@ -18,12 +19,14 @@ export default function Providers({ children }) {
   );
   return (
     <LocaleProvider><CartProvider>
-      <AuthProvider>
+      <AuthProvider readOnlyStaff={pathname === "/admin/planner" || pathname.startsWith("/admin/planner/")}>
+        <TableOrderingProvider>
         <FavoritesProvider>
           <PwaExperience inlineOptions={pathname === "/kitchen/recipes" || /^\/(?:$|menu\/?$|login\/?$|forgot-password\/?$|reset-password\/?$|verify-email\/?$|resend-verification\/?$|verification-pending\/?$|blog(?:\/|$)|item\/|combo\/|offer\/)/.test(pathname)} />
           <PublicRestaurantProvider enabled={!/^\/(admin|inventory|pos|kitchen|staff-clock|tips-and-tricks)(\/|$)/.test(pathname)}>{children}</PublicRestaurantProvider>
           <DuneToaster />
         </FavoritesProvider>
+        </TableOrderingProvider>
       </AuthProvider>
     </CartProvider></LocaleProvider>
   );

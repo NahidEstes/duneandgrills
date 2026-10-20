@@ -30,7 +30,7 @@ export const resolveOrderInput = (payload, channel) => {
   if (orderType && payload.fulfillmentType && types[orderType] !== payload.fulfillmentType) throw new OrderEngineError("Order type and fulfillment type disagree");
   orderType ||= { delivery: "delivery", pickup: channel === "pos" ? "takeaway" : "pickup", dine_in: "dine-in" }[payload.fulfillmentType] || (channel === "pos" ? "dine-in" : "delivery");
   if (channel === "pos" && orderType === "pickup") orderType = "takeaway";
-  for (const field of ["deliveryMode", "source", "createdBy", "user", "inventoryStatus", "orderNumber", "trackingTokenHash"]) {
+  for (const field of ["deliveryMode", "source", "createdBy", "user", "inventoryStatus", "orderNumber", "trackingTokenHash", "diningTable", "tableNumber", "tableId"]) {
     if (payload[field] !== undefined) throw new OrderEngineError(`${field} is controlled by the server`);
   }
   if (payload.status !== undefined || payload.fulfillmentStatus !== undefined || payload.paymentStatus !== undefined) throw new OrderEngineError("Initial payment and fulfillment statuses are controlled by the server");

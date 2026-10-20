@@ -1,7 +1,7 @@
 import { orderContract } from "../config/orderContract.js";
 
 // Shared dashboard/list/detail projection; never include private customer fields here.
-export const RECENT_ORDER_FIELDS = "orderNumber customer.name items.quantity totalAmount status paymentStatus paymentMethod deliveryPaymentType createdAt updatedAt source orderType manualEntry orderOccurredAt preparationDueAt estimatedPreparationMinutes scheduledAt";
+export const RECENT_ORDER_FIELDS = "diningTable orderNumber customer.name items.quantity totalAmount status paymentStatus paymentMethod deliveryPaymentType createdAt updatedAt source orderType manualEntry orderOccurredAt preparationDueAt estimatedPreparationMinutes scheduledAt";
 export const ACTIVE_PREPARATION_STATUSES = new Set(["pending", "confirmed", "preparing", "out-for-delivery"]);
 
 export const serializeAdminOrder = (order, now = new Date()) => {
@@ -36,6 +36,7 @@ export const serializeCustomerOrder = (order) => {
     kitchenNotes: value.kitchenNotes || "",
     items: (value.items || []).map(serializeItem),
     orderType: value.orderType,
+    ...(value.diningTable?.code ? { diningTable: { code: value.diningTable.code, name: value.diningTable.name } } : {}),
     scheduledAt: value.scheduledAt || null,
     pointsDiscount: value.pointsRedemption?.discount || 0,
     pointsRedeemed: value.pointsRedemption?.points || 0,

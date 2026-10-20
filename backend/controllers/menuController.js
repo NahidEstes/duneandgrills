@@ -1,4 +1,5 @@
 import MenuItem from "../models/MenuItem.js";
+import { normalizeComplementaryItems } from "../services/cartSuggestionService.js";
 import Combo from "../models/Combo.js";
 import { calculateComboPricing } from "../services/catalogService.js";
 import {
@@ -14,7 +15,7 @@ import {
   normalizeCustomizationSettings,
 } from "../services/menuCustomizationService.js";
 
-const MENU_AUDIT_FIELDS = ["name", "translations", "price", "category", "categoryRef", "isAvailable", "isFeatured", "description", "customization"];
+const MENU_AUDIT_FIELDS = ["name", "translations", "price", "category", "categoryRef", "isAvailable", "isFeatured", "description", "customization", "complementaryItems"];
 
 const refreshComboPrices = async (menuItemId) => {
   const combos = await Combo.find({ "items.menuItem": menuItemId }).populate(
@@ -102,7 +103,8 @@ export const createMenuItem = async (req, res) => {
       categoryName: req.body.category,
     });
     const customization = normalizeCustomizationSettings(req.body.customization);
-    const item = await MenuItem.create({ ...req.body, customization, ...categoryValues });
+    const complementaryItems = await normalizeComplementaryItems(req.body.complementaryItems ?? []);
+    const item = await MenuItem.create({ ...req.body, customization, ...categoryValues, complementaryItems });
     await item.populate("categoryRef", "name slug isActive type");
     await recordAuditLog({ actor: req.user, action: "MENU_ITEM_CREATED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, after: pickAuditFields(item, MENU_AUDIT_FIELDS) });
     res.status(201).json({ success: true, data: item });
@@ -139,7 +141,8 @@ export const updateMenuItem = async (req, res) => {
     const customizationValues = req.body.customization === undefined
       ? {}
       : { customization: normalizeCustomizationSettings(req.body.customization) };
-    item.set({ ...req.body, ...customizationValues, ...categoryValues });
+    const suggestions = req.body.complementaryItems === undefined ? {} : { complementaryItems: await normalizeComplementaryItems(req.body.complementaryItems, item._id) };
+    item.set({ ...req.body, ...customizationValues, ...categoryValues, ...suggestions });
     await item.save();
     await refreshComboPrices(item._id);
     await recordAuditLog({ actor: req.user, action: "MENU_ITEM_UPDATED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, before, after: pickAuditFields(item, MENU_AUDIT_FIELDS) });
@@ -172,6 +175,7 @@ export const deleteMenuItem = async (req, res) => {
       { menuItems: item._id },
       { $pull: { menuItems: item._id } }
     );
+    await MenuItem.updateMany({ complementaryItems: item._id }, { $pull: { complementaryItems: item._id } });
     await recordAuditLog({ actor: req.user, action: "MENU_ITEM_DELETED", entityType: "MenuItem", entityId: item._id, entityLabel: item.name, before: pickAuditFields(item, MENU_AUDIT_FIELDS) });
     res.status(200).json({ success: true, message: "Menu item deleted" });
   } catch (err) {

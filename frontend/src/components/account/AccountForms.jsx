@@ -20,6 +20,7 @@ import { formatPrice } from "../../utils/currency.js";
 import { formatOrderType, getOrderSubtotal } from "../../utils/order.js";
 import OrderStatusBadge from "./OrderStatusBadge.jsx";
 import OrderItemCustomization from "../OrderItemCustomization.jsx";
+import OrderSupportPanel from "./OrderSupportPanel.jsx";
 
 export const inputClass = "w-full rounded-lg border border-dune-border bg-black px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-neutral-600 focus:border-dune-amber";
 export const primaryButton = "inline-flex items-center justify-center gap-2 rounded-lg bg-dune-amber px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-dune-amberLight disabled:cursor-not-allowed disabled:opacity-60";
@@ -210,6 +211,8 @@ export const OrderDetails = ({
       </div>
     </div>
     {order.customer?.address && <p className="mt-4 flex items-start gap-2 text-sm text-neutral-400"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-dune-amber" />{order.customer.address}</p>}
+    {order.diningTable?.code && <p lang="en" dir="ltr" className="mt-3 text-sm text-dune-amber">Table {order.diningTable.code} · {order.diningTable.name}</p>}
+    <OrderSupportPanel order={order} />
     {showReorder &&
   <button type="button" onClick={() => onReorder(order)} className={`${primaryButton} mt-5 w-full`}><RefreshCw className="h-4 w-4" />{t("Reorder These Items")}</button>
   }

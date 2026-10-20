@@ -57,6 +57,7 @@ export const serializeKitchenOrder = (order, now = new Date()) => {
     source: value.source || "website",
     ...orderContract(value),
     orderType: value.orderType,
+    ...(value.diningTable?.code ? { diningTable: { code: value.diningTable.code, name: value.diningTable.name } } : {}),
     status: value.status,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
@@ -126,7 +127,7 @@ export const listKitchenOrders = async (
   }
 
   const orders = await Order.find({ $and: filters })
-    .select("scheduledAt kitchenReleaseAt orderNumber source orderType status createdAt updatedAt acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt customer.name pickupToken pickupNote notes kitchenNotes items")
+    .select("diningTable scheduledAt kitchenReleaseAt orderNumber source orderType status createdAt updatedAt acceptedAt preparationStartedAt readyAt estimatedPreparationMinutes preparationDueAt customer.name pickupToken pickupNote notes kitchenNotes items")
     .sort({ createdAt: 1 })
     .lean();
   const ids = [...new Set(orders.flatMap(order => order.items.map(item => item.menuItem).filter(Boolean)).map(String))];

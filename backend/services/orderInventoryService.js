@@ -151,6 +151,10 @@ const rollbackStandaloneMovements = async (movements) => {
   }
 };
 
+export const checkCatalogInventory = async catalogLines => {
+  await buildRequirements(catalogLines, { session: null, now: new Date() });
+};
+
 export const deductOrderInventory = async ({ catalogLines, orderId, orderNumber, source, actorId, session = null }) => {
   const existing = await StockTransaction.find({ order: orderId, movementType: "STOCK_OUT" }).session(session || null);
   if (existing.length) return existing;

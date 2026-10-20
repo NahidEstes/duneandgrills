@@ -9,6 +9,8 @@ import {
 } from "../controllers/menuController.js";
 import { protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
+import { cartSuggestions } from "../services/cartSuggestionService.js";
+import { rateLimit } from "../middleware/security.js";
 import {
   createMenuAddOn,
   deleteMenuAddOn,
@@ -17,6 +19,10 @@ import {
 } from "../controllers/menuAddOnController.js";
 
 const router = express.Router();
+router.post("/suggestions", rateLimit({ windowMs: 60_000, max: 60, keyPrefix: "cart-suggestions" }), async (req, res, next) => {
+  try { res.set("Cache-Control", "no-store").json({ success: true, data: await cartSuggestions(req.body?.items) }); }
+  catch (error) { next(error); }
+});
 
 router.get(
   "/manage",

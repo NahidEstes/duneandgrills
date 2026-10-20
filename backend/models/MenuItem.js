@@ -75,6 +75,7 @@ const menuItemSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    complementaryItems: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" }], default: [] },
     calories: {
       type: Number,
       default: 0,

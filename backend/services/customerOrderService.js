@@ -13,6 +13,7 @@ import { runInventoryTransaction } from "./inventoryStockService.js";
 import { creationIdentity, findCreationReplay, persistOrderWithInventory, trackingTokenForIdentity } from "./orderEngineService.js";
 
 import { checkoutQuote, reserveCheckout, ensureSlot, slotKey } from './checkoutService.js';
+import { validateTableContext } from "./tableOrderingService.js";
 export const createCustomerOrder = async ({ payload, actor, channel = "customer", key, correlationId }) => {
   if (channel === "admin" && (!actor || !hasCapability(actor.role, CAPABILITIES.ORDERS_MANAGE))) throw new OrderEngineError("Not authorized to create admin orders", 403);
   const input = resolveOrderInput(payload, channel);
@@ -54,6 +55,7 @@ export const createCustomerOrder = async ({ payload, actor, channel = "customer"
   try {
     const order = await runInventoryTransaction(async session => {
       if (!session) throw new OrderEngineError("The unified order engine requires a MongoDB replica set", 503);
+      const diningTable = await validateTableContext(payload, input.orderType, session);
       await reserveCheckout({ quote, userId, orderId, orderNumber, type: input.orderType, settings, session });
       // Build fresh arrays on transaction retry; never append reward lines twice.
       const inventoryLines = [...catalogLines];
@@ -72,7 +74,7 @@ export const createCustomerOrder = async ({ payload, actor, channel = "customer"
       }
       if (coupon) await reserveCouponUsage(coupon.offer._id, { session });
       return persistOrderWithInventory({ actor, session, catalogLines: inventoryLines, correlationId, fields: {
-        _id: orderId, orderNumber,
+        _id: orderId, orderNumber, diningTable,
         ...(identity.idempotencyKey ? { idempotencyKey: identity.idempotencyKey, creationRequestHash: identity.creationRequestHash } : {}),
         trackingTokenHash: crypto.createHash("sha256").update(trackingToken).digest("hex"),
         source, createdBy: channel === "admin" ? actor._id : null, user: userId,

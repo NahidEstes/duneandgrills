@@ -224,7 +224,7 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
             Order Type
           </p>
           <p className="mt-1 text-sm font-medium text-white">
-            {formatOrderType(order.orderType)}
+            {formatOrderType(order.orderType)}{order.diningTable?.code && <span className="ml-2 text-dune-amber">Table {order.diningTable.code} · {order.diningTable.name}</span>}
           </p>
           <p className="mt-1 text-xs text-neutral-500">
             {labelSource(order.source)} · {orderPaymentLabel(order)}
@@ -547,7 +547,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
                   </td>
                   <td className="p-4">{order.items.length}</td>
                   <td className="p-4 text-xs text-neutral-300">
-                    {formatOrderType(order.orderType)}
+                    {formatOrderType(order.orderType)}{order.diningTable?.code && <span className="ml-2 text-dune-amber">Table {order.diningTable.code} · {order.diningTable.name}</span>}
                   </td>
                   <td className="p-4 text-xs text-neutral-300"><span>{labelSource(order.source)}</span>{order.externalOrderId && <span className="mt-1 block text-[0.65rem] text-dune-amber">{order.manualEntry ? "Manual · " : ""}<RecordId value={order.externalOrderId} /></span>}</td>
                   <td className="p-4 text-xs text-neutral-300">{order.paymentMethod && order.paymentMethod !== "unrecorded" ? formatOrderType(order.paymentMethod) : "—"}</td>

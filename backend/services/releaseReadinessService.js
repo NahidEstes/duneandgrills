@@ -4,11 +4,15 @@ import CashMovement from "../models/CashMovement.js";
 import Refund from "../models/Refund.js";
 import PosShift from "../models/PosShift.js";
 import RateLimitBucket from "../models/RateLimitBucket.js";
+import DiningTable from "../models/DiningTable.js";
+import OrderSupport from "../models/OrderSupport.js";
+import PlannerTask from "../models/PlannerTask.js";
+import PlannerSeries from "../models/PlannerSeries.js";
 
 // Reads actual indexes; never drops, rebuilds or synchronizes a user's indexes.
 export async function verifyReleaseIndexes() {
   const missing = [];
-  for (const model of [Order, OrderRequestFence, CashMovement, Refund, PosShift, RateLimitBucket]) {
+  for (const model of [Order, OrderRequestFence, CashMovement, Refund, PosShift, RateLimitBucket, DiningTable, OrderSupport, PlannerTask, PlannerSeries]) {
     let indexes;
     try { indexes = await model.collection.listIndexes().toArray(); }
     catch { missing.push(`${model.modelName}:collection`); continue; }
