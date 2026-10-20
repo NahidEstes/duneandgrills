@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { plannerCalendar, plannerDay, plannerMonth, plannerOverdue, plannerTimeLabel } from "../src/utils/planner.js";
+import { plannerCalendar, plannerDay, plannerMonth, plannerOverdue, plannerTimeLabel, plannerWeek } from "../src/utils/planner.js";
 
 test("calendar lays out October 2026 with October 1 on Thursday and October 20 on Tuesday", () => {
   const days = plannerCalendar("2026-10-01");
@@ -12,6 +12,12 @@ test("calendar lays out October 2026 with October 1 on Thursday and October 20 o
   assert.equal(plannerMonth("2026-12-15", 1), "2027-01-01");
   const leap = plannerCalendar("2028-02-01");
   assert.ok(leap.includes("2028-02-29"));
+});
+
+test("week boundaries use the selected calendar day across months and years", () => {
+  assert.equal(plannerWeek("2026-10-20"), "2026-10-18");
+  assert.equal(plannerWeek("2026-11-01"), "2026-11-01");
+  assert.equal(plannerWeek("2027-01-01"), "2026-12-27");
 });
 test("dates and overdue indicators use Riyadh time while terminal statuses stay out of overdue", () => {
   assert.equal(plannerDay("2026-10-19T21:00:00Z"), "2026-10-20");

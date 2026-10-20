@@ -37,6 +37,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import SmartImage from "../SmartImage.jsx";
 import { KNOWLEDGE_BASE_ROLES } from "../knowledge/knowledgePermissions.js";
+import PlannerReminderBell from "./planner/PlannerReminderBell.jsx";
 
 const NAV_ITEMS = [
   { id: "rider", label: "Rider Portal", icon: ShoppingBasket, href: "/rider", roles: ["admin"] },
@@ -310,6 +311,7 @@ const AdminShell = ({
             </div> : <div className="min-w-0 flex-1" />}
 
             <div className="ml-auto flex items-center gap-1 sm:gap-2">
+              <PlannerReminderBell user={user} onNavigateAway={onNavigateAway} />
               <Link href="/admin/record-search" onClick={event => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); }} className="flex h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-neutral-300 hover:text-dune-amber" aria-label="Search by ID"><Search className="h-4 w-4" /><span className="hidden sm:inline">Search by ID</span></Link>
               {showOrderControls && <><div className="hidden rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-400 xl:block">
                 {dataStatus === "stale" ? "Summary may be outdated" : dataStatus === "error" ? "Summary unavailable" : dashboard ? "Summary available" : "Awaiting summary"}

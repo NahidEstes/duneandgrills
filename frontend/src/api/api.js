@@ -796,6 +796,15 @@ export const editPlannerReminder = async (id, payload) => (await api.patch(`/pla
 export const updatePlannerProgress = async (id, payload) => (await api.patch(`/planner/${id}/progress`, payload)).data;
 export const deletePlannerReminder = async (id, revision) => (await api.delete(`/planner/${id}`, { data: { revision } })).data;
 export const fetchPlannerReferences = async (type, search = "", options = {}) => (await api.get("/planner/references", { ...options, params: { type, search } })).data.data;
+export const snoozePlannerReminder = async (id, payload) => (await api.patch(`/planner/${id}/snooze`, payload)).data.data;
+export const undoPlannerReminder = async (id, payload) => (await api.post(`/planner/${id}/undo`, payload)).data.data;
+export const changePlannerSchedule = async (id, payload) => (await api.patch(`/planner/${id}/schedule`, payload)).data.data;
+export const fetchPlannerNotifications = async (options = {}) => {
+  const { data } = await api.get("/planner/notifications", options);
+  if (!Array.isArray(data.data) || !Number.isFinite(data.unread) || !Number.isFinite(data.count)) throw new Error("Invalid Planner notification response");
+  return data;
+};
+export const acknowledgePlannerNotification = async (id, payload) => (await api.post(`/planner/${id}/notification`, payload)).data;
 
 export const fetchOrderSupport = async (number, token, options = {}) => (await api.get(`/support/orders/${encodeURIComponent(number)}`, { ...options, headers: { ...(token ? { "X-Order-Tracking-Token": token } : {}) } })).data.data;
 export const createOrderSupport = async (number, payload, token) => (await api.post(`/support/orders/${encodeURIComponent(number)}`, payload, { headers: token ? { "X-Order-Tracking-Token": token } : {} })).data.data;

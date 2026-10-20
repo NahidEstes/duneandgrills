@@ -10,6 +10,9 @@ import authRoutes from "../routes/authRoutes.js";
 import { csrfProtection } from "../middleware/security.js";
 import PlannerTask from "../models/PlannerTask.js";
 import PlannerSeries from "../models/PlannerSeries.js";
+import PlannerNotificationState from "../models/PlannerNotificationState.js";
+import { changePlannerSchedule, ensurePlannerOccurrences, snoozePlannerTask, undoPlannerChange } from "../services/plannerService.js";
+import { listPlannerNotifications, plannerNotificationKey } from "../services/plannerNotifications.js";
 import User from "../models/User.js";
 import InventoryItem from "../models/InventoryItem.js";
 import Supplier from "../models/Supplier.js";
@@ -19,7 +22,7 @@ import { plannerDay, shiftPlannerDay } from "../services/plannerRules.js";
 
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = "planner-owned-tests-do-not-use-in-production";
-const plannerCollections = new Set([PlannerTask.collection.collectionName, PlannerSeries.collection.collectionName]);
+const plannerCollections = new Set([PlannerTask.collection.collectionName, PlannerSeries.collection.collectionName, PlannerNotificationState.collection.collectionName]);
 async function businessSnapshot() {
   const snapshot = {};
   const collections = await mongoose.connection.db.listCollections().toArray();
@@ -33,6 +36,7 @@ async function businessSnapshot() {
 test("Planner reminders, recurrence and references never mutate business data (owned replica set)", { timeout: 240000 }, async t => withIsolatedMongo(async () => {
   const actors = {};
   for (const role of ["admin", "manager", "customer", "cashier", "kitchen", "inventory", "accountant", "rider"]) actors[role] = await User.create({ name: `Planner ${role}`, email: `${role}@planner-owned.test`, password: "TestPassword123!", role, phone: "0500000000", pointsBalance: 120 });
+  actors.browser = await User.create({ name: "Planner browser admin", email: "browser@planner-owned.test", password: "TestPassword123!", role: "admin", pointsBalance: 120 });
   const tokens = Object.fromEntries(Object.entries(actors).map(([role, user]) => [role, jwt.sign({ id: String(user._id), sv: 0 }, process.env.JWT_SECRET)]));
   const inventoryId = new mongoose.Types.ObjectId(), supplierId = new mongoose.Types.ObjectId(), invoiceId = new mongoose.Types.ObjectId(), purchaseId = new mongoose.Types.ObjectId();
   // Minimal raw fixtures are safe: every collection belongs to the temporary DB.
@@ -143,10 +147,91 @@ test("Planner reminders, recurrence and references never mutate business data (o
       assert.equal((await api("admin", `/planner/${march._id}/progress`, { revision: march.revision, paymentStatus: "paid" }, "PATCH")).status, 400);
       assert.deepEqual(await businessSnapshot(), before, "All non-Planner collections remain byte-for-byte unchanged after every Planner workflow");
     });
+    await t.test("combined server search, filters, sorts, date views and accurate completion-day cards", async () => {
+      const create = await api("manager", "/planner", reminder({ title: "Filter needle [literal]", category: "Cleaning & Maintenance", dueDate: shiftPlannerDay(today, -2), notes: "Unique filter note", linkedRecord: null, priority: "High" })); assert.equal(create.status, 201);
+      const task = await findTask("Filter needle [literal]");
+      const completed = await api("manager", `/planner/${task._id}/progress`, { revision: task.revision, status: "Done" }, "PATCH"); assert.equal(completed.status, 200);
+      const query = `search=${encodeURIComponent("[literal]")}&category=${encodeURIComponent("Cleaning & Maintenance")}&priority=High&responsible=${actors.manager._id}`;
+      const matching = await api("admin", `/planner?filter=completed_today&${query}`);
+      assert.equal(matching.body.pagination.total, 1); assert.equal(matching.body.summary.completedToday, 1); assert.equal(matching.body.summary.today, 0);
+      assert.equal((await api("admin", `/planner?filter=pending_today&${query}`)).body.pagination.total, 0);
+      assert.equal((await api("admin", `/planner?filter=all&${query}&responsible=unassigned`)).status, 400, "Duplicate query inputs cannot become unsafe objects");
+      const notes = await api("admin", "/planner?filter=all&search=Unique%20filter%20note&sort=due_desc"); assert.equal(notes.body.data[0].title, task.title);
+      const week = await api("admin", `/planner?view=week&filter=completed&from=${shiftPlannerDay(today, -3)}&to=${shiftPlannerDay(today, 3)}&${query}`); assert.equal(week.status, 200); assert.equal(week.body.pagination.total, 1);
+      assert.equal((await api("admin", `/planner?view=week&from=${today}&to=${shiftPlannerDay(today, 7)}`)).status, 400);
+      assert.equal((await api("admin", "/planner?filter=all&sort=bogus")).status, 400);
+      assert.equal((await api("admin", "/planner?filter=all&priority=Urgent")).status, 400);
+      const cancelled = await api("manager", `/planner/${task._id}/progress`, { revision: completed.body.data.revision, status: "Cancelled" }, "PATCH"); assert.equal(cancelled.status, 200);
+      assert.equal((await api("admin", `/planner?filter=cancelled&${query}`)).body.pagination.total, 1);
+      for (let i = 0; i < 22; i++) await PlannerTask.create({ ...task, _id: new mongoose.Types.ObjectId(), groupId: new mongoose.Types.ObjectId(), title: `Pagination fixture ${i}`, status: "Pending", dueDate: today, dueAt: new Date(), undo: null });
+      const paginated = await api("admin", "/planner?filter=all&search=Pagination%20fixture&page=2"); assert.equal(paginated.body.pagination.total, 22); assert.equal(paginated.body.data.length, 2);
+    });
+    await t.test("snooze preserves deadlines, is retry-safe and defers alerts; Undo rejects stale and expired actions", async () => {
+      const body = reminder({ title: "Snooze and undo fixture", dueDate: shiftPlannerDay(today, -1), linkedRecord: null });
+      await api("manager", "/planner", body); let task = await findTask(body.title);
+      const originalDue = task.dueAt.toISOString(), snooze = { revision: task.revision, requestId: randomUUID(), option: "30m" };
+      const replies = await Promise.all([api("manager", `/planner/${task._id}/snooze`, snooze, "PATCH"), api("manager", `/planner/${task._id}/snooze`, snooze, "PATCH")]);
+      assert.ok(replies.some(row => row.status === 200));
+      const retry = await api("manager", `/planner/${task._id}/snooze`, snooze, "PATCH"); assert.equal(retry.status, 200);
+      task = retry.body.data; assert.equal(task.dueAt, originalDue); assert.equal(task.revision, 1);
+      assert.equal((await api("admin", "/planner?filter=overdue&search=Snooze%20and%20undo")).body.pagination.total, 1);
+      assert.equal((await listPlannerNotifications(actors.manager)).data.some(row => String(row._id) === String(task._id)), false);
+      const dueNotices = await listPlannerNotifications(actors.manager, new Date(new Date(task.snoozedUntil).getTime() + 1000)); assert.ok(dueNotices.data.some(row => String(row._id) === String(task._id)) || dueNotices.count > 20);
+      assert.equal((await api("manager", `/planner/${task._id}/snooze`, { ...snooze, option: "1h" }, "PATCH")).status, 409);
+      const cleared = await api("manager", `/planner/${task._id}/snooze`, { revision: task.revision, requestId: randomUUID(), option: "clear" }, "PATCH"); assert.equal(cleared.status, 200);
+      const progress = await api("manager", `/planner/${task._id}/progress`, { revision: cleared.body.data.revision, status: "In Progress" }, "PATCH");
+      const done = await api("manager", `/planner/${task._id}/progress`, { revision: progress.body.data.revision, status: "Done" }, "PATCH"); assert.equal(done.status, 200);
+      assert.equal((await api("admin", `/planner/${task._id}/snooze`, { revision: done.body.data.revision, requestId: randomUUID(), option: "30m" }, "PATCH")).status, 400);
+      const undo = await api("manager", `/planner/${task._id}/undo`, { revision: done.body.data.revision, token: done.body.data.undo.token }); assert.equal(undo.status, 200); assert.equal(undo.body.data.status, "In Progress"); assert.equal(undo.body.data.completedAt, null);
+      const cancel = await api("manager", `/planner/${task._id}/progress`, { revision: undo.body.data.revision, status: "Cancelled" }, "PATCH");
+      await assert.rejects(undoPlannerChange(String(task._id), { revision: cancel.body.data.revision, token: cancel.body.data.undo.token }, actors.manager, new Date(Date.now() + 20000)), /expired/);
+      const latest = await api("manager", `/planner/${task._id}/progress`, { revision: cancel.body.data.revision, status: "Pending" }, "PATCH"); assert.equal(latest.status, 200);
+      assert.equal((await api("manager", `/planner/${task._id}/undo`, { revision: cancel.body.data.revision, token: cancel.body.data.undo.token })).status, 409);
+      assert.equal((await api("manager", `/planner/${task._id}/snooze`, { revision: latest.body.data.revision, requestId: randomUUID(), option: "custom", until: "invalid" }, "PATCH")).status, 400);
+    });
+    await t.test("selected weekdays, pause/resume, pre-generated tasks, no paused backfill and no retroactive alerts", async () => {
+      const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+      const body = reminder({ title: "Custom repeat fixture", repeat: "custom", repeatOptions: { unit: "weeks", interval: 2, weekdays: [weekday, (weekday + 3) % 7].sort() }, dueDate: today, linkedRecord: null, responsibleId: "" });
+      assert.equal((await api("admin", "/planner", body)).status, 201); await ensurePlannerOccurrences(shiftPlannerDay(today, 62));
+      const task = await findTask(body.title); let series = await PlannerSeries.findById(task.series).lean();
+      const all = await PlannerTask.find({ series: series._id }).lean(); assert.ok(all.length > 2); assert.ok(all.every(row => body.repeatOptions.weekdays.includes(new Date(`${row.dueDate}T12:00:00Z`).getUTCDay())));
+      const count = all.length;
+      const paused = await api("admin", `/planner/${task._id}/schedule`, { revision: series.revision, paused: true }, "PATCH"); assert.equal(paused.status, 200); assert.equal(paused.body.data.paused, true);
+      assert.equal((await api("admin", `/planner/${task._id}/schedule`, { revision: series.revision, paused: false }, "PATCH")).status, 409);
+      await ensurePlannerOccurrences(shiftPlannerDay(today, 90)); assert.equal(await PlannerTask.countDocuments({ series: series._id }), count);
+      assert.equal((await listPlannerNotifications(actors.admin)).data.some(row => String(row._id) === String(task._id)), false);
+      // Simulate a long pause on this owned schedule, not the application clock.
+      const resumedAt = new Date(`${shiftPlannerDay(today, 120)}T09:00:00+03:00`);
+      series = await changePlannerSchedule(String(task._id), { revision: paused.body.data.revision, paused: false }, actors.admin, resumedAt);
+      assert.ok(series.nextOn >= shiftPlannerDay(today, 120));
+      await ensurePlannerOccurrences(shiftPlannerDay(today, 150));
+      assert.equal(await PlannerTask.countDocuments({ series: series._id, dueDate: { $gt: shiftPlannerDay(today, 62), $lt: shiftPlannerDay(today, 120) } }), 0);
+      assert.equal(await PlannerTask.countDocuments({ series: series._id, dueDate: { $lte: shiftPlannerDay(today, 62) } }), count, "Already-generated paused reminders stay visible");
+      const after = await listPlannerNotifications(actors.admin, resumedAt); assert.equal(after.data.some(row => String(row._id) === String(task._id)), false);
+      assert.ok(series.history.some(row => /resumed/.test(row.action)));
+      const current = await api("admin", `/planner/${task._id}`); assert.equal(current.body.data.series.repeatOptions.interval, 2);
+    });
+    await t.test("notification acknowledgements persist per admin and cycle across refreshes without changing tasks", async () => {
+      const body = reminder({ title: "Notification receipt fixture", dueDate: today, time: "00:00", linkedRecord: null });
+      await api("manager", "/planner", body); const task = await findTask(body.title), key = plannerNotificationKey(task);
+      const snapshot = JSON.stringify(await PlannerTask.findById(task._id).lean());
+      for (const action of ["read", "read", "dismiss"]) assert.equal((await api("manager", `/planner/${task._id}/notification`, { key, action })).status, 200);
+      assert.equal(await PlannerNotificationState.countDocuments({ user: actors.manager._id, task: task._id }), 1);
+      assert.equal(JSON.stringify(await PlannerTask.findById(task._id).lean()), snapshot);
+      const one = await api("manager", "/planner/notifications"), two = await api("manager", "/planner/notifications"); assert.deepEqual(one.body.data, two.body.data); assert.equal(one.body.count, two.body.count);
+      assert.equal(one.body.data.some(row => String(row._id) === String(task._id)), false);
+      assert.equal(await PlannerNotificationState.countDocuments({ user: actors.admin._id, task: task._id }), 0);
+      const snoozed = await snoozePlannerTask(String(task._id), { revision: task.revision, requestId: randomUUID(), option: "1h" }, actors.manager);
+      assert.notEqual(plannerNotificationKey(snoozed), key);
+      assert.equal((await api("manager", `/planner/${task._id}/notification`, { key, action: "read" })).status, 409);
+      for (const role of [null, "customer", "cashier", "inventory", "accountant", "rider"]) assert.equal((await api(role, "/planner/notifications")).status, role ? 403 : 401);
+      assert.deepEqual(await businessSnapshot(), before, "All new Planner workflows write only Planner-owned collections");
+    });
     if (process.env.RUN_PLANNER_BROWSER === "1") await t.test("three screens, desktop/mobile, real API and financial isolation", async () => {
       const { runPlannerBrowser } = await import("./helpers/plannerBrowser.js");
+      await PlannerTask.updateMany({ status: { $in: ["Pending", "In Progress"] } }, { $set: { status: "Cancelled" } });
       const snapshot = await businessSnapshot();
-      await runPlannerBrowser({ origin, tokens, today });
+      await runPlannerBrowser({ origin, tokens: { ...tokens, admin: tokens.browser }, today });
       assert.deepEqual(await businessSnapshot(), snapshot, "Browser Planner actions cannot change any business data");
     });
   } finally { await new Promise(resolve => server.close(resolve)); }

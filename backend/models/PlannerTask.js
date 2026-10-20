@@ -20,6 +20,9 @@ const schema = new mongoose.Schema({
   dueAt: { type: Date, required: true, index: true },
   status: { type: String, enum: PLANNER_STATUSES, default: "Pending", index: true },
   completedAt: { type: Date, default: null },
+  snoozedUntil: { type: Date, default: null },
+  snoozeRequest: { type: new mongoose.Schema({ key: String, hash: String }, { _id: false, strict: "throw" }), default: null },
+  undo: { type: new mongoose.Schema({ token: String, expiresAt: Date, revision: Number, previousStatus: String, previousCompletedAt: Date }, { _id: false, strict: "throw" }), default: null },
   deleted: { type: Boolean, default: false },
   deletionKind: { type: String, enum: ["single", "reschedule"], default: undefined },
   revision: { type: Number, default: 0 },
@@ -29,4 +32,6 @@ const schema = new mongoose.Schema({
 }, { timestamps: true, strict: "throw" });
 schema.index({ groupId: 1, scheduledOn: 1 }, { unique: true, partialFilterExpression: { deleted: false } });
 schema.index({ deleted: 1, status: 1, dueAt: 1 });
+schema.index({ deleted: 1, completedAt: -1 });
+schema.index({ deleted: 1, "responsible.id": 1, dueAt: 1 });
 export default mongoose.model("PlannerTask", schema);

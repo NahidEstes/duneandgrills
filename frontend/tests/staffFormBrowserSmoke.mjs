@@ -56,6 +56,7 @@ try {
         let status = 200;
         let payload = { success: true, data: [] };
         if (resource === "/auth/me" || resource === "/auth/session") payload = { user: actor };
+        else if (resource === "/planner/notifications") payload = { success: true, data: [], count: 0, unread: 0, now: new Date().toISOString() };
         else if (resource === "/cart") payload.data = { items: [], coupon: null };
         else if (resource === "/attendance/shifts") payload.data = [shift];
         else if (resource === "/admin/staff" && method === "GET") payload.data = staff;
@@ -75,6 +76,10 @@ try {
       page.on("pageerror", error => errors.push(error.message));
       await page.goto(`${origin}/admin/staff`);
       await page.getByText("No matching staff accounts.", { exact: true }).waitFor();
+      await page.getByRole("button", { name: "Planner reminders", exact: true }).click();
+      await page.getByRole("region", { name: "Planner notifications", exact: true }).getByText("No actionable reminders.", { exact: true }).waitFor();
+      await page.keyboard.press("Escape");
+      await page.getByRole("region", { name: "Planner notifications", exact: true }).waitFor({ state: "hidden" });
       const add = page.getByRole("button", { name: "Add staff", exact: true });
       await add.click();
       let dialog = page.getByRole("dialog", { name: "Add staff account", exact: true });
