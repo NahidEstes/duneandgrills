@@ -16,10 +16,11 @@ export default function PlannerReminderBell({ user, onNavigateAway }) {
   const refresh = useCallback(() => {
     if (!allowed || document.hidden) return;
     controller.current?.abort(); const request = new AbortController(); controller.current = request;
-    fetchPlannerNotifications({ signal: request.signal }).then(value => { if (!request.signal.aborted) { setData(value); setError(""); } }).catch(error => { if (!request.signal.aborted) setError(error.response?.data?.message || "Reminders unavailable. Retry."); });
+    fetchPlannerNotifications({ signal: request.signal }).then(value => { if (!request.signal.aborted) { setData(value); setError(""); } }).catch(error => { if (!request.signal.aborted) { if ([401, 403].includes(error.response?.status)) setData(null); setError(error.response?.data?.message || "Reminders unavailable. Retry."); } });
   }, [allowed]);
   useEffect(() => {
     if (!allowed) return;
+    setData(null); setOpen(false); setError("");
     refresh(); const timer = setInterval(refresh, 60000);
     const local = () => { refresh(); channel.current?.postMessage("updated"); };
     if (typeof BroadcastChannel !== "undefined") { channel.current = new BroadcastChannel(`dg-planner-${user._id}`); channel.current.onmessage = refresh; }

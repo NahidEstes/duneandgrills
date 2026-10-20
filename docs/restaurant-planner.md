@@ -75,6 +75,17 @@ orders, rewards, attendance, shifts, payroll, staff permissions, offers or menus
   latest 100 events; completed tasks remain stored until explicitly deleted.
 - Optimistic revisions prevent stale edits; creation and future-schedule edits
   use request IDs to prevent duplicate saves.
+- Historical occurrences from a replaced schedule remain individually editable.
+  They cannot replace future reminders again: use an occurrence from the current
+  schedule instead. This prevents overlapping schedules in the same group.
+- A failed list refresh explicitly labels retained results as stale and disables
+  their actions until a successful retry. Initial failures never claim that no
+  tasks exist. Permission failures discard retained list/notification data.
+- Leaving a task deep link while its details are loading clears that loading
+  state. Failed Pause/Resume requests keep the form and unsaved entries open;
+  successful actions retain the existing confirmation about discarding drafts.
+- Searching reference options preserves the selected person's/record's label;
+  clearing or changing the linked record hides its previous read-only link.
 
 ## Snooze, Undo and pausing
 

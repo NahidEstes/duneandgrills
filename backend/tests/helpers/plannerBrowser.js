@@ -72,6 +72,11 @@ export async function runPlannerBrowser({ origin, tokens, today }) {
         await choose("Repeat unit", "Months");
         await choose("Planner repeat", "Yearly");
         await choose("Planner repeat", "Weekly");
+        await choose("Responsible person (optional)", /^Planner manager(?: ·|$)/);
+        const missingStaff = page.waitForResponse(response => { const target = new URL(response.url()); return target.pathname === "/api/planner/references" && target.searchParams.get("search") === "no-matching-planner-staff"; });
+        await modal.getByRole("searchbox", { name: "Search Responsible person (optional)", exact: true }).fill("no-matching-planner-staff");
+        await missingStaff;
+        await page.waitForFunction(() => document.querySelector('[role="combobox"][aria-label="Responsible person (optional)"]')?.textContent.includes("Planner manager"));
         await choose("Planner reference type", "Supplier invoice");
         await modal.getByRole("combobox", { name: "Linked record", exact: true }).click();
         await page.getByRole("option", { name: "INV-PLAN-001 · VENDOR-PLAN-001", exact: true }).click();
@@ -95,6 +100,20 @@ export async function runPlannerBrowser({ origin, tokens, today }) {
         await modal.getByRole("button", { name: "Save task", exact: true }).click();
         await modal.waitFor({ state: "hidden" });
         await page.getByRole("searchbox", { name: "Search reminders", exact: true }).fill(title);
+        await page.getByRole("button", { name: `Complete ${title}`, exact: true }).waitFor();
+        let failRead = true;
+        const listRoute = resource => resource.pathname === "/api/planner";
+        const failedRead = async route => {
+          if (route.request().method() === "GET" && failRead) { failRead = false; return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Planner refresh unavailable. Retry." }) }); }
+          return route.continue();
+        };
+        await page.route(listRoute, failedRead);
+        await page.getByRole("button", { name: "Refresh Planner", exact: true }).click();
+        await page.getByRole("alert").filter({ hasText: "Planner refresh unavailable" }).waitFor();
+        assert.equal(await page.getByRole("button", { name: `Complete ${title}`, exact: true }).isDisabled(), true, "Stale reminders cannot be changed after a failed refresh");
+        await page.getByRole("button", { name: "Retry Planner", exact: true }).click();
+        await page.waitForFunction(() => !document.querySelector('[aria-label="Planner task list"]')?.getAttribute("aria-busy") || document.querySelector('[aria-label="Planner task list"]')?.getAttribute("aria-busy") === "false");
+        await page.unroute(listRoute, failedRead);
         await page.getByRole("button", { name: `Complete ${title}`, exact: true }).click();
         await page.getByRole("button", { name: `Reopen ${title}`, exact: true }).waitFor();
         await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -129,8 +148,23 @@ export async function runPlannerBrowser({ origin, tokens, today }) {
         await page.getByText(/^Snoozed until/).filter({ visible: true }).first().waitFor();
         await page.getByRole("button", { name: `Edit ${title}`, exact: true }).click();
         modal = page.getByRole("dialog", { name: "Edit planner task", exact: true });
+        await modal.getByLabel("Notes", { exact: true }).fill("Draft retained after a failed schedule action");
+        await modal.getByRole("link", { name: "View linked record (read-only)", exact: true }).waitFor();
+        await choose("Planner reference type", "No linked record");
+        assert.equal(await modal.getByRole("link", { name: "View linked record (read-only)", exact: true }).count(), 0, "Clearing a reference hides the previous record link");
+        let failSchedule = true;
+        const scheduleRoute = "**/api/planner/*/schedule";
+        const failedSchedule = async route => {
+          if (failSchedule) { failSchedule = false; return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Schedule temporarily unavailable." }) }); }
+          return route.continue();
+        };
+        await page.route(scheduleRoute, failedSchedule);
+        await modal.getByRole("button", { name: "Pause schedule", exact: true }).click();
+        await modal.getByRole("alert").filter({ hasText: "Schedule temporarily unavailable" }).waitFor();
+        assert.equal(await modal.getByLabel("Notes", { exact: true }).inputValue(), "Draft retained after a failed schedule action");
         await modal.getByRole("button", { name: "Pause schedule", exact: true }).click();
         await modal.waitFor({ state: "hidden" });
+        await page.unroute(scheduleRoute, failedSchedule);
         await page.getByText("Schedule paused", { exact: true }).filter({ visible: true }).first().waitFor();
         await page.getByRole("button", { name: `Edit ${title}`, exact: true }).click();
         modal = page.getByRole("dialog", { name: "Edit planner task", exact: true });
@@ -155,6 +189,15 @@ export async function runPlannerBrowser({ origin, tokens, today }) {
         await page.keyboard.press("Escape");
         await page.getByRole("dialog", { name: "Add planner task", exact: true }).waitFor({ state: "hidden" });
         await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+        await page.getByRole("button", { name: "Completed", exact: true }).click();
+        await page.getByRole("searchbox", { name: "Search reminders", exact: true }).fill("Historical note corrected");
+        await page.getByRole("button", { name: "Edit Historical note corrected", exact: true }).click();
+        modal = page.getByRole("dialog", { name: "Edit planner task", exact: true });
+        assert.equal(await modal.getByRole("radio", { name: "This and future reminders", exact: true }).isDisabled(), true, "Replaced schedules offer occurrence-only edits");
+        await page.keyboard.press("Escape");
+        await modal.waitFor({ state: "hidden" });
+        await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+        await page.getByRole("button", { name: "Today", exact: true }).click();
         const alertTitle = `Browser bell reminder ${viewport.width}`;
         const created = await context.request.post(url + "/api/planner", { headers: { "X-CSRF-Token": "owned-planner-csrf" }, data: { requestId: `browser-notice-${viewport.width}-${Date.now()}`, title: alertTitle, category: "Other", priority: "Normal", dueDate: today, time: "00:00", repeat: "none", checklist: [], notes: "Owned browser notification fixture", responsibleId: "", linkedRecord: null } });
         assert.equal(created.status(), 201, await created.text());
@@ -169,12 +212,41 @@ export async function runPlannerBrowser({ origin, tokens, today }) {
         await page.screenshot({ path: path.join(artifacts, `planner-snooze-${viewport.width}.png`) });
         await bellSnooze.getByRole("button", { name: "Cancel", exact: true }).click();
         await page.getByRole("button", { name: "Planner reminders", exact: true }).click();
+        const fixtureList = await context.request.get(url + "/api/planner?filter=all&search=" + encodeURIComponent(alertTitle));
+        const fixtureTask = (await fixtureList.json()).data[0];
+        let releaseDetail, detailStarted;
+        const detailGate = new Promise(resolve => { releaseDetail = resolve; });
+        const started = new Promise(resolve => { detailStarted = resolve; });
+        const detailRoute = resource => resource.pathname === `/api/planner/${fixtureTask._id}`;
+        const delayedDetail = async route => { detailStarted(); await detailGate; await route.continue().catch(() => {}); };
+        await page.route(detailRoute, delayedDetail);
+        try {
+          await notifications.getByRole("button", { name: new RegExp(`^${alertTitle}`) }).click();
+          await started;
+          await page.goBack();
+          await page.waitForURL(url + "/admin/planner");
+        } finally { releaseDetail(); }
+        await page.unroute(detailRoute, delayedDetail);
+        await page.getByRole("button", { name: "Add task", exact: true }).click();
+        await page.getByRole("dialog", { name: "Add planner task", exact: true }).waitFor();
+        await page.keyboard.press("Escape");
+        await page.getByRole("dialog", { name: "Add planner task", exact: true }).waitFor({ state: "hidden" });
+        await page.getByRole("button", { name: "Planner reminders", exact: true }).click();
         await notifications.getByRole("button", { name: new RegExp(`^${alertTitle}`) }).click();
         modal = page.getByRole("dialog", { name: "Edit planner task", exact: true }); await modal.waitFor();
         assert.equal(await modal.getByLabel("Task title", { exact: true }).inputValue(), alertTitle);
         await page.keyboard.press("Escape");
         await modal.waitFor({ state: "hidden" });
         await page.getByRole("button", { name: "Planner reminders", exact: true }).click();
+        const noticeRoute = "**/api/planner/notifications";
+        const deniedNotice = route => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ message: "Planner access expired." }) });
+        await page.route(noticeRoute, deniedNotice);
+        await page.getByRole("button", { name: "Close Planner reminders", exact: true }).click();
+        await page.getByRole("button", { name: "Planner reminders", exact: true }).click();
+        await notifications.getByRole("alert").filter({ hasText: "Planner access expired" }).waitFor();
+        assert.equal(await notifications.locator("article").count(), 0, "Permission errors discard previously loaded notification data");
+        await page.unroute(noticeRoute, deniedNotice);
+        await notifications.getByRole("button", { name: "Retry", exact: true }).click();
         const item = notifications.locator("article").filter({ hasText: alertTitle });
         await item.getByRole("button", { name: "Dismiss alert", exact: true }).click();
         await item.waitFor({ state: "hidden" });

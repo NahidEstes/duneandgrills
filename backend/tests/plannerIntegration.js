@@ -128,6 +128,24 @@ test("Planner reminders, recurrence and references never mutate business data (o
       await api("admin", "/planner?filter=upcoming");
       assert.equal(await PlannerTask.countDocuments({ groupId: daily.groupId, scheduledOn: next.scheduledOn, deleted: false }), 1);
     });
+    await t.test("historical occurrences cannot fork an already replaced repeat schedule", async () => {
+      const body = reminder({ title: "Historical repeat guard", dueDate: shiftPlannerDay(today, -4), repeat: "daily", linkedRecord: null });
+      assert.equal((await api("admin", "/planner", body)).status, 201);
+      await ensurePlannerOccurrences(shiftPlannerDay(today, 62));
+      const first = await PlannerTask.findOne({ title: body.title, dueDate: body.dueDate }).lean();
+      const done = await api("admin", `/planner/${first._id}/progress`, { revision: first.revision, status: "Done" }, "PATCH");
+      assert.equal(done.status, 200);
+      const split = await PlannerTask.findOne({ series: first.series, dueDate: shiftPlannerDay(today, -2) }).lean();
+      const replacement = { ...body, requestId: randomUUID(), dueDate: split.dueDate, repeat: "weekly", scope: "future", revision: split.revision };
+      assert.equal((await api("admin", `/planner/${split._id}`, replacement, "PATCH")).status, 200);
+      const snapshot = JSON.stringify({ series: await PlannerSeries.find({ groupId: first.groupId }).sort({ _id: 1 }).lean(), tasks: await PlannerTask.find({ groupId: first.groupId }).sort({ _id: 1 }).lean() });
+      const stale = { ...body, requestId: randomUUID(), repeat: "monthly", scope: "future", revision: done.body.data.revision };
+      const rejected = await api("admin", `/planner/${first._id}`, stale, "PATCH");
+      assert.equal(rejected.status, 409, "Editing an old completed task must not overlap its replacement schedule");
+      assert.equal(JSON.stringify({ series: await PlannerSeries.find({ groupId: first.groupId }).sort({ _id: 1 }).lean(), tasks: await PlannerTask.find({ groupId: first.groupId }).sort({ _id: 1 }).lean() }), snapshot);
+      const local = { ...stale, requestId: randomUUID(), scope: "occurrence", repeat: "daily", title: "Historical note corrected" };
+      assert.equal((await api("admin", `/planner/${first._id}`, local, "PATCH")).status, 200, "The historical occurrence remains individually editable");
+    });
     await t.test("monthly schedules and missing references remain usable without business-side writes", async () => {
       const year = Number(today.slice(0, 4));
       const body = reminder({ title: "Monthly service", dueDate: `${year}-01-31`, repeat: "monthly", linkedRecord: null, responsibleId: "" });

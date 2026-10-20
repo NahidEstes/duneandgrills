@@ -117,7 +117,7 @@ export async function editPlannerTask(id, body, actor) {
       const locked = await PlannerSeries.findOneAndUpdate({ _id: series._id }, { $inc: { revision: 1 } }, { new: true, session });
       const task = await getPlannerTask(id, session); checkRevision(body, task);
       const cutoff = task.scheduledOn;
-      if (locked.endBefore && cutoff >= locked.endBefore) throw new PlannerError("This repeat schedule changed. Refresh before editing future reminders", 409);
+      if (locked.endBefore) throw new PlannerError("This schedule was replaced. Edit this occurrence only, or open a reminder from the current schedule to change future reminders", 409);
       if (normalized.template.dueDate < cutoff) throw new PlannerError("Future reminders cannot start before the selected occurrence");
       locked.endBefore = cutoff;
       if (locked.nextOn && locked.nextOn >= cutoff) locked.nextOn = null;
