@@ -1,4 +1,5 @@
 "use client";
+import useDialogChanges from "../ui/useDialogChanges.js";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 
@@ -61,6 +62,8 @@ const CategoriesTab = ({ onDataChanged }) => {
   const [query, setQuery] = useState("");
   const [visibility, setVisibility] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const draftRef = useRef(null);
+  const draftGuard = useDialogChanges({ open: showForm, rootRef: draftRef, onClose: () => setShowForm(false), escape: true });
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const requestId = useRef(0);
@@ -269,9 +272,9 @@ const CategoriesTab = ({ onDataChanged }) => {
       </section>
 
       {showForm && (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" onMouseDown={() => setShowForm(false)}>
-          <form onSubmit={handleSubmit} onMouseDown={(event) => event.stopPropagation()} className="my-10 w-full max-w-lg rounded-2xl border border-white/10 bg-[#101416] p-5 shadow-2xl sm:p-6">
-            <div className="mb-5 flex items-start justify-between gap-4"><div><h2 className="font-body text-xl font-semibold text-white">{editingId ? "Edit" : "Add"} {copy.singular}</h2><p className="mt-1 text-xs text-neutral-500">This category is independent from the other content system.</p></div><button type="button" onClick={() => setShowForm(false)} aria-label="Close form" className="rounded-lg p-2 text-neutral-400 hover:bg-white/5 hover:text-white"><X className="h-5 w-5" /></button></div>
+        <div ref={draftRef} {...draftGuard.capture} className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" onMouseDown={draftGuard.requestClose}>
+          <form aria-busy={saving} onSubmit={handleSubmit} onMouseDown={(event) => event.stopPropagation()} className="my-10 w-full max-w-lg rounded-2xl border border-white/10 bg-[#101416] p-5 shadow-2xl sm:p-6">
+            <div className="mb-5 flex items-start justify-between gap-4"><div><h2 className="font-body text-xl font-semibold text-white">{editingId ? "Edit" : "Add"} {copy.singular}</h2><p className="mt-1 text-xs text-neutral-500">This category is independent from the other content system.</p></div><button type="button" onClick={draftGuard.requestClose} aria-label="Close form" className="rounded-lg p-2 text-neutral-400 hover:bg-white/5 hover:text-white"><X className="h-5 w-5" /></button></div>
             <div className="space-y-4">
               <label className="block text-xs text-neutral-400">Category name<input required minLength={2} maxLength={80} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="block text-xs text-neutral-400">Description<textarea rows={3} maxLength={240} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${FIELD_CLASS} resize-none`} /></label>

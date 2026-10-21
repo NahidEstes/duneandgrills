@@ -7,7 +7,7 @@ import { pendingSubmission, submissionStorageKey, submitPersisted } from "@/src/
 import { createSupplierPayment } from "@/src/api/inventoryApi.js";
 import { dateValue } from "@/src/components/admin/finance/financeUtils.js";
 import { apiErrorMessage, humanize } from "./inventoryUtils.js";
-import { Button, Field, inputClass, textareaClass } from "./InventoryUI.jsx";
+import { Button, Field, FormActions, inputClass, textareaClass } from "./InventoryUI.jsx";
 
 export default function SupplierPaymentForm({ invoice, actorId, onComplete }) {
   const key = submissionStorageKey("supplier-payment", actorId, invoice._id);
@@ -25,7 +25,7 @@ export default function SupplierPaymentForm({ invoice, actorId, onComplete }) {
   };
   const shown = pending || payment;
   const change = (field, value) => setPayment(current => ({ ...current, [field]: value }));
-  return <form onSubmit={submit} className="space-y-4">
+  return <form aria-busy={busy} onSubmit={submit} className="space-y-4">
     {pending && <p role="status" className="text-sm text-amber-300">An earlier payment needs confirmation. Retry its exact saved details; do not record another payment.</p>}
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     <fieldset disabled={busy || Boolean(pending)} className="space-y-4">
@@ -35,6 +35,6 @@ export default function SupplierPaymentForm({ invoice, actorId, onComplete }) {
       <Field label="Transaction reference"><input className={inputClass} value={shown.transactionReference} onChange={e => change("transactionReference", e.target.value)} /></Field>
       <Field label="Note"><textarea className={textareaClass} value={shown.note} onChange={e => change("note", e.target.value)} /></Field>
     </fieldset>
-    <Button type="submit" disabled={busy}>{pending ? "Retry saved payment" : "Record payment"}</Button>
+    <FormActions busy={busy}><Button type="submit" disabled={busy}>{pending ? "Retry saved payment" : "Record payment"}</Button></FormActions>
   </form>;
 }

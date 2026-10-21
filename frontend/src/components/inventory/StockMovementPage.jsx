@@ -1,4 +1,6 @@
 "use client";
+import { usePageFormChanges } from "../ui/useDialogChanges.js";
+import ResourceStatus from "../ui/ResourceStatus.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
@@ -25,14 +27,16 @@ const optionsByPage = {
 };
 
 export default function StockMovementPage({ pageType }) {
+  const pageRef = useRef(null);
   const options = optionsByPage[pageType];
   const [movementType, setMovementType] = useState(options[0].value);
   const [items, setItems] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [form, setForm] = useState({ item: "", supplier: "", quantity: "", reason: "", notes: "", unitCost: "", lotNumber: "", receivedAt: "", expiryDate: "", allowNegativeStock: false });
   const [submitting, setSubmitting] = useState(false);
+  const [formRevision, setFormRevision] = useState(0);
   useEffect(() => { Promise.all([fetchInventoryItems({ limit: 100, sortBy: "name", sortOrder: "asc" }), fetchSuppliers()]).then(([itemResponse, supplierRows]) => { setItems(itemResponse.data); setSuppliers(supplierRows); }).catch(() => toast.error("Unable to load stock movement options.")); }, []);
-  const { data, loading, reload } = useInventoryResource(() => fetchStockMovements({ limit: 20, movementType: movementType === "ADJUSTMENT" ? "ADJUSTMENT" : undefined }), [movementType]);
+  const { data, loading, reload, error, lastSuccessAt, refreshing } = useInventoryResource(() => fetchStockMovements({ limit: 20, movementType: movementType === "ADJUSTMENT" ? "ADJUSTMENT" : undefined }), [movementType]);
   const selectedItem = items.find((item) => item._id === form.item);
   const selectedOption = options.find((option) => option.value === movementType);
   const SelectedIcon = selectedOption.icon;
@@ -47,6 +51,7 @@ export default function StockMovementPage({ pageType }) {
       await createStockMovement({ ...form, movementType, quantity: Number(form.quantity), unitCost: isInbound && form.unitCost !== "" ? Number(form.unitCost) : undefined, expiryDate: isInbound && form.expiryDate ? form.expiryDate : undefined });
       toast.success(`${selectedOption.label} recorded. Stock and transaction history were updated together.`);
       setForm({ item: "", supplier: "", quantity: "", reason: "", notes: "", unitCost: "", lotNumber: "", receivedAt: "", expiryDate: "", allowNegativeStock: false });
+      setFormRevision(value => value + 1);
       const response = await fetchInventoryItems({ limit: 100, sortBy: "name", sortOrder: "asc" }); setItems(response.data); reload({ silent: true });
     } catch (error) { toast.error(apiErrorMessage(error, "Unable to record stock movement.")); }
     finally { setSubmitting(false); }
@@ -62,10 +67,11 @@ export default function StockMovementPage({ pageType }) {
     { key: "user", label: "Recorded by", render: (row) => row.user?.name || "—" },
   ], []);
 
-  return <div className="mx-auto max-w-[1500px]"><PageHeader title={pageType === "stock-in" ? "Stock In" : "Stock Out"} description="Every quantity change creates a permanent transaction with before and after balances." />
+  const formGuard = usePageFormChanges({ open: true, rootRef: pageRef, resetKey: formRevision });
+  return <div ref={pageRef} {...formGuard.capture} className="mx-auto max-w-[1500px]"><PageHeader title={pageType === "stock-in" ? "Stock In" : "Stock Out"} description="Every quantity change creates a permanent transaction with before and after balances." /><ResourceStatus lastSuccessAt={lastSuccessAt} refreshing={refreshing} loading={loading} error={error} hasData={data !== null} onRetry={() => reload({ silent: true })} showDetails={true} />
     <div className="mb-4 flex flex-wrap gap-2">{options.map(({ value, label, icon: Icon }) => <button key={value} type="button" onClick={() => setMovementType(value)} className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold transition ${movementType === value ? "border-dune-amber/40 bg-dune-amber/10 text-dune-amberLight" : "border-white/10 bg-white/[0.025] text-neutral-500 hover:text-white"}`}><Icon className="h-4 w-4" />{label}</button>)}</div>
     <div className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
-      <form onSubmit={submit} className={`${cardClass} h-fit p-5`}>
+      <form aria-busy={submitting} onSubmit={submit} className={`${cardClass} h-fit p-5`}>
         <div className="mb-5 flex items-start gap-3"><span className="rounded-xl bg-dune-amber/10 p-2.5 text-dune-amber"><SelectedIcon className="h-5 w-5" /></span><div><h2 className="font-body text-base font-semibold text-white">Record {selectedOption.label}</h2><p className="mt-1 text-xs leading-5 text-neutral-600">{selectedOption.help}</p></div></div>
         <div className="space-y-4">
           <Field label="Inventory item"><DarkSelect required className={inputClass} value={form.item} onChange={(event) => { const itemId = event.target.value; const item = items.find((row) => row._id === itemId); setForm((current) => ({ ...current, item: itemId, supplier: item?.supplier?._id || item?.supplier || "" })); }}><option value="">Choose item</option>{items.map((item) => <option key={item._id} value={item._id}>{item.name} · {formatQuantity(item.currentStock, item.unit)}</option>)}</DarkSelect></Field>
@@ -84,7 +90,7 @@ export default function StockMovementPage({ pageType }) {
           <Button type="submit" className="w-full" disabled={submitting}>{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Record movement</Button>
         </div>
       </form>
-      <section className={cardClass}><div className="flex items-center justify-between border-b border-white/10 p-4"><div><h2 className="font-body text-base font-semibold text-white">Recent Stock Activity</h2><p className="text-xs text-neutral-600">Permanent audit history</p></div><Button variant="ghost" size="icon" onClick={() => reload()}><RefreshCw className="h-4 w-4" /></Button></div>{loading ? <LoadingState /> : <DataTable columns={columns} rows={data?.data} empty={<EmptyState title="No stock movements yet" />} />}</section>
+      <section className={cardClass}><div className="flex items-center justify-between border-b border-white/10 p-4"><div><h2 className="font-body text-base font-semibold text-white">Recent Stock Activity</h2><p className="text-xs text-neutral-600">Permanent audit history</p></div><Button variant="ghost" size="icon" onClick={() => reload().catch(() => undefined)}><RefreshCw className="h-4 w-4" /></Button></div>{loading ? <LoadingState /> : error && data == null ? null : <DataTable columns={columns} rows={data?.data} empty={<EmptyState title="No stock movements yet" />} />}</section>
     </div>
   </div>;
 }

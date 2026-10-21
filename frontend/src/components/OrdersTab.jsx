@@ -1,4 +1,6 @@
 "use client";
+import ResourceStatus from "./ui/ResourceStatus.jsx";
+import TableTools, { useTablePreferences } from "./ui/TableTools.jsx";
 import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
@@ -318,6 +320,9 @@ export const OrderRowModal = ({ order, onClose, onSaved, receiptSettings }) => {
 };
 
 const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, statusFilter = "all", attentionFilter = "", onClearAttention, selectedOrderId = "", onStatusFilterChange, onOpenOrder, onCloseOrder, onUnauthorized }) => {
+  const table = useTablePreferences("admin-orders", 20);
+  const [lastSuccessAt, setLastSuccessAt] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const activeFilter = statusFilter;
@@ -361,8 +366,8 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
     from,
     to,
     page,
-    limit: 20,
-  }), [activeFilter, attentionFilter, sourceFilter, orderTypeFilter, paymentFilter, debouncedQuery, from, to, page]);
+    limit: table.pageSize,
+  }), [activeFilter, attentionFilter, sourceFilter, orderTypeFilter, paymentFilter, debouncedQuery, from, to, page, table.pageSize]);
 
   const latestFilters = useRef(requestFilters);
   const listMounted = useRef(false);
@@ -372,21 +377,21 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
     listRequest.current?.abort();
     const controller = new AbortController();
     listRequest.current = controller;
-    setLoading(true);
+    setLoading(true); setLoadError(null);
     try {
       const [orderResult, statData] = await Promise.all([
         fetchOrdersPage(filters, { signal: controller.signal }),
         fetchOrderStats(filters, { signal: controller.signal }),
       ]);
       if (controller.signal.aborted || listRequest.current !== controller) return;
-      setOrders(orderResult.data);
+      setOrders(orderResult.data); setLastSuccessAt(Date.now());
       setPagination(orderResult.pagination || { page: 1, pages: 1, total: orderResult.data.length });
       setStats(statData);
       setSelected(new Set());
     } catch (err) {
       if (controller.signal.aborted || listRequest.current !== controller) return;
       if (err.response?.status === 401) onUnauthorized?.(err);
-      toast.error(err.response?.data?.message || "Unable to load orders.");
+      setLoadError(err); toast.error(err.response?.data?.message || "Unable to load orders.");
     } finally {
       if (!controller.signal.aborted && listRequest.current === controller) setLoading(false);
     }
@@ -508,6 +513,7 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
         </div>
       )}
 
+      <ResourceStatus lastSuccessAt={lastSuccessAt} loading={loading} error={loadError} hasData={lastSuccessAt !== null} onRetry={load} /><TableTools preferences={table} columns={[{ key: "select", label: "Select" }, { key: "order", label: "Order #", required: true }, { key: "customer", label: "Customer" }, { key: "date", label: "Date & time" }, { key: "items", label: "Items" }, { key: "type", label: "Type" }, { key: "source", label: "Source" }, { key: "payment", label: "Payment" }, { key: "total", label: "Total" }, { key: "status", label: "Status" }, { key: "actions", label: "Actions", required: true }]} filters={{ status: activeFilter, query, sourceFilter, orderTypeFilter, paymentFilter, from, to }} onApplyFilters={value => { onStatusFilterChange?.(value.status); setQuery(value.query); setSourceFilter(value.sourceFilter); setOrderTypeFilter(value.orderTypeFilter); setPaymentFilter(value.paymentFilter); setFrom(value.from); setTo(value.to); setPage(1); }} onPageSizeChange={size => { table.update(value => ({ ...value, pageSize: size })); setPage(1); }} />
       {/* Orders table */}
       {loading ? (
         <p className="text-neutral-500">Loading orders...</p>
@@ -516,17 +522,17 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
           <table className="min-w-[1100px] w-full text-sm">
             <thead>
               <tr className="border-b border-dune-border text-left text-neutral-400">
-                <th className="p-4"><input aria-label="Select all orders on this page" type="checkbox" checked={orders.length > 0 && selected.size === orders.length} onChange={togglePage} className="accent-orange-500" /></th>
-                <th className="p-4">Order #</th>
-                <th className="p-4">Customer</th>
-                <th className="p-4">Date &amp; Time</th>
-                <th className="p-4">Items</th>
-                <th className="p-4">Type</th>
-                <th className="p-4">Source</th>
-                <th className="p-4">Payment</th>
-                <th className="p-4">Total</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right">Actions</th>
+                <th style={{ display: undefined }} className="p-4"><input aria-label="Select all orders on this page" type="checkbox" checked={orders.length > 0 && selected.size === orders.length} onChange={togglePage} className="accent-orange-500" /></th>
+                <th style={{ display: undefined }} className="p-4">Order #</th>
+                <th style={{ display: table.hidden.includes("customer") ? "none" : undefined }} className="p-4">Customer</th>
+                <th style={{ display: table.hidden.includes("date") ? "none" : undefined }} className="p-4">Date &amp; Time</th>
+                <th style={{ display: table.hidden.includes("items") ? "none" : undefined }} className="p-4">Items</th>
+                <th style={{ display: table.hidden.includes("type") ? "none" : undefined }} className="p-4">Type</th>
+                <th style={{ display: table.hidden.includes("source") ? "none" : undefined }} className="p-4">Source</th>
+                <th style={{ display: table.hidden.includes("payment") ? "none" : undefined }} className="p-4">Payment</th>
+                <th style={{ display: table.hidden.includes("total") ? "none" : undefined }} className="p-4">Total</th>
+                <th style={{ display: table.hidden.includes("status") ? "none" : undefined }} className="p-4">Status</th>
+                <th style={{ display: undefined }} className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -536,28 +542,28 @@ const OrdersTab = ({ onDataChanged, onOrderStatusChanged, refreshKey = 0, status
                   onClick={() => onOpenOrder?.(order._id)}
                   className="border-b border-dune-border last:border-0 cursor-pointer hover:bg-black/40 transition-colors"
                 >
-                  <td className="p-4" onClick={(event) => event.stopPropagation()}><input aria-label={`Select order ${order.orderNumber}`} type="checkbox" checked={selected.has(order._id)} onChange={() => toggleSelected(order._id)} className="accent-orange-500" /></td>
-                  <td className="min-w-48 p-4 text-white font-medium">
+                  <td style={{ display: undefined }} className="p-4" onClick={(event) => event.stopPropagation()}><input aria-label={`Select order ${order.orderNumber}`} type="checkbox" checked={selected.has(order._id)} onChange={() => toggleSelected(order._id)} className="accent-orange-500" /></td>
+                  <td style={{ display: undefined }} className="min-w-48 p-4 text-white font-medium">
                     {order.scheduledAt && <p className="mb-1 text-xs text-dune-amber">Scheduled: {new Date(order.scheduledAt).toLocaleString('en-GB', { timeZone: 'Asia/Riyadh' })} (Riyadh)</p>}
                     <span className="flex items-center gap-2"><RecordId value={order.orderNumber} />{order.isOverdue && <span title="Preparation overdue" className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[0.65rem] text-red-300"><Clock className="h-3 w-3" />Overdue</span>}</span>
                   </td>
-                  <td className="p-4">{order.customer?.name}</td>
-                  <td className="p-4 text-neutral-400 text-xs">
+                  <td style={{ display: table.hidden.includes("customer") ? "none" : undefined }} className="p-4">{order.customer?.name}</td>
+                  <td style={{ display: table.hidden.includes("date") ? "none" : undefined }} className="p-4 text-neutral-400 text-xs">
                     {orderDateLabel(order.orderOccurredAt || order.createdAt)}
                   </td>
-                  <td className="p-4">{order.items.length}</td>
-                  <td className="p-4 text-xs text-neutral-300">
+                  <td style={{ display: table.hidden.includes("items") ? "none" : undefined }} className="p-4">{order.items.length}</td>
+                  <td style={{ display: table.hidden.includes("type") ? "none" : undefined }} className="p-4 text-xs text-neutral-300">
                     {formatOrderType(order.orderType)}{order.diningTable?.code && <span className="ml-2 text-dune-amber">Table {order.diningTable.code} · {order.diningTable.name}</span>}
                   </td>
-                  <td className="p-4 text-xs text-neutral-300"><span>{labelSource(order.source)}</span>{order.externalOrderId && <span className="mt-1 block text-[0.65rem] text-dune-amber">{order.manualEntry ? "Manual · " : ""}<RecordId value={order.externalOrderId} /></span>}</td>
-                  <td className="p-4 text-xs text-neutral-300">{order.paymentMethod && order.paymentMethod !== "unrecorded" ? formatOrderType(order.paymentMethod) : "—"}</td>
-                  <td className="p-4 text-dune-amber font-medium">
+                  <td style={{ display: table.hidden.includes("source") ? "none" : undefined }} className="p-4 text-xs text-neutral-300"><span>{labelSource(order.source)}</span>{order.externalOrderId && <span className="mt-1 block text-[0.65rem] text-dune-amber">{order.manualEntry ? "Manual · " : ""}<RecordId value={order.externalOrderId} /></span>}</td>
+                  <td style={{ display: table.hidden.includes("payment") ? "none" : undefined }} className="p-4 text-xs text-neutral-300">{order.paymentMethod && order.paymentMethod !== "unrecorded" ? formatOrderType(order.paymentMethod) : "—"}</td>
+                  <td style={{ display: table.hidden.includes("total") ? "none" : undefined }} className="p-4 text-dune-amber font-medium">
                     {formatAdminCurrency(order.totalAmount)}
                   </td>
-                  <td className="p-4">
+                  <td style={{ display: table.hidden.includes("status") ? "none" : undefined }} className="p-4">
                     <StatusBadge status={order.status} />
                   </td>
-                  <td
+                  <td style={{ display: undefined }}
                     className="p-4 text-right"
                     onClick={(e) => e.stopPropagation()}
                   >

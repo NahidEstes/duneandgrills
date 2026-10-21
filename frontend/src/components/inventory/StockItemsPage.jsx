@@ -1,4 +1,6 @@
 "use client";
+import TableTools, { useTablePreferences } from "../ui/TableTools.jsx";
+import ResourceStatus from "../ui/ResourceStatus.jsx";
 import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
@@ -34,6 +36,7 @@ function StockHealthStatus({ item }) {
 }
 
 export default function StockItemsPage({ initialStatus = "" }) {
+  const table = useTablePreferences("inventory-stock-items", 20);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -52,9 +55,9 @@ export default function StockItemsPage({ initialStatus = "" }) {
   useEffect(() => { if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("action") === "add") setModalOpen(true); }, []);
   useEffect(() => { const id = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("edit") : null; if (id) fetchInventoryItem(id).then((row) => { setEditing(row); setModalOpen(true); }).catch(() => toast.error("The linked stock item could not be loaded.")); }, []);
 
-  const { data, loading, reload } = useInventoryResource(
-    () => fetchInventoryItems({ page, limit: 20, search: debouncedSearch || undefined, category: category || undefined, supplier: supplier || undefined, status: status || undefined, sortBy, sortOrder }),
-    [page, debouncedSearch, category, supplier, status, sortBy, sortOrder]
+  const { data, loading, reload, error, lastSuccessAt, refreshing } = useInventoryResource(
+    () => fetchInventoryItems({ page, limit: table.pageSize, search: debouncedSearch || undefined, category: category || undefined, supplier: supplier || undefined, status: status || undefined, sortBy, sortOrder }),
+    [page, debouncedSearch, category, supplier, status, sortBy, sortOrder, table.pageSize]
   );
 
   const openCreate = () => { setEditing(null); setModalOpen(true); };
@@ -85,11 +88,11 @@ export default function StockItemsPage({ initialStatus = "" }) {
     { key: "supplier", label: "Supplier", render: (item) => item.supplier?.name || "—" },
     { key: "updated", label: "Updated", render: (item) => formatDate(item.updatedAt, true) },
     { key: "status", label: "Status", render: (item) => <StockHealthStatus item={item} /> },
-    { key: "actions", label: "", render: (item) => <div className="flex justify-end gap-1"><button type="button" onClick={() => { setEditing(item); setModalOpen(true); }} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white" aria-label={`Edit ${item.name}`}><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => archive(item)} className="rounded-lg p-2 text-neutral-500 hover:bg-red-500/10 hover:text-red-300" aria-label={`Archive ${item.name}`}><Archive className="h-4 w-4" /></button></div> },
+    { key: "actions", label: "", render: (item) => <div className="flex justify-end gap-1"><button type="button" disabled={loading || refreshing || Boolean(error)} onClick={() => { setEditing(item); setModalOpen(true); }} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white" aria-label={`Edit ${item.name}`}><Pencil className="h-4 w-4" /></button><button type="button" disabled={loading || refreshing || Boolean(error)} onClick={() => archive(item)} className="rounded-lg p-2 text-neutral-500 hover:bg-red-500/10 hover:text-red-300" aria-label={`Archive ${item.name}`}><Archive className="h-4 w-4" /></button></div> },
   ];
 
   return <div className="mx-auto max-w-[1680px]">
-    <PageHeader title="Stock Items" description="Create and maintain inventory items. Quantity changes are recorded separately as stock movements." actions={<><Link href="/inventory/stock-in"><Button variant="secondary"><ArrowDownToLine className="h-4 w-4" />Stock in</Button></Link><Link href="/inventory/stock-out"><Button variant="secondary"><ArrowUpFromLine className="h-4 w-4" />Stock out</Button></Link><Button onClick={openCreate}><Plus className="h-4 w-4" />Add item</Button></>} />
+    <PageHeader title="Stock Items" description="Create and maintain inventory items. Quantity changes are recorded separately as stock movements." actions={<><Link href="/inventory/stock-in"><Button variant="secondary"><ArrowDownToLine className="h-4 w-4" />Stock in</Button></Link><Link href="/inventory/stock-out"><Button variant="secondary"><ArrowUpFromLine className="h-4 w-4" />Stock out</Button></Link><Button disabled={loading || refreshing || Boolean(error)} onClick={openCreate}><Plus className="h-4 w-4" />Add item</Button></>} /><ResourceStatus lastSuccessAt={lastSuccessAt} refreshing={refreshing} loading={loading} error={error} hasData={data !== null} onRetry={() => reload({ silent: true })} showDetails={true} /><div className={cardClass + " mb-4"}><TableTools preferences={table} columns={columns} filters={{ search, category, supplier, status, sortBy, sortOrder }} onApplyFilters={value => { setSearch(value.search); setCategory(value.category); setSupplier(value.supplier); setStatus(value.status); setSortBy(value.sortBy); setSortOrder(value.sortOrder); setPage(1); }} onPageSizeChange={size => { table.update(value => ({ ...value, pageSize: size })); setPage(1); }} /></div>
     <section className={cardClass}>
       <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_1fr_1fr_0.8fr_0.9fr]">
         <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by item, SKU, brand or location…" /></label>
@@ -98,7 +101,7 @@ export default function StockItemsPage({ initialStatus = "" }) {
         <DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">Active items</option>{inventoryHealthOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}<option value="inactive">Inactive</option></DarkSelect>
         <div className="flex gap-2"><DarkSelect className={inputClass} value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="updatedAt">Recently updated</option><option value="name">Name</option><option value="currentStock">Stock</option><option value="unitCost">Unit cost</option></DarkSelect><button type="button" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 text-neutral-500 hover:text-white" onClick={() => setSortOrder((value) => value === "asc" ? "desc" : "asc")} aria-label="Toggle sort direction"><SlidersHorizontal className="h-4 w-4" /></button></div>
       </div>
-      {loading ? <LoadingState /> : <DataTable columns={columns} rows={data?.data} empty={<EmptyState title="No stock items found" description="Add an item or change the current filters." action={<Button onClick={openCreate}><Plus className="h-4 w-4" />Add first item</Button>} />} />}
+      {loading ? <LoadingState /> : error && data == null ? null : <DataTable columns={table.visibleColumns(columns)} rows={data?.data} empty={<EmptyState title="No stock items found" description="Add an item or change the current filters." action={<Button onClick={openCreate}><Plus className="h-4 w-4" />Add first item</Button>} />} />}
       <Pagination pagination={data?.pagination} onPageChange={setPage} />
     </section>
     <Modal open={modalOpen} onClose={closeForm} title={editing ? `Edit ${editing.name}` : "Add stock item"} description="Create and maintain an inventory item." maxWidth="max-w-3xl"><StockItemForm item={editing} categories={metadata.categories} suppliers={metadata.suppliers} onSubmit={submit} onCancel={closeForm} submitting={submitting} /></Modal>

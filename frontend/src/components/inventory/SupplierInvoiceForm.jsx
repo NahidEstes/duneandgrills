@@ -5,7 +5,7 @@ import { Trash2 } from "lucide-react";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import { fetchBillableQuantities } from "@/src/api/inventoryApi.js";
-import { Button, Field, Money, inputClass, textareaClass } from "./InventoryUI.jsx";
+import { Button, Field, FormActions, FormSection, Money, inputClass, textareaClass } from "./InventoryUI.jsx";
 import { apiErrorMessage, humanize } from "./inventoryUtils.js";
 
 const reference = value => String(value?._id || value || "");
@@ -61,19 +61,19 @@ export default function SupplierInvoiceForm({ invoice, suppliers, orders, onSubm
     onSubmit({ ...form, dueDate: form.dueDate || null, tax: Number(form.tax), discount: Number(form.discount), additionalCharges: Number(form.additionalCharges), items: form.items.map(({ name: _name, unit: _unit, ...row }) => ({ ...row, quantity: Number(row.quantity), unitPrice: Number(row.unitPrice), tax: Number(row.tax || 0), discount: Number(row.discount || 0) })) });
   };
   const total = form.items.reduce((sum, row) => sum + Number(row.quantity || 0) * Number(row.unitPrice || 0) + Number(row.tax || 0) - Number(row.discount || 0), 0) + Number(form.tax) + Number(form.additionalCharges) - Number(form.discount);
-  return <form onSubmit={submit} className="space-y-5">
+  return <form aria-busy={submitting} onSubmit={submit} className="space-y-5">
     <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-100/70">Drafts do not reserve goods. Submitted, review-required, approved, posted and disputed invoices do. Voiding releases the reservation. Quantities below are a preview; the server rechecks every commitment.</p>
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     {loading && <p role="status" className="text-xs text-amber-300">Checking remaining billable quantities…</p>}
     <fieldset disabled={submitting || loading} className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <FormSection title="Supplier & invoice details"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Supplier"><DarkSelect required className={inputClass} value={form.supplier} onChange={event => { request.current += 1; setAvailability({}); setForm({ ...form, supplier: event.target.value, purchaseOrder: "", items: [] }); }}><option value="">Choose supplier</option>{suppliers.map(row => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
         <Field label="Supplier invoice number"><input required className={inputClass} value={form.supplierInvoiceNumber} onChange={event => setForm({ ...form, supplierInvoiceNumber: event.target.value })} /></Field>
         <Field label="Purchase order"><DarkSelect required className={inputClass} value={form.purchaseOrder} onChange={event => chooseOrder(event.target.value)}><option value="">Choose received PO</option>{availableOrders.map(row => <option key={row._id} value={row._id}>{row.orderNumber} · {humanize(row.status)}</option>)}</DarkSelect><button type="button" onClick={() => chooseOrder(form.purchaseOrder)} disabled={!form.purchaseOrder} className="mt-1 text-xs text-dune-amber">Refresh / add unbilled lines</button></Field>
         <Field label="Invoice date"><DarkDatePicker required className={inputClass} value={form.invoiceDate} onChange={event => setForm({ ...form, invoiceDate: event.target.value })} /></Field>
         <Field label="Due date"><DarkDatePicker className={inputClass} value={form.dueDate} onChange={event => setForm({ ...form, dueDate: event.target.value })} /></Field>
       </div>
-      <div className="space-y-3">{form.items.map((row, index) => {
+      </FormSection><FormSection title="Received items"><div className="space-y-3">{form.items.map((row, index) => {
         const available = availability[availabilityKey(row)];
         return <div key={availabilityKey(row)} className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
           <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium text-white">{row.name} · {row.unit}</p><p className="mt-1 text-xs text-neutral-400">{available ? `Received ${available.receivedQuantity} · Other invoices ${available.committedQuantity} · Remaining billable ${available.remainingBillableQuantity} · Policy maximum ${available.maximumBillableQuantity}` : "Availability not loaded; server validation still applies."}</p></div><button type="button" onClick={() => setForm(current => ({ ...current, items: current.items.filter((_, position) => position !== index) }))} aria-label={`Remove ${row.name} from invoice`} className="p-2 text-red-400"><Trash2 className="h-4 w-4" /></button></div>
@@ -81,9 +81,10 @@ export default function SupplierInvoiceForm({ invoice, suppliers, orders, onSubm
           {available && Number(row.quantity) > available.remainingBillableQuantity && <p className="text-xs text-amber-300">Exceeds remaining billable quantity. Within-policy exceptions require Manager/Admin authorization and a reason; amounts beyond the cumulative cap cannot be committed.</p>}
         </div>;
       })}</div>
-      <div className="grid gap-3 sm:grid-cols-3"><Field label="Tax (SAR)"><input min="0" step="0.01" type="number" className={inputClass} value={form.tax} onChange={event => setForm({ ...form, tax: event.target.value })} /></Field><Field label="Discount (SAR)"><input min="0" step="0.01" type="number" className={inputClass} value={form.discount} onChange={event => setForm({ ...form, discount: event.target.value })} /></Field><Field label="Shipping / charges"><input min="0" step="0.01" type="number" className={inputClass} value={form.additionalCharges} onChange={event => setForm({ ...form, additionalCharges: event.target.value })} /></Field></div>
+      </FormSection><FormSection title="Charges & notes"><div className="grid gap-3 sm:grid-cols-3"><Field label="Tax (SAR)"><input min="0" step="0.01" type="number" className={inputClass} value={form.tax} onChange={event => setForm({ ...form, tax: event.target.value })} /></Field><Field label="Discount (SAR)"><input min="0" step="0.01" type="number" className={inputClass} value={form.discount} onChange={event => setForm({ ...form, discount: event.target.value })} /></Field><Field label="Shipping / charges"><input min="0" step="0.01" type="number" className={inputClass} value={form.additionalCharges} onChange={event => setForm({ ...form, additionalCharges: event.target.value })} /></Field></div>
       <Field label="Notes"><textarea className={textareaClass} value={form.note} onChange={event => setForm({ ...form, note: event.target.value })} /></Field>
-      <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-neutral-400">Estimated total: <strong className="text-dune-amber"><Money value={total} /></strong></p><Button type="submit" disabled={!form.items.length}>{submitting ? "Saving…" : invoice ? "Save invoice draft" : "Create invoice"}</Button></div>
+      </FormSection>
     </fieldset>
+      <FormActions busy={submitting} summary={<p className="text-sm text-neutral-400">Estimated total: <strong className="text-dune-amber"><Money value={total} /></strong></p>}><Button type="submit" disabled={submitting || loading || !form.items.length}>{submitting ? "Saving…" : invoice ? "Save invoice draft" : "Create invoice"}</Button></FormActions>
   </form>;
 }

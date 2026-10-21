@@ -1,4 +1,6 @@
 "use client";
+import TableTools, { useTablePreferences } from "../ui/TableTools.jsx";
+import ResourceStatus from "../ui/ResourceStatus.jsx";
 import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
@@ -21,6 +23,7 @@ const movementTone = (type) => {
 };
 
 export default function StockMovementsPage() {
+  const table = useTablePreferences("inventory-movements", 25);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [movementType, setMovementType] = useState("");
@@ -41,9 +44,9 @@ export default function StockMovementsPage() {
       .catch(() => toast.error("Unable to load inventory items."));
   }, []);
 
-  const { data, loading, error, reload } = useInventoryResource(
-    () => fetchStockMovements({ page, limit: 25, search: debouncedSearch || undefined, movementType: movementType || undefined, item: item || undefined, user: user || undefined, from: from || undefined, to: to || undefined }),
-    [page, debouncedSearch, movementType, item, user, from, to]
+  const { data, loading, error, reload, lastSuccessAt, refreshing } = useInventoryResource(
+    () => fetchStockMovements({ page, limit: table.pageSize, search: debouncedSearch || undefined, movementType: movementType || undefined, item: item || undefined, user: user || undefined, from: from || undefined, to: to || undefined }),
+    [page, debouncedSearch, movementType, item, user, from, to, table.pageSize]
   );
   const clearFilters = () => { setSearch(""); setMovementType(""); setItem(""); setUser(""); setFrom(""); setTo(""); setPage(1); };
   const rows = data?.data || [];
@@ -74,7 +77,7 @@ export default function StockMovementsPage() {
   const summary = data?.summary || {};
 
   return <div className="mx-auto max-w-[1800px]">
-    <PageHeader title="Stock Movements" description="Track every inventory transaction, adjustment, purchase receipt and loss from one audit ledger." actions={<><Button variant="secondary" onClick={() => reload()}><RefreshCw className="h-4 w-4" />Refresh</Button><Button onClick={exportCsv}><Download className="h-4 w-4" />Export CSV</Button></>} />
+    <PageHeader title="Stock Movements" description="Track every inventory transaction, adjustment, purchase receipt and loss from one audit ledger." actions={<><Button variant="secondary" onClick={() => reload().catch(() => undefined)}><RefreshCw className="h-4 w-4" />Refresh</Button><Button onClick={exportCsv}><Download className="h-4 w-4" />Export CSV</Button></>} /><ResourceStatus lastSuccessAt={lastSuccessAt} refreshing={refreshing} loading={loading} error={error} hasData={data !== null} onRetry={() => reload({ silent: true })} showDetails={false} /><div className={cardClass + " mb-4"}><TableTools preferences={table} columns={columns} filters={{ search, movementType, item, user, from, to }} onApplyFilters={value => { setSearch(value.search); setMovementType(value.movementType); setItem(value.item); setUser(value.user); setFrom(value.from); setTo(value.to); setPage(1); }} onPageSizeChange={size => { table.update(value => ({ ...value, pageSize: size })); setPage(1); }} /></div>
     <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <StatCard label="Total Movements" value={summary.total || 0} caption="Matching current filters" icon={ArrowLeftRight} />
       <StatCard label="Stock In" value={summary.stockIn || 0} caption="Receipts and opening stock" icon={ArrowDownToLine} tone="green" />
@@ -92,7 +95,7 @@ export default function StockMovementsPage() {
         <DarkDatePicker aria-label="To date" title="To date" className={inputClass} value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} />
         <Button variant="secondary" onClick={clearFilters}>Clear</Button>
       </div>
-      {loading ? <LoadingState label="Loading stock movements…" /> : error ? <EmptyState title="Unable to load movements" description={apiErrorMessage(error)} action={<Button onClick={() => reload()}>Try again</Button>} /> : <DataTable columns={columns} rows={rows} empty={<EmptyState title="No stock movements found" description="Try changing the current filters." />} />}
+      {loading ? <LoadingState label="Loading stock movements…" /> : error ? <EmptyState title="Unable to load movements" description={apiErrorMessage(error)} action={<Button onClick={() => reload().catch(() => undefined)}>Try again</Button>} /> : <DataTable columns={table.visibleColumns(columns)} rows={rows} empty={<EmptyState title="No stock movements found" description="Try changing the current filters." />} />}
       <Pagination pagination={data?.pagination} onPageChange={setPage} />
     </section>
   </div>;

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { LoaderCircle, Save } from "lucide-react";
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
-import { Button, Field, inputClass, textareaClass } from "@/src/components/inventory/InventoryUI.jsx";
+import { Button, Field, FormActions, inputClass, textareaClass } from "@/src/components/inventory/InventoryUI.jsx";
 import { dateValue, todayValue } from "./financeUtils.js";
 
 const empty = { title: "", description: "", category: "", defaultAmount: "", vatAmount: 0, frequency: "monthly", startDate: todayValue(), endDate: "", nextDueDate: todayValue(), vendor: "", referencePrefix: "", branch: "", notes: "", receiptUrl: "", isActive: true };
@@ -13,7 +13,7 @@ export default function RecurringForm({ row, categories, onSubmit, submitting })
   const [form, setForm] = useState(empty);
   useEffect(() => setForm(row ? { ...empty, ...row, category: row.category?._id || row.category, startDate: dateValue(row.startDate), endDate: dateValue(row.endDate), nextDueDate: dateValue(row.nextDueDate) } : empty), [row]);
   const set = (field, value) => setForm((current) => ({ ...current, [field]: value }));
-  return <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); onSubmit({ ...form, defaultAmount: Number(form.defaultAmount), vatAmount: Number(form.vatAmount), endDate: form.endDate || null }); }}><div className="grid gap-4 sm:grid-cols-2">
+  return <form aria-busy={submitting} className="space-y-5" onSubmit={(event) => { event.preventDefault(); onSubmit({ ...form, defaultAmount: Number(form.defaultAmount), vatAmount: Number(form.vatAmount), endDate: form.endDate || null }); }}><div className="grid gap-4 sm:grid-cols-2">
     <Field label="Template title" className="sm:col-span-2"><input required className={inputClass} value={form.title} onChange={(event) => set("title", event.target.value)} /></Field>
     <Field label="Description" className="sm:col-span-2"><textarea className={textareaClass} value={form.description} onChange={(event) => set("description", event.target.value)} /></Field>
     <Field label="Category"><DarkSelect required className={inputClass} value={form.category} onChange={(event) => set("category", event.target.value)}><option value="">Choose category</option>{categories.filter((item) => item.isActive || item._id === form.category).map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</DarkSelect></Field>
@@ -28,5 +28,5 @@ export default function RecurringForm({ row, categories, onSubmit, submitting })
     <Field label="Branch / location"><input className={inputClass} value={form.branch} onChange={(event) => set("branch", event.target.value)} /></Field>
     <Field label="Notes" className="sm:col-span-2"><textarea className={textareaClass} value={form.notes} onChange={(event) => set("notes", event.target.value)} /></Field>
     <label className="flex items-center gap-3 text-xs text-neutral-300"><input type="checkbox" checked={form.isActive} onChange={(event) => set("isActive", event.target.checked)} className="h-4 w-4 accent-amber-500" /> Active template</label>
-  </div><div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3 text-xs text-amber-200">Generation creates an unpaid bill at most once per due period. It never makes an automatic payment.</div><div className="flex justify-end"><Button type="submit" disabled={submitting}>{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{row ? "Save template" : "Create template"}</Button></div></form>;
+  </div><div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3 text-xs text-amber-200">Generation creates an unpaid bill at most once per due period. It never makes an automatic payment.</div><FormActions busy={submitting}><Button type="submit" disabled={submitting}>{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{row ? "Save template" : "Create template"}</Button></FormActions></form>;
 }

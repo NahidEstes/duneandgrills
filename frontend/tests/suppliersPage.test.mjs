@@ -29,6 +29,7 @@ function renderPage(resource) {
   const mod = { exports: {} };
   new Function("require", "module", "exports", code)(id => {
     if (id.endsWith("/useInventoryResource.js")) return () => ({ reload: async () => {}, ...resource });
+    if (id.endsWith("/ResourceStatus.jsx")) return () => null;
     if (id.endsWith("/InventoryUI.jsx")) return ui;
     if (id.endsWith("/inventoryUtils.js")) return { apiErrorMessage, formatDate };
     if (id.endsWith("/RecordId.jsx")) return ({ value }) => value;

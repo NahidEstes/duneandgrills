@@ -80,3 +80,20 @@ test("unmounted and Strict Mode replay requests cannot commit stale responses", 
   const pending = deferred(), finalLoader = () => pending.promise;
   view.render(finalLoader, ["unmount"]); view.unmount(); pending.reject(new Error("late after unmount")); await flush();
 });
+
+test("failed refresh keeps the real success time and an acknowledged save supersedes pending reads", async () => {
+  const view = harness(); let mode = "ok"; const pending = deferred();
+  const loader = async () => { if (mode === "fail") throw new Error("Unavailable"); if (mode === "pending") return pending.promise; return [1]; };
+  view.render(loader, []); await flush();
+  const original = view.render(loader, []).lastSuccessAt;
+  assert.equal(typeof original, "number");
+  mode = "fail"; await assert.rejects(view.render(loader, []).reload({ silent: true }));
+  assert.equal(view.render(loader, []).lastSuccessAt, original);
+  assert.equal(view.render(loader, []).refreshing, false);
+  mode = "pending"; const request = view.render(loader, []).reload({ silent: true });
+  assert.equal(view.render(loader, []).refreshing, true);
+  view.render(loader, []).setData([2]);
+  pending.resolve(["old data"]); await request;
+  assert.deepEqual(view.render(loader, []).data, [2]);
+  view.unmount();
+});

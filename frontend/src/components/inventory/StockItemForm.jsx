@@ -2,6 +2,7 @@
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
+import { useDialogClose } from "../ui/useDialogChanges.js";
 import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { useEffect, useId, useState } from "react";
@@ -30,6 +31,7 @@ function StockItemSection({ title, action, children }) {
 }
 
 export default function StockItemForm({ item, categories, suppliers, onSubmit, onCancel, submitting }) {
+  const closeForm = useDialogClose(onCancel);
   const [form, setForm] = useState(blank);
   const [skuAutomatic, setSkuAutomatic] = useState(true);
   const [skuState, setSkuState] = useState({ loading: false, error: "" });
@@ -80,7 +82,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, o
       autoGenerateSku: !item && skuAutomatic,
     });
   };
-  return <form onSubmit={submit} aria-label="Stock item details" className="space-y-6">
+  return <form aria-busy={submitting} onSubmit={submit} aria-label="Stock item details" className="space-y-6">
     <p className="text-xs text-neutral-400">Fields marked <span className="text-amber-400">*</span> are required.</p>
     <fieldset disabled={submitting} className="min-w-0 space-y-6">
     <StockItemSection title="Basic details">
@@ -120,7 +122,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, o
     </div>
     </fieldset>
     <div className="stock-item-footer sticky bottom-0 z-10 -mx-5 !-mb-5 flex justify-end gap-3 border-t border-white/10 bg-[#111416] px-5 py-4">
-      {onCancel && <Button variant="secondary" onClick={onCancel} disabled={submitting}>Cancel</Button>}
+      {onCancel && <Button variant="secondary" onClick={closeForm} disabled={submitting}>Cancel</Button>}
       <Button type="submit" disabled={submitting}>{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{item ? "Save changes" : "Create item"}</Button>
     </div>
   </form>;

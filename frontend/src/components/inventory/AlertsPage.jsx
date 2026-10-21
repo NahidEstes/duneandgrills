@@ -1,4 +1,5 @@
 "use client";
+import ResourceStatus from "../ui/ResourceStatus.jsx";
 
 import { AlertTriangle, CalendarClock, PackageX, RefreshCw, TimerOff } from "lucide-react";
 import { fetchInventoryAlerts } from "@/src/api/inventoryApi.js";
@@ -7,7 +8,7 @@ import { daysUntil, formatDate, formatQuantity, getStockStatus } from "./invento
 import useInventoryResource from "./useInventoryResource.js";
 
 export default function AlertsPage({ type }) {
-  const { data, loading, reload } = useInventoryResource(fetchInventoryAlerts, []);
+  const { data, loading, reload, error, lastSuccessAt, refreshing } = useInventoryResource(fetchInventoryAlerts, []);
   const stock = data?.stock || []; const expiry = data?.expiry || [];
   const lowCount = stock.filter((item) => item.currentStock > 0).length;
   const outCount = stock.filter((item) => item.currentStock <= 0).length;
@@ -32,5 +33,5 @@ export default function AlertsPage({ type }) {
     { key: "supplier", label: "Supplier", render: (item) => item.supplier?.name || "—" },
   ];
   const isExpiry = type === "expiry-tracking";
-  return <div className="mx-auto max-w-[1500px]"><PageHeader title={isExpiry ? "Expiry Tracking" : "Low Stock Alerts"} description={isExpiry ? `Items expired or expiring within the configured ${data?.expiryAlertDays || 7}-day alert window.` : "Items at or below their reorder level, including all out-of-stock records."} actions={<Button variant="secondary" onClick={() => reload()}><RefreshCw className="h-4 w-4" />Refresh</Button>} /><section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{isExpiry ? <><StatCard label="Tracked alerts" value={expiry.length} icon={CalendarClock} tone="violet" caption="Within alert window" /><StatCard label="Expired" value={expiredCount} icon={TimerOff} tone="red" caption="Requires immediate action" /></> : <><StatCard label="Low stock" value={lowCount} icon={AlertTriangle} tone="amber" caption="At or below reorder level" /><StatCard label="Out of stock" value={outCount} icon={PackageX} tone="red" caption="Zero or negative balance" /></>}</section><section className={cardClass}>{loading ? <LoadingState /> : <DataTable columns={isExpiry ? expiryColumns : stockColumns} rows={isExpiry ? expiry : stock} empty={<EmptyState title={isExpiry ? "No expiry alerts" : "Stock levels look healthy"} description={isExpiry ? "No tracked item is inside the expiry alert window." : "No active item is at or below its reorder level."} />} />}</section></div>;
+  return <div className="mx-auto max-w-[1500px]"><PageHeader title={isExpiry ? "Expiry Tracking" : "Low Stock Alerts"} description={isExpiry ? `Items expired or expiring within the configured ${data?.expiryAlertDays || 7}-day alert window.` : "Items at or below their reorder level, including all out-of-stock records."} actions={<Button variant="secondary" onClick={() => reload().catch(() => undefined)}><RefreshCw className="h-4 w-4" />Refresh</Button>} /><ResourceStatus lastSuccessAt={lastSuccessAt} refreshing={refreshing} loading={loading} error={error} hasData={data !== null} onRetry={() => reload({ silent: true })} showDetails={true} /><section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{isExpiry ? <><StatCard label="Tracked alerts" value={expiry.length} icon={CalendarClock} tone="violet" caption="Within alert window" /><StatCard label="Expired" value={expiredCount} icon={TimerOff} tone="red" caption="Requires immediate action" /></> : <><StatCard label="Low stock" value={lowCount} icon={AlertTriangle} tone="amber" caption="At or below reorder level" /><StatCard label="Out of stock" value={outCount} icon={PackageX} tone="red" caption="Zero or negative balance" /></>}</section><section className={cardClass}>{loading ? <LoadingState /> : error && data == null ? null : <DataTable columns={isExpiry ? expiryColumns : stockColumns} rows={isExpiry ? expiry : stock} empty={<EmptyState title={isExpiry ? "No expiry alerts" : "Stock levels look healthy"} description={isExpiry ? "No tracked item is inside the expiry alert window." : "No active item is at or below its reorder level."} />} />}</section></div>;
 }

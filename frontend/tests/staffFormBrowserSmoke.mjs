@@ -71,7 +71,8 @@ try {
         }
         await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
       });
-      const page = await context.newPage();
+    const page = await context.newPage();
+    page.on("dialog", dialog => dialog.accept());
       page.setDefaultTimeout(12000);
       page.on("pageerror", error => errors.push(error.message));
       await page.goto(`${origin}/admin/staff`);

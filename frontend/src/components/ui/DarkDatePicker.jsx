@@ -67,6 +67,7 @@ const CalendarSelector = ({ ariaLabel, label, value, options, open, onToggle, on
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
+        data-form-value={value}
         aria-label={`${ariaLabel}: ${label}`}
         onClick={onToggle}
         className="flex h-9 w-full items-center justify-between gap-1 rounded-lg border border-white/10 bg-black/20 px-2.5 text-left text-xs font-semibold text-white hover:border-dune-amber/40"

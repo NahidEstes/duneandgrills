@@ -5,7 +5,7 @@ import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
-import { Button, Field, Money, inputClass, textareaClass } from "./InventoryUI.jsx";
+import { Button, Field, FormActions, FormSection, Money, inputClass, textareaClass } from "./InventoryUI.jsx";
 import { fetchPurchasePriceHistory } from "@/src/api/inventoryApi.js";
 
 const emptyLine = (key = "new-0") => ({ key, item: "", requestedBrand: "", quantity: 1, unitCost: 0, expiryDate: "", purchaseUnit: "", baseUnit: "", conversionFactor: 1 });
@@ -77,14 +77,14 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
     });
   };
 
-  return <form onSubmit={submit} className="space-y-5">
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+  return <form aria-busy={submitting} onSubmit={submit} className="space-y-5">
+    <FormSection title="Supplier & charges"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       <Field label="Supplier"><DarkSelect required className={inputClass} value={form.supplier} onChange={(event) => setForm({ ...form, supplier: event.target.value })}><option value="">Choose supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
       <Field label="Expected date"><DarkDatePicker className={inputClass} value={form.expectedAt} onChange={(event) => setForm({ ...form, expectedAt: event.target.value })} /></Field>
       <Field label="Tax (SAR)"><input min="0" step="0.01" type="number" className={inputClass} value={form.tax} onChange={(event) => setForm({ ...form, tax: event.target.value })} /></Field>
       <Field label="Discount (SAR)"><input min="0" step="0.01" type="number" className={inputClass} value={form.discount} onChange={(event) => setForm({ ...form, discount: event.target.value })} /></Field>
       <Field label="Additional charges"><input min="0" step="0.01" type="number" className={inputClass} value={form.additionalCharges} onChange={(event) => setForm({ ...form, additionalCharges: event.target.value })} /></Field>
-    </div>
+    </div></FormSection>
     <div>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white">Purchase items</h3>
@@ -104,11 +104,11 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
         </div>)}
       </div>
     </div>
-    <Field label="Notes"><textarea className={textareaClass} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></Field>
+    <FormSection title="Notes & price policy"><Field label="Notes"><textarea className={textareaClass} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></Field>
     <Field label="Price policy override reason" hint="Required only when Settings blocks an unusual price increase."><textarea className={textareaClass} value={form.priceOverrideReason} onChange={(event) => setForm({ ...form, priceOverrideReason: event.target.value })} /></Field>
-    <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between">
+    </FormSection><FormActions busy={submitting} summary={
       <div className="flex gap-6 text-xs"><div><p className="text-neutral-600">Subtotal</p><p className="mt-1 font-semibold text-white"><Money value={subtotal} /></p></div><div><p className="text-neutral-600">Total</p><p className="mt-1 font-semibold text-dune-amberLight"><Money value={subtotal + Number(form.tax || 0) + Number(form.additionalCharges || 0) - Number(form.discount || 0)} /></p></div></div>
-      <Button type="submit" disabled={submitting}>{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{order ? "Save purchase order" : "Create purchase order"}</Button>
-    </div>
+      }><Button type="submit" disabled={submitting}>{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{order ? "Save purchase order" : "Create purchase order"}</Button>
+    </FormActions>
   </form>;
 }

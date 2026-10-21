@@ -1,4 +1,6 @@
 "use client";
+import useDialogChanges from "./ui/useDialogChanges.js";
+import { useRef } from "react";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 
@@ -31,6 +33,8 @@ const BlogTab = ({ onDataChanged }) => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const draftRef = useRef(null);
+  const draftGuard = useDialogChanges({ open: showForm, rootRef: draftRef, onClose: () => setShowForm(false), escape: true });
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -233,11 +237,11 @@ const BlogTab = ({ onDataChanged }) => {
       )}
 
       {showForm && (
-        <div
-          onClick={() => setShowForm(false)}
+        <div ref={draftRef} {...draftGuard.capture}
+          onClick={draftGuard.requestClose}
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto"
         >
-          <form
+          <form aria-busy={saving}
             onClick={(e) => e.stopPropagation()}
             onSubmit={handleSubmit}
             className="w-full max-w-xl rounded-2xl border border-dune-border bg-dune-surface p-6 my-8"
@@ -246,7 +250,7 @@ const BlogTab = ({ onDataChanged }) => {
               <h2 className="text-xl font-semibold text-white">
                 {editingId ? "Edit Article" : "New Article"}
               </h2>
-              <button type="button" onClick={() => setShowForm(false)}>
+              <button type="button" onClick={draftGuard.requestClose}>
                 <X className="w-5 h-5 text-neutral-400 hover:text-white" />
               </button>
             </div>

@@ -46,6 +46,7 @@ try {
     const context = await browser.newContext({ viewport, serviceWorkers: "block" });
     await setFixtureSession(context, origin, "admin");
     const page = await context.newPage(); page.setDefaultTimeout(12000);
+    page.on("dialog", dialog => dialog.accept());
     const errors = [], writes = [], requests = [], downloads = [];
     page.on("pageerror", error => errors.push(error.message));
     page.on("download", download => downloads.push(download));

@@ -1,4 +1,6 @@
 "use client";
+import useDialogChanges from "../ui/useDialogChanges.js";
+import { useRef } from "react";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 
@@ -35,6 +37,8 @@ const RewardsTab = ({ onDataChanged }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const draftRef = useRef(null);
+  const draftGuard = useDialogChanges({ open: showForm, rootRef: draftRef, onClose: () => setShowForm(false), escape: true });
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
 
@@ -235,11 +239,11 @@ const RewardsTab = ({ onDataChanged }) => {
       )}
 
       {showForm && (
-        <div
-          onClick={() => setShowForm(false)}
+        <div ref={draftRef} {...draftGuard.capture}
+          onClick={draftGuard.requestClose}
           className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
         >
-          <form
+          <form aria-busy={saving}
             onClick={(event) => event.stopPropagation()}
             onSubmit={handleSubmit}
             className="my-8 w-full max-w-2xl rounded-2xl border border-dune-border bg-dune-surface p-6"
@@ -255,7 +259,7 @@ const RewardsTab = ({ onDataChanged }) => {
               </div>
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
+                onClick={draftGuard.requestClose}
                 aria-label="Close reward form"
                 className="text-neutral-400 hover:text-white"
               >

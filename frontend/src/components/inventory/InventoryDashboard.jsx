@@ -1,4 +1,5 @@
 "use client";
+import ResourceStatus from "../ui/ResourceStatus.jsx";
 
 import Link from "next/link";
 import {
@@ -41,7 +42,7 @@ function CategoryChart({ rows = [] }) {
 }
 
 export default function InventoryDashboard() {
-  const { data, loading, error, reload } = useInventoryResource(async () => {
+  const { data, loading, error, reload, lastSuccessAt, refreshing } = useInventoryResource(async () => {
     const [dashboard, itemsResponse, actionsResponse] = await Promise.all([fetchInventoryDashboard(), fetchInventoryItems({ limit: 8, sortBy: "updatedAt" }), fetchPurchasingActions({ state: "open", limit: 5 })]);
     return { dashboard, items: itemsResponse.data, actions: actionsResponse.data };
   }, []);
@@ -57,7 +58,7 @@ export default function InventoryDashboard() {
   ];
 
   return <div className="mx-auto max-w-[1680px]">
-    <PageHeader title="Inventory Dashboard" description="Real-time overview of inventory, purchasing and stock status." actions={<Button variant="secondary" onClick={() => reload()} disabled={loading}><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
+    <PageHeader title="Inventory Dashboard" description="Real-time overview of inventory, purchasing and stock status." actions={<Button variant="secondary" onClick={() => reload().catch(() => undefined)} disabled={loading}><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} /><ResourceStatus lastSuccessAt={lastSuccessAt} refreshing={refreshing} loading={loading} error={error} hasData={data !== null} onRetry={() => reload({ silent: true })} showDetails={false} />
     {error && <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">The inventory API could not be loaded. Confirm the backend is running, then refresh.</div>}
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <StatCard label="Total Items" value={summary.totalItems ?? "—"} caption="Active inventory items" icon={Boxes} />
@@ -70,7 +71,7 @@ export default function InventoryDashboard() {
     {dashboard?.valuation && (dashboard.valuation.missingCostItems > 0 || dashboard.valuation.mismatchWarnings > 0) && <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] p-4 text-xs text-amber-200"><AlertTriangle className="h-4 w-4" /><span>Valuation coverage {dashboard.valuation.coveragePercent}% · {dashboard.valuation.missingCostItems} missing-cost item(s) · {dashboard.valuation.mismatchWarnings} batch/stock mismatch(es).</span><Link href="/inventory/reports?type=valuation" className="ml-auto font-semibold text-dune-amber">Review valuation</Link></div>}
 
     <section className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
-      <article className={cardClass}><div className="flex items-center justify-between border-b border-white/10 p-4"><div><h2 className="font-body text-base font-semibold text-white">Stock Items</h2><p className="mt-0.5 text-xs text-neutral-500">Recently updated inventory records.</p></div><Link href="/inventory/stock-items" className="text-xs font-semibold text-dune-amber">View all</Link></div>{loading ? <LoadingState /> : <DataTable columns={columns} rows={data?.items} empty={<EmptyState title="No stock items yet" description="Add the first item to begin inventory tracking." />} />}</article>
+      <article className={cardClass}><div className="flex items-center justify-between border-b border-white/10 p-4"><div><h2 className="font-body text-base font-semibold text-white">Stock Items</h2><p className="mt-0.5 text-xs text-neutral-500">Recently updated inventory records.</p></div><Link href="/inventory/stock-items" className="text-xs font-semibold text-dune-amber">View all</Link></div>{loading ? <LoadingState /> : error && data == null ? null : <DataTable columns={columns} rows={data?.items} empty={<EmptyState title="No stock items yet" description="Add the first item to begin inventory tracking." />} />}</article>
       <div className="space-y-4">
         <article className={`${cardClass} p-4`}><div className="flex items-center justify-between"><h2 className="font-body text-sm font-semibold text-white">Purchasing Action Center</h2><Link href="/inventory/purchasing-actions" className="text-xs font-semibold text-dune-amber">View all</Link></div><div className="mt-4 divide-y divide-white/[0.06]">{data?.actions?.length ? data.actions.map((action) => <Link href={action.href} key={action._id} className="flex items-center justify-between gap-3 py-2.5 text-xs"><span className="min-w-0 truncate text-neutral-300">{action.title}</span><Badge tone={action.severity === "critical" ? "danger" : action.severity === "high" ? "warning" : "info"}>{humanize(action.severity)}</Badge></Link>) : <p className="py-4 text-xs text-neutral-600">No open purchasing actions. Run a scan from Action Center.</p>}</div></article>
         <article className={`${cardClass} p-4`}><div className="flex items-center justify-between"><h2 className="font-body text-sm font-semibold text-white">Low Stock Alerts</h2><Link href="/inventory/low-stock-alerts" className="text-xs font-semibold text-dune-amber">View all</Link></div><div className="mt-4 divide-y divide-white/[0.06]">{dashboard?.lowStock?.length ? dashboard.lowStock.slice(0, 5).map((item) => <div key={item._id} className="flex items-center justify-between gap-3 py-2.5 text-xs"><span className="min-w-0 truncate text-neutral-300">{item.name}</span><Badge tone={item.currentStock <= 0 ? "danger" : "warning"}>{formatQuantity(item.currentStock, item.unit)}</Badge></div>) : <p className="py-4 text-xs text-neutral-600">No low-stock alerts.</p>}</div></article>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle, PackageOpen, X } from "lucide-react";
 import { apiErrorMessage, formatSar } from "./inventoryUtils.js";
+import useDialogChanges, { DialogCloseContext, useDialogClose } from "../ui/useDialogChanges.js";
 
 export const cardClass = "rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] shadow-xl shadow-black/10";
 
@@ -46,15 +47,26 @@ export const inputClass = "h-10 w-full rounded-xl border border-white/10 bg-blac
 export const textareaClass = `${inputClass} h-auto min-h-24 py-2.5`;
 
 export function Modal({ open, onClose, title, description, children, maxWidth = "max-w-2xl" }) {
+  const rootRef = useRef(null);
+  const { requestClose, capture } = useDialogChanges({ open, rootRef, onClose, resetKey: title });
   useEffect(() => {
     if (!open) return undefined;
-    const handler = (event) => event.key === "Escape" && !event.defaultPrevented && onClose();
+    const handler = (event) => event.key === "Escape" && !event.defaultPrevented && requestClose();
     document.addEventListener("keydown", handler);
     document.body.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", handler); document.body.style.overflow = ""; };
-  }, [onClose, open]);
+  }, [requestClose, open]);
   if (!open) return null;
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.target === event.currentTarget && onClose()}><div className={`max-h-[92vh] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#111416] shadow-2xl ${maxWidth}`}><div className="flex items-start justify-between gap-4 border-b border-white/10 p-5"><div><h2 className="font-body text-lg font-semibold text-white">{title}</h2>{description && <p className="mt-1 text-xs text-neutral-500">{description}</p>}</div><button type="button" onClick={onClose} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white" aria-label="Close"><X className="h-4 w-4" /></button></div><div className="max-h-[calc(92vh-82px)] overflow-y-auto p-5">{children}</div></div></div>;
+  return <div ref={rootRef} {...capture} className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.target === event.currentTarget && requestClose()}><div className={`max-h-[92vh] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#111416] shadow-2xl ${maxWidth}`}><div className="flex items-start justify-between gap-4 border-b border-white/10 p-5"><div><h2 className="font-body text-lg font-semibold text-white">{title}</h2>{description && <p className="mt-1 text-xs text-neutral-500">{description}</p>}</div><button type="button" onClick={requestClose} className="rounded-lg p-2 text-neutral-500 hover:bg-white/5 hover:text-white" aria-label="Close"><X className="h-4 w-4" /></button></div><div className="max-h-[calc(92vh-82px)] overflow-y-auto p-5"><DialogCloseContext.Provider value={requestClose}>{children}</DialogCloseContext.Provider></div></div></div>;
+}
+
+export function FormSection({ title, description, children }) {
+  return <section className="space-y-4"><div className="flex items-center gap-3"><h3 className="font-body text-sm font-semibold text-white">{title}</h3><span aria-hidden="true" className="h-px flex-1 bg-white/10" /></div>{description && <p className="text-xs text-neutral-400">{description}</p>}{children}</section>;
+}
+
+export function FormActions({ children, busy = false, summary, className = "" }) {
+  const close = useDialogClose();
+  return <div className={`workspace-form-actions sticky -bottom-5 z-10 -mx-5 !-mb-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#111416] px-5 py-4 ${className}`}>{summary || <span />}<div className="ml-auto flex flex-wrap items-center justify-end gap-3">{close && <Button variant="secondary" disabled={busy} onClick={close}>Cancel</Button>}{children}</div></div>;
 }
 
 export function LoadingState({ label = "Loading inventory data…" }) {

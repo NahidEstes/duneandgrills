@@ -1,4 +1,6 @@
 "use client";
+import useDialogChanges from "../ui/useDialogChanges.js";
+import { useRef } from "react";
 
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 
@@ -64,6 +66,8 @@ const MenuItemsTab = ({ onDataChanged }) => {
   const [category, setCategory] = useState("All");
   const [selectedIds, setSelectedIds] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const draftRef = useRef(null);
+  const draftGuard = useDialogChanges({ open: showForm, rootRef: draftRef, onClose: () => setShowForm(false), escape: true });
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -309,9 +313,9 @@ const MenuItemsTab = ({ onDataChanged }) => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" onMouseDown={() => setShowForm(false)}>
-          <form onSubmit={handleSubmit} onMouseDown={(event) => event.stopPropagation()} className="my-8 w-full max-w-2xl rounded-2xl border border-white/10 bg-[#101416] p-5 shadow-2xl sm:p-6">
-            <div className="mb-5 flex items-start justify-between gap-4"><div><h2 className="font-body text-xl font-semibold text-white">{editingId ? "Edit Menu Item" : "Add Menu Item"}</h2><p className="mt-1 text-xs text-neutral-500">Updates are reflected on the public menu immediately.</p></div><button type="button" onClick={() => setShowForm(false)} aria-label="Close form" className="rounded-lg p-2 text-neutral-400 hover:bg-white/5 hover:text-white"><X className="h-5 w-5" /></button></div>
+        <div ref={draftRef} {...draftGuard.capture} className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" onMouseDown={draftGuard.requestClose}>
+          <form aria-busy={saving} onSubmit={handleSubmit} onMouseDown={(event) => event.stopPropagation()} className="my-8 w-full max-w-2xl rounded-2xl border border-white/10 bg-[#101416] p-5 shadow-2xl sm:p-6">
+            <div className="mb-5 flex items-start justify-between gap-4"><div><h2 className="font-body text-xl font-semibold text-white">{editingId ? "Edit Menu Item" : "Add Menu Item"}</h2><p className="mt-1 text-xs text-neutral-500">Updates are reflected on the public menu immediately.</p></div><button type="button" onClick={draftGuard.requestClose} aria-label="Close form" className="rounded-lg p-2 text-neutral-400 hover:bg-white/5 hover:text-white"><X className="h-5 w-5" /></button></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-xs text-neutral-400 sm:col-span-2">Item name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={FIELD_CLASS} /></label>
               <label className="text-xs text-neutral-400 sm:col-span-2">Description<textarea required rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${FIELD_CLASS} resize-none`} /></label>

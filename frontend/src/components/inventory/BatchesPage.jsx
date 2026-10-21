@@ -1,4 +1,6 @@
 "use client";
+import TableTools, { useTablePreferences } from "../ui/TableTools.jsx";
+import ResourceStatus from "../ui/ResourceStatus.jsx";
 import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { useEffect, useMemo, useState } from "react";
@@ -31,6 +33,7 @@ const batchStatus = (batch) => {
 };
 
 export default function BatchesPage() {
+  const table = useTablePreferences("inventory-batches", 25);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("active");
@@ -57,17 +60,17 @@ export default function BatchesPage() {
       .catch(() => undefined);
   }, []);
 
-  const { data, loading, error } = useInventoryResource(
+  const { data, loading, error, reload, lastSuccessAt, refreshing } = useInventoryResource(
     () => fetchInventoryBatches({
       page,
-      limit: 25,
+      limit: table.pageSize,
       search: debouncedSearch || undefined,
       status,
       item: item || undefined,
       supplier: supplier || undefined,
       brand: brand.trim() || undefined,
     }),
-    [page, debouncedSearch, status, item, supplier, brand]
+    [page, debouncedSearch, status, item, supplier, brand, table.pageSize]
   );
 
   const columns = useMemo(() => [
@@ -90,7 +93,7 @@ export default function BatchesPage() {
         eyebrow="FEFO Inventory"
         title="Batches / Lots"
         description="Physical balances include blocked stock. Sales use FEFO only among usable, unexpired batches; expiry is inclusive through the Asia/Riyadh expiry day."
-      />
+      /><ResourceStatus lastSuccessAt={lastSuccessAt} refreshing={refreshing} loading={loading} error={error} hasData={data !== null} onRetry={() => reload({ silent: true })} showDetails={false} /><div className={cardClass + " mb-4"}><TableTools preferences={table} columns={columns} filters={{ search, status, item, supplier, brand }} onApplyFilters={value => { setSearch(value.search); setStatus(value.status); setItem(value.item); setSupplier(value.supplier); setBrand(value.brand); setPage(1); }} onPageSizeChange={size => { table.update(value => ({ ...value, pageSize: size })); setPage(1); }} /></div>
       <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Active Batches" value={summary.active || 0} caption="With stock remaining" icon={PackageCheck} tone="green" />
         <StatCard label="Expiring Soon" value={summary.expiring || 0} caption="Within seven days" icon={CalendarClock} tone="amber" />
@@ -106,7 +109,7 @@ export default function BatchesPage() {
           <input maxLength={120} className={inputClass} value={brand} onChange={(event) => { setBrand(event.target.value); setPage(1); }} placeholder="Filter by brand" aria-label="Filter batches by brand" />
           <DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="active">Active batches</option><option value="expiring">Expiring soon</option><option value="expired">Expired</option><option value="depleted">Depleted</option><option value="all">All batches</option></DarkSelect>
         </div>
-        {loading ? <LoadingState label="Loading batches…" /> : error ? <EmptyState title="Unable to load batches" description={apiErrorMessage(error)} /> : <DataTable columns={columns} rows={data?.data || []} empty={<EmptyState title="No batches found" description="Receive stock or change the current filters." />} />}
+        {loading ? <LoadingState label="Loading batches…" /> : error ? <EmptyState title="Unable to load batches" description={apiErrorMessage(error)} /> : <DataTable columns={table.visibleColumns(columns)} rows={data?.data || []} empty={<EmptyState title="No batches found" description="Receive stock or change the current filters." />} />}
         <Pagination pagination={data?.pagination} onPageChange={setPage} />
       </section>
     </div>

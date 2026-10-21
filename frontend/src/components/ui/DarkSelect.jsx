@@ -177,6 +177,7 @@ export default function DarkSelect({
         role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
+        data-form-value={value}
         aria-controls={listId}
         aria-activedescendant={open && activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined}
         aria-label={ariaLabel || (!ariaLabelledBy ? selected?.searchLabel || name || "Select an option" : undefined)}

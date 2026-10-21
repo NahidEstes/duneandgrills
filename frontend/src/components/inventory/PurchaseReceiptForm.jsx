@@ -3,7 +3,7 @@
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 import { useRef, useState } from "react";
 import { LoaderCircle, PackageCheck } from "lucide-react";
-import { Button, Field, inputClass, textareaClass } from "./InventoryUI.jsx";
+import { Button, Field, FormActions, inputClass, textareaClass } from "./InventoryUI.jsx";
 import { apiErrorMessage, formatQuantity } from "./inventoryUtils.js";
 import { receiptStorageKey, receiptSubmission } from "./purchaseReceiptSubmission.js";
 import { pendingSubmission, submitPersisted } from "@/src/utils/persistedSubmission.js";
@@ -38,7 +38,7 @@ export default function PurchaseReceiptForm({ order, actor, policy = {}, onSubmi
       try { setAttempt(pendingSubmission(localStorage, storageKey)); } catch { /* Fail closed; keep the visible storage error. */ }
     } finally { busy.current = false; }
   };
-  return <form onSubmit={submit} className="space-y-4">
+  return <form aria-busy={submitting} onSubmit={submit} className="space-y-4">
     <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs leading-5 text-amber-100/70">Select only delivered items. Unselected items stay outstanding. Each selected line creates a batch, converts to the base unit and preserves FEFO.</div>
     {attempt && <p role="status" className="text-xs text-amber-300">Pending submission saved. Retry sends the original quantities and key; do not create another receipt until its outcome is confirmed.</p>}
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
@@ -64,6 +64,6 @@ export default function PurchaseReceiptForm({ order, actor, policy = {}, onSubmi
       </div>;
     })}
     <Field label="Receipt notes"><textarea disabled={locked} className={textareaClass} value={notes} onChange={event => setNotes(event.target.value)} /></Field>
-    <div className="flex justify-end"><Button type="submit" disabled={submitting || (!attempt && !Object.values(lines).some(row => row.selected))}>{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}{attempt ? "Retry original receipt" : "Receive selected items"}</Button></div>
+    <FormActions busy={submitting}><Button type="submit" disabled={submitting || (!attempt && !Object.values(lines).some(row => row.selected))}>{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}{attempt ? "Retry original receipt" : "Receive selected items"}</Button></FormActions>
   </form>;
 }
