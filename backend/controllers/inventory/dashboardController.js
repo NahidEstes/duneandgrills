@@ -62,23 +62,23 @@ export const getReport = async (req, res, next) => {
       const filter = { ...dateFilter(req.query) };
       if (type === "waste") filter.movementType = { $in: ["WASTE", "DAMAGED"] };
       [data, total] = await Promise.all([
-        StockTransaction.find(filter).populate("item", "name sku unit").populate("user", "name").sort({ occurredAt: -1 }).skip(skip).limit(limit).lean(),
+        StockTransaction.find(filter).populate("item", "name sku unit").populate("user", "name").sort({ occurredAt: -1, _id: -1 }).skip(skip).limit(limit).lean(),
         StockTransaction.countDocuments(filter),
       ]);
     } else if (type === "purchases" || type === "supplier") {
       const filter = { ...dateFilter(req.query, "createdAt") };
       if (req.query.supplier) filter.supplier = req.query.supplier;
       [data, total] = await Promise.all([
-        PurchaseOrder.find(filter).populate("supplier", "name code").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+        PurchaseOrder.find(filter).populate("supplier", "name code").sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).lean(),
         PurchaseOrder.countDocuments(filter),
       ]);
     } else if (type === "low_stock") {
       const filter = { isActive: true, $expr: { $lte: ["$currentStock", "$reorderLevel"] } };
-      [data, total] = await Promise.all([InventoryItem.find(filter).populate("category supplier", "name code").sort({ currentStock: 1 }).skip(skip).limit(limit).lean(), InventoryItem.countDocuments(filter)]);
+      [data, total] = await Promise.all([InventoryItem.find(filter).populate("category supplier", "name code").sort({ currentStock: 1, _id: 1 }).skip(skip).limit(limit).lean(), InventoryItem.countDocuments(filter)]);
     } else if (type === "expiry") {
       const batches = (await getBatchSnapshots({ includeDepleted: false }))
         .filter((batch) => batch.item?.isActive !== false && batch.expiryDate && Number(batch.remainingQuantity) > 0)
-        .sort((left, right) => new Date(left.expiryDate) - new Date(right.expiryDate))
+        .sort((left, right) => new Date(left.expiryDate) - new Date(right.expiryDate) || String(left._id).localeCompare(String(right._id)))
         .map((batch) => ({
           _id: batch._id,
           name: batch.item?.name || "Archived item",

@@ -48,6 +48,7 @@ const NAV_ITEMS = [
   { id: "kitchen", label: "Kitchen Display", icon: ChefHat, href: "/kitchen", roles: ["admin", "manager", "kitchen"] },
   { id: "recipe-instructions", label: "Recipe Instructions", icon: BookOpenText, href: "/kitchen/recipes", roles: ["admin", "manager", "kitchen"] },
   { id: "inventory", label: "Inventory", icon: PackageSearch, href: "/inventory", roles: ["admin", "manager", "inventory", "storekeeper"] },
+  { id: "supplier-invoices", label: "Supplier Invoices", icon: PackageSearch, href: "/inventory/supplier-invoices", roles: ["accountant"] },
   { id: "expenses", label: "Finance & Expenses", icon: WalletCards, href: "/admin/expenses", roles: ["admin", "manager", "accountant"] },
   { id: "orders", label: "Orders", icon: ClipboardList, badge: "orders", roles: ["admin", "manager"] },
   { id: "support", label: "Order Support", icon: ClipboardList, href: "/admin/support", roles: ["admin", "manager"] },

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/src/context/AuthContext.jsx";
+import { inventoryNavigationAllowed } from "./inventoryAccess.js";
 import {
   Archive,
   PackageOpen,
@@ -67,7 +68,7 @@ export default function InventoryShell({ children }) {
     <div className="min-h-screen bg-[#07090a] font-body text-neutral-200">
       {mobileOpen && <button type="button" className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close inventory navigation" />}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-white/10 bg-[#090c0e] flex-col transition-transform lg:flex lg:translate-x-0 ${mobileOpen ? "flex translate-x-0" : "hidden -translate-x-full"}`}>
-        <Link href="/inventory" className="flex h-24 items-center gap-3 border-b border-white/10 px-5">
+        <Link href={user?.role === "accountant" ? "/inventory/supplier-invoices" : "/inventory"} className="flex h-24 items-center gap-3 border-b border-white/10 px-5">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-dune-amber text-black shadow-amberGlow">
             <Archive className="h-6 w-6" />
           </span>
@@ -79,7 +80,7 @@ export default function InventoryShell({ children }) {
         </Link>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navigation.filter(([, , , roles]) => !roles || roles.includes(user?.role)).map(([label, href, Icon]) => {
+          {navigation.filter(([, href, , roles]) => (!roles || roles.includes(user?.role)) && inventoryNavigationAllowed(user?.role, href)).map(([label, href, Icon]) => {
             const active = pathname === href;
             return (
               <Link

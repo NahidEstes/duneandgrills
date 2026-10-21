@@ -5,14 +5,15 @@ import { recordAuditLog } from "../services/auditLogService.js";
 import Shift from "../models/Shift.js";
 import { createPinLookup, hashStaffPin, normalizePin, parseDateKey } from "../services/attendanceService.js";
 import { assertObjectId, escapeRegex, parsePagination, ValidationError } from "../utils/inventoryValidation.js";
+import { assertAdminRemains, withStaffAccessTransaction } from "../services/staffAccessService.js";
 
 const fields = "name email phone role isActive deactivatedAt employeeId joiningDate attendanceEnabled attendanceEnabledAt defaultShift createdAt updatedAt";
 const clean = (value) => typeof value === "string" ? value.trim() : "";
 
-const validateShift = async (value) => {
+const validateShift = async (value, session = null) => {
   if (!value) return null;
   assertObjectId(value, "default shift");
-  if (!(await Shift.exists({ _id: value, isActive: true }))) throw new ValidationError("Default shift was not found or is inactive");
+  if (!(await Shift.exists({ _id: value, isActive: true }).session(session))) throw new ValidationError("Default shift was not found or is inactive");
   return value;
 };
 
@@ -21,7 +22,7 @@ const parseJoiningDate = (value) => {
   return parseDateKey(value, "Joining date");
 };
 
-const staffById = (id) => User.findById(id).select(fields).populate("defaultShift", "name startTime endTime gracePeriodMinutes daysOfWeek isActive");
+const staffById = (id, session = null) => User.findById(id).select(fields).populate("defaultShift", "name startTime endTime gracePeriodMinutes daysOfWeek isActive").session(session);
 
 export const listStaff = async (req, res, next) => {
   try {
@@ -72,23 +73,27 @@ export const createStaff = async (req, res, next) => {
 export const updateStaff = async (req, res, next) => {
   try {
     assertObjectId(req.params.id, "staff id");
-    const user = await User.findOne({ _id: req.params.id, role: { $in: STAFF_ROLES } }).select("+sessionVersion +pinHash");
-    if (!user) return res.status(404).json({ success: false, message: "Staff account was not found" });
-    const before = { name: user.name, email: user.email, phone: user.phone, role: user.role, employeeId: user.employeeId, joiningDate: user.joiningDate, defaultShift: user.defaultShift, attendanceEnabled: user.attendanceEnabled, isActive: user.isActive };
     if (req.body.role !== undefined && !STAFF_ROLES.includes(req.body.role)) return res.status(400).json({ success: false, message: "Invalid staff role" });
-    for (const key of ["name", "email", "phone", "role"]) if (req.body[key] !== undefined) user[key] = clean(req.body[key]);
-    if ("joiningDate" in req.body) user.joiningDate = parseJoiningDate(req.body.joiningDate);
-    if ("defaultShift" in req.body) user.defaultShift = await validateShift(req.body.defaultShift);
-    if ("attendanceEnabled" in req.body) {
-      const nextAttendanceEnabled = req.body.attendanceEnabled === true;
-      if (nextAttendanceEnabled && !user.attendanceEnabled) user.attendanceEnabledAt = new Date();
-      user.attendanceEnabled = nextAttendanceEnabled;
-    }
-    if (user.attendanceEnabled && (!user.pinHash || !user.defaultShift)) throw new ValidationError("Assign an active shift and PIN before enabling attendance");
-    if (before.role !== user.role) user.sessionVersion += 1;
-    await user.save();
-    await recordAuditLog({ actor: req.user, action: "STAFF_UPDATED", entityType: "User", entityId: user._id, entityLabel: user.email, before, after: { name: user.name, email: user.email, phone: user.phone, role: user.role, employeeId: user.employeeId, joiningDate: user.joiningDate, defaultShift: user.defaultShift, attendanceEnabled: user.attendanceEnabled, isActive: user.isActive } });
-    res.json({ success: true, data: await staffById(user._id) });
+    const result = await withStaffAccessTransaction(req.user._id, async session => {
+      const user = await User.findOne({ _id: req.params.id, role: { $in: STAFF_ROLES } }).select("+sessionVersion +pinHash").session(session);
+      if (!user) throw Object.assign(new Error("Staff account was not found"), { status: 404 });
+      const before = { name: user.name, email: user.email, phone: user.phone, role: user.role, employeeId: user.employeeId, joiningDate: user.joiningDate, defaultShift: user.defaultShift, attendanceEnabled: user.attendanceEnabled, isActive: user.isActive };
+      await assertAdminRemains(user, req.body.role ?? user.role, user.isActive !== false, session);
+      for (const key of ["name", "email", "phone", "role"]) if (req.body[key] !== undefined) user[key] = clean(req.body[key]);
+      if ("joiningDate" in req.body) user.joiningDate = parseJoiningDate(req.body.joiningDate);
+      if ("defaultShift" in req.body) user.defaultShift = await validateShift(req.body.defaultShift, session);
+      if ("attendanceEnabled" in req.body) {
+        const nextAttendanceEnabled = req.body.attendanceEnabled === true;
+        if (nextAttendanceEnabled && !user.attendanceEnabled) user.attendanceEnabledAt = new Date();
+        user.attendanceEnabled = nextAttendanceEnabled;
+      }
+      if (user.attendanceEnabled && (!user.pinHash || !user.defaultShift)) throw new ValidationError("Assign an active shift and PIN before enabling attendance");
+      if (before.role !== user.role) user.sessionVersion += 1;
+      await user.save({ session });
+      await recordAuditLog({ actor: req.user, action: "STAFF_UPDATED", entityType: "User", entityId: user._id, entityLabel: user.email, before, after: { name: user.name, email: user.email, phone: user.phone, role: user.role, employeeId: user.employeeId, joiningDate: user.joiningDate, defaultShift: user.defaultShift, attendanceEnabled: user.attendanceEnabled, isActive: user.isActive } }, { session });
+      return staffById(user._id, session);
+    });
+    res.json({ success: true, data: result });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ success: false, message: "Email or employee ID is already in use" });
     next(error);
@@ -100,16 +105,19 @@ export const setStaffActive = async (req, res, next) => {
     assertObjectId(req.params.id, "staff id");
     const active = req.body.active === true;
     if (!active && String(req.params.id) === String(req.user._id)) return res.status(400).json({ success: false, message: "You cannot deactivate your own account" });
-    const user = await User.findOne({ _id: req.params.id, role: { $in: STAFF_ROLES } }).select("+sessionVersion");
-    if (!user) return res.status(404).json({ success: false, message: "Staff account was not found" });
-    if (!active && user.role === "admin" && await User.countDocuments({ role: "admin", isActive: { $ne: false } }) <= 1) return res.status(409).json({ success: false, message: "The last active admin cannot be deactivated" });
-    const before = { isActive: user.isActive };
-    user.isActive = active;
-    user.deactivatedAt = active ? null : new Date();
-    user.sessionVersion += 1;
-    await user.save();
-    await recordAuditLog({ actor: req.user, action: active ? "STAFF_REACTIVATED" : "STAFF_DEACTIVATED", entityType: "User", entityId: user._id, entityLabel: user.email, before, after: { isActive: user.isActive } });
-    res.json({ success: true, data: await staffById(user._id) });
+    const result = await withStaffAccessTransaction(req.user._id, async session => {
+      const user = await User.findOne({ _id: req.params.id, role: { $in: STAFF_ROLES } }).select("+sessionVersion").session(session);
+      if (!user) throw Object.assign(new Error("Staff account was not found"), { status: 404 });
+      await assertAdminRemains(user, user.role, active, session);
+      const before = { isActive: user.isActive };
+      user.isActive = active;
+      user.deactivatedAt = active ? null : new Date();
+      user.sessionVersion += 1;
+      await user.save({ session });
+      await recordAuditLog({ actor: req.user, action: active ? "STAFF_REACTIVATED" : "STAFF_DEACTIVATED", entityType: "User", entityId: user._id, entityLabel: user.email, before, after: { isActive: user.isActive } }, { session });
+      return staffById(user._id, session);
+    });
+    res.json({ success: true, data: result });
   } catch (error) { next(error); }
 };
 

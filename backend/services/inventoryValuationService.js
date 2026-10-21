@@ -9,7 +9,7 @@ const money = (value) => Number(Number(value || 0).toFixed(2));
 export const buildInventoryValuation = async ({ itemIds = null } = {}) => {
   const itemFilter = { isActive: true };
   if (itemIds?.length) itemFilter._id = { $in: itemIds };
-  const items = await InventoryItem.find(itemFilter).populate("category", "name color").populate("supplier", "name code").sort({ name: 1 }).lean();
+  const items = await InventoryItem.find(itemFilter).populate("category", "name color").populate("supplier", "name code").sort({ name: 1, _id: 1 }).lean();
   const ids = items.map((item) => item._id);
   const batches = ids.length ? await InventoryBatch.find({ item: { $in: ids } }).lean() : [];
   const batchesByItem = new Map();

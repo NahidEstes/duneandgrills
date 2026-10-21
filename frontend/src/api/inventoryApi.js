@@ -75,6 +75,6 @@ export const submitInventoryCount = (id, items) => unwrap(api.post(`/inventory/c
 export const reviewInventoryCount = (id) => unwrap(api.post(`/inventory/counts/${id}/review`)).then((response) => response.data);
 export const cancelInventoryCount = (id) => unwrap(api.post(`/inventory/counts/${id}/cancel`)).then((response) => response.data);
 
-export const fetchInventoryReport = (params = {}) => unwrap(api.get("/inventory/reports", { params }));
+export const fetchInventoryReport = (params = {}, options = {}) => unwrap(api.get("/inventory/reports", { ...options, params }));
 export const fetchInventorySettings = () => unwrap(api.get("/inventory/settings")).then((response) => response.data);
 export const updateInventorySettings = (payload) => unwrap(api.patch("/inventory/settings", payload)).then((response) => response.data);

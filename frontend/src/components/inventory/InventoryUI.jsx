@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle, PackageOpen, X } from "lucide-react";
-import { formatSar } from "./inventoryUtils.js";
+import { apiErrorMessage, formatSar } from "./inventoryUtils.js";
 
 export const cardClass = "rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] shadow-xl shadow-black/10";
 
@@ -48,7 +48,7 @@ export const textareaClass = `${inputClass} h-auto min-h-24 py-2.5`;
 export function Modal({ open, onClose, title, description, children, maxWidth = "max-w-2xl" }) {
   useEffect(() => {
     if (!open) return undefined;
-    const handler = (event) => event.key === "Escape" && onClose();
+    const handler = (event) => event.key === "Escape" && !event.defaultPrevented && onClose();
     document.addEventListener("keydown", handler);
     document.body.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", handler); document.body.style.overflow = ""; };
@@ -59,6 +59,11 @@ export function Modal({ open, onClose, title, description, children, maxWidth = 
 
 export function LoadingState({ label = "Loading inventory data…" }) {
   return <div className="grid min-h-60 place-items-center p-8 text-sm text-neutral-500"><div className="text-center"><LoaderCircle className="mx-auto mb-3 h-6 w-6 animate-spin text-dune-amber" />{label}</div></div>;
+}
+
+export function InventoryLoadError({ error, onRetry, label = "inventory data", retained = false }) {
+  if (!error) return null;
+  return <div role="alert" className="mb-4 rounded-xl border border-red-500/25 bg-red-500/5 p-4 text-sm text-red-300"><p>Unable to load {label}. {apiErrorMessage(error)}</p>{retained && <p className="mt-1 text-xs">Showing the last loaded results. Retry successfully before making changes.</p>}<Button variant="secondary" className="mt-3" onClick={() => onRetry().catch(() => undefined)}>Retry {label}</Button></div>;
 }
 
 export function EmptyState({ title = "No records found", description = "Try changing the filters or add your first record.", action }) {

@@ -63,7 +63,7 @@ const invokeCreateWebsiteOrder = async (user, body) => {
 const invokeJsonController = async (handler, req) => {
   let statusCode = 200;
   let payload;
-  await handler(req, { setHeader() {}, status(code) { statusCode = code; return this; }, json(value) { payload = value; return value; } });
+  await handler(req, { setHeader() {}, set() { return this; }, status(code) { statusCode = code; return this; }, json(value) { payload = value; return value; } });
   return { statusCode, payload };
 };
 

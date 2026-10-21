@@ -1,10 +1,10 @@
-import ProtectedRoute from "@/src/components/ProtectedRoute.jsx";
+import InventoryAccess from "@/src/components/inventory/InventoryAccess.jsx";
 import InventoryShell from "@/src/components/inventory/InventoryShell.jsx";
 
 export default function InventoryLayout({ children }) {
   return (
-    <ProtectedRoute roles={["admin", "manager", "inventory", "storekeeper"]}>
+    <InventoryAccess>
       <InventoryShell>{children}</InventoryShell>
-    </ProtectedRoute>
+    </InventoryAccess>
   );
 }
