@@ -46,7 +46,7 @@ try {
     await setFixtureSession(context, origin, "admin");
     const page = await context.newPage(); page.setDefaultTimeout(12000);
     const errors = [], writes = [], reads = [], prompts = [];
-    let reply = "dismiss", failStock = false, actorId = "111111111111111111111111", releasePayment;
+    let reply = "dismiss", failStock = false, failCustomers = false, actorId = "111111111111111111111111", releasePayment;
     let paymentTotal = 0;
     page.on("pageerror", error => errors.push(error.message));
     page.on("dialog", async dialog => { prompts.push(dialog.message()); await dialog[reply](); });
@@ -54,6 +54,7 @@ try {
     const supplier = { _id: "333333333333333333333333", name: "Owned Supplier", code: "SUP-001", isActive: true };
     const items = Array.from({ length: 75 }, (_, index) => ({ _id: String(index).padStart(24, "0"), name: `${index % 2 ? "Beef" : "Chicken"} ${index}`, sku: `TEST-${index}`, category, supplier, unit: "kg", purchaseUnit: "kg", purchaseConversionFactor: 1, unitCost: 10, currentStock: 5, saleableStock: 5, reorderLevel: 2, isActive: true, updatedAt: "2026-10-21T09:00:00Z" }));
     const stockBefore = JSON.stringify(items);
+    const customers = Array.from({ length: 45 }, (_, index) => ({ _id: `c${String(index).padStart(23, "0")}`, customerNumber: `CUS-${String(index + 1).padStart(6, "0")}`, name: `Owned Customer ${String(index).padStart(2, "0")}`, email: `customer${index}@example.test`, phone: index ? "" : "0501111111", createdAt: "2026-10-21T09:00:00Z", totalOrders: index, validOrders: index, totalSpent: index * 10, lastOrderAt: index ? "2026-10-21T09:00:00Z" : null, pointsBalance: index }));
     const invoice = { _id: "666666666666666666666666", internalReference: "INV-OWNED-1", supplierInvoiceNumber: "OWNED-1", supplier, total: 50, outstandingAmount: 50, status: "posted", displayPaymentStatus: "unpaid", invoiceDate: "2026-10-21", dueDate: "2026-10-30", matchSummary: { mismatches: 0 }, items: [] };
     const settings = { outletName: "Owned outlet", expiryAlertDays: 14, defaultAllowNegativeStock: false, purchasingAutomation: { demandLookbackDays: 60, defaultLeadTimeDays: 3, defaultSafetyStock: 4, staleAfterHours: 48, dismissalSnoozeDays: 2, dueSoonDays: 5 } };
     const settingsBefore = JSON.stringify(settings);
@@ -73,6 +74,10 @@ try {
         else payload = envelope(items.filter(row => !url.searchParams.get("search") || row.name.toLowerCase().includes(url.searchParams.get("search").toLowerCase())), url);
       } else if (resource === "/inventory/settings") payload.data = settings;
       else if (resource === "/admin/staff") payload = envelope([{ _id: "777777777777777777777777", employeeId: "EMP-OWNED-1", name: "Owned Staff", email: "staff@example.test", role: "cashier", isActive: true, attendanceEnabled: false }], url, 50);
+      else if (resource === "/admin/customers") {
+        if (failCustomers) { status = 503; payload = { success: false, message: "Owned customer directory unavailable" }; }
+        else payload = envelope(customers.filter(row => !url.searchParams.get("search") || row.name.toLowerCase().includes(url.searchParams.get("search").toLowerCase())), url);
+      } else if (resource.startsWith("/admin/customers/")) payload.data = { customer: customers.find(row => resource.endsWith(row._id)), analytics: { totalOrders: 0, completedOrders: 0, totalSpent: 0, validOrders: 0, averageOrderValue: 0, cancelledOrRefundedOrders: 0, lastOrderAt: null, averageDaysBetweenOrders: null } };
       else if (resource === "/attendance/shifts") payload.data = [];
       else if (resource === "/expenses/categories") payload.data = [{ _id: "888888888888888888888888", name: "Rent", isActive: true }];
       else if (resource === "/expenses") payload = envelope([], url, 15);
@@ -88,6 +93,8 @@ try {
     try {
       await page.goto(origin + "/inventory/stock-items");
       await page.getByText(/Last updated:/).waitFor();
+      // Let the existing 300ms mount-time search debounce settle before paging.
+      await page.waitForTimeout(350);
       assert.equal(await page.locator("tbody tr").count(), 20);
       const rows = page.getByRole("combobox", { name: "Rows per page", exact: true });
       const chooseRows = async size => { await rows.click(); const response = page.waitForResponse(result => result.url().includes("/api/inventory/items?") && new URL(result.url()).searchParams.get("limit") === String(size)); await page.getByRole("option", { name: String(size), exact: true }).click(); await response; };
@@ -183,6 +190,36 @@ try {
       const preferences = await page.evaluate(() => JSON.stringify(localStorage));
       assert.ok(!preferences.includes("RAM-ONLY-DRAFT") && !preferences.includes("Draft Staff") && !preferences.includes("125.50"));
 
+      await page.goto(origin + "/admin?tab=customers");
+      await page.getByText("Owned Customer 00", { exact: true }).waitFor();
+      assert.equal(await page.locator("tbody tr").count(), 20);
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      await page.getByText("Owned Customer 20", { exact: true }).waitFor();
+      await page.getByRole("combobox", { name: "Rows per page", exact: true }).click();
+      await page.getByRole("option", { name: "50", exact: true }).click();
+      await page.locator("tbody tr").nth(44).waitFor();
+      const directorySearch = page.getByPlaceholder("Search customer ID, name, email or phone…", { exact: true });
+      await directorySearch.fill("Owned Customer 03");
+      await page.waitForFunction(() => document.querySelectorAll("tbody tr").length === 1);
+      await page.getByRole("button", { name: "View details", exact: true }).click();
+      const customerDetails = page.getByRole("dialog", { name: "Owned Customer 03", exact: true });
+      await customerDetails.getByText("Customer contact", { exact: true }).waitFor();
+      await customerDetails.getByRole("button", { name: "Close customer details", exact: true }).click();
+      await page.locator("summary").click();
+      await page.getByRole("checkbox", { name: "Points", exact: true }).uncheck();
+      assert.equal(await page.getByRole("columnheader", { name: "Points", exact: true }).count(), 0);
+      await page.locator("summary").click();
+      await directorySearch.fill("No matching fixture");
+      await page.getByText("No customers match the current search and filters.", { exact: true }).waitFor();
+      failCustomers = true;
+      await page.getByRole("button", { name: "Refresh data", exact: true }).click();
+      await page.getByText("Owned customer directory unavailable", { exact: false }).waitFor();
+      failCustomers = false;
+      await page.getByRole("button", { name: "Retry data", exact: true }).click();
+      await directorySearch.fill("Owned Customer 01");
+      await page.getByText("Owned Customer 01", { exact: true }).waitFor();
+      assert.equal(writes.length, 0, "Directory search, columns, pagination, details and retries never write business data");
+
       await page.goto(origin + "/inventory/supplier-invoices"); await page.getByRole("button", { name: "Record payment", exact: true }).click();
       dialog = page.getByRole("dialog", { name: "Record payment · INV-OWNED-1", exact: true });
       await dialog.getByLabel("Amount (SAR)", { exact: true }).fill("10");
@@ -201,7 +238,7 @@ try {
       assert.equal(await rows.innerText(), "20");
       assert.equal(await page.getByRole("columnheader", { name: "Supplier", exact: true }).count(), 1);
       assert.deepEqual(errors, []);
-      console.log(`PASS ${viewport.width}px: page size/reset, saved filters, columns/account isolation, real freshness/retry, draft cancel/keep, sticky sections/actions, busy payment/one exact submission, unchanged stock/settings`);
+      console.log(`PASS ${viewport.width}px: customer directory rows/search/pagination/details/columns/retry, page size/reset, saved filters, columns/account isolation, real freshness/retry, draft cancel/keep, sticky sections/actions, busy payment/one exact submission, unchanged stock/settings`);
     } catch (error) {
       await page.screenshot({ path: path.join(artifacts, `failure-${viewport.width}.png`) }).catch(() => {}); throw error;
     } finally { releasePayment?.(); await context.close(); }
