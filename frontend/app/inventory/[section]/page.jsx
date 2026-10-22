@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import InventorySectionPage from "@/src/components/inventory/InventorySectionPage.jsx";
 
 const sections = new Set([
+  "preparation-recipes", "production",
   "stock-items",
   "batches",
   "categories",

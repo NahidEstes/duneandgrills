@@ -20,7 +20,7 @@ const inventoryBatchSchema = new mongoose.Schema(
     sourceTransaction: { type: mongoose.Schema.Types.ObjectId, ref: "StockTransaction", default: null },
     source: {
       type: String,
-      enum: ["PURCHASE_RECEIPT", "STOCK_IN", "OPENING_BALANCE", "ADJUSTMENT", "RESTORATION", "LEGACY"],
+      enum: ["PURCHASE_RECEIPT", "STOCK_IN", "OPENING_BALANCE", "ADJUSTMENT", "RESTORATION", "LEGACY", "PRODUCTION"],
       required: true,
     },
     purchaseQuantity: { type: Number, min: 0, default: null },

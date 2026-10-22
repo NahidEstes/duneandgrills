@@ -28,7 +28,7 @@ const unsupportedTransaction = (error) =>
   error?.code === 251 ||
   /transaction numbers are only allowed|replica set|transactions are not supported/i.test(error?.message || "");
 
-export const runInventoryTransaction = async (work) => {
+export const runInventoryTransaction = async (work, { requireTransaction = false } = {}) => {
   const session = await mongoose.startSession();
   try {
     let result;
@@ -39,7 +39,7 @@ export const runInventoryTransaction = async (work) => {
   } catch (error) {
     if (!unsupportedTransaction(error)) throw error;
     const fallbackAllowed = process.env.NODE_ENV !== "production" && process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY === "true";
-    if (fallbackAllowed) return work(null);
+    if (fallbackAllowed && !requireTransaction) return work(null);
     const operationalError = new Error("Inventory transaction support is unavailable. Configure a MongoDB replica set before retrying.");
     operationalError.status = 503;
     operationalError.code = "INVENTORY_TRANSACTION_UNAVAILABLE";
@@ -96,6 +96,8 @@ export const performStockMovement = async (
     sourceDetails = {},
     saleOnly = false,
     eligibilityNow = new Date(),
+    batchSource = null,
+    targetBatchId = null,
   },
   { session = null } = {}
 ) => {
@@ -158,13 +160,13 @@ export const performStockMovement = async (
         supplier,
         brand,
         purchaseOrder,
-        source: direction === "adjustment" ? "ADJUSTMENT" : movementType,
+        source: batchSource || (direction === "adjustment" ? "ADJUSTMENT" : movementType),
         purchaseQuantity,
         purchaseUnit,
         conversionFactor,
       }, session);
     } else if (stockDelta < 0) {
-      batchChanges = await consumeInventoryBatches({ item, quantity: Math.abs(stockDelta), saleOnly: saleOnly || Boolean(order && movementType === "STOCK_OUT"), now: eligibilityNow }, session);
+      batchChanges = await consumeInventoryBatches({ item, quantity: Math.abs(stockDelta), saleOnly: saleOnly || Boolean(order && movementType === "STOCK_OUT"), now: eligibilityNow, targetBatchId }, session);
     }
 
     const nextExpiry = item.tracksExpiry ? await updateItemNextExpiry(item._id, session) : null;

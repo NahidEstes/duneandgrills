@@ -90,10 +90,10 @@ export const createInventoryBatch = async ({
   };
 };
 
-export const consumeInventoryBatches = async ({ item, quantity, saleOnly = false, now = new Date() }, session = null) => {
+export const consumeInventoryBatches = async ({ item, quantity, saleOnly = false, now = new Date(), targetBatchId = null }, session = null) => {
   await ensureLegacyBatch(item, session);
   let needed = Number(Number(quantity).toFixed(6));
-  const batches = await InventoryBatch.find(saleOnly ? eligibleBatchFilter(item, now) : { item: item._id, remainingQuantity: { $gt: 0 } })
+  const batches = await InventoryBatch.find({ ...(saleOnly ? eligibleBatchFilter(item, now) : { item: item._id, remainingQuantity: { $gt: 0 } }), ...(targetBatchId ? { _id: targetBatchId } : {}) })
     .sort({ fefoDate: 1, receivedAt: 1, _id: 1 })
     .session(session || null);
   const available = batches.reduce((sum, batch) => sum + Number(batch.remainingQuantity || 0), 0);

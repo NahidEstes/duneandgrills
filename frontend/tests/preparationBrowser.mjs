@@ -1,0 +1,105 @@
+import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { spawn } from "node:child_process";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import express from "../../backend/node_modules/express/index.js";
+import jwt from "../../backend/node_modules/jsonwebtoken/index.js";
+import { withIsolatedMongo } from "../../backend/tests/helpers/isolatedMongo.js";
+import User from "../../backend/models/User.js";
+import InventoryItem from "../../backend/models/InventoryItem.js";
+import InventoryCategory from "../../backend/models/InventoryCategory.js";
+import StockTransaction from "../../backend/models/StockTransaction.js";
+import Production from "../../backend/models/Production.js";
+import inventoryRoutes from "../../backend/routes/inventoryRoutes.js";
+
+// Real production controllers/models, but only an owned temporary replica set,
+// loopback Express/Next and fixture users/items. No dotenv or external API.
+process.env.NODE_ENV = "test"; process.env.JWT_SECRET = "owned-preparation-browser-fixture";
+process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "false";
+const root = path.resolve(import.meta.dirname, ".."), output = await mkdtemp(path.join(tmpdir(), "dg-preparation-browser-"));
+let browser, next, backend, logs = "", failHistory = false;
+await withIsolatedMongo(async () => {
+  try {
+    const actor = await User.create({ name: "Owned preparation admin", email: "preparation-browser@fixture.invalid", password: "OwnedPassword123!", role: "admin" });
+    const category = await InventoryCategory.create({ name: "Owned browser stock", skuPrefix: "PBR" });
+    const raw = await InventoryItem.create({ name: "Owned raw ingredient", sku: "PBR-RAW", category: category._id, unit: "kg", currentStock: 100, unitCost: 10 });
+    const finished = {};
+    for (const width of [1440,390,320]) finished[width] = await InventoryItem.create({ name: `Owned prepared sauce ${width}`, sku: `PBR-SAUCE-${width}`, category: category._id, unit: "kg", currentStock: 0, tracksExpiry: true });
+    const app = express(); app.use(express.json());
+    app.get(["/api/auth/me", "/api/auth/session"], (_req, res) => res.json({ success: true, user: { _id: actor._id, name: actor.name, role: actor.role } }));
+    app.use("/api/inventory", (req, res, done) => failHistory && req.path === "/production" ? res.status(503).json({ success: false, message: "Owned history unavailable" }) : done(), inventoryRoutes);
+    app.get("/api/settings/public", (_req, res) => res.json({ success: true, data: { location: {}, openingHours: [] } }));
+    app.get("/api/cart", (_req, res) => res.json({ success: true, data: { items: [] } }));
+    app.get("/api/orders/config", (_req, res) => res.json({ success: true, data: { websiteOrderingEnabled: false } }));
+    app.use((_req, res) => res.json({ success: true, data: [] }));
+    app.use((error, _req, res, _done) => res.status(error.status || 400).json({ success: false, message: error.message }));
+    backend = await new Promise(resolve => { const server = app.listen(0, "127.0.0.1", () => resolve(server)); });
+    const probe = createServer(); await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve)); const port = probe.address().port; await new Promise(resolve => probe.close(resolve));
+    const origin = `http://127.0.0.1:${port}`, env = { ...process.env, NODE_ENV: "production", BACKEND_API_URL: `http://127.0.0.1:${backend.address().port}/api`, SITE_URL: origin, SITE_ENV: "staging" };
+    for (const key of Object.keys(env)) if (/MONGO|DATABASE|JWT_SECRET|API_PROXY_SECRET|RESEND|CUSTOMER_EMAIL/i.test(key)) delete env[key];
+    next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-H", "127.0.0.1", "-p", String(port)], { cwd: root, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    next.stdout.on("data", value => logs += value); next.stderr.on("data", value => logs += value);
+    for (let attempt = 0; attempt < 100; attempt++) { try { await fetch(origin + "/login"); break; } catch { if (next.exitCode != null) throw Error(logs); await new Promise(resolve => setTimeout(resolve, 200)); } }
+    const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(path.join(process.env.PLAYWRIGHT_MODULE, "index.mjs")).href : "playwright");
+    browser = await chromium.launch({ channel: "chrome", headless: true });
+    for (const width of [1440,390,320]) {
+      const context = await browser.newContext({ viewport: { width, height: width === 1440 ? 1000 : 844 }, serviceWorkers: "block" }), page = await context.newPage(), errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      await context.addCookies([{ name: "dg_session", value: jwt.sign({ id: actor._id, sv: 0 }, process.env.JWT_SECRET), url: origin }, { name: "dg_csrf", value: "owned-browser-csrf", url: origin }]);
+      await context.route("https://**", route => route.fulfill({ status: 200, body: "" }));
+      const shot = async name => { await page.screenshot({ path: path.join(output, `${name}-${width}.png`), fullPage: true }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${name}: horizontal overflow`); };
+      const select = async (label, option) => { await page.getByRole("combobox", { name: label }).click(); await page.getByRole("option", { name: option, exact: true }).click(); };
+      const axe = async () => { await page.addScriptTag({ path: path.join(root, "node_modules/axe-core/axe.min.js") }); const problems = await page.evaluate(async () => (await window.axe.run(document.querySelector("main"), { runOnly: { type: "tag", values: ["wcag2a","wcag2aa"] } })).violations.map(row => `${row.id}: ${row.nodes.map(node => node.target.join(" ")).join(", ")}`)); assert.deepEqual(problems, []); };
+      await page.goto(origin + "/inventory/preparation-recipes"); await page.getByRole("button", { name: "New recipe", exact: true }).click();
+      await page.getByLabel("Recipe name", { exact: true }).fill(`Owned sauce ${width}`);
+      await select(/Finished stock item/, `Owned prepared sauce ${width} · kg`);
+      await page.getByLabel("Expected batch yield", { exact: true }).fill("500"); await select("Yield unit", "g");
+      await select("Stock item 1", "Owned raw ingredient"); await page.getByLabel("Quantity 1", { exact: true }).fill("500"); await select("Unit 1", "g");
+      const before = await StockTransaction.countDocuments();
+      await page.getByRole("button", { name: "Save recipe", exact: true }).click(); await page.getByText("Recipe saved. Stock balances are unchanged.", { exact: true }).waitFor(); assert.equal(await StockTransaction.countDocuments(), before);
+      await page.getByLabel("Preparation notes (optional)", { exact: true }).fill("Owned unsaved notes");
+      page.once("dialog", dialog => dialog.dismiss()); await page.getByRole("button", { name: "New recipe", exact: true }).click(); assert.equal(await page.getByLabel("Preparation notes (optional)", { exact: true }).inputValue(), "Owned unsaved notes");
+      await page.getByLabel("Search preparation recipes", { exact: true }).fill("not-a-real-recipe"); await page.getByText("No preparation recipes", { exact: true }).waitFor(); assert.equal(await page.getByLabel("Preparation notes (optional)", { exact: true }).inputValue(), "Owned unsaved notes"); await page.getByLabel("Search preparation recipes", { exact: true }).fill("");
+      await shot("recipe"); await axe(); page.once("dialog", dialog => dialog.accept()); await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page.goto(origin + "/inventory/production");
+      if (width === 320) {
+        await page.evaluate(() => { window.__ownedSetItem = Storage.prototype.setItem; Storage.prototype.setItem = function(key, value) { if (key.startsWith("dg-submission:production")) throw Error("Owned storage unavailable"); return window.__ownedSetItem.call(this, key, value); }; });
+        await page.getByRole("button", { name: "Record production", exact: true }).click(); await page.getByText(/Safe request storage is unavailable/).waitFor(); assert.equal(await page.getByRole("button", { name: "Review & confirm production", exact: true }).isDisabled(), true);
+        await page.evaluate(() => { Storage.prototype.setItem = window.__ownedSetItem; }); await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      }
+      await page.getByRole("button", { name: "Record production", exact: true }).click(); await select("Preparation recipe", `Owned sauce ${width} · v1`);
+      await page.getByLabel(/Batch multiplier/).fill("2"); await page.getByLabel("Actual usable finished quantity", { exact: true }).fill("980");
+      await page.getByRole("button", { name: "Use by", exact: true }).click(); const calendar = page.getByRole("dialog", { name: "Choose date", exact: true }); await calendar.getByPlaceholder("DD-MM-YYYY", { exact: true }).fill("02-01-2030"); await calendar.getByRole("button", { name: "Go", exact: true }).click(); await page.keyboard.press("Escape");
+      await context.setOffline(true); await page.getByText("Offline. Production cannot be previewed or confirmed.", { exact: true }).waitFor(); assert.equal(await page.getByRole("button", { name: "Review & confirm production", exact: true }).isDisabled(), true); await context.setOffline(false);
+      await page.getByRole("button", { name: "Review & confirm production", exact: true }).click(); const confirm = page.getByRole("dialog", { name: "Confirm production", exact: true }); await confirm.waitFor(); assert.equal(await StockTransaction.countDocuments(), before);
+      await page.keyboard.press("Escape"); await shot("record-production"); await axe();
+      await page.getByRole("button", { name: "Review & confirm production", exact: true }).click(); await confirm.waitFor();
+      if (width === 1440) {
+        const beforeStale = await Production.countDocuments();
+        await InventoryItem.updateOne({ _id: raw._id }, { $inc: { stockVersion: 1 } }); await confirm.getByRole("button", { name: "Confirm production", exact: true }).click(); await confirm.getByRole("alert").filter({ hasText: /changed since preview/ }).waitFor(); assert.equal(await Production.countDocuments(), beforeStale);
+        const retainedKey = await page.evaluate(() => Object.entries(sessionStorage).find(([key]) => key.startsWith("dg-submission:production") && key.endsWith(":key"))?.[1]);
+        await confirm.getByRole("button", { name: "Go back", exact: true }).click(); await page.getByRole("button", { name: "Review again with same key", exact: true }).click();
+        await page.getByRole("button", { name: "Review & confirm production", exact: true }).click(); await confirm.waitFor(); assert.equal(await page.evaluate(() => Object.entries(sessionStorage).find(([key]) => key.startsWith("dg-submission:production") && key.endsWith(":key"))?.[1]), retainedKey);
+      }
+      if (width === 390) await context.route("**/api/inventory/production/confirm", async route => { await route.fetch(); await route.abort("failed"); }, { times: 1 });
+      const count = await Production.countDocuments(); await confirm.getByRole("button", { name: "Confirm production", exact: true }).click();
+      if (width === 390) { await confirm.getByRole("alert").waitFor(); await confirm.getByRole("button", { name: "Go back", exact: true }).click(); await page.getByRole("button", { name: "Check saved result", exact: true }).click(); }
+      await page.getByRole("dialog", { name: /^PRD-/ }).waitFor(); assert.equal(await Production.countDocuments(), count + 1);
+      await shot("batch-details"); await axe();
+      await page.getByRole("button", { name: "Reverse production", exact: true }).click(); await page.getByLabel("Reversal reason", { exact: true }).fill("Owned browser correction"); await page.getByRole("button", { name: "Confirm reversal", exact: true }).click(); await page.getByText(/Reversed .*Owned browser correction/).waitFor();
+      await page.getByRole("button", { name: /^Close PRD-/ }).click(); await page.getByLabel("Search batch or preparation", { exact: true }).fill(`Owned sauce ${width}`); await page.getByText("Reversed", { exact: true }).waitFor(); await shot("history"); await axe();
+      failHistory = true; await page.getByRole("button", { name: "Refresh", exact: true }).click(); await page.getByRole("alert").filter({ hasText: /Unable to load/ }).waitFor(); await page.getByText("Reversed", { exact: true }).waitFor(); failHistory = false; await page.getByRole("button", { name: "Retry inventory data", exact: true }).click(); await page.getByRole("alert").filter({ hasText: /Unable to load/ }).waitFor({ state: "hidden" });
+      assert.deepEqual(errors, []); await context.close(); console.log(`PASS ${width}px: real recipe/production/reversal, draft retention, offline, uncertain recovery, history refresh and axe`);
+    }
+    assert.equal((await InventoryItem.findById(raw._id)).currentStock, 100);
+    console.log(`Preparation browser artifacts: ${output}`);
+  } catch (error) {
+    for (const context of browser?.contexts() || []) for (const page of context.pages()) { await page.screenshot({ path: path.join(output, "failure.png"), fullPage: true }); console.error(page.url(), (await page.locator("body").innerText()).slice(0, 4500)); }
+    console.error(`Artifacts: ${output}`); throw error;
+  } finally {
+    await browser?.close(); if (next) { next.kill(); await new Promise(resolve => next.exitCode != null ? resolve() : next.once("exit", resolve)); } if (backend) await new Promise(resolve => backend.close(resolve));
+  }
+});

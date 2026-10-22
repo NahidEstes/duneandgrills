@@ -30,8 +30,8 @@ export function Badge({ children, tone = "neutral" }) {
   return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold ${tones[tone] || tones.neutral}`}>{children}</span>;
 }
 
-export function PageHeader({ eyebrow = "Inventory", title, description, actions }) {
-  return <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="mb-1 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-dune-amber">{eyebrow}</p><h1 className="font-body text-2xl font-bold tracking-tight text-white sm:text-3xl">{title}</h1><p className="mt-1 max-w-3xl text-sm text-neutral-500">{description}</p></div>{actions && <div className="flex flex-wrap gap-2">{actions}</div>}</div>;
+export function PageHeader({ eyebrow = "Inventory", title, description, descriptionClassName = "", actions }) {
+  return <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="mb-1 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-dune-amber">{eyebrow}</p><h1 className="font-body text-2xl font-bold tracking-tight text-white sm:text-3xl">{title}</h1><p className={`mt-1 max-w-3xl text-sm text-neutral-500 ${descriptionClassName}`}>{description}</p></div>{actions && <div className="flex flex-wrap gap-2">{actions}</div>}</div>;
 }
 
 export function StatCard({ label, value, caption, icon: Icon, tone = "orange" }) {

@@ -2,6 +2,15 @@ import api from "./api.js";
 import { collectSelectionOptions } from "./selectionOptions.js";
 
 const unwrap = (request) => request.then(({ data }) => data);
+export const fetchPreparationOptions = () => unwrap(api.get("/inventory/preparation/options")).then(response => response.data);
+export const fetchPreparationRecipes = (params = {}) => unwrap(api.get("/inventory/preparation-recipes", { params }));
+export const savePreparationRecipe = (id, payload) => unwrap(id ? api.put(`/inventory/preparation-recipes/${id}`, payload) : api.post("/inventory/preparation-recipes", payload)).then(response => response.data);
+export const previewProduction = payload => unwrap(api.post("/inventory/production/preview", payload)).then(response => response.data);
+export const confirmProduction = payload => unwrap(api.post("/inventory/production/confirm", payload)).then(response => response.data);
+export const fetchProduction = (params = {}) => unwrap(api.get("/inventory/production", { params }));
+export const fetchProductionDetails = id => unwrap(api.get(`/inventory/production/${id}`)).then(response => response.data);
+export const findProductionRequest = key => unwrap(api.get(`/inventory/production/request/${key}`)).then(response => response.data);
+export const reverseProduction = (id, reason) => unwrap(api.post(`/inventory/production/${id}/reverse`, { reason })).then(response => response.data);
 
 export const fetchInventoryDashboard = () => unwrap(api.get("/inventory/dashboard")).then((response) => response.data);
 export const fetchInventoryAlerts = () => unwrap(api.get("/inventory/alerts")).then((response) => response.data);

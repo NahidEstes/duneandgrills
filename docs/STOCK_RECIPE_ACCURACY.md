@@ -1,5 +1,9 @@
 # Phase 1 — Stock & Recipe Accuracy
 
+Follow-up: [Preparation and production](preparation-production.md) adds raw-to-finished
+stock conversion. Existing menu/add-on recipes consume the finished stock directly;
+they do not expand preparation inputs again.
+
 ## Saleable inventory
 
 Website checkout, POS and completed delivery-platform entry all use `deductOrderInventory`.

@@ -4,6 +4,7 @@ import { getRiyadhCreationYear } from "./expenseNumberService.js";
 import { addRecordSearchIndexes } from "../utils/recordSearchIndexes.js";
 
 export const RECORD_NUMBERS = Object.freeze({
+  Production: { field: "productionNumber", prefix: "PRD", annual: true },
   Refund: { field: "refundNumber", prefix: "RFN", annual: true },
   SupplierPayment: { field: "paymentNumber", prefix: "PAY", annual: true },
   PosShift: { field: "shiftNumber", prefix: "PSH", annual: true },

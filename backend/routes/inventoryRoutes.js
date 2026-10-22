@@ -1,4 +1,5 @@
 import express from "express";
+import { preparationOptions, listPreparationRecipes, savePreparation, previewPreparation, confirmPreparation, getProduction, reversePreparation, listProduction, findProductionRequest } from "../controllers/inventory/preparationController.js";
 import { rejectClientRecordNumbers } from "../services/recordNumberService.js";
 import {
   archiveItem,
@@ -61,6 +62,15 @@ router.use(rejectClientRecordNumbers);
 
 router.use(protect, requireCapability(CAPABILITIES.INVENTORY_READ));
 const write = requireCapability(CAPABILITIES.INVENTORY_WRITE);
+router.get("/preparation/options", preparationOptions);
+router.route("/preparation-recipes").get(listPreparationRecipes).post(write, savePreparation);
+router.put("/preparation-recipes/:id", write, savePreparation);
+router.get("/production", listProduction);
+router.post("/production/preview", write, previewPreparation);
+router.post("/production/confirm", write, confirmPreparation);
+router.get("/production/request/:key", findProductionRequest);
+router.get("/production/:id", getProduction);
+router.post("/production/:id/reverse", requireCapability(CAPABILITIES.INVENTORY_COUNT_APPROVE), reversePreparation);
 const approveCount = requireCapability(CAPABILITIES.INVENTORY_COUNT_APPROVE);
 const approvePurchase = requireCapability(CAPABILITIES.PURCHASE_APPROVE);
 const payablesRead = requireCapability(CAPABILITIES.PAYABLES_READ);

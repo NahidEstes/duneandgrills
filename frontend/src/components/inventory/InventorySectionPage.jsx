@@ -1,6 +1,8 @@
 "use client";
 
 import AlertsPage from "./AlertsPage.jsx";
+import PreparationRecipesPage from "./PreparationRecipesPage.jsx";
+import ProductionPage from "./ProductionPage.jsx";
 import CategoriesPage from "./CategoriesPage.jsx";
 import InventoryCountPage from "./InventoryCountPage.jsx";
 import InventorySettingsPage from "./InventorySettingsPage.jsx";
@@ -19,6 +21,8 @@ import ReorderSuggestionsPage from "./ReorderSuggestionsPage.jsx";
 import PurchasingActionCenterPage from "./PurchasingActionCenterPage.jsx";
 
 export default function InventorySectionPage({ section, initialStatus = "", initialState = "", initialSearch = "" }) {
+  if (section === "preparation-recipes") return <PreparationRecipesPage />;
+  if (section === "production") return <ProductionPage />;
   if (section === "stock-items") return <StockItemsPage key={initialStatus} initialStatus={initialStatus} />;
   if (section === "batches") return <BatchesPage />;
   if (section === "categories") return <CategoriesPage />;

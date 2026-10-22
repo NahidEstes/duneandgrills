@@ -15,11 +15,13 @@ import PosShift from "../models/PosShift.js";
 import CashMovement from "../models/CashMovement.js";
 import StockTransaction from "../models/StockTransaction.js";
 import PosHeldSale from "../models/PosHeldSale.js";
+import Production from "../models/Production.js";
 import { CAPABILITIES as C, hasCapability } from "../config/permissions.js";
 import { escapeRegex, ValidationError } from "../utils/inventoryValidation.js";
 
 const descriptor = (model, fields, capability, select, extra = {}) => ({ model, fields, capability, select: `${fields.join(" ")} createdAt ${select}`, ...extra });
 export const RECORD_SEARCH_TYPES = {
+  production: descriptor(Production, ["productionNumber"], C.INVENTORY_READ, "status recipeSnapshot.name preparedAt", { title: row => row.recipeSnapshot?.name || "Production batch", date: "preparedAt" }),
   order: descriptor(Order, ["orderNumber", "externalOrderId"], C.ORDERS_READ_ALL, "status source orderType terminal", { title: row => `${row.source || "Website"} order`, date: "createdAt" }),
   inventory: descriptor(InventoryItem, ["sku"], C.INVENTORY_READ, "name isActive", { title: row => row.name }),
   expense: descriptor(Expense, ["expenseNumber"], C.FINANCE_READ, "title paymentStatus expenseDate vendor", { title: row => row.title, date: "expenseDate", context: row => row.vendor }),
@@ -63,7 +65,7 @@ export async function searchRecords(actor, { q, page = 1, limit = 15 } = {}) {
   const window = page * limit + 1;
   const exact = new RegExp(`^${escapeRegex(term)}$`, "i");
   const partial = new RegExp(escapeRegex(term), "i");
-  const prefixTypes = { RFN: "refund", PAY: "payment", PSH: "shift", CSH: "cash", STX: "stock", HLD: "held", CUS: "customer", EMP: "staff", EXP: "expense", INV: "inventory" };
+  const prefixTypes = { PRD: "production", RFN: "refund", PAY: "payment", PSH: "shift", CSH: "cash", STX: "stock", HLD: "held", CUS: "customer", EMP: "staff", EXP: "expense", INV: "inventory" };
   const likely = prefixTypes[term.toUpperCase().split("-")[0]];
   const types = Object.keys(RECORD_SEARCH_TYPES).filter(type => permitted(type, actor)).sort((a, b) => Number(b === likely) - Number(a === likely));
   if (!types.length) throw Object.assign(new Error("Record search is not available for this account"), { status: 403 });
