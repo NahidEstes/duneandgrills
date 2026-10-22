@@ -790,6 +790,9 @@ export const deleteBlogPost = async (id) => {
 export default api;
 
 export const fetchPlanner = async (params, options = {}) => (await api.get("/planner", { ...options, params })).data;
+export const fetchPlannerInsights = async (params, options = {}) => (await api.get("/planner/insights", { ...options, params })).data;
+export const fetchPlannerPersonTasks = async (params, options = {}) => (await api.get("/planner/insights/tasks", { ...options, params })).data;
+export const exportPlannerInsights = async (params, options = {}) => (await api.get("/planner/insights/export", { ...options, params, responseType: "blob" })).data;
 export const fetchPlannerTask = async id => (await api.get(`/planner/${id}`)).data.data;
 export const createPlannerReminder = async payload => (await api.post("/planner", payload)).data;
 export const editPlannerReminder = async (id, payload) => (await api.patch(`/planner/${id}`, payload)).data;

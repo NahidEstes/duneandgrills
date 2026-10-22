@@ -2,10 +2,11 @@ import crypto from "node:crypto";
 import mongoose from "mongoose";
 import PlannerTask from "../models/PlannerTask.js";
 import PlannerSeries from "../models/PlannerSeries.js";
+import { plannerTransition } from "./plannerCompletion.js";
 import { resolvePlannerReference, resolvePlannerResponsible } from "./plannerReferences.js";
 import { PLANNER_CATEGORIES, PLANNER_REPEATS, PLANNER_STATUSES, PlannerError, assertPlannerFields, plannerDay, plannerDate, plannerDueAt, plannerText, shiftPlannerDay, nextPlannerDay, normalizePlannerRepeat } from "./plannerRules.js";
 
-const fields = ["title", "category", "priority", "dueDate", "time", "notes", "checklist", "responsibleId", "linkedRecord", "repeat", "repeatOptions", "requestId", "revision", "scope", "status"];
+const fields = ["title", "category", "priority", "dueDate", "time", "notes", "checklist", "responsibleId", "linkedRecord", "repeat", "repeatOptions", "requestId", "revision", "scope", "status", "completionNote"];
 const actorOf = actor => ({ id: actor._id, name: actor.name });
 const event = (action, actor) => ({ action, actor: actorOf(actor), at: new Date() });
 const activeStatuses = ["Pending", "In Progress"];
@@ -80,7 +81,7 @@ async function addSeries(normalized, identity, groupId, actor, session, previous
   return series;
 }
 export async function createPlannerTask(body, actor) {
-  assertPlannerFields(body, fields.filter(field => !["scope", "revision", "status"].includes(field)));
+  assertPlannerFields(body, fields.filter(field => !["scope", "revision", "status", "completionNote"].includes(field)));
   const identity = requestIdentity(body, actor);
   if (await replay(identity)) return { duplicate: true };
   const normalized = await normalize(body);
@@ -109,6 +110,7 @@ export async function editPlannerTask(id, body, actor) {
   const normalized = await normalize(body, current);
   const series = await PlannerSeries.findById(current.series);
   if (body.scope === "future") {
+    if (body.completionNote !== undefined) throw new PlannerError("Complete a single occurrence to add a completion note");
     const identity = requestIdentity(body, actor);
     if (await replay(identity)) return;
     await transaction(async session => {
@@ -132,11 +134,12 @@ export async function editPlannerTask(id, body, actor) {
   if (normalized.repeat !== series.repeat || JSON.stringify(stable(normalized.repeatOptions)) !== JSON.stringify(stable(series.repeatOptions?.toObject() ?? null))) throw new PlannerError("Choose this and future reminders to change repetition");
   const status = body.status ?? current.status;
   if (!PLANNER_STATUSES.includes(status)) throw new PlannerError("Invalid reminder status");
-  const updated = await PlannerTask.findOneAndUpdate({ _id: id, revision: body.revision, deleted: false }, { $set: { ...normalized.template, dueAt: normalized.dueAt, status, completedAt: status === "Done" ? current.completedAt || new Date() : null, undo: null, ...(normalized.dueAt.getTime() !== current.dueAt.getTime() ? { snoozedUntil: null } : {}), updatedBy: actorOf(actor) }, $inc: { revision: 1 }, $push: { history: { $each: [event("Reminder edited", actor)], $slice: -100 } } }, { new: true, runValidators: true });
+  const transition = plannerTransition(current, { ...normalized.template, dueAt: normalized.dueAt, status }, actor, body.completionNote);
+  const updated = await PlannerTask.findOneAndUpdate({ _id: id, revision: body.revision, deleted: false }, { $set: { ...normalized.template, dueAt: normalized.dueAt, status, completedAt: transition.completedAt, completion: transition.completion, undo: null, ...(normalized.dueAt.getTime() !== current.dueAt.getTime() ? { snoozedUntil: null } : {}), updatedBy: actorOf(actor) }, $inc: { revision: 1 }, $push: { history: { $each: [...transition.events, event("Reminder edited", actor)], $slice: -100 } } }, { new: true, runValidators: true });
   if (!updated) throw new PlannerError("This reminder changed. Refresh before saving", 409);
 }
 export async function changePlannerTask(id, body, actor, remove = false) {
-  assertPlannerFields(body, remove ? ["revision"] : ["revision", "status", "checklist"]);
+  assertPlannerFields(body, remove ? ["revision"] : ["revision", "status", "checklist", "completionNote"]);
   const task = await getPlannerTask(id); checkRevision(body, task);
   const changes = { updatedBy: actorOf(actor), undo: null };
   if (remove) Object.assign(changes, { deleted: true, deletionKind: "single" });
@@ -144,14 +147,16 @@ export async function changePlannerTask(id, body, actor, remove = false) {
     if (body.status !== undefined) {
       if (!PLANNER_STATUSES.includes(body.status)) throw new PlannerError("Invalid reminder status");
       Object.assign(changes, { status: body.status, completedAt: body.status === "Done" ? task.completedAt || new Date() : null });
-      if (["Done", "Cancelled"].includes(body.status) && task.status !== body.status) changes.undo = { token: crypto.randomUUID(), expiresAt: new Date(Date.now() + 15000), revision: task.revision + 1, previousStatus: task.status, previousCompletedAt: task.completedAt };
+      if (["Done", "Cancelled"].includes(body.status) && task.status !== body.status) changes.undo = { token: crypto.randomUUID(), expiresAt: new Date(Date.now() + 15000), revision: task.revision + 1, previousStatus: task.status, previousCompletedAt: task.completedAt, previousCompletion: task.completion };
     }
     if (body.checklist !== undefined) {
       if (!Array.isArray(body.checklist) || body.checklist.length !== task.checklist.length || body.checklist.some(done => typeof done !== "boolean")) throw new PlannerError("Invalid checklist update");
       changes.checklist = task.checklist.map((row, index) => ({ text: row.text, done: body.checklist[index] }));
     }
   }
-  const updated = await PlannerTask.findOneAndUpdate({ _id: id, revision: body.revision, deleted: false }, { $set: changes, $inc: { revision: 1 }, $push: { history: { $each: [event(remove ? "Reminder deleted" : body.status ? `Status changed to ${body.status}` : "Checklist updated", actor)], $slice: -100 } } }, { new: true, runValidators: true });
+  const transition = remove ? null : plannerTransition(task, { ...task.toObject(), ...changes }, actor, body.completionNote);
+  if (transition) Object.assign(changes, { completedAt: transition.completedAt, completion: transition.completion });
+  const updated = await PlannerTask.findOneAndUpdate({ _id: id, revision: body.revision, deleted: false }, { $set: changes, $inc: { revision: 1 }, $push: { history: { $each: remove ? [event("Reminder deleted", actor)] : transition.events.length ? transition.events : [event("Reminder progress saved", actor)], $slice: -100 } } }, { new: true, runValidators: true });
   if (!updated) throw new PlannerError("This reminder changed. Refresh before updating", 409);
   return updated;
 }
@@ -222,7 +227,7 @@ export async function undoPlannerChange(id, body, actor, now = new Date()) {
   assertPlannerFields(body, ["revision", "token"]);
   const task = await getPlannerTask(id); checkRevision(body, task);
   if (!task.undo || task.undo.token !== body.token || task.undo.revision !== task.revision || task.undo.expiresAt <= now) throw new PlannerError("Undo expired or this reminder changed. Refresh to review its status", 409);
-  const updated = await PlannerTask.findOneAndUpdate({ _id: id, revision: task.revision, deleted: false, "undo.token": body.token, "undo.expiresAt": { $gt: now } }, { $set: { status: task.undo.previousStatus, completedAt: task.undo.previousCompletedAt, undo: null, updatedBy: actorOf(actor) }, $inc: { revision: 1 }, $push: { history: { $each: [event("Status change undone", actor)], $slice: -100 } } }, { new: true });
+  const updated = await PlannerTask.findOneAndUpdate({ _id: id, revision: task.revision, deleted: false, "undo.token": body.token, "undo.expiresAt": { $gt: now } }, { $set: { status: task.undo.previousStatus, completedAt: task.undo.previousCompletedAt, completion: task.undo.previousCompletion || null, undo: null, updatedBy: actorOf(actor) }, $inc: { revision: 1 }, $push: { history: { $each: [event("Status change undone", actor)], $slice: -100 } } }, { new: true });
   if (!updated) throw new PlannerError("This reminder changed. Undo was not applied", 409);
   return updated;
 }

@@ -29,6 +29,56 @@ The three screens use the existing dark/amber design and English UI:
 - The separate Planner bell appears in the shared Admin header for admins and
   managers, alongside the existing independent order controls.
 
+## Completion History, task details and People
+
+- **History** is a separate view alongside List, Week and Calendar. It lists
+  currently Done reminders by completion time, with literal search, inclusive
+  Riyadh date ranges, category, responsible-person and marked-done-by filters.
+  Summary cards apply to the entire filtered set, independently of pagination.
+  Completed = On time + Late + Timing unavailable. Old reminders without a
+  completion snapshot are never assigned a guessed completion actor/deadline.
+- **View details / View history** opens a read-only dialog. The existing Edit
+  action and notification deep-link editing remain available. Details include
+  checklist, optional completion note and the existing latest-100-event task
+  history plus schedule events. Completion events retain their snapshot within
+  that existing bounded history; this is not an unlimited external audit log.
+- Marking Done from the list opens a confirmation form with an optional note
+  (up to 1,000 characters). Cancelling does not complete the reminder. Editing
+  an occurrence to Done also accepts a note. The server stores the completion
+  timestamp, acting account, responsible person, title, category, due time and
+  checklist together under the task's existing optimistic revision check.
+  Later edits keep those completion facts unchanged. Reopening clears the
+  current completion, while its prior event remains in history. Recompletion
+  records a new snapshot. Undo restores the exact prior completion metadata,
+  including notes and attribution. Status/assignment/deadline/checklist changes
+  are logged by both progress and edit paths.
+- **People** counts tasks whose effective due time is in the selected period.
+  A completed task uses its frozen due time/category/assignment when available;
+  active and legacy tasks use current values. Pending includes Pending and
+  In Progress tasks not yet overdue. Overdue is a separate bucket. Cancelled
+  and deleted reminders are excluded. For each person and the whole filtered
+  set, Assigned = Completed + Pending + Overdue. Unassigned is included.
+  View tasks uses the same filters and supports pagination. Counts cover stored
+  occurrences, with the existing recurrence-generation horizon; they do not
+  imply an infinite count of future repeating tasks.
+- CSV exports include all filtered rows, independently of the displayed page,
+  use Riyadh timestamps, protect spreadsheet formula values, and require the
+  same Admin capability as every Planner endpoint. Exports exceeding 10,000 rows
+  are rejected with a request to narrow filters, rather than silently truncated.
+  Export failures never download a partial file. Changing filters/view aborts
+  an in-flight export. No business export or financial calculation is reused.
+- All new UI is English and uses the existing dark/amber components. Loading,
+  empty, failed initial read, stale retained results and retry remain distinct.
+  Preferences/notes contain no automatic operational action or staff scoring.
+
+Existing records require no backfill. The additive `completion` and Undo snapshot
+fields default to null. Historical gaps are shown as Not recorded/Unavailable.
+Provision the additive `PlannerTask` index
+`{ deleted: 1, status: 1, "completion.by.id": 1, completedAt: -1 }` if automatic
+index creation is disabled. No existing index, business data or schedule needs
+rewriting. Deploy the backend with the frontend so the new read endpoints and
+optional completion-note field are available.
+
 ## Reminder-only isolation
 
 Planner writes only its own `PlannerTask`, `PlannerSeries` and
@@ -149,6 +199,7 @@ From `backend`, set `MONGOD_BINARY` to an installed MongoDB executable, then run
 
 ```powershell
 node --test tests/plannerRules.test.js tests/plannerIntegration.js
+node --test tests/plannerHistoryIntegration.js
 ```
 
 The integration test owns a temporary replica set and compares every

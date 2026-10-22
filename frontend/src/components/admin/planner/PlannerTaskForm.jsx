@@ -7,7 +7,10 @@ import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 import { createPlannerReminder, editPlannerReminder, fetchPlannerReferences } from "@/src/api/api.js";
 import { PLANNER_CATEGORIES, PLANNER_REPEATS, PLANNER_REFERENCE_TYPES, PLANNER_STATUSES, PLANNER_TEMPLATES, PLANNER_WEEKDAYS, addPlannerDays, plannerDay, plannerRepeatOf } from "@/src/utils/planner.js";
+import { useDialogClose } from "../../ui/useDialogChanges.js";
 import { inputClass, StaffDialog } from "../staff/staffUi.jsx";
+
+function CancelButton({ disabled }) { const close = useDialogClose(); return <button type="button" onClick={close} disabled={disabled} className="min-h-10 rounded-lg border border-white/20 px-5 text-sm text-neutral-300">Cancel</button>; }
 
 const fieldClass = `${inputClass} mt-1.5 h-10 rounded-lg`;
 function ReferencePicker({ type, value, label, fallback, onChange, disabled }) {
@@ -24,7 +27,7 @@ function ReferencePicker({ type, value, label, fallback, onChange, disabled }) {
 
 export default function PlannerTaskForm({ task, initialDate, onClose, onSaved, onSchedule }) {
   const originalRepeat = plannerRepeatOf(task);
-  const [form, setForm] = useState(() => ({ title: task?.title || "", category: task?.category || "Daily Routine", priority: task?.priority || "Normal", dueDate: task?.dueDate || initialDate || plannerDay(), time: task?.time || "10:00", repeat: originalRepeat, repeatOptions: task?.series?.repeatOptions || { unit: "weeks", interval: 1, weekdays: [new Date(`${task?.dueDate || initialDate || plannerDay()}T12:00:00Z`).getUTCDay()] }, responsibleId: task?.responsible?.id || "", linkedType: task?.linkedRecord?.type || "", linkedId: task?.linkedRecord?.id || "", checklist: (task?.checklist || []).map(row => ({ text: row.text, done: row.done })), notes: task?.notes || "", status: task?.status || "Pending" }));
+  const [form, setForm] = useState(() => ({ title: task?.title || "", category: task?.category || "Daily Routine", priority: task?.priority || "Normal", dueDate: task?.dueDate || initialDate || plannerDay(), time: task?.time || "10:00", repeat: originalRepeat, repeatOptions: task?.series?.repeatOptions || { unit: "weeks", interval: 1, weekdays: [new Date(`${task?.dueDate || initialDate || plannerDay()}T12:00:00Z`).getUTCDay()] }, responsibleId: task?.responsible?.id || "", linkedType: task?.linkedRecord?.type || "", linkedId: task?.linkedRecord?.id || "", checklist: (task?.checklist || []).map(row => ({ text: row.text, done: row.done })), notes: task?.notes || "", completionNote: "", status: task?.status || "Pending" }));
   const [scope, setScope] = useState("occurrence"), [saving, setSaving] = useState(false), [error, setError] = useState("");
   const [template, setTemplate] = useState(""), [more, setMore] = useState(!!task);
   const pending = useRef(null), lock = useRef(false);
@@ -46,8 +49,8 @@ export default function PlannerTaskForm({ task, initialDate, onClose, onSaved, o
   const save = async event => {
     event.preventDefault(); if (lock.current) return;
     lock.current = true; setSaving(true); setError("");
-    const { linkedType, linkedId, status, repeatOptions, ...values } = form;
-    const payload = { ...values, repeatOptions: form.repeat === "custom" ? repeatOptions : null, linkedRecord: linkedType && linkedId ? { type: linkedType, id: linkedId } : null, ...(task ? { revision: task.revision, scope: originalRepeat === "none" && form.repeat !== "none" ? "future" : scope, status } : {}) };
+    const { linkedType, linkedId, status, repeatOptions, completionNote, ...values } = form;
+    const payload = { ...values, repeatOptions: form.repeat === "custom" ? repeatOptions : null, linkedRecord: linkedType && linkedId ? { type: linkedType, id: linkedId } : null, ...(task ? { revision: task.revision, scope: originalRepeat === "none" && form.repeat !== "none" ? "future" : scope, status, ...(status === "Done" && task.status !== "Done" && scope !== "future" ? { completionNote } : {}) } : {}) };
     const signature = JSON.stringify(payload);
     if (pending.current && pending.current.signature !== signature) {
       setError("The previous save may have completed. Retry with the original details, or refresh Planner to check before creating a changed reminder.");
@@ -63,7 +66,7 @@ export default function PlannerTaskForm({ task, initialDate, onClose, onSaved, o
   };
   return <StaffDialog open onClose={() => { if (!saving) onClose(); }} title={task ? "Edit planner task" : "Add planner task"} maxWidth="max-w-xl">
     <p className="-mt-2 mb-5 text-xs text-neutral-400">Set a date, add a checklist, and choose whether this task repeats.</p>
-    <form onSubmit={save} onInvalidCapture={() => setMore(true)} className="flex max-h-[calc(100dvh-13rem)] min-h-0 flex-col">
+    <form aria-busy={saving} onSubmit={save} onInvalidCapture={() => setMore(true)} className="flex max-h-[calc(100dvh-13rem)] min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto pr-1"><fieldset disabled={saving} className="min-w-0 space-y-4">
         {!task && <label className="block text-xs text-neutral-400">Quick template<DarkSelect aria-label="Quick template" value={template} onChange={event => applyTemplate(event.target.value)} className={fieldClass}><option value="">Start from scratch</option>{PLANNER_TEMPLATES.map(row => <option key={row.id} value={row.id}>{row.title}</option>)}</DarkSelect><span className="mt-1 block text-xs text-neutral-500">Templates replace the title, category and checklist. Review before saving.</span></label>}
         <label className="block text-xs text-neutral-400">Task title<input required maxLength={160} value={form.title} onChange={event => set("title", event.target.value)} className={fieldClass} placeholder="e.g. Weekly deep cleaning" /></label>
@@ -82,13 +85,14 @@ export default function PlannerTaskForm({ task, initialDate, onClose, onSaved, o
           {task?.linkedRecord?.available === false && <p className="text-xs text-amber-300">The previous record is unavailable. Keep its reference, clear it, or choose another record.</p>}
           {task?.linkedRecord?.href && form.linkedType === task.linkedRecord.type && form.linkedId === String(task.linkedRecord.id) && <Link href={task.linkedRecord.href} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-dune-amber underline">View linked record (read-only)</Link>}
           <label className="block text-xs text-neutral-400">Notes<textarea aria-label="Notes" rows={2} maxLength={2000} value={form.notes} onChange={event => set("notes", event.target.value)} className={`${fieldClass} h-auto py-3`} placeholder="Add any useful details…" /></label>
+          {task && scope !== "future" && form.status === "Done" && task.status !== "Done" && <label className="block text-xs text-neutral-400">Completion note (optional)<textarea aria-label="Completion note" maxLength={1000} rows={3} value={form.completionNote} onChange={event => set("completionNote", event.target.value)} className={`${fieldClass} h-auto py-3`} /></label>}
           {task && <><label className="block text-xs text-neutral-400">Status<DarkSelect aria-label="Planner task status" disabled={scope === "future"} value={form.status} onChange={event => set("status", event.target.value)} className={fieldClass}>{PLANNER_STATUSES.map(value => <option key={value}>{value}</option>)}</DarkSelect></label>{originalRepeat !== "none" && !task.series?.endBefore && <div className="rounded-xl border border-white/10 p-3"><p className="text-xs leading-5 text-neutral-400">Pausing stops new occurrences and all alerts for this schedule. Existing tasks remain visible. Resume continues without missing-date backfill or old alerts.</p><button type="button" disabled={saving} onClick={updateSchedule} className="mt-2 min-h-10 text-sm text-dune-amber">{task.series?.paused ? "Resume schedule" : "Pause schedule"}</button></div>}<details className="text-xs text-neutral-400"><summary className="min-h-8 cursor-pointer text-neutral-300">Task history</summary><ul className="mt-2 space-y-2">{[...(task.history || []), ...(task.series?.history || [])].sort((a, b) => new Date(b.at) - new Date(a.at)).map((row, index) => <li key={index}>{row.action} · {row.actor?.name || "Admin"} · {new Date(row.at).toLocaleString("en-GB", { timeZone: "Asia/Riyadh" })} Riyadh</li>)}</ul></details></>}
         </div>
         {!more && <p className="text-xs text-neutral-500">{form.category} · {form.priority} priority · {PLANNER_REPEATS.find(([value]) => value === form.repeat)?.[1]}{form.notes || form.linkedId || form.responsibleId ? " · Optional details saved" : ""}</p>}
         <p className="text-xs leading-5 text-neutral-500">Reminder only. Completing a task does not record a payment or change stock.</p>
       </fieldset></div>
       {error && <p role="alert" className="mt-3 shrink-0 rounded-lg border border-amber-500/20 p-3 text-sm text-amber-300">{error}</p>}
-      <div className="mt-4 flex shrink-0 justify-end gap-3 border-t border-white/10 pt-4"><button type="button" onClick={onClose} disabled={saving} className="min-h-10 rounded-lg border border-white/20 px-5 text-sm text-neutral-300">Cancel</button><button type="submit" disabled={saving} className="min-h-10 rounded-lg bg-dune-amber px-5 text-sm font-semibold text-black disabled:opacity-50">{saving ? "Saving…" : task ? "Save changes" : "Save task"}</button></div>
+      <div className="mt-4 flex shrink-0 justify-end gap-3 border-t border-white/10 pt-4"><CancelButton disabled={saving} /><button type="submit" disabled={saving} className="min-h-10 rounded-lg bg-dune-amber px-5 text-sm font-semibold text-black disabled:opacity-50">{saving ? "Saving…" : task ? "Save changes" : "Save task"}</button></div>
     </form>
   </StaffDialog>;
 }

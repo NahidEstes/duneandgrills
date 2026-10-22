@@ -6,6 +6,7 @@ import { PLANNER_CATEGORIES, PLANNER_REPEATS, PLANNER_STATUSES } from "../servic
 import { changePlannerTask, createPlannerTask, editPlannerTask, getPlannerTask, listPlanner, snoozePlannerTask, undoPlannerChange, changePlannerSchedule } from "../services/plannerService.js";
 import { listPlannerNotifications, acknowledgePlannerNotification } from "../services/plannerNotifications.js";
 import { plannerReferenceAvailability, searchPlannerReferences } from "../services/plannerReferences.js";
+import { listPlannerInsights, listPlannerPersonTasks, exportPlannerInsights } from "../services/plannerInsights.js";
 
 const router = express.Router();
 router.use(protect, requireCapability(CAPABILITIES.ADMIN_DASHBOARD));
@@ -22,6 +23,12 @@ const writeLimit = rateLimit({ windowMs: 60_000, max: 60, keyPrefix: "planner-wr
 router.get("/config", (_req, res) => res.json({ success: true, data: { categories: PLANNER_CATEGORIES, statuses: PLANNER_STATUSES, repeats: PLANNER_REPEATS, timezone: "Asia/Riyadh" } }));
 router.get("/references", action(async (req, res) => res.json({ success: true, data: await searchPlannerReferences(req.query.type, req.query.search) })));
 router.get("/notifications", action(async (req, res) => res.json({ success: true, ...await listPlannerNotifications(req.user) })));
+router.get("/insights", action(async (req, res) => res.json({ success: true, ...await listPlannerInsights(req.query) })));
+router.get("/insights/tasks", action(async (req, res) => res.json({ success: true, ...await listPlannerPersonTasks(req.query) })));
+router.get("/insights/export", action(async (req, res) => {
+  const csv = await exportPlannerInsights(req.query);
+  res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="planner-${req.query.mode === "people" ? "people" : "history"}.csv"`).send(csv);
+}));
 router.get("/", action(async (req, res) => res.json({ success: true, ...await listPlanner(req.query) })));
 router.post("/", writeLimit, action(async (req, res) => {
   const result = await createPlannerTask(req.body, req.user);
