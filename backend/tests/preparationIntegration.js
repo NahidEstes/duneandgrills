@@ -158,6 +158,9 @@ test("preparation production against owned MongoDB", { timeout: 120000 }, async 
           const user = role === "admin" ? actor : await User.create({ name: "Owned HTTP user", email: `${role}@fixture.invalid`, password: "OwnedPassword123!", role });
           const headers = { Authorization: `Bearer ${jwt.sign({ id: user._id, sv: 0 }, process.env.JWT_SECRET)}`, "Content-Type": "application/json" };
           const origin = `http://127.0.0.1:${server.address().port}/api/inventory`;
+          const stockRead = await fetch(origin + "/preparation/availability", { method: "POST", headers, body: JSON.stringify({ items: [{ inventoryItem: String(finished._id), quantity: 100, unit: "g" }] }) });
+          assert.equal(stockRead.status, role === "cashier" ? 403 : 200);
+          if (stockRead.ok) { assert.match(stockRead.headers.get("cache-control"), /private.*no-store/); assert.equal((await stockRead.json()).data[0].required, 0.1); }
           if (role === "admin") {
             const before = await PreparationRecipe.countDocuments();
             const invalid = await fetch(origin + "/preparation-recipes", { method: "POST", headers, body: JSON.stringify({ ...recipeBody, finishedItem: String(rawA._id), ingredients: [{ inventoryItem: String(finished._id), quantity: 100, unit: "g" }] }) });

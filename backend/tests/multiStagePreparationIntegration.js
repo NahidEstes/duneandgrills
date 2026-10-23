@@ -10,6 +10,7 @@ import PreparationRecipe from "../models/PreparationRecipe.js";
 import Production from "../models/Production.js";
 import StockTransaction from "../models/StockTransaction.js";
 import AuditLog from "../models/AuditLog.js";
+import { preparationAvailability, preparationSources } from "../services/preparationReadService.js";
 import { savePreparationRecipe as save, previewProduction as preview, confirmProduction as confirm, reverseProduction as reverse, productionDetails } from "../services/preparationService.js";
 
 process.env.NODE_ENV = "test"; process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "false";
@@ -32,6 +33,11 @@ test("multi-stage preparations use only produced direct stock in an isolated rep
       parent = await save(actor, definition(caramel, sliced, 500, 450, { ingredients: [{ inventoryItem: String(sliced._id), quantity: 500, unit: "g" }, { inventoryItem: String(salt._id), quantity: 10, unit: "g" }] }));
       third = await save(actor, definition(final, caramel, 100, 90));
       assert.deepEqual(await counts(), before);
+      const availability = await preparationAvailability(actor, { items: [{ inventoryItem: String(sliced._id), quantity: 500, unit: "g" }] });
+      assert.equal(availability.data[0].required, 0.5); assert.equal(availability.data[0].usable, 0); assert.equal(availability.data[0].shortage, 0.5);
+      await assert.rejects(preparationAvailability({ role: "cashier" }, {}), error => error.status === 403);
+      await assert.rejects(preparationAvailability(actor, { items: [{ inventoryItem: String(sliced._id), quantity: 1, unit: "ml" }] }), /Unsupported conversion/);
+      await assert.rejects(preparationAvailability(actor, { items: [{ inventoryItem: String(sliced._id) }, { inventoryItem: String(sliced._id) }] }), /Duplicate/);
       const payload = body(parent), plan = await preview(actor, payload);
       assert.equal(plan.canConfirm, false); assert.equal(plan.ingredients[0].available, 0);
       await assert.rejects(confirm(actor, { ...payload, previewFingerprint: plan.fingerprint, idempotencyKey: randomUUID() }), /Insufficient usable/);
@@ -50,6 +56,11 @@ test("multi-stage preparations use only produced direct stock in an isolated rep
       assert.equal(String(downstream.ingredients[0].allocations[0].batch), String(upstream.finishedBatch));
       const batch = await InventoryBatch.findById(upstream.finishedBatch), source = await StockTransaction.findById(batch.sourceTransaction);
       assert.equal(String(source.sourceDetails.production), String(upstream._id));
+      const evidence = (await productionDetails(actor, downstream._id)).ingredientSources[0].allocations[0];
+      assert.equal(String(evidence.sourceProduction._id), String(upstream._id));
+      assert.equal(evidence.quantity, 0.5); assert.equal(evidence.unitCost, upstream.unitCost);
+      const fakeLot = await preparationSources([{ inventoryItem: String(sliced._id), allocations: [{ batch: source._id, lotNumber: upstream.productionNumber, quantity: 1, unitCost: 1 }] }]);
+      assert.equal(fakeLot[0].allocations[0].sourceProduction, null, "Lot text never manufactures a source production link");
       assert.equal((await confirm(actor, payload))._id.toString(), downstream._id.toString());
       assert.equal(await balance(sliced), 0.4);
       assert.equal((await productionDetails(actor, upstream._id)).canReverse, false);
@@ -91,6 +102,8 @@ test("multi-stage preparations use only produced direct stock in an isolated rep
       for (const patch of [{ qualityStatus: "quarantined" }, { qualityStatus: "damaged" }, { expiryDate: new Date("2020-01-01") }]) {
         await InventoryBatch.updateOne({ _id: original._id }, { $set: patch });
         const before = await counts(), payload = body(parent), plan = await preview(actor, payload);
+        const current = await preparationAvailability(actor, { items: [{ inventoryItem: String(sliced._id), quantity: 500, unit: "g" }] });
+        assert.equal(current.data[0].usable, 0); assert.equal(current.data[0].shortage, 0.5);
         assert.equal(plan.canConfirm, false);
         await assert.rejects(confirm(actor, { ...payload, previewFingerprint: plan.fingerprint, idempotencyKey: randomUUID() }), /Insufficient usable/);
         assert.deepEqual(await counts(), before);
@@ -103,6 +116,9 @@ test("multi-stage preparations use only produced direct stock in an isolated rep
       await InventoryBatch.updateOne({ _id: original._id }, { $set: { unitCost: 8 } });
       await assert.rejects(confirm(actor, request), /changed since preview/); assert.deepEqual(await counts(), before);
       await InventoryBatch.updateOne({ _id: original._id }, { $set: { unitCost: original.unitCost } });
+      const outputRequest = await ready(body(parent));
+      await InventoryItem.updateOne({ _id: caramel._id }, { $inc: { stockVersion: 1 } });
+      await assert.rejects(confirm(actor, outputRequest), /changed since preview/, "Output balance evidence is also protected for the before/after review");
     });
     await t.test("safe downstream reversal restores exact prepared lots; restored consumption still blocks upstream reversal", async () => {
       const raw = await balance(whole), lots = secondDownstream.ingredients[0].allocations;

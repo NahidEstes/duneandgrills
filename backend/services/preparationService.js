@@ -15,6 +15,7 @@ import { preparationYield } from "./preparationYieldService.js";
 import InventorySettings from "../models/InventorySettings.js";
 import { outputVariance, productionTarget } from "./productionPlanning.js";
 import { validatePreparationGraph } from "./preparationGraph.js";
+import { preparationSources } from "./preparationReadService.js";
 
 const conflict = message => Object.assign(new ValidationError(message), { status: 409 });
 const number = n => Number(Number(n).toFixed(6));
@@ -135,12 +136,13 @@ async function productionPlan(payload, now, session = null) {
   plan.variance = outputVariance(expectedQuantity, actualQuantity, settings?.productionVarianceThresholdPercent);
   const explanation = text(payload.yieldExplanation, 500, "Yield explanation");
   if (explanation) plan.yieldExplanation = explanation;
-  return { ...plan, fingerprint: hash(plan), yield: preparationYield(plan) };
+  return { ...plan, fingerprint: hash({ ...plan, finishedPhysicalStock: finished.currentStock, finishedStockVersion: finished.stockVersion || 0 }), finishedPhysicalStock: finished.currentStock, yield: preparationYield(plan) };
 }
 
 export async function previewProduction(actor, payload, now = new Date()) {
   preparationPermission(actor, CAPABILITIES.INVENTORY_WRITE);
-  return productionPlan(payload, now);
+  const plan = await productionPlan(payload, now);
+  return { ...plan, ingredientSources: await preparationSources(plan.ingredients) };
 }
 
 function requestHash(payload) {
@@ -215,7 +217,7 @@ export async function productionDetails(actor, id) {
   const later = movements.filter(row => !record.movements.some(value => String(value) === String(row._id)));
   const reason = record.status === "reversed" ? "Already reversed" : await reversalDependencyReason(record, batch, later.length > 0);
   const permitted = hasCapability(actor.role, CAPABILITIES.INVENTORY_COUNT_APPROVE);
-  return { ...record, yield: preparationYield(record), remainingQuantity: batch?.remainingQuantity ?? null, batch, activity: movements, canReverse: !reason && permitted, reversalBlockedReason: reason || (!permitted ? "Manager inventory approval permission required" : null) };
+  return { ...record, ingredientSources: await preparationSources(record.ingredients), yield: preparationYield(record), remainingQuantity: batch?.remainingQuantity ?? null, batch, activity: movements, canReverse: !reason && permitted, reversalBlockedReason: reason || (!permitted ? "Manager inventory approval permission required" : null) };
 }
 
 export async function reverseProduction(actor, id, payload) {

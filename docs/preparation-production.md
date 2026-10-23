@@ -86,6 +86,10 @@ Updating the new setting requires the existing transaction-capable database.
 
 ## Multi-stage preparation (2026-10-23)
 
+The three mockup workflow improvements (ingredient search/shortages, separate
+upstream production with draft return, and stock impact/source production views)
+are documented in [Preparation workflow usability](preparation-workflow-usability.md).
+
 Select another preparation's finished **inventory item** as an ingredient. The
 ingredient choices label known recipe outputs Prepared and other items Raw;
 all active options load independently of the recipe library's search and page.

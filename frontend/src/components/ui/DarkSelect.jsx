@@ -87,11 +87,12 @@ export default function DarkSelect({
     if (!rect) return;
     const spaceBelow = window.innerHeight - rect.bottom - 8;
     const spaceAbove = rect.top - 8;
-    const maxHeight = Math.max(120, Math.min(288, Math.max(spaceBelow, spaceAbove)));
+    const maxHeight = Math.min(Math.max(120, Math.min(288, Math.max(spaceBelow, spaceAbove))), Math.max(48, window.innerHeight - 16));
     const width = Math.min(Math.max(rect.width, 220), window.innerWidth - 16);
+    const preferredTop = spaceBelow >= Math.min(220, maxHeight) ? rect.bottom + 6 : rect.top - maxHeight - 6;
     setMenuStyle({
       left: Math.min(Math.max(8, rect.left), window.innerWidth - width - 8),
-      top: spaceBelow >= Math.min(220, maxHeight) ? rect.bottom + 6 : Math.max(8, rect.top - maxHeight - 6),
+      top: Math.max(8, Math.min(preferredTop, window.innerHeight - maxHeight - 8)),
       width,
       maxHeight,
     });

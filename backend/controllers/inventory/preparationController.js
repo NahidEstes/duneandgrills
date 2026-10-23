@@ -10,6 +10,7 @@ import { preparationHistory } from "../../services/preparationHistoryService.js"
 import InventorySettings from "../../models/InventorySettings.js";
 import { CAPABILITIES, hasCapability } from "../../config/permissions.js";
 import { varianceThreshold } from "../../services/productionPlanning.js";
+import { preparationAvailability } from "../../services/preparationReadService.js";
 
 const handle = work => async (req, res, next) => {
   res.set("Cache-Control", "private, no-store");
@@ -25,6 +26,7 @@ export const preparationOptions = handle(async req => {
   return { data: { items, recipes, productionVarianceThresholdPercent: varianceThreshold(settings?.productionVarianceThresholdPercent), canReadHistory: hasCapability(req.user?.role, CAPABILITIES.AUDIT_READ) } };
 });
 export const getPreparationHistory = handle(req => preparationHistory(req.user, req.params.id, req.query));
+export const getPreparationAvailability = handle(req => preparationAvailability(req.user, req.body));
 export const listPreparationRecipes = handle(async req => {
   const { page, skip, limit } = parsePagination(req.query, 20), filter = {};
   if (req.query.search) filter.name = new RegExp(escapeRegex(String(req.query.search).slice(0, 120)), "i");

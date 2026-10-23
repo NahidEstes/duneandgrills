@@ -8,15 +8,16 @@ export const useDialogClose = fallback => useContext(DialogCloseContext) || fall
 // Only compare in-memory control values. Drafts, credentials and payment details are never stored.
 export function readDialogForm(root) {
   return JSON.stringify(Array.from(root?.querySelectorAll('form input, form textarea, form select, form [role=combobox], form button[aria-haspopup="dialog"]') || [])
+    .filter(control => !control.closest?.("[data-draft-ignore]"))
     .filter(control => !["submit", "button"].includes(control.type) || control.getAttribute("role") === "combobox" || control.getAttribute("aria-haspopup") === "dialog")
     .map(control => control.tagName === "BUTTON" ? control.getAttribute("data-form-value") ?? control.textContent
       : [control.type, control.type === "checkbox" || control.type === "radio" ? control.checked : control.value]));
 }
 
-export default function useDialogChanges({ open, rootRef, onClose, resetKey, escape = false }) {
+export default function useDialogChanges({ open, rootRef, onClose, resetKey, escape = false, retainedDirty = false }) {
   const baseline = useRef(null), touched = useRef(false), closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
-  const isDirty = useCallback(() => touched.current && baseline.current !== readDialogForm(rootRef.current), [rootRef]);
+  const isDirty = useCallback(() => retainedDirty || touched.current && baseline.current !== readDialogForm(rootRef.current), [rootRef, retainedDirty]);
   const isBusy = useCallback(() => Boolean(rootRef.current?.querySelector('form[aria-busy="true"]')), [rootRef]);
   const confirmDiscard = useCallback(() => {
     if (isBusy()) return false;

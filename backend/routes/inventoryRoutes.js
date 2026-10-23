@@ -1,4 +1,5 @@
 import express from "express";
+import { getPreparationAvailability } from "../controllers/inventory/preparationController.js";
 import { itemWorkspace, itemOptions, itemBatches, itemUsage } from "../controllers/inventory/workspaceController.js";
 import { preview as previewStockAction, confirm as confirmStockAction, savedResult as savedStockAction } from "../controllers/inventory/movementReviewController.js";
 import { preparationOptions, listPreparationRecipes, savePreparation, previewPreparation, confirmPreparation, getProduction, reversePreparation, listProduction, findProductionRequest, getPreparationYieldReport, getPreparationHistory } from "../controllers/inventory/preparationController.js";
@@ -72,6 +73,7 @@ router.post("/movement-review/preview", write, previewStockAction);
 router.post("/movement-review/confirm", write, confirmStockAction);
 router.get("/movement-review/request/:key", write, savedStockAction);
 router.get("/preparation/options", preparationOptions);
+router.post("/preparation/availability", getPreparationAvailability);
 router.route("/preparation-recipes").get(listPreparationRecipes).post(write, savePreparation);
 router.put("/preparation-recipes/:id", write, savePreparation);
 router.get("/preparation-recipes/:id/history", requireCapability(CAPABILITIES.AUDIT_READ), getPreparationHistory);

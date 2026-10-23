@@ -215,7 +215,7 @@ await withIsolatedMongo(async () => {
       assert.ok(Math.abs((await InventoryItem.findById(finished[width]._id)).currentStock - 0.15) < 0.000001);
       assert.equal((await InventoryItem.findById(outputItem._id)).currentStock, 270);
       assert.equal(String(saved.ingredients[0].allocations[0].batch), String(upstream.finishedBatch));
-      await details.getByText(upstream.productionNumber, { exact: false }).waitFor();
+      await details.getByRole("region", { name: "Ingredient batch sources", exact: true }).getByText(`Source: ${finished[width].name} · ${upstream.productionNumber}`, { exact: true }).waitFor();
       await shot("multi-stage-completed"); await axe();
       assert.deepEqual(errors, []); await context.close(); console.log(`PASS ${width}px: multi-stage prepared selection beyond 100 options, recipe save/preview without writes, direct-stock confirmation, original recipe/production/yield/reversal, stale/offline/recovery and axe`);
     }
