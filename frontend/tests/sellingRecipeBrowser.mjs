@@ -82,6 +82,35 @@ await withIsolatedMongo(async () => {
       await page.getByLabel("Ingredient type", { exact: true }).selectOption("raw");
       await page.getByRole("option").filter({ hasText: raw.name + " · Raw" }).waitFor();
       await page.getByRole("button", { name: "Close item search", exact: true }).click();
+      if (width === 1440) {
+        const unit = page.getByRole("combobox", { name: "Entered unit 1", exact: true });
+        await unit.click(); await page.getByRole("option", { name: "kg", exact: true }).click();
+        await page.getByLabel("Quantity per sale 1", { exact: true }).fill("0.25");
+        await page.getByText("Base: 0.25 kg", { exact: true }).waitFor();
+        await unit.click(); await page.getByRole("option", { name: "g", exact: true }).click();
+        await page.getByLabel("Quantity per sale 1", { exact: true }).fill("250");
+        await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
+        await page.getByRole("combobox", { name: "Inventory item 2", exact: true }).click();
+        const ingredientSearch = page.getByLabel("Search inventory item 2", { exact: true });
+        await ingredientSearch.fill("ZZZ");
+        const rawOption = page.getByRole("option").filter({ hasText: raw.name + " · Raw" });
+        await rawOption.waitFor();
+        const duplicate = page.getByRole("option").filter({ hasText: finished.name + " · Prepared" });
+        assert.equal(await duplicate.isDisabled(), true);
+        await ingredientSearch.press("ArrowDown");
+        assert.equal(await rawOption.evaluate(node => node === document.activeElement), true, "Keyboard navigation must skip an already-added disabled ingredient");
+        const typeFilter = page.getByLabel("Ingredient type", { exact: true });
+        await typeFilter.focus(); await typeFilter.press("ArrowDown");
+        assert.equal(await typeFilter.inputValue(), "raw", "Ingredient type keeps its native keyboard navigation");
+        await typeFilter.press("Home"); assert.equal(await typeFilter.inputValue(), "all");
+        await rawOption.waitFor();
+        await ingredientSearch.press("ArrowDown");
+        await page.keyboard.press("Enter");
+        await page.getByLabel("Quantity per sale 2", { exact: true }).fill("0.1");
+        await page.getByText("Base: 0.1 kg", { exact: true }).waitFor();
+        await page.getByRole("button", { name: "Remove ingredient 2", exact: true }).click();
+        assert.equal(await StockTransaction.countDocuments(), before);
+      }
       const ghosts = [], dismissGhost = dialog => { ghosts.push(dialog.message()); dialog.dismiss(); };
       page.on("dialog", dismissGhost); await page.getByRole("button", { name: "Add-on Recipes", exact: true }).click(); await chooseDish(addon.name); page.off("dialog", dismissGhost); assert.deepEqual(ghosts, []);
       await page.getByRole("button", { name: "Menu Item Recipes", exact: true }).click(); await chooseDish(dish.name); await waitReview();

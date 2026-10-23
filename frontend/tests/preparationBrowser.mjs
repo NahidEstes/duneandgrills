@@ -57,13 +57,20 @@ await withIsolatedMongo(async () => {
       await context.addCookies([{ name: "dg_session", value: jwt.sign({ id: actor._id, sv: 0 }, process.env.JWT_SECRET), url: origin }, { name: "dg_csrf", value: "owned-browser-csrf", url: origin }]);
       await context.route("https://**", route => route.fulfill({ status: 200, body: "" }));
       const shot = async name => { await page.screenshot({ path: path.join(output, `${name}-${width}.png`), fullPage: true }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${name}: horizontal overflow`); };
-      const select = async (label, option) => { await page.getByRole("combobox", { name: label }).click(); await page.getByRole("option", { name: option, exact: true }).click(); };
+      const select = async (label, option) => { await page.getByRole("combobox", { name: label }).click(); if (typeof label === "string" && /^Stock item \d+$/.test(label)) await page.getByLabel("Search " + label.toLowerCase(), { exact: true }).fill(option.split(" · ")[0]); await page.getByRole("option", { name: option, exact: true }).click(); };
       const metric = (scope, label) => scope.locator("dl > div").filter({ has: page.getByText(label, { exact: true }) }).locator("dd");
       const axe = async () => { await page.addScriptTag({ path: path.join(root, "node_modules/axe-core/axe.min.js") }); const problems = await page.evaluate(async () => (await window.axe.run(document.querySelector("main"), { runOnly: { type: "tag", values: ["wcag2a","wcag2aa"] } })).violations.map(row => `${row.id}: ${row.nodes.map(node => node.target.join(" ")).join(", ")}`)); assert.deepEqual(problems, []); };
       await page.goto(origin + "/inventory/preparation-recipes"); await page.getByRole("button", { name: "New recipe", exact: true }).click();
       await page.getByLabel("Recipe name", { exact: true }).fill(`Owned sauce ${width}`);
       await select(/Finished stock item/, `Owned prepared sauce ${width} · kg`);
       await page.getByLabel("Expected batch yield", { exact: true }).fill("450"); await select("Yield unit", "g");
+      if (width === 1440) {
+        await page.getByLabel("Quantity 1", { exact: true }).fill("500");
+        await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+        assert.equal(await page.getByRole("combobox", { name: "Stock item 1", exact: true }).getAttribute("aria-invalid"), "true", "Ingredient selection remains required");
+        assert.equal(await PreparationRecipe.countDocuments({ finishedItem: finished[width]._id }), 0);
+        assert.equal(await StockTransaction.countDocuments(), 0);
+      }
       await select("Stock item 1", "Owned raw ingredient · Raw"); await page.getByLabel("Quantity 1", { exact: true }).fill("500"); await select("Unit 1", "g");
       const before = await StockTransaction.countDocuments();
       await page.getByRole("button", { name: "Save recipe", exact: true }).click(); await page.getByText("Recipe saved. Stock balances are unchanged.", { exact: true }).waitFor(); assert.equal(await StockTransaction.countDocuments(), before);
@@ -191,10 +198,12 @@ await withIsolatedMongo(async () => {
       await page.getByLabel("Expected batch yield", { exact: true }).fill("270");
       await page.getByRole("combobox", { name: "Stock item 1", exact: true }).click();
       assert.equal(await page.getByRole("option", { name: `${outputItem.name} · Raw`, exact: true }).count(), 0, "Own finished item excluded");
+      await page.getByLabel("Search stock item 1", { exact: true }).fill(finished[width].sku);
       await page.getByRole("option", { name: `Owned prepared sauce ${width} · Prepared`, exact: true }).click();
       await page.getByLabel("Quantity 1", { exact: true }).fill("300"); await select("Unit 1", "g");
       await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
       await page.getByRole("combobox", { name: "Stock item 2", exact: true }).click();
+      await page.getByLabel("Search stock item 2", { exact: true }).fill(finished[width].sku);
       assert.equal(await page.getByRole("option", { name: `Owned prepared sauce ${width} · Prepared`, exact: true }).count(), 0, "Duplicate prepared ingredient excluded");
       await page.keyboard.press("Escape"); await page.getByRole("button", { name: "Remove ingredient 2", exact: true }).click();
       await page.getByText(/Produce prepared ingredients in Production first/).waitFor();

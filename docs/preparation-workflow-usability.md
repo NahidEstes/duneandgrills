@@ -5,7 +5,10 @@ stock engine, production transactions and batch allocation rules.
 
 ## Recipe ingredients and shortages
 
-- Ingredient rows support name/SKU search and All / Raw / Prepared filters.
+- Ingredient rows use a single searchable dropdown. Name/SKU search and
+  All / Raw / Prepared filters appear inside its popup; only the selected item
+  appears when closed. Results load in groups of 50 with an explicit Load more
+  action, and searching covers all loaded choices, including items beyond 100.
   The selected item stays visible when filtering; self/duplicate exclusions and
   compatible unit choices remain active. Reselecting an item preserves its unit.
   Searching/filtering is not an unsaved recipe edit.

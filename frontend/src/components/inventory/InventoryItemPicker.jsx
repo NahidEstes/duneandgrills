@@ -41,8 +41,8 @@ export default function InventoryItemPicker({ value = "", onChange, onResolved, 
   const key = event => {
     if (event.key === "Enter" && event.target === searchInput.current) event.preventDefault();
     if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); root.current?.querySelector('[role="combobox"]')?.focus(); }
-    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && open) {
-      const options = [...root.current.querySelectorAll('[role="option"]')]; if (!options.length) return;
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && open && event.target.tagName !== "SELECT") {
+      const options = [...root.current.querySelectorAll('[role="option"]:not(:disabled)')]; if (!options.length) return;
       event.preventDefault(); const index = options.indexOf(document.activeElement);
       const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : event.key === "ArrowDown" ? Math.min(index + 1, options.length - 1) : Math.max(index - 1, 0);
       options[next]?.focus();

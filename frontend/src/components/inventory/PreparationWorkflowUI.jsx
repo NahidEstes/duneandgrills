@@ -1,16 +1,10 @@
 "use client";
 import { useState } from "react";
-import DarkSelect from "../ui/DarkSelect.jsx";
 import DeliveryDialog from "../admin/delivery/DeliveryDialog.jsx";
-import { Badge, Button, Field, inputClass } from "./InventoryUI.jsx";
+import { Badge, Button } from "./InventoryUI.jsx";
 import { preparationQuantityLabel as q } from "@/src/utils/preparationUnits.js";
 
-export function PreparationIngredientPicker({ index, value, choices, recipes, onChange }) {
-  const [search, setSearch] = useState(""), [kind, setKind] = useState("all");
-  const prepared = new Set(recipes.map(row => String(row.finishedItem))), query = search.trim().toLowerCase();
-  const filtered = choices.filter(item => item._id === value || ((!query || `${item.name} ${item.sku}`.toLowerCase().includes(query)) && (kind === "all" || prepared.has(item._id) === (kind === "prepared"))));
-  return <div className="col-span-3 min-w-0 space-y-2 sm:col-span-1"><div data-draft-ignore className="space-y-2"><Field label={`Search stock item ${index + 1}`}><input className={inputClass} placeholder="Name or SKU" value={search} onChange={event => setSearch(event.target.value)} /></Field><Field label={`Ingredient type ${index + 1}`}><DarkSelect aria-label={`Ingredient type ${index + 1}`} className={inputClass} value={kind} onChange={event => setKind(event.target.value)}><option value="all">All ingredients</option><option value="raw">Raw</option><option value="prepared">Prepared</option></DarkSelect></Field></div><Field label={`Stock item ${index + 1}`}><DarkSelect aria-label={`Stock item ${index + 1}`} required className={inputClass} value={value} onChange={onChange}><option value="">Select raw or prepared ingredient</option>{filtered.map(item => <option key={item._id} value={item._id}>{item.name} · {prepared.has(item._id) ? "Prepared" : "Raw"}</option>)}</DarkSelect></Field>{!filtered.length && <p className="text-xs text-neutral-300">No matching ingredients. Change the search or type filter.</p>}</div>;
-}
+export { default as PreparationIngredientPicker } from "./PreparationIngredientPicker.jsx";
 export function PreparationSequence({ sequence, availability, currentItem }) {
   const [expanded, setExpanded] = useState(false);
   if (!sequence.nodes.length) return null;
