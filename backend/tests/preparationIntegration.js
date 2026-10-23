@@ -82,14 +82,14 @@ test("preparation production against owned MongoDB", { timeout: 120000 }, async 
       try { await assert.rejects(confirmProduction(actor, body), /Owned output write failure/); } finally { InventoryBatch.create = original; }
       assert.deepEqual(await Promise.all([balance(rawA._id), balance(rawB._id), StockTransaction.countDocuments(), Production.countDocuments(), AuditLog.countDocuments()]), before);
     });
-    await t.test("recipe changes retain historical snapshots and reject stale confirmation, duplicates and nested recipes", async () => {
+    await t.test("recipe changes retain historical snapshots and reject stale confirmation, duplicates and circular recipes", async () => {
       const old = await ready(); recipe = await savePreparationRecipe(actor, { ...recipeBody, expectedVersion: recipe.version, outputQuantity: 550, notes: "Revised instructions" }, String(recipe._id));
       assert.equal(recipe.version, 2); assert.equal((await Production.findById(first._id).lean()).recipeSnapshot.outputQuantity, 500);
       await assert.rejects(confirmProduction(actor, old), /recipe changed/);
       await assert.rejects(savePreparationRecipe(actor, { ...recipeBody, expectedVersion: recipe.version, ingredients: [recipeBody.ingredients[0], recipeBody.ingredients[0]] }, String(recipe._id)), /Duplicate ingredient/);
       const another = await stock({ currentStock: 0 });
-      await assert.rejects(savePreparationRecipe(actor, { ...recipeBody, finishedItem: String(another._id), ingredients: [{ inventoryItem: String(finished._id), quantity: 100, unit: "g" }] }), /Nested preparations/);
-      await assert.rejects(savePreparationRecipe(actor, { ...recipeBody, finishedItem: String(rawA._id), ingredients: [{ inventoryItem: String(another._id), quantity: 100, unit: "g" }] }), /raw input/);
+      await savePreparationRecipe(actor, { ...recipeBody, finishedItem: String(another._id), ingredients: [{ inventoryItem: String(finished._id), quantity: 100, unit: "g" }] });
+      await assert.rejects(savePreparationRecipe(actor, { ...recipeBody, finishedItem: String(rawA._id), ingredients: [{ inventoryItem: String(another._id), quantity: 100, unit: "g" }] }), /Preparation cycle/);
     });
     await t.test("inactive recipes, stale stock evidence, invalid output and unsupported conversions never post", async () => {
       const body = await ready(), count = await Production.countDocuments();
@@ -101,7 +101,7 @@ test("preparation production against owned MongoDB", { timeout: 120000 }, async 
       recipe = await savePreparationRecipe(actor, { ...recipeBody, expectedVersion: recipe.version }, String(recipe._id));
       assert.equal(await Production.countDocuments(), count);
     });
-    await t.test("concurrent recipe edits cannot introduce a nested or circular preparation graph", async () => {
+    await t.test("concurrent recipe edits cannot introduce a circular preparation graph", async () => {
       const a = await stock(), b = await stock();
       const body = (output, input) => ({ ...recipeBody, finishedItem: String(output._id), ingredients: [{ inventoryItem: String(input._id), quantity: 100, unit: "g" }] });
       const result = await Promise.allSettled([savePreparationRecipe(actor, body(a,b)), savePreparationRecipe(actor, body(b,a))]);
@@ -158,6 +158,12 @@ test("preparation production against owned MongoDB", { timeout: 120000 }, async 
           const user = role === "admin" ? actor : await User.create({ name: "Owned HTTP user", email: `${role}@fixture.invalid`, password: "OwnedPassword123!", role });
           const headers = { Authorization: `Bearer ${jwt.sign({ id: user._id, sv: 0 }, process.env.JWT_SECRET)}`, "Content-Type": "application/json" };
           const origin = `http://127.0.0.1:${server.address().port}/api/inventory`;
+          if (role === "admin") {
+            const before = await PreparationRecipe.countDocuments();
+            const invalid = await fetch(origin + "/preparation-recipes", { method: "POST", headers, body: JSON.stringify({ ...recipeBody, finishedItem: String(rawA._id), ingredients: [{ inventoryItem: String(finished._id), quantity: 100, unit: "g" }] }) });
+            assert.equal(invalid.status, 400); assert.match((await invalid.json()).message, /Preparation cycle/);
+            assert.equal(await PreparationRecipe.countDocuments(), before, "Direct API calls cannot bypass cycle validation");
+          }
           const read = await fetch(origin + "/production?status=completed&search=PRD", { headers }); assert.equal(read.status, role === "cashier" ? 403 : 200);
           const report = await fetch(origin + "/production/yield-report?period=week&limit=1", { headers });
           assert.equal(report.status, role === "cashier" ? 403 : 200);

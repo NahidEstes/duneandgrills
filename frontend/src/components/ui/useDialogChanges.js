@@ -48,7 +48,7 @@ export default function useDialogChanges({ open, rootRef, onClose, resetKey, esc
     if (!touched.current) baseline.current = readDialogForm(rootRef.current);
     touched.current = true;
   }, [rootRef]);
-  const afterEdit = useCallback(() => { touched.current = true; }, []);
+  const afterEdit = useCallback(event => { if (event.target.closest?.("form")) touched.current = true; }, []);
   return { requestClose, confirmDiscard, capture: { onPointerDownCapture: beforeEdit, onKeyDownCapture: beforeEdit, onBeforeInputCapture: beforeEdit, onInputCapture: afterEdit, onChangeCapture: afterEdit } };
 }
 

@@ -13,6 +13,9 @@ import InventoryItem from "../../backend/models/InventoryItem.js";
 import InventoryCategory from "../../backend/models/InventoryCategory.js";
 import StockTransaction from "../../backend/models/StockTransaction.js";
 import Production from "../../backend/models/Production.js";
+import PreparationRecipe from "../../backend/models/PreparationRecipe.js";
+import { previewProduction, confirmProduction } from "../../backend/services/preparationService.js";
+import { randomUUID } from "node:crypto";
 import inventoryRoutes from "../../backend/routes/inventoryRoutes.js";
 import { productionLabelHtml } from "../src/utils/productionLabel.js";
 
@@ -29,6 +32,8 @@ await withIsolatedMongo(async () => {
     const raw = await InventoryItem.create({ name: "Owned raw ingredient", sku: "PBR-RAW", category: category._id, unit: "kg", currentStock: 100, unitCost: 10 });
     const finished = {};
     for (const width of [1440,390,320]) finished[width] = await InventoryItem.create({ name: `Owned prepared sauce ${width}`, sku: `PBR-SAUCE-${width}`, category: category._id, unit: "kg", currentStock: 0, tracksExpiry: true });
+    // Prepared choices must remain available beyond the first 100 stock items.
+    await InventoryItem.insertMany(Array.from({ length: 125 }, (_, index) => ({ name: `A filler ${index}`, sku: `PBR-FILLER-${index}`, category: category._id, unit: "g", currentStock: 0, unitCost: 0 })));
     const app = express(); app.use(express.json());
     app.get(["/api/auth/me", "/api/auth/session"], (_req, res) => res.json({ success: true, user: { _id: actor._id, name: actor.name, role: actor.role } }));
     app.use("/api/inventory", (req, res, done) => (failHistory && req.path === "/production") || (failYield && req.path === "/production/yield-report") ? res.status(503).json({ success: false, message: "Owned inventory report unavailable" }) : done(), inventoryRoutes);
@@ -59,7 +64,7 @@ await withIsolatedMongo(async () => {
       await page.getByLabel("Recipe name", { exact: true }).fill(`Owned sauce ${width}`);
       await select(/Finished stock item/, `Owned prepared sauce ${width} · kg`);
       await page.getByLabel("Expected batch yield", { exact: true }).fill("450"); await select("Yield unit", "g");
-      await select("Stock item 1", "Owned raw ingredient"); await page.getByLabel("Quantity 1", { exact: true }).fill("500"); await select("Unit 1", "g");
+      await select("Stock item 1", "Owned raw ingredient · Raw"); await page.getByLabel("Quantity 1", { exact: true }).fill("500"); await select("Unit 1", "g");
       const before = await StockTransaction.countDocuments();
       await page.getByRole("button", { name: "Save recipe", exact: true }).click(); await page.getByText("Recipe saved. Stock balances are unchanged.", { exact: true }).waitFor(); assert.equal(await StockTransaction.countDocuments(), before);
       const recipeCard = page.getByRole("button").filter({ has: page.getByText(`Owned sauce ${width}`, { exact: true }) });
@@ -171,9 +176,50 @@ await withIsolatedMongo(async () => {
         await page.getByText("Inventory settings saved.", { exact: true }).waitFor();
         await page.reload(); assert.equal(await page.getByLabel(/Production output variance threshold/).inputValue(), "5"); await shot("variance-settings");
       }
-      assert.deepEqual(errors, []); await context.close(); console.log(`PASS ${width}px: real recipe/production/yield report/reversal, date/preparation filters, stale report recovery, draft retention, offline, uncertain recovery and axe`);
+      // Replenish the upstream recipe through the same production service. The
+      // browser then creates and confirms its downstream recipe using that stock.
+      const sourceRecipe = await PreparationRecipe.findOne({ finishedItem: finished[width]._id }).lean();
+      const upstreamBody = { recipe: String(sourceRecipe._id), expectedVersion: sourceRecipe.version, multiplier: 1, actualQuantity: 450, outputUnit: "g", preparedAt: new Date(Date.now() - 60000).toISOString(), expiryDate: "2030-01-02T12:00:00+03:00", ingredients: [{ inventoryItem: String(raw._id), quantity: 500, unit: "g" }] };
+      const upstream = await confirmProduction(actor, { ...upstreamBody, previewFingerprint: (await previewProduction(actor, upstreamBody)).fingerprint, idempotencyKey: randomUUID() });
+      const outputItem = await InventoryItem.create({ name: `Owned caramelized sauce ${width}`, sku: `PBR-CARAMEL-${width}`, category: category._id, unit: "g", currentStock: 0 });
+      await page.goto(origin + "/inventory/preparation-recipes");
+      await page.getByLabel("Search preparation recipes", { exact: true }).fill("no-matching-stage");
+      await page.getByText("No preparation recipes", { exact: true }).waitFor();
+      await page.getByRole("button", { name: "New recipe", exact: true }).click();
+      await page.getByLabel("Recipe name", { exact: true }).fill(`Owned second stage ${width}`);
+      await select("Finished stock item", `${outputItem.name} · g`);
+      await page.getByLabel("Expected batch yield", { exact: true }).fill("270");
+      await page.getByRole("combobox", { name: "Stock item 1", exact: true }).click();
+      assert.equal(await page.getByRole("option", { name: `${outputItem.name} · Raw`, exact: true }).count(), 0, "Own finished item excluded");
+      await page.getByRole("option", { name: `Owned prepared sauce ${width} · Prepared`, exact: true }).click();
+      await page.getByLabel("Quantity 1", { exact: true }).fill("300"); await select("Unit 1", "g");
+      await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
+      await page.getByRole("combobox", { name: "Stock item 2", exact: true }).click();
+      assert.equal(await page.getByRole("option", { name: `Owned prepared sauce ${width} · Prepared`, exact: true }).count(), 0, "Duplicate prepared ingredient excluded");
+      await page.keyboard.press("Escape"); await page.getByRole("button", { name: "Remove ingredient 2", exact: true }).click();
+      await page.getByText(/Produce prepared ingredients in Production first/).waitFor();
+      const beforeMultiStage = await StockTransaction.countDocuments(), rawBefore = (await InventoryItem.findById(raw._id)).currentStock;
+      await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+      await page.getByText("Recipe saved. Stock balances are unchanged.", { exact: true }).waitFor();
+      await page.getByLabel("Search preparation recipes", { exact: true }).fill("");
+      assert.equal(await StockTransaction.countDocuments(), beforeMultiStage); await shot("multi-stage-recipe"); await axe();
+      await page.goto(origin + "/inventory/production"); await page.getByRole("button", { name: "Record production", exact: true }).click();
+      await select("Preparation recipe", `Owned second stage ${width} · v1`);
+      await page.getByRole("button", { name: "Review & confirm production", exact: true }).click();
+      await confirm.waitFor(); assert.equal(await StockTransaction.countDocuments(), beforeMultiStage);
+      await page.getByRole("heading", { name: "Raw or prepared ingredients", exact: true }).waitFor();
+      await shot("multi-stage-preview"); await axe();
+      await confirm.getByRole("button", { name: "Confirm production", exact: true }).click(); await details.waitFor();
+      const saved = await Production.findOne({ finishedItem: outputItem._id }).lean();
+      assert.equal((await InventoryItem.findById(raw._id)).currentStock, rawBefore, "No repeated upstream deduction");
+      assert.ok(Math.abs((await InventoryItem.findById(finished[width]._id)).currentStock - 0.15) < 0.000001);
+      assert.equal((await InventoryItem.findById(outputItem._id)).currentStock, 270);
+      assert.equal(String(saved.ingredients[0].allocations[0].batch), String(upstream.finishedBatch));
+      await details.getByText(upstream.productionNumber, { exact: false }).waitFor();
+      await shot("multi-stage-completed"); await axe();
+      assert.deepEqual(errors, []); await context.close(); console.log(`PASS ${width}px: multi-stage prepared selection beyond 100 options, recipe save/preview without writes, direct-stock confirmation, original recipe/production/yield/reversal, stale/offline/recovery and axe`);
     }
-    assert.equal((await InventoryItem.findById(raw._id)).currentStock, 100);
+    assert.equal((await InventoryItem.findById(raw._id)).currentStock, 98.5);
     const longLabel = await browser.newPage({ viewport: { width: 303, height: 303 } });
     await longLabel.setContent(productionLabelHtml({ status: "completed", productionNumber: "PRD-2026-000001", recipeSnapshot: { name: "W".repeat(120) }, finishedName: "W".repeat(120), preparedAt: "2026-10-23T07:00:00Z", expiryDate: "2026-10-24T12:00:00+03:00" }));
     await longLabel.emulateMedia({ media: "print" });

@@ -14,6 +14,7 @@ import { recordAuditLog } from "./auditLogService.js";
 import { preparationYield } from "./preparationYieldService.js";
 import InventorySettings from "../models/InventorySettings.js";
 import { outputVariance, productionTarget } from "./productionPlanning.js";
+import { validatePreparationGraph } from "./preparationGraph.js";
 
 const conflict = message => Object.assign(new ValidationError(message), { status: 409 });
 const number = n => Number(Number(n).toFixed(6));
@@ -70,9 +71,7 @@ export async function savePreparationRecipe(actor, payload, recipeId = null) {
     if (old && Number(payload.expectedVersion) !== old.version) throw conflict("Recipe changed. Reload before saving.");
     if (old && String(old.finishedItem) !== String(payload.finishedItem)) throw new ValidationError("A recipe's finished stock item cannot be changed. Create another recipe instead.");
     const others = await PreparationRecipe.find(recipeId ? { _id: { $ne: recipeId } } : {}).session(session).lean();
-    if (others.some(row => String(row.finishedItem) === String(payload.finishedItem))) throw new ValidationError("This finished item already has a preparation recipe");
-    if (others.some(row => row.ingredients.some(line => String(line.inventoryItem) === String(payload.finishedItem)))) throw new ValidationError("This item is a raw input in another preparation. Nested preparations are not supported.");
-    if (others.some(row => ids.includes(String(row.finishedItem))) || await InventoryBatch.exists({ item: { $in: ids }, source: "PRODUCTION" }).session(session)) throw new ValidationError("Use raw ingredients only. Nested preparations are not supported.");
+    validatePreparationGraph([...others, { name, finishedItem: payload.finishedItem, ingredients: payload.ingredients }]);
     const map = await recipeItems({ finishedItem: payload.finishedItem, ingredients: payload.ingredients }, session);
     const finished = map.get(String(payload.finishedItem));
     const ingredients = payload.ingredients.map(row => {

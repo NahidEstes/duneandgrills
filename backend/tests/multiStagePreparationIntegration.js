@@ -1,0 +1,154 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { randomUUID } from "node:crypto";
+import { withIsolatedMongo } from "./helpers/isolatedMongo.js";
+import User from "../models/User.js";
+import InventoryCategory from "../models/InventoryCategory.js";
+import InventoryItem from "../models/InventoryItem.js";
+import InventoryBatch from "../models/InventoryBatch.js";
+import PreparationRecipe from "../models/PreparationRecipe.js";
+import Production from "../models/Production.js";
+import StockTransaction from "../models/StockTransaction.js";
+import AuditLog from "../models/AuditLog.js";
+import { savePreparationRecipe as save, previewProduction as preview, confirmProduction as confirm, reverseProduction as reverse, productionDetails } from "../services/preparationService.js";
+
+process.env.NODE_ENV = "test"; process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "false";
+test("multi-stage preparations use only produced direct stock in an isolated replica", { timeout: 120000 }, async t => {
+  await withIsolatedMongo(async () => {
+    const actor = await User.create({ name: "Owned multi-stage admin", email: "multi-stage@fixture.invalid", password: "OwnedPassword123!", role: "admin" });
+    const category = await InventoryCategory.create({ name: "Owned multi-stage", skuPrefix: "MST" });
+    let serial = 0;
+    const item = (name, unit = "g", currentStock = 0, unitCost = 0) => InventoryItem.create({ name, sku: `MST-${++serial}`, category: category._id, unit, currentStock, unitCost });
+    const whole = await item("Whole onion", "kg", 5, 2), sliced = await item("Sliced onion", "kg"), caramel = await item("Caramelized onion"), final = await item("Final garnish"), salt = await item("Salt", "g", 100, 0.01);
+    const definition = (output, input, quantity = 1000, outputQuantity = 900, extra = {}) => ({ name: output.name, finishedItem: String(output._id), isActive: true, outputQuantity, outputUnit: "g", ingredients: [{ inventoryItem: String(input._id), quantity, unit: "g" }], ...extra });
+    const balance = async value => (await InventoryItem.findById(value._id)).currentStock;
+    const counts = () => Promise.all([StockTransaction.countDocuments(), Production.countDocuments(), InventoryBatch.countDocuments(), AuditLog.countDocuments({ action: "PRODUCTION_CONFIRMED" })]);
+    const body = recipe => ({ recipe: String(recipe._id), expectedVersion: recipe.version, multiplier: 1, actualQuantity: recipe.outputQuantity, outputUnit: recipe.outputUnit, preparedAt: new Date(Date.now() - 60000).toISOString(), ingredients: recipe.ingredients.map(row => ({ inventoryItem: String(row.inventoryItem), quantity: row.enteredQuantity, unit: row.enteredUnit })) });
+    const ready = async payload => ({ ...payload, previewFingerprint: (await preview(actor, payload)).fingerprint, idempotencyKey: randomUUID() });
+    let child, parent, third, upstream, downstream, secondUpstream, secondDownstream;
+    await t.test("zero-stock two/three-stage definitions save without movements; shortage never auto-produces", async () => {
+      const before = await counts();
+      child = await save(actor, definition(sliced, whole));
+      parent = await save(actor, definition(caramel, sliced, 500, 450, { ingredients: [{ inventoryItem: String(sliced._id), quantity: 500, unit: "g" }, { inventoryItem: String(salt._id), quantity: 10, unit: "g" }] }));
+      third = await save(actor, definition(final, caramel, 100, 90));
+      assert.deepEqual(await counts(), before);
+      const payload = body(parent), plan = await preview(actor, payload);
+      assert.equal(plan.canConfirm, false); assert.equal(plan.ingredients[0].available, 0);
+      await assert.rejects(confirm(actor, { ...payload, previewFingerprint: plan.fingerprint, idempotencyKey: randomUUID() }), /Insufficient usable/);
+      assert.deepEqual(await counts(), before); assert.equal(await balance(whole), 5);
+      await assert.rejects(save(actor, { ...definition(sliced, whole), expectedVersion: child.version, ingredients: [{ inventoryItem: String(whole._id), quantity: 1, unit: "ml" }] }, String(child._id)), /Unsupported conversion/);
+    });
+    await t.test("1000g whole to 900g sliced then 500g sliced leaves 400g and deducts raw once", async () => {
+      upstream = await confirm(actor, await ready(body(child)));
+      assert.equal(await balance(whole), 4); assert.equal(await balance(sliced), 0.9);
+      const payload = await ready(body(parent)), before = await counts();
+      await preview(actor, body(parent)); assert.deepEqual(await counts(), before);
+      downstream = await confirm(actor, payload);
+      assert.equal(await balance(whole), 4); assert.equal(await balance(sliced), 0.4); assert.equal(await balance(caramel), 450);
+      assert.ok(Math.abs(downstream.totalCost - (0.5 * upstream.unitCost + 0.1)) < 1e-9);
+      assert.ok(Math.abs(downstream.unitCost - downstream.totalCost / 450) < 1e-12);
+      assert.equal(String(downstream.ingredients[0].allocations[0].batch), String(upstream.finishedBatch));
+      const batch = await InventoryBatch.findById(upstream.finishedBatch), source = await StockTransaction.findById(batch.sourceTransaction);
+      assert.equal(String(source.sourceDetails.production), String(upstream._id));
+      assert.equal((await confirm(actor, payload))._id.toString(), downstream._id.toString());
+      assert.equal(await balance(sliced), 0.4);
+      assert.equal((await productionDetails(actor, upstream._id)).canReverse, false);
+      await assert.rejects(reverse(actor, upstream._id, { reason: "Owned upstream correction" }), /cannot be safely reversed/);
+    });
+    await t.test("different prepared lot costs follow FEFO and actual yield; failed output rolls back every direct input", async () => {
+      await InventoryBatch.updateOne({ item: whole._id }, { $set: { unitCost: 4 } });
+      secondUpstream = await confirm(actor, await ready(body(child)));
+      assert.equal(secondUpstream.totalCost, 4);
+      const payload = { ...body(parent), actualQuantity: 400, yieldExplanation: "Owned extra cooking loss", ingredients: [{ inventoryItem: String(sliced._id), quantity: 600, unit: "g" }, { inventoryItem: String(salt._id), quantity: 10, unit: "g" }] };
+      const request = await ready(payload), before = { counts: await counts(), whole: await balance(whole), sliced: await balance(sliced), salt: await balance(salt), batches: await InventoryBatch.find({ item: sliced._id }).sort({ _id: 1 }).lean() };
+      const create = InventoryBatch.create;
+      InventoryBatch.create = function(rows, ...args) { if (rows.some(row => row.source === "PRODUCTION")) throw Error("Owned multi-stage output failure"); return create.call(this, rows, ...args); };
+      try { await assert.rejects(confirm(actor, request), /Owned multi-stage output failure/); } finally { InventoryBatch.create = create; }
+      assert.deepEqual(await counts(), before.counts); assert.equal(await balance(sliced), before.sliced); assert.equal(await balance(salt), before.salt);
+      assert.deepEqual(await InventoryBatch.find({ item: sliced._id }).sort({ _id: 1 }).lean(), before.batches);
+      const results = await Promise.all([confirm(actor, request), confirm(actor, request)]);
+      secondDownstream = results[0]; assert.equal(String(results[0]._id), String(results[1]._id));
+      assert.equal(secondDownstream.ingredients[0].allocations.length, 2);
+      assert.deepEqual(secondDownstream.ingredients[0].allocations.map(row => row.quantity), [0.4, 0.2]);
+      assert.ok(Math.abs(secondDownstream.totalCost - (0.4 * upstream.unitCost + 0.2 * secondUpstream.unitCost + 0.1)) < 1e-9);
+      assert.ok(Math.abs(secondDownstream.unitCost - secondDownstream.totalCost / 400) < 1e-12);
+      assert.equal(await balance(whole), before.whole);
+    });
+    await t.test("child edits/inactivation preserve batch costs, snapshots and downstream availability", async () => {
+      const before = await Production.findById(upstream._id).lean(), lot = await InventoryBatch.findById(secondUpstream.finishedBatch).lean();
+      child = await save(actor, { ...definition(sliced, whole), outputQuantity: 800, isActive: false, expectedVersion: child.version }, String(child._id));
+      await InventoryItem.updateOne({ _id: sliced._id }, { $set: { unitCost: 999 } });
+      assert.deepEqual(await Production.findById(upstream._id).lean(), before);
+      assert.deepEqual(await InventoryBatch.findById(secondUpstream.finishedBatch).lean(), lot);
+      const plan = await preview(actor, body(parent)); assert.equal(plan.canConfirm, true);
+      assert.ok(Math.abs(plan.ingredients[0].cost - 0.5 * secondUpstream.unitCost) < 1e-9);
+      const old = body(parent), request = await ready(old);
+      parent = await save(actor, { ...definition(caramel, sliced, 500, 450), expectedVersion: parent.version }, String(parent._id));
+      await assert.rejects(confirm(actor, request), /recipe changed/);
+    });
+    await t.test("prepared eligibility and stale batch costs block confirmation without stock writes", async () => {
+      const original = await InventoryBatch.findById(secondUpstream.finishedBatch).lean();
+      for (const patch of [{ qualityStatus: "quarantined" }, { qualityStatus: "damaged" }, { expiryDate: new Date("2020-01-01") }]) {
+        await InventoryBatch.updateOne({ _id: original._id }, { $set: patch });
+        const before = await counts(), payload = body(parent), plan = await preview(actor, payload);
+        assert.equal(plan.canConfirm, false);
+        await assert.rejects(confirm(actor, { ...payload, previewFingerprint: plan.fingerprint, idempotencyKey: randomUUID() }), /Insufficient usable/);
+        assert.deepEqual(await counts(), before);
+        await InventoryBatch.updateOne({ _id: original._id }, { $set: { qualityStatus: original.qualityStatus, expiryDate: original.expiryDate } });
+      }
+      await InventoryItem.updateOne({ _id: sliced._id }, { $set: { tracksExpiry: true } });
+      assert.equal((await preview(actor, body(parent))).canConfirm, false, "Required expiry is unknown");
+      await InventoryItem.updateOne({ _id: sliced._id }, { $set: { tracksExpiry: false } });
+      const request = await ready(body(parent)), before = await counts();
+      await InventoryBatch.updateOne({ _id: original._id }, { $set: { unitCost: 8 } });
+      await assert.rejects(confirm(actor, request), /changed since preview/); assert.deepEqual(await counts(), before);
+      await InventoryBatch.updateOne({ _id: original._id }, { $set: { unitCost: original.unitCost } });
+    });
+    await t.test("safe downstream reversal restores exact prepared lots; restored consumption still blocks upstream reversal", async () => {
+      const raw = await balance(whole), lots = secondDownstream.ingredients[0].allocations;
+      const before = await Promise.all(lots.map(row => InventoryBatch.findById(row.batch).lean()));
+      await reverse(actor, secondDownstream._id, { reason: "Owned downstream correction" });
+      for (let i = 0; i < lots.length; i++) assert.ok(Math.abs((await InventoryBatch.findById(lots[i].batch)).remainingQuantity - before[i].remainingQuantity - lots[i].quantity) < 1e-6);
+      assert.equal(await balance(whole), raw);
+      const count = await StockTransaction.countDocuments(); await reverse(actor, secondDownstream._id, { reason: "Owned retry correction" }); assert.equal(await StockTransaction.countDocuments(), count);
+      await assert.rejects(reverse(actor, secondUpstream._id, { reason: "Owned upstream correction" }), /cannot be safely reversed/);
+      const last = await confirm(actor, await ready(body(third)));
+      assert.equal(await balance(whole), raw); assert.equal(await balance(final), 90); assert.equal(await balance(caramel), 350);
+      await assert.rejects(reverse(actor, downstream._id, { reason: "Owned consumed correction" }), /cannot be safely reversed/);
+      await reverse(actor, last._id, { reason: "Owned final correction" }); assert.equal(await balance(caramel), 450); assert.equal(await balance(whole), raw);
+      await assert.rejects(reverse(actor, downstream._id, { reason: "Owned restored correction" }), /cannot be safely reversed/);
+    });
+    await t.test("edits replace old edges; inactive cycles, duplicates, reactivation and concurrent changes are authoritative", async () => {
+      const a = await item("Graph A"), b = await item("Graph B"), c = await item("Graph C"), raw = await item("Graph raw");
+      let ra = await save(actor, definition(a, raw)), rb = await save(actor, definition(b, a)), rc = await save(actor, definition(c, b, 1, 1, { isActive: false }));
+      await assert.rejects(save(actor, { ...definition(a, c), expectedVersion: ra.version }, String(ra._id)), /Preparation cycle/);
+      await assert.rejects(save(actor, { ...definition(a, a), expectedVersion: ra.version }, String(ra._id)), /own ingredient/);
+      await assert.rejects(save(actor, definition(a, raw)), /already has/);
+      await assert.rejects(save(actor, { ...definition(a, raw), expectedVersion: ra.version, ingredients: [...ra.ingredients, ...ra.ingredients].map(row => ({ inventoryItem: String(row.inventoryItem), quantity: 1, unit: "g" })) }, String(ra._id)), /Duplicate ingredient/);
+      rb = await save(actor, { ...definition(b, raw), expectedVersion: rb.version }, String(rb._id));
+      ra = await save(actor, { ...definition(a, b), expectedVersion: ra.version }, String(ra._id));
+      rc = await save(actor, { ...definition(c, b), isActive: true, expectedVersion: rc.version }, String(rc._id));
+      assert.equal(rc.isActive, true);
+      const outcomes = await Promise.allSettled([save(actor, { ...definition(b, c), expectedVersion: rb.version }, String(rb._id)), save(actor, { ...definition(c, b), expectedVersion: rc.version }, String(rc._id))]);
+      assert.equal(outcomes.filter(row => row.status === "rejected" && /Preparation cycle/.test(row.reason.message)).length, 1);
+      // Historical invalid inactive definitions cannot be reactivated through API.
+      await PreparationRecipe.collection.updateOne({ _id: rb._id }, { $set: { isActive: false, ingredients: [{ inventoryItem: c._id, quantity: 1, unit: "g" }] } });
+      await assert.rejects(save(actor, { ...definition(b, c), expectedVersion: rb.version }, String(rb._id)), /Preparation cycle/);
+      // An edit can repair that graph by replacing, rather than retaining, old edges.
+      await save(actor, { ...definition(b, raw), expectedVersion: rb.version }, String(rb._id));
+      const x = await item("Concurrent X"), y = await item("Concurrent Y");
+      const result = await Promise.allSettled([save(actor, definition(x, y)), save(actor, definition(y, x))]);
+      assert.equal(result.filter(row => row.status === "fulfilled").length, 1);
+      assert.match(result.find(row => row.status === "rejected").reason.message, /Preparation cycle/);
+      const u = await item("Concurrent edit U"), v = await item("Concurrent edit V");
+      const ru = await save(actor, definition(u, raw)), rv = await save(actor, definition(v, raw));
+      const edits = await Promise.allSettled([save(actor, { ...definition(u, v), expectedVersion: ru.version }, String(ru._id)), save(actor, { ...definition(v, u), expectedVersion: rv.version }, String(rv._id))]);
+      assert.equal(edits.filter(row => row.status === "fulfilled").length, 1);
+      assert.match(edits.find(row => row.status === "rejected").reason.message, /Preparation cycle/);
+      const output = await item("Concurrent duplicate output");
+      const duplicate = await Promise.allSettled([save(actor, definition(output, raw)), save(actor, definition(output, raw))]);
+      assert.equal(duplicate.filter(row => row.status === "fulfilled").length, 1);
+      assert.equal(await PreparationRecipe.countDocuments({ finishedItem: output._id }), 1);
+    });
+  });
+});

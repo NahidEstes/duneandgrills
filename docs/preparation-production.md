@@ -63,7 +63,7 @@ Updating the new setting requires the existing transaction-capable database.
    and enable expiry tracking on perishable finished items. Do not create another
    copy of an ingredient just to use it in a preparation.
 2. Open Inventory → **Preparation Recipes** (`/inventory/preparation-recipes`).
-   Create a recipe with a finished item, expected batch yield, unique raw inputs,
+   Create a recipe with a finished item, expected batch yield, unique raw/prepared inputs,
    active status and optional notes. Saving/editing this configuration never moves
    stock. Editing requires the current recipe version; finished-item identity is
    fixed after creation. Create a different recipe for a different finished item.
@@ -83,6 +83,47 @@ Updating the new setting requires the existing transaction-capable database.
    stock item directly, e.g. 0.025 kg per burger for a 25 g serving. Do not add the
    raw preparation inputs again. Existing order deduction expands menu/combo/
    add-on recipes only; it never recursively expands preparation recipes.
+
+## Multi-stage preparation (2026-10-23)
+
+Select another preparation's finished **inventory item** as an ingredient. The
+ingredient choices label known recipe outputs Prepared and other items Raw;
+all active options load independently of the recipe library's search and page.
+The existing explicit configuration limits fail visibly rather than truncating
+choices. Zero stock is allowed when defining a recipe, but blocks production
+until usable stock exists. Recipe save and preview do not move stock.
+Recipe search/filter changes outside a form no longer trigger an unsaved-draft
+warning; edits inside the recipe form retain the existing discard protection.
+
+For Whole Onion → Sliced Onion → Caramelized Onion, save both recipes, produce
+Sliced Onion in Production first, then produce Caramelized Onion using Sliced
+Onion and its other direct ingredients. 1,000 g whole → 900 g sliced, followed
+by 500 g sliced consumption leaves 400 g sliced (example quantities only).
+The second stage never deducts whole onion again or automatically produces an
+upstream recipe. Missing usable stock requires a separate production operation.
+
+Each stage uses existing eligible FEFO batches, their historical costs and
+actual finished yield. No recipe estimates, current replacement prices, child
+cost surcharge, automatic shelf-life reset or recursive stock expansion is
+introduced. Source batch IDs/lot numbers and original production movements
+remain traceable; old costs and recipe snapshots do not change when an upstream
+recipe is edited or deactivated. The user still supplies required use-by dates.
+
+Downstream reversal restores its exact original direct-ingredient lots and does
+not restore upstream raw inputs. Any downstream consumption/restoration history
+continues to block upstream reversal, even after downstream reversal. No cascade
+reversal, schema/index migration, dependency or historical rewrite is required.
+
+Multi-stage verification: backend unit tests 166/166; the eight owned-replica
+integration suites 74/74; frontend unit tests 232/232; lint and production build
+passed. The build initially stopped at the existing Next.js security-advisory
+reminder and then completed on the normal retry, with the advisory still present.
+No dependency upgrade or security-check bypass was included. All stock tests use
+disposable loopback databases. The expanded browser harness covers prepared
+selection beyond 100 stock choices and independently of recipe search results,
+self/duplicate exclusions, read-only saves/previews, direct-stock confirmation,
+historical lot references, and the existing recovery/reversal/accessibility flows
+at 1440/390/320 px.
 
 ## Preparation yield / loss report (2026-10-23)
 
@@ -144,12 +185,12 @@ their idempotent recovery behavior.
   decimals instead of appearing as zero. Times and calendar expiry follow
   Asia/Riyadh; prepared time cannot be future, tracked finished stock requires a
   use-by date, and production cannot create already expired stock.
-- Raw inputs must be active and usable **now**, using existing inclusive Riyadh
+- Direct inputs (raw or prepared) must be active and usable **now**, using existing inclusive Riyadh
   expiry, FEFO, quality, unknown-expiry and legacy-balance rules. Backdating the
   preparation does not authorize consuming expired ingredients. Missing batch
   history permits the existing legacy fallback; existing history with a gap does
   not create invented usable stock.
-- Actual raw consumption is STOCK_OUT, and actual finished output is STOCK_IN
+- Actual direct-ingredient consumption is STOCK_OUT, and actual finished output is STOCK_IN
   with a PRODUCTION batch source. Every movement has the production reference
   and kind in sourceDetails. No new public stock-movement types are introduced.
 - Consumed lot quantities × saved lot costs transfer into the finished batch.
@@ -177,12 +218,13 @@ transaction-capable database returns 503 instead of partially posting a batch.
 Stock version checks, batch compare-and-set and transaction retry remain active.
 
 A shared configuration lock serializes recipe graph changes and production
-confirmation. Raw-only inputs exclude any other preparation output, including
-inactive definitions and historical production batches. Concurrent edits cannot
-introduce nested/circular preparation. This deliberately conservative first
-version does not support preparation-as-input or changing a recipe's finished
-item. Confirmation rechecks recipe version, stock and cost evidence against the
-server preview fingerprint; changed evidence requires a fresh reviewed preview.
+confirmation. Raw and prepared stock items may be direct ingredients. Graph
+validation covers every recipe, including inactive definitions, and replaces an
+edited definition before checking self/direct/indirect cycles and duplicate
+outputs. Validation and save share the same transaction so concurrent saves
+cannot introduce cycles or duplicate outputs. A recipe's finished item stays
+fixed. Confirmation rechecks recipe version, stock and cost evidence against
+the server preview fingerprint; changed evidence requires a fresh reviewed preview.
 
 Each confirmation has a unique request key and payload hash. Concurrent/retried
 requests with that same key return the original result; a changed payload or
@@ -254,6 +296,7 @@ Use an owned local mongod executable via MONGOD_BINARY (not a cloud URI).
 ```powershell
 # backend
 node --test tests/preparation.test.js tests/preparationYield.test.js tests/preparationIntegration.js
+node --test tests/preparationGraph.test.js tests/multiStagePreparationIntegration.js
 node --test tests/productionPlanning.test.js tests/preparationUpdatesIntegration.js
 node --test tests/stockRecipeAccuracyIntegration.js tests/profitAndPriorityIntegration.js tests/recordIdsIntegration.js tests/launchReadinessIntegration.js
 node --test tests/*.test.js
