@@ -1,11 +1,10 @@
 import InventoryItem from "../models/InventoryItem.js";
+import { getInventoryHealth } from "./inventoryHealthService.js";
 import InventorySettings from "../models/InventorySettings.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 import StockTransaction from "../models/StockTransaction.js";
-import { getBatchSnapshots } from "./inventoryBatchService.js";
 import { buildInventoryValuation } from "./inventoryValuationService.js";
 import { ADMIN_DAY_MS, ADMIN_TIMEZONE, startOfRiyadhDay, toRiyadhDateKey } from "../utils/adminDate.js";
-import { isExpiredInventory } from "./inventoryEligibilityService.js";
 
 export const getInventorySettings = async () =>
   InventorySettings.findOneAndUpdate(
@@ -15,14 +14,11 @@ export const getInventorySettings = async () =>
   ).lean();
 
 export const buildInventoryDashboard = async () => {
-  const settings = await getInventorySettings();
   const now = new Date();
-  const expiryEnd = new Date(now);
-  expiryEnd.setUTCDate(expiryEnd.getUTCDate() + settings.expiryAlertDays);
   const todayStart = startOfRiyadhDay(now);
   const valueStart = new Date(todayStart.getTime() - 29 * ADMIN_DAY_MS);
 
-  const [summaryRows, lowStock, expiring, recentActivity, poRows, supplierRows, valueMovementRows, valuation] =
+  const [summaryRows, recentActivity, poRows, supplierRows, valueMovementRows, valuation, health] =
     await Promise.all([
       InventoryItem.aggregate([
         { $match: { isActive: true } },
@@ -36,24 +32,6 @@ export const buildInventoryDashboard = async () => {
           },
         },
       ]),
-      InventoryItem.find({ isActive: true, $expr: { $lte: ["$currentStock", "$reorderLevel"] } })
-        .select("name sku currentStock reorderLevel unit")
-        .sort({ currentStock: 1 })
-        .limit(8)
-        .lean(),
-      getBatchSnapshots({ includeDepleted: false }).then((rows) => rows
-        .filter((batch) => batch.item?.isActive !== false && batch.expiryDate && new Date(batch.expiryDate) <= expiryEnd && Number(batch.remainingQuantity) > 0)
-        .sort((left, right) => new Date(left.expiryDate) - new Date(right.expiryDate))
-        .slice(0, 8)
-        .map((batch) => ({
-          _id: batch._id,
-          name: batch.item?.name || "Archived item",
-          sku: batch.item?.sku || "—",
-          currentStock: batch.remainingQuantity,
-          unit: batch.item?.unit,
-          expiryDate: batch.expiryDate,
-          lotNumber: batch.lotNumber,
-        }))),
       StockTransaction.find().sort({ occurredAt: -1 }).limit(8).populate("item", "name sku unit").populate("user", "name").lean(),
       PurchaseOrder.aggregate([{ $group: { _id: "$status", count: { $sum: 1 }, total: { $sum: "$total" } } }]),
       PurchaseOrder.aggregate([
@@ -75,9 +53,12 @@ export const buildInventoryDashboard = async () => {
         { $sort: { _id: 1 } },
       ]),
       buildInventoryValuation(),
+      getInventoryHealth({ now }),
     ]);
 
   const summary = summaryRows[0] || { totalItems: 0, inventoryValue: 0, lowStock: 0, outOfStock: 0 };
+  summary.lowStock = health.summary.lowStock;
+  summary.outOfStock = health.summary.outOfStock;
   summary.inventoryValue = valuation.summary.inventoryValue;
   const dailyChanges = new Map(valueMovementRows.map((row) => [row._id, row.netValue]));
   let rollingValue = summary.inventoryValue - valueMovementRows.reduce((sum, row) => sum + row.netValue, 0);
@@ -92,11 +73,12 @@ export const buildInventoryDashboard = async () => {
     currency: "SAR",
     summary: {
       ...summary,
-      expiringSoon: expiring.filter((item) => !isExpiredInventory(item.expiryDate, now)).length,
-      expired: expiring.filter((item) => isExpiredInventory(item.expiryDate, now)).length,
+      expiringSoon: health.summary.expiringItems,
+      expired: health.summary.expiredItems,
     },
-    lowStock,
-    expiring,
+    health: health.summary,
+    lowStock: health.rows.filter(item => item.stockHealth.low).slice(0, 8),
+    expiring: health.rows.filter(item => item.stockHealth.expiring).slice(0, 8).map(item => ({ ...item, expiryDate: [...item.expiringDates].sort((a, b) => new Date(a) - new Date(b))[0] })),
     recentActivity,
     purchaseOrders: Object.fromEntries(poRows.map((row) => [row._id, { count: row.count, total: row.total }])),
     valuation: valuation.summary,

@@ -109,13 +109,6 @@ export const validateMovementPayload = (payload) => {
   if (unitCost != null && (!Number.isFinite(unitCost) || unitCost < 0)) {
     throw new ValidationError("unitCost must be zero or greater");
   }
-  for (const field of ["minimumOrderQuantity", "orderMultiple"]) {
-    if (!partial || field in payload) {
-      const value = number(payload[field] ?? 1);
-      if (!Number.isFinite(value) || value <= 0) throw new ValidationError(`${field} must be greater than zero`);
-      result[field] = value;
-    }
-  }
   const expiryDate = payload.expiryDate ? new Date(payload.expiryDate) : null;
   if (expiryDate && Number.isNaN(expiryDate.getTime())) throw new ValidationError("expiryDate is invalid");
   const receivedAt = payload.receivedAt ? new Date(payload.receivedAt) : null;

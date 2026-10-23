@@ -20,11 +20,11 @@ import PurchasePriceHistoryPage from "./PurchasePriceHistoryPage.jsx";
 import ReorderSuggestionsPage from "./ReorderSuggestionsPage.jsx";
 import PurchasingActionCenterPage from "./PurchasingActionCenterPage.jsx";
 
-export default function InventorySectionPage({ section, initialStatus = "", initialState = "", initialSearch = "" }) {
+export default function InventorySectionPage({ section, initialStatus = "", initialState = "", initialSearch = "", initialItem = "", initialAction = "" }) {
   if (section === "preparation-recipes") return <PreparationRecipesPage />;
   if (section === "production") return <ProductionPage />;
-  if (section === "stock-items") return <StockItemsPage key={initialStatus} initialStatus={initialStatus} />;
-  if (section === "batches") return <BatchesPage />;
+  if (section === "stock-items") return <StockItemsPage key={`${initialStatus}:${initialItem}`} initialStatus={initialStatus} initialItem={initialItem} />;
+  if (section === "batches") return <BatchesPage key={initialItem} initialItem={initialItem} />;
   if (section === "categories") return <CategoriesPage />;
   if (section === "suppliers") return <SuppliersPage />;
   if (section === "purchase-orders") return <PurchaseOrdersPage key={`${initialStatus}:${initialSearch}`} initialStatus={initialStatus} initialSearch={initialSearch} />;
@@ -32,10 +32,10 @@ export default function InventorySectionPage({ section, initialStatus = "", init
   if (section === "purchase-prices") return <PurchasePriceHistoryPage />;
   if (section === "reorder-suggestions") return <ReorderSuggestionsPage />;
   if (section === "purchasing-actions") return <PurchasingActionCenterPage key={initialState} initialState={initialState} />;
-  if (section === "stock-in" || section === "stock-out") return <StockMovementPage pageType={section} />;
-  if (section === "stock-movements") return <StockMovementsPage />;
+  if (section === "stock-in" || section === "stock-out") return <StockMovementPage key={`${section}:${initialItem}`} pageType={section} initialItem={initialItem} />;
+  if (section === "stock-movements") return <StockMovementsPage key={initialItem} initialItem={initialItem} />;
   if (section === "recipes") return <RecipesPage />;
-  if (section === "waste-damaged") return <WasteDamagedPage />;
+  if (section === "waste-damaged") return <WasteDamagedPage key={`${initialItem}:${initialAction}`} initialItem={initialItem} initialAction={initialAction} />;
   if (section === "inventory-count") return <InventoryCountPage />;
   if (section === "expiry-tracking" || section === "low-stock-alerts") return <AlertsPage type={section} />;
   if (section === "reports") return <ReportsPage />;

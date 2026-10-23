@@ -1,5 +1,6 @@
 "use client";
 
+import InventoryItemPicker from "./InventoryItemPicker.jsx";
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 
@@ -11,6 +12,7 @@ import { fetchPurchasePriceHistory } from "@/src/api/inventoryApi.js";
 const emptyLine = (key = "new-0") => ({ key, item: "", requestedBrand: "", quantity: 1, unitCost: 0, expiryDate: "", purchaseUnit: "", baseUnit: "", conversionFactor: 1 });
 
 export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, submitting }) {
+  const [itemError, setItemError] = useState("");
   const [priceHints, setPriceHints] = useState({});
   const [form, setForm] = useState({
     supplier: "", tax: 0, discount: 0, additionalCharges: 0, expectedAt: "", notes: "", priceOverrideReason: "", items: [emptyLine()],
@@ -43,8 +45,8 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
     ...current,
     items: current.items.map((line) => line.key === key ? { ...line, [field]: value } : line),
   }));
-  const chooseItem = async (key, itemId) => {
-    const item = items.find((row) => row._id === itemId);
+  const chooseItem = async (key, itemId, chosen) => {
+    const item = chosen || items.find((row) => row._id === itemId);
     setForm((current) => ({
       ...current,
       items: current.items.map((line) => line.key === key
@@ -65,6 +67,8 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
   );
   const submit = (event) => {
     event.preventDefault();
+    if (!form.items.every(line => line.item)) { setItemError("Choose an inventory item for every purchase line."); return; }
+    setItemError("");
     onSubmit({
       ...form,
       tax: Number(form.tax),
@@ -78,6 +82,7 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
   };
 
   return <form aria-busy={submitting} onSubmit={submit} className="space-y-5">
+    {itemError && <p role="alert" className="text-sm text-red-200">{itemError}</p>}
     <FormSection title="Supplier & charges"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       <Field label="Supplier"><DarkSelect required className={inputClass} value={form.supplier} onChange={(event) => setForm({ ...form, supplier: event.target.value })}><option value="">Choose supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></Field>
       <Field label="Expected date"><DarkDatePicker className={inputClass} value={form.expectedAt} onChange={(event) => setForm({ ...form, expectedAt: event.target.value })} /></Field>
@@ -95,7 +100,7 @@ export default function PurchaseOrderForm({ order, suppliers, items, onSubmit, s
       </div>
       <div className="space-y-3">
         {form.items.map((line, index) => <div key={line.key} className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-3 md:grid-cols-[minmax(190px,1.25fr)_0.8fr_0.55fr_0.7fr_0.7fr_auto]">
-          <Field label={`Item ${index + 1}`} hint={line.item ? `1 ${line.purchaseUnit} = ${line.conversionFactor} ${line.baseUnit}` : "Choose an item to load its purchase conversion."}><DarkSelect required className={inputClass} value={line.item} onChange={(event) => chooseItem(line.key, event.target.value)}><option value="">Choose item</option>{items.map((item) => <option key={item._id} value={item._id}>{item.name} · {item.sku}</option>)}</DarkSelect></Field>
+          <div><InventoryItemPicker label={`Item ${index + 1}`} value={line.item} disabled={submitting} onChange={(id, item) => chooseItem(line.key, id, item)}/>{line.item && <p className="mt-1 text-xs text-neutral-400">1 {line.purchaseUnit} = {line.conversionFactor} {line.baseUnit}</p>}</div>
           <Field label={`Quantity${line.purchaseUnit ? ` (${line.purchaseUnit})` : ""}`} hint={line.item ? `Adds ${(Number(line.quantity || 0) * Number(line.conversionFactor || 1)).toLocaleString()} ${line.baseUnit}` : undefined}><input required min="0.0001" step="any" type="number" className={inputClass} value={line.quantity} onChange={(event) => updateLine(line.key, "quantity", event.target.value)} /></Field>
           <Field label="Requested Brand" hint="Separate from supplier"><input maxLength={120} className={inputClass} value={line.requestedBrand} onChange={(event) => updateLine(line.key, "requestedBrand", event.target.value)} placeholder="Any brand" /></Field>
           <Field label={`Cost / ${line.purchaseUnit || "unit"} (SAR)`} hint={priceHints[line.key] ? `Last ${priceHints[line.key].source === "posted_invoice_actual" ? "actual" : "fallback"}: ${Number(priceHints[line.key].lastPrice).toFixed(2)} SAR / base unit` : line.item ? `${(Number(line.unitCost || 0) / Number(line.conversionFactor || 1)).toFixed(4)} SAR / ${line.baseUnit}` : undefined}><input required min="0" step="0.01" type="number" className={inputClass} value={line.unitCost} onChange={(event) => updateLine(line.key, "unitCost", event.target.value)} /></Field>

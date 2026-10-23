@@ -19,7 +19,14 @@ export const fetchInventoryAlerts = () => unwrap(api.get("/inventory/alerts")).t
 
 export const fetchInventoryItems = (params = {}) => unwrap(api.get("/inventory/items", { params }));
 export const fetchInventoryBatches = (params = {}) => unwrap(api.get("/inventory/batches", { params }));
-export const fetchInventoryItem = (id) => unwrap(api.get(`/inventory/items/${id}`)).then((response) => response.data);
+export const fetchInventoryItem = (id, options = {}) => unwrap(api.get(`/inventory/items/${id}`, options)).then((response) => response.data);
+export const fetchInventoryItemOptions = (params, options = {}) => unwrap(api.get("/inventory/item-options", { params, ...options }));
+export const fetchInventoryWorkspace = id => unwrap(api.get(`/inventory/items/${id}/workspace`)).then(response => response.data);
+export const fetchItemBatches = (id, params) => unwrap(api.get(`/inventory/items/${id}/batches`, { params }));
+export const fetchItemUsage = (id, params) => unwrap(api.get(`/inventory/items/${id}/usage`, { params }));
+export const previewStockAction = payload => unwrap(api.post("/inventory/movement-review/preview", payload)).then(response => response.data);
+export const confirmStockAction = payload => unwrap(api.post("/inventory/movement-review/confirm", payload)).then(response => response.data);
+export const findStockAction = key => unwrap(api.get(`/inventory/movement-review/request/${key}`)).then(response => response.data);
 export const createInventoryItem = (payload) => unwrap(api.post("/inventory/items", payload)).then((response) => response.data);
 export const updateInventoryItem = (id, payload) => unwrap(api.patch(`/inventory/items/${id}`, payload)).then((response) => response.data);
 export const archiveInventoryItem = (id) => unwrap(api.delete(`/inventory/items/${id}`));

@@ -1,0 +1,9 @@
+import { preparationQuantityLabel as q } from "@/src/utils/preparationUnits.js";
+const labels = { usable: "Usable batch evidence", expired: "Expired", quarantined: "Quarantined", damaged: "Damaged", unknown_expiry: "Unknown expiry", unknown_quality: "Unknown quality" };
+export default function StockEligibilityBreakdown({ breakdown }) {
+  if (!breakdown) return <p className="text-sm text-amber-200">Stock eligibility evidence is unavailable.</p>;
+  return <section aria-label="Stock eligibility breakdown" className="space-y-3 rounded-xl border border-white/10 p-4"><h3 className="font-semibold text-white">Why stock is usable or blocked</h3><dl className="grid grid-cols-2 gap-3 text-sm">{[["Physical stock", breakdown.physicalStock], ["Usable stock", breakdown.saleableStock], ...Object.entries(breakdown.buckets).filter(([reason]) => reason !== "usable").map(([reason, quantity]) => [labels[reason] || reason, quantity]), ...(breakdown.unallocatedQuantity > 0 ? [["Unclassified / missing batch evidence", breakdown.unallocatedQuantity]] : [])].map(([label, value]) => <div key={label}><dt className="text-xs text-neutral-400">{label}</dt><dd className="mt-1 break-words text-white">{q(value, breakdown.unit)}</dd></div>)}</dl>
+    <p className="text-xs text-neutral-400">{breakdown.basis === "legacy_item_evidence" ? "No saved batch history. Existing legacy expiry rules apply." : "Reasons use mutually exclusive saved batch quantities; quality takes precedence over expiry."}</p>
+    {!breakdown.reconciled && <p role="note" className="text-sm text-amber-200">Physical and batch evidence do not reconcile. Batch quantities are evidence, not a complete division of physical stock.{breakdown.batchExcessQuantity > 0 && ` Batch evidence exceeds physical stock by ${q(breakdown.batchExcessQuantity, breakdown.unit)}.`} Review inventory before correcting balances.</p>}
+  </section>;
+}

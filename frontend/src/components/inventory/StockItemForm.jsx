@@ -102,12 +102,14 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, o
       {!item && <StockItemField required label={`Opening stock (${form.unit})`} hint="Opening stock is entered in the base unit and saved as a batch."><input required min="0" step="any" type="number" className={inputClass} value={form.openingStock} onChange={(event) => set("openingStock", event.target.value)} /></StockItemField>}
       <StockItemField required label="Reorder level"><input required min="0" step="any" type="number" className={inputClass} value={form.reorderLevel} onChange={(event) => set("reorderLevel", event.target.value)} /></StockItemField>
     </StockItemSection>
-    <StockItemSection title="Supplier & storage">
+    <details className="rounded-xl border border-white/10 p-4"><summary className="min-h-10 cursor-pointer text-sm font-semibold text-white">More details: supplier & storage (optional)</summary><div className="mt-4"><StockItemSection title="Supplier & storage">
       <StockItemField label="Primary supplier"><DarkSelect aria-label="Primary supplier" className={inputClass} value={form.supplier} onChange={(event) => set("supplier", event.target.value)}><option value="">No supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></StockItemField>
       <StockItemField label="Storage location"><input className={inputClass} value={form.storageLocation} onChange={(event) => set("storageLocation", event.target.value)} placeholder="Walk-in freezer · Shelf B2" /></StockItemField>
       <StockItemField label="Supplier item code"><input className={inputClass} value={form.supplierItemCode} onChange={(event) => set("supplierItemCode", event.target.value)} /></StockItemField>
-      {form.tracksExpiry && <StockItemField label="Next expiry date"><DarkDatePicker aria-label="Next expiry date" className={inputClass} value={form.expiryDate} onChange={(event) => set("expiryDate", event.target.value)} /></StockItemField>}
+
     </StockItemSection>
+    </div></details>
+      {form.tracksExpiry && <StockItemField label="Next expiry date"><DarkDatePicker aria-label="Next expiry date" className={inputClass} value={form.expiryDate} onChange={(event) => set("expiryDate", event.target.value)} /></StockItemField>}
     <StockItemSection title="Reorder settings" action={<label className="flex min-h-10 items-center gap-2 text-xs text-neutral-300"><input type="checkbox" checked={form.reorderEnabled} onChange={(event) => set("reorderEnabled", event.target.checked)} className="h-4 w-4 accent-amber-500" /> Smart reorder</label>}>
       <StockItemField required label={`Target / par stock (${form.unit})`}><input required min="0" step="any" type="number" className={inputClass} value={form.targetStock} onChange={(event) => set("targetStock", event.target.value)} /></StockItemField>
       <StockItemField required label={`Safety stock (${form.unit})`}><input required min="0" step="any" type="number" className={inputClass} value={form.safetyStock} onChange={(event) => set("safetyStock", event.target.value)} /></StockItemField>

@@ -1,11 +1,12 @@
 "use client";
+import InventoryItemPicker from "./InventoryItemPicker.jsx";
 import TableTools, { useTablePreferences } from "../ui/TableTools.jsx";
 import ResourceStatus from "../ui/ResourceStatus.jsx";
 import RecordId from "@/src/components/ui/RecordId.jsx";
 
 import { useEffect, useMemo, useState } from "react";
 import { Boxes, CalendarClock, CircleDollarSign, PackageCheck, Search } from "lucide-react";
-import { fetchInventoryBatches, fetchInventoryItems, fetchSuppliers } from "@/src/api/inventoryApi.js";
+import { fetchInventoryBatches, fetchSuppliers } from "@/src/api/inventoryApi.js";
 import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
 import {
   Badge,
@@ -32,16 +33,15 @@ const batchStatus = (batch) => {
   return { label: "Active", tone: "success" };
 };
 
-export default function BatchesPage() {
+export default function BatchesPage({ initialItem = "" }) {
   const table = useTablePreferences("inventory-batches", 25);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("active");
-  const [item, setItem] = useState("");
+  const [item, setItem] = useState(initialItem);
   const [supplier, setSupplier] = useState("");
   const [brand, setBrand] = useState("");
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
 
   useEffect(() => {
@@ -51,14 +51,7 @@ export default function BatchesPage() {
     }, 250);
     return () => clearTimeout(timeout);
   }, [search]);
-  useEffect(() => {
-    Promise.all([
-      fetchInventoryItems({ limit: 100, status: "all", sortBy: "name", sortOrder: "asc" }),
-      fetchSuppliers(),
-    ])
-      .then(([itemResponse, supplierRows]) => { setItems(itemResponse.data); setSuppliers(supplierRows); })
-      .catch(() => undefined);
-  }, []);
+  useEffect(() => { fetchSuppliers().then(setSuppliers).catch(() => undefined); }, []);
 
   const { data, loading, error, reload, lastSuccessAt, refreshing } = useInventoryResource(
     () => fetchInventoryBatches({
@@ -104,7 +97,7 @@ export default function BatchesPage() {
       <section className={cardClass}>
         <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_1fr_1fr_1fr_1fr]">
           <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search item, SKU, brand or lot…" /></label>
-          <DarkSelect className={inputClass} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="">All inventory items</option>{items.map((row) => <option key={row._id} value={row._id}>{row.name} · {row.sku}</option>)}</DarkSelect>
+          <InventoryItemPicker label="Filter inventory item" value={item} allowInactive clearable onChange={id => { setItem(id); setPage(1); }}/>
           <DarkSelect className={inputClass} value={supplier} onChange={(event) => { setSupplier(event.target.value); setPage(1); }}><option value="">All suppliers</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
           <input maxLength={120} className={inputClass} value={brand} onChange={(event) => { setBrand(event.target.value); setPage(1); }} placeholder="Filter by brand" aria-label="Filter batches by brand" />
           <DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="active">Active batches</option><option value="expiring">Expiring soon</option><option value="expired">Expired</option><option value="depleted">Depleted</option><option value="all">All batches</option></DarkSelect>

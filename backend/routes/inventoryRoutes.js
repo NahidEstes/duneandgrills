@@ -1,4 +1,6 @@
 import express from "express";
+import { itemWorkspace, itemOptions, itemBatches, itemUsage } from "../controllers/inventory/workspaceController.js";
+import { preview as previewStockAction, confirm as confirmStockAction, savedResult as savedStockAction } from "../controllers/inventory/movementReviewController.js";
 import { preparationOptions, listPreparationRecipes, savePreparation, previewPreparation, confirmPreparation, getProduction, reversePreparation, listProduction, findProductionRequest, getPreparationYieldReport, getPreparationHistory } from "../controllers/inventory/preparationController.js";
 import { rejectClientRecordNumbers } from "../services/recordNumberService.js";
 import {
@@ -62,6 +64,13 @@ router.use(rejectClientRecordNumbers);
 
 router.use(protect, requireCapability(CAPABILITIES.INVENTORY_READ));
 const write = requireCapability(CAPABILITIES.INVENTORY_WRITE);
+router.get("/item-options", itemOptions);
+router.get("/items/:id/workspace", itemWorkspace);
+router.get("/items/:id/batches", itemBatches);
+router.get("/items/:id/usage", itemUsage);
+router.post("/movement-review/preview", write, previewStockAction);
+router.post("/movement-review/confirm", write, confirmStockAction);
+router.get("/movement-review/request/:key", write, savedStockAction);
 router.get("/preparation/options", preparationOptions);
 router.route("/preparation-recipes").get(listPreparationRecipes).post(write, savePreparation);
 router.put("/preparation-recipes/:id", write, savePreparation);

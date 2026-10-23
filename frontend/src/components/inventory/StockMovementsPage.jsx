@@ -1,4 +1,5 @@
 "use client";
+import InventoryItemPicker from "./InventoryItemPicker.jsx";
 import TableTools, { useTablePreferences } from "../ui/TableTools.jsx";
 import ResourceStatus from "../ui/ResourceStatus.jsx";
 import RecordId from "@/src/components/ui/RecordId.jsx";
@@ -9,7 +10,7 @@ import DarkDatePicker from "@/src/components/ui/DarkDatePicker.jsx";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Download, RefreshCw, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchInventoryItems, fetchStockMovements } from "@/src/api/inventoryApi.js";
+import { fetchStockMovements } from "@/src/api/inventoryApi.js";
 import { Badge, Button, DataTable, EmptyState, LoadingState, PageHeader, Pagination, StatCard, cardClass, inputClass } from "./InventoryUI.jsx";
 import { apiErrorMessage, downloadCsv, formatDate, formatQuantity, humanize } from "./inventoryUtils.js";
 import useInventoryResource from "./useInventoryResource.js";
@@ -22,27 +23,22 @@ const movementTone = (type) => {
   return "info";
 };
 
-export default function StockMovementsPage() {
+export default function StockMovementsPage({ initialItem = "" }) {
   const table = useTablePreferences("inventory-movements", 25);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [movementType, setMovementType] = useState("");
-  const [item, setItem] = useState("");
+  const [item, setItem] = useState(initialItem);
   const [user, setUser] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState([]);
 
   useEffect(() => {
     const timeout = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 250);
     return () => clearTimeout(timeout);
   }, [search]);
-  useEffect(() => {
-    fetchInventoryItems({ limit: 100, status: "all", sortBy: "name", sortOrder: "asc" })
-      .then((response) => setItems(response.data))
-      .catch(() => toast.error("Unable to load inventory items."));
-  }, []);
+
 
   const { data, loading, error, reload, lastSuccessAt, refreshing } = useInventoryResource(
     () => fetchStockMovements({ page, limit: table.pageSize, search: debouncedSearch || undefined, movementType: movementType || undefined, item: item || undefined, user: user || undefined, from: from || undefined, to: to || undefined }),
@@ -89,7 +85,7 @@ export default function StockMovementsPage() {
       <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-[1.4fr_repeat(3,1fr)_0.9fr_0.9fr_auto]">
         <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search item, SKU, reference, notes…" /></label>
         <DarkSelect className={inputClass} value={movementType} onChange={(event) => { setMovementType(event.target.value); setPage(1); }}><option value="">All movement types</option>{movementTypes.map((type) => <option key={type} value={type}>{humanize(type)}</option>)}</DarkSelect>
-        <DarkSelect className={inputClass} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="">All inventory items</option>{items.map((row) => <option key={row._id} value={row._id}>{row.name} · {row.sku}</option>)}</DarkSelect>
+        <InventoryItemPicker label="Filter inventory item" value={item} allowInactive clearable onChange={id => { setItem(id); setPage(1); }}/>
         <DarkSelect className={inputClass} value={user} onChange={(event) => { setUser(event.target.value); setPage(1); }}><option value="">All users</option>{(data?.filters?.users || []).map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect>
         <DarkDatePicker aria-label="From date" title="From date" className={inputClass} value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} />
         <DarkDatePicker aria-label="To date" title="To date" className={inputClass} value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} />
