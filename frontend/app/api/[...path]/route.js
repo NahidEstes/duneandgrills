@@ -43,7 +43,7 @@ const proxyRequest = async (request, { params }) => {
     const responseHeaders = new Headers();
     const contentType = response.headers.get("content-type");
     if (contentType) responseHeaders.set("content-type", contentType);
-    for (const name of ["x-request-id", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy", "ratelimit-limit", "ratelimit-remaining", "ratelimit-reset", "retry-after", "date", "x-accel-buffering"]) {
+    for (const name of ["x-request-id", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy", "ratelimit-limit", "ratelimit-remaining", "ratelimit-reset", "retry-after", "date", "x-accel-buffering", "content-disposition", "x-export-rows"]) {
       const value = response.headers.get(name); if (value) responseHeaders.set(name, value);
     }
     const setCookies = response.headers.getSetCookie?.() || [];

@@ -5,6 +5,8 @@ const ingredientSchema = new mongoose.Schema({
   inventoryItem: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryItem", required: true },
   quantityPerAddOn: { type: Number, required: true, min: 0.000001 },
   unit: { type: String, required: true, enum: INVENTORY_UNITS },
+  enteredQuantity: { type: Number, min: 0.000001 },
+  enteredUnit: { type: String, maxlength: 30 },
   isActive: { type: Boolean, default: true },
 }, { _id: false });
 

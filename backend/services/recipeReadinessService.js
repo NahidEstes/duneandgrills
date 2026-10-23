@@ -1,14 +1,19 @@
 import mongoose from "mongoose";
 import { getSaleableInventory } from "./inventoryEligibilityService.js";
 
-export async function attachRecipeSaleableStock(recipes) {
+export async function attachRecipeSaleableStock(recipes, { session = null } = {}) {
   const now = new Date();
   const items = new Map();
   for (const recipe of recipes.filter(Boolean)) for (const line of recipe.ingredients || []) {
     const item = line.inventoryItem;
     if (item?._id && item.unit) items.set(String(item._id), item);
   }
-  const stocks = new Map(await Promise.all([...items].map(async ([id, item]) => [id, await getSaleableInventory(item, { now })])));
+  const stocks = new Map();
+  if (session) {
+    for (const [id, item] of items) stocks.set(id, await getSaleableInventory(item, { now, session }));
+  } else {
+    for (const [id, stock] of await Promise.all([...items].map(async ([id, item]) => [id, await getSaleableInventory(item, { now })]))) stocks.set(id, stock);
+  }
   for (const recipe of recipes.filter(Boolean)) for (const line of recipe.ingredients || []) {
     const stock = stocks.get(String(line.inventoryItem?._id));
     if (stock) Object.assign(line.inventoryItem, stock);

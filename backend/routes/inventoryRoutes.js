@@ -51,10 +51,10 @@ import {
 } from "../controllers/inventory/dashboardController.js";
 import { protect, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../config/permissions.js";
-import { getRecipe, listRecipes, updateRecipe } from "../controllers/inventory/recipeController.js";
+import { getRecipe, listRecipes, updateRecipe, getRecipeHistory, exportRecipes, reviewSellingRecipe } from "../controllers/inventory/recipeController.js";
 import { createWasteRecord, listWasteRecords } from "../controllers/inventory/wasteController.js";
 import { listBatches } from "../controllers/inventory/batchController.js";
-import { getAddOnRecipe, listAddOnRecipes, updateAddOnRecipe } from "../controllers/inventory/addOnRecipeController.js";
+import { getAddOnRecipe, listAddOnRecipes, updateAddOnRecipe, getAddOnRecipeHistory, exportAddOnRecipes } from "../controllers/inventory/addOnRecipeController.js";
 import { createSupplierInvoiceController, getBillableQuantities, getSupplierInvoice, listSupplierInvoices, recordSupplierPaymentController, reverseSupplierPaymentController, transitionSupplierInvoiceController, updateSupplierInvoiceController } from "../controllers/inventory/supplierInvoiceController.js";
 import { listPurchasePriceHistory } from "../controllers/inventory/purchasePriceController.js";
 import { dismissSuggestion, generateDrafts, listReorderSuggestions, recalculateSuggestions, reviewSuggestion } from "../controllers/inventory/reorderController.js";
@@ -116,8 +116,13 @@ router.route("/suppliers/:id").patch(write, updateSupplier).delete(write, archiv
 
 router.route("/movements").get(listMovements).post(write, createMovement);
 router.get("/recipes", listRecipes);
+router.post("/recipe-review", reviewSellingRecipe);
+router.get("/recipes/export", exportRecipes);
+router.get("/recipes/:menuItemId/history", requireCapability(CAPABILITIES.AUDIT_READ), getRecipeHistory);
 router.route("/recipes/:menuItemId").get(getRecipe).put(write, updateRecipe);
 router.get("/add-on-recipes", listAddOnRecipes);
+router.get("/add-on-recipes/export", exportAddOnRecipes);
+router.get("/add-on-recipes/:addOnId/history", requireCapability(CAPABILITIES.AUDIT_READ), getAddOnRecipeHistory);
 router.route("/add-on-recipes/:addOnId").get(getAddOnRecipe).put(write, updateAddOnRecipe);
 router.route("/waste").get(listWasteRecords).post(write, createWasteRecord);
 router.route("/counts").get(listCounts).post(write, createCount);

@@ -6,7 +6,7 @@ import { assertObjectId, parsePagination, ValidationError } from "../utils/inven
 
 // Older audit sanitization saved ObjectId bytes as an object. Decode only that
 // exact evidence; never infer identity from an ingredient name or current recipe.
-function savedId(value) {
+export function savedId(value) {
   if (typeof value === "string" && /^[a-f\d]{24}$/i.test(value)) return value;
   if (value?.toHexString) return value.toHexString();
   const bytes = value?.buffer;

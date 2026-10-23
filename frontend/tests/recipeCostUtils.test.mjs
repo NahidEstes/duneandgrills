@@ -39,7 +39,7 @@ test("excludes inactive ingredients and clears costing for do-not-track recipes"
     doNotTrack: true,
   });
 
-  assert.equal(summary.totalEstimatedIngredientCost, 0);
-  assert.equal(summary.estimatedProfit, 20);
-  assert.equal(summary.profitMargin, 100);
+  assert.equal(summary.totalEstimatedIngredientCost, null);
+  assert.equal(summary.estimatedProfit, null);
+  assert.equal(summary.profitMargin, null);
 });

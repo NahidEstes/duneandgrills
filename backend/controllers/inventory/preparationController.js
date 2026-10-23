@@ -23,7 +23,7 @@ export const preparationOptions = handle(async req => {
     InventorySettings.findOne({ key: "default" }).select("productionVarianceThresholdPercent").lean(),
   ]);
   if (items.length > 10000 || recipes.length > 1000) throw new ValidationError("Preparation selection is too large; contact an administrator to review configuration");
-  return { data: { items, recipes, productionVarianceThresholdPercent: varianceThreshold(settings?.productionVarianceThresholdPercent), canReadHistory: hasCapability(req.user?.role, CAPABILITIES.AUDIT_READ) } };
+  return { data: { items, recipes, productionVarianceThresholdPercent: varianceThreshold(settings?.productionVarianceThresholdPercent), canReadHistory: hasCapability(req.user?.role, CAPABILITIES.AUDIT_READ), canWrite: hasCapability(req.user?.role, CAPABILITIES.INVENTORY_WRITE) } };
 });
 export const getPreparationHistory = handle(req => preparationHistory(req.user, req.params.id, req.query));
 export const getPreparationAvailability = handle(req => preparationAvailability(req.user, req.body));

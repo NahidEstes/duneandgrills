@@ -1,166 +1,31 @@
-import InventoryItem from "../../models/InventoryItem.js";
-import InventoryRecipe from "../../models/InventoryRecipe.js";
-import MenuItem from "../../models/MenuItem.js";
-import { calculateRecipeCosts } from "../../services/recipeCostService.js";
-import { recipeReadiness, attachRecipeSaleableStock } from "../../services/recipeReadinessService.js";
-import {
-  assertObjectId,
-  escapeRegex,
-  parsePagination,
-  ValidationError,
-} from "../../utils/inventoryValidation.js";
-import { recordAuditLog } from "../../services/auditLogService.js";
+import { getSellingRecipe, listSellingRecipes, saveSellingRecipe, previewSellingRecipe, sellingRecipeHistory, recipeCsv } from "../../services/sellingRecipeService.js";
+import { runInventoryTransaction } from "../../services/inventoryStockService.js";
+import { ValidationError } from "../../utils/inventoryValidation.js";
 
-const recipePopulate = {
-  path: "ingredients.inventoryItem",
-  select: "name sku unit currentStock unitCost isActive category tracksExpiry expiryDate",
-  populate: { path: "category", select: "name" },
+const handle = work => async (req, res, next) => {
+  try { res.set?.("Cache-Control", "private, no-store"); res.json({ success: true, ...await work(req) }); } catch (error) { next(error); }
 };
-
-const serializeRecipe = (menuItem, recipe) => {
-  const ingredients = recipe?.ingredients || [];
-  const costs = calculateRecipeCosts({ ingredients, sellingPrice: menuItem.price });
-  const costedRecipe = recipe
-    ? {
-        ...recipe,
-        ingredients: ingredients.map((line, index) => ({
-          ...line,
-          costPerUnit: costs.lines[index].costPerUnit,
-          ingredientCostPerDish: costs.lines[index].ingredientCostPerDish,
-        })),
-      }
-    : null;
-
-  return {
-    ...menuItem,
-    recipe: costedRecipe,
-    recipeStatus: recipeReadiness(recipe).status,
-    recipeIssue: recipeReadiness(recipe).issue,
-    metrics: {
-      ingredientCost: costs.totalEstimatedIngredientCost,
-      totalEstimatedIngredientCost: costs.totalEstimatedIngredientCost,
-      sellingPrice: costs.sellingPrice,
-      estimatedProfit: costs.estimatedProfit,
-      margin: costs.profitMargin,
-      profitMargin: costs.profitMargin,
-      currency: costs.currency,
-    },
-  };
-};
-
-export const listRecipes = async (req, res, next) => {
-  try {
-    const { page, limit } = parsePagination(req.query, 20);
-    const menuFilter = {};
-    if (req.query.search?.trim()) {
-      const query = new RegExp(escapeRegex(req.query.search.trim()), "i");
-      menuFilter.$or = [{ name: query }, { category: query }];
-    }
-    const [menuItems, recipes] = await Promise.all([
-      MenuItem.find(menuFilter).populate("categoryRef", "name slug").sort({ name: 1 }).lean(),
-      InventoryRecipe.find().populate(recipePopulate).populate("updatedBy", "name").lean(),
-    ]);
-    await attachRecipeSaleableStock(recipes);
-    const recipesByMenuItem = new Map(recipes.map((row) => [String(row.menuItem), row]));
-    const allRows = menuItems.map((item) => serializeRecipe(item, recipesByMenuItem.get(String(item._id))));
-    const summary = allRows.reduce(
-      (result, row) => {
-        result.total += 1;
-        if (row.recipeStatus === "configured") result.configured += 1;
-        else if (row.recipeStatus === "do_not_track") result.doNotTrack += 1;
-        else result.notConfigured += 1;
-        if (row.recipeStatus === "configured") result.coveredSalesValue += Number(row.price || 0);
-        result.totalSalesValue += Number(row.price || 0);
-        return result;
-      },
-      { total: 0, configured: 0, notConfigured: 0, doNotTrack: 0, coveredSalesValue: 0, totalSalesValue: 0 }
-    );
-    summary.costCoverage = summary.totalSalesValue > 0
-      ? Number(((summary.coveredSalesValue / summary.totalSalesValue) * 100).toFixed(1))
-      : 0;
-    const status = req.query.status;
-    const filtered = status ? allRows.filter((row) => row.recipeStatus === status) : allRows;
-    const start = (page - 1) * limit;
-    res.json({
-      success: true,
-      data: filtered.slice(start, start + limit),
-      summary,
-      pagination: { page, limit, total: filtered.length, pages: Math.ceil(filtered.length / limit) },
-      currency: "SAR",
-    });
-  } catch (error) { next(error); }
-};
-
-export const getRecipe = async (req, res, next) => {
-  try {
-    assertObjectId(req.params.menuItemId, "menu item");
-    const [menuItem, recipe] = await Promise.all([
-      MenuItem.findById(req.params.menuItemId).populate("categoryRef", "name slug").lean(),
-      InventoryRecipe.findOne({ menuItem: req.params.menuItemId }).populate(recipePopulate).populate("updatedBy", "name").lean(),
-    ]);
-    if (!menuItem) return res.status(404).json({ success: false, message: "Menu item not found" });
-    await attachRecipeSaleableStock([recipe]);
-    res.json({ success: true, data: serializeRecipe(menuItem, recipe) });
-  } catch (error) { next(error); }
-};
-
-export const updateRecipe = async (req, res, next) => {
-  try {
-    assertObjectId(req.params.menuItemId, "menu item");
-    const menuItem = await MenuItem.findById(req.params.menuItemId);
-    if (!menuItem) throw new ValidationError("Menu item was not found");
-    if (req.body.doNotTrack !== undefined && typeof req.body.doNotTrack !== "boolean") throw new ValidationError("Do Not Track must be an explicit boolean setting");
-    const doNotTrack = req.body.doNotTrack === true;
-    const isActive = req.body.isActive !== false;
-    const lines = doNotTrack ? [] : req.body.ingredients;
-    if (!doNotTrack && (!Array.isArray(lines) || lines.length === 0)) {
-      throw new ValidationError("Add at least one ingredient or enable Do Not Track");
-    }
-    const existing = await InventoryRecipe.findOne({ menuItem: menuItem._id }).lean();
-    const previousIds = new Set((existing?.ingredients || []).map((line) => String(line.inventoryItem)));
-    const seen = new Set();
-    const normalized = [];
-    for (const [index, line] of (lines || []).entries()) {
-      assertObjectId(line.inventoryItem, `ingredients[${index}].inventoryItem`);
-      const id = String(line.inventoryItem);
-      if (seen.has(id)) throw new ValidationError("A recipe cannot contain duplicate ingredients");
-      seen.add(id);
-      const quantity = Number(line.quantityPerSale);
-      if (!Number.isFinite(quantity) || quantity <= 0) {
-        throw new ValidationError(`Ingredient ${index + 1} quantity must be greater than zero`);
-      }
-      normalized.push({ inventoryItem: id, quantityPerSale: quantity, isActive: line.isActive !== false });
-    }
-    const inventoryItems = await InventoryItem.find({ _id: { $in: [...seen] } }).select("unit unitCost isActive");
-    if (inventoryItems.length !== seen.size) throw new ValidationError("One or more inventory ingredients were not found");
-    const inventoryMap = new Map(inventoryItems.map((item) => [String(item._id), item]));
-    for (const line of normalized) {
-      const inventoryItem = inventoryMap.get(String(line.inventoryItem));
-      if (!inventoryItem.isActive && !previousIds.has(String(inventoryItem._id))) {
-        throw new ValidationError("Inactive inventory items cannot be added to a recipe");
-      }
-      line.unit = inventoryItem.unit;
-    }
-    const recipe = await InventoryRecipe.findOneAndUpdate(
-      { menuItem: menuItem._id },
-      { $set: { ingredients: normalized, doNotTrack, isActive, updatedBy: req.user._id } },
-      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
-    );
-    await InventoryItem.updateMany({ menuItems: menuItem._id }, { $pull: { menuItems: menuItem._id } });
-    if (normalized.length) {
-      await InventoryItem.updateMany(
-        { _id: { $in: normalized.map((line) => line.inventoryItem) } },
-        { $addToSet: { menuItems: menuItem._id } }
-      );
-    }
-    await recipe.populate(recipePopulate);
-    await recipe.populate("updatedBy", "name");
-    await recordAuditLog({ actor: req.user, action: existing ? "INVENTORY_RECIPE_UPDATED" : "INVENTORY_RECIPE_CREATED", entityType: "InventoryRecipe", entityId: recipe._id, entityLabel: menuItem.name, correlationId: req.correlationId, before: existing ? { ingredients: existing.ingredients, doNotTrack: existing.doNotTrack, isActive: existing.isActive } : null, after: { ingredients: recipe.ingredients, doNotTrack: recipe.doNotTrack, isActive: recipe.isActive }, reason: String(req.body.reason || "").trim(), related: { menuItem: menuItem._id } });
-    const snapshot = recipe.toObject();
-    await attachRecipeSaleableStock([snapshot]);
-    res.json({ success: true, data: serializeRecipe(menuItem.toObject(), snapshot) });
-  } catch (error) {
-    if (error?.code === 11000) return res.status(409).json({ success: false, message: "This menu item already has a recipe" });
-    next(error);
-  }
-};
+export const sellingRecipeHandlers = kind => ({
+  list: handle(req => listSellingRecipes(kind, req.query)),
+  get: handle(async req => ({ data: await getSellingRecipe(kind, req.params.menuItemId || req.params.addOnId) })),
+  save: handle(async req => ({ data: await saveSellingRecipe(req.user, kind, req.params.menuItemId || req.params.addOnId, req.body, req.correlationId) })),
+  history: handle(req => sellingRecipeHistory(req.user, kind, req.params.menuItemId || req.params.addOnId, req.query)),
+  export: async (req, res, next) => {
+    try {
+      if (!["page", "all"].includes(req.query.scope)) throw new ValidationError("Choose page or all filtered export scope");
+      const result = await runInventoryTransaction(session => listSellingRecipes(kind, req.query, { all: req.query.scope === "all", session }), { requireTransaction: true });
+      const csv = recipeCsv(result.data, kind);
+      res.set("Cache-Control", "private, no-store");
+      res.set("Content-Disposition", 'attachment; filename="' + kind + '-recipes-' + req.query.scope + '.csv"');
+      res.set("X-Export-Rows", String(result.data.length));
+      res.type("text/csv").send(csv);
+    } catch (error) { next(error); }
+  },
+});
+export const reviewSellingRecipe = handle(async req => ({ data: await previewSellingRecipe(req.user, req.body) }));
+const menu = sellingRecipeHandlers("menu");
+export const listRecipes = menu.list;
+export const getRecipe = menu.get;
+export const updateRecipe = menu.save;
+export const getRecipeHistory = menu.history;
+export const exportRecipes = menu.export;

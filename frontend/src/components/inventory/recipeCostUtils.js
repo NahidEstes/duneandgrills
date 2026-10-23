@@ -6,25 +6,28 @@ const asNonNegativeNumber = (value) => {
 export const roundSar = (value) =>
   Math.round((asNonNegativeNumber(value) + Number.EPSILON) * 100) / 100;
 
-export const calculateIngredientCost = ({ quantityPerSale, costPerUnit, isActive = true }) =>
-  isActive ? roundSar(asNonNegativeNumber(quantityPerSale) * asNonNegativeNumber(costPerUnit)) : 0;
+export const calculateIngredientCost = ({ quantityPerSale, costPerUnit, isActive = true }) => {
+  if (!isActive) return 0;
+  if (costPerUnit == null || String(costPerUnit).trim() === "" || !["number", "string"].includes(typeof costPerUnit) || !Number.isFinite(Number(costPerUnit)) || Number(costPerUnit) < 0 || Number(costPerUnit) > Number.MAX_SAFE_INTEGER / 100 || !Number.isFinite(Number(quantityPerSale)) || Number(quantityPerSale) <= 0 || Number(quantityPerSale) * Number(costPerUnit) > Number.MAX_SAFE_INTEGER / 100) return null;
+  return roundSar(Number(quantityPerSale) * Number(costPerUnit));
+};
 
 export const calculateRecipeSummary = ({ ingredients, sellingPrice, detailsFor, doNotTrack = false }) => {
-  const totalEstimatedIngredientCost = doNotTrack
-    ? 0
-    : roundSar(ingredients.reduce((total, line) => {
+  const lineCosts = ingredients.map(line => {
         const item = detailsFor(line);
-        return total + calculateIngredientCost({
+        return calculateIngredientCost({
           quantityPerSale: line.quantityPerSale,
           costPerUnit: item?.unitCost,
           isActive: line.isActive,
         });
-      }, 0));
+      });
+  const complete = !doNotTrack && ingredients.some(line => line.isActive !== false) && lineCosts.every(value => value != null) && lineCosts.reduce((sum, value) => sum + value, 0) <= Number.MAX_SAFE_INTEGER / 100;
+  const totalEstimatedIngredientCost = complete ? roundSar(lineCosts.reduce((sum, value) => sum + value, 0)) : null;
   const normalizedSellingPrice = roundSar(sellingPrice);
-  const estimatedProfit = Number(
+  const estimatedProfit = complete ? Number(
     (normalizedSellingPrice - totalEstimatedIngredientCost).toFixed(2)
-  );
-  const profitMargin = normalizedSellingPrice > 0
+  ) : null;
+  const profitMargin = !complete ? null : normalizedSellingPrice > 0
     ? Number(((estimatedProfit / normalizedSellingPrice) * 100).toFixed(1))
     : 0;
 

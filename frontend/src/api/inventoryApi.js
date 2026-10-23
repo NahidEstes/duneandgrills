@@ -52,11 +52,14 @@ export const fetchSupplierPurchases = (id) => unwrap(api.get(`/inventory/supplie
 export const fetchStockMovements = (params = {}) => unwrap(api.get("/inventory/movements", { params }));
 export const createStockMovement = (payload) => unwrap(api.post("/inventory/movements", payload)).then((response) => response.data);
 
-export const fetchInventoryRecipes = (params = {}) => unwrap(api.get("/inventory/recipes", { params }));
-export const fetchInventoryRecipe = (menuItemId) => unwrap(api.get(`/inventory/recipes/${menuItemId}`)).then((response) => response.data);
+export const fetchInventoryRecipes = (params = {}, options = {}) => unwrap(api.get("/inventory/recipes", { ...options, params }));
+export const fetchInventoryRecipe = (menuItemId, options = {}) => unwrap(api.get(`/inventory/recipes/${menuItemId}`, options)).then((response) => response.data);
 export const updateInventoryRecipe = (menuItemId, payload) => unwrap(api.put(`/inventory/recipes/${menuItemId}`, payload)).then((response) => response.data);
-export const fetchAddOnInventoryRecipes = () => unwrap(api.get("/inventory/add-on-recipes")).then((response) => response);
-export const fetchAddOnInventoryRecipe = (addOnId) => unwrap(api.get(`/inventory/add-on-recipes/${addOnId}`)).then((response) => response.data);
+export const fetchAddOnInventoryRecipes = (params = {}, options = {}) => unwrap(api.get("/inventory/add-on-recipes", { ...options, params }));
+export const fetchAddOnInventoryRecipe = (addOnId, options = {}) => unwrap(api.get(`/inventory/add-on-recipes/${addOnId}`, options)).then((response) => response.data);
+export const previewSellingRecipe = (payload, options = {}) => unwrap(api.post("/inventory/recipe-review", payload, options)).then(response => response.data);
+export const fetchSellingRecipeHistory = (kind, id, params = {}, options = {}) => unwrap(api.get(`/inventory/${kind === "menu" ? "recipes" : "add-on-recipes"}/${id}/history`, { ...options, params }));
+export const exportSellingRecipes = (kind, params) => api.get(`/inventory/${kind === "menu" ? "recipes" : "add-on-recipes"}/export`, { params, responseType: "blob" });
 export const updateAddOnInventoryRecipe = (addOnId, payload) => unwrap(api.put(`/inventory/add-on-recipes/${addOnId}`, payload)).then((response) => response.data);
 
 export const fetchWasteRecords = (params = {}) => unwrap(api.get("/inventory/waste", { params }));

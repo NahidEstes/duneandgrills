@@ -1,53 +1,60 @@
 "use client";
-import ResourceStatus from "../ui/ResourceStatus.jsx";
-
-import DarkSelect from "@/src/components/ui/DarkSelect.jsx";
-
-import { useEffect, useMemo, useState } from "react";
-import { ChefHat, CircleSlash2, Download, Search, TriangleAlert } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { fetchInventoryItems, fetchInventoryRecipes } from "@/src/api/inventoryApi.js";
+import { fetchInventoryRecipes, fetchAddOnInventoryRecipes, exportSellingRecipes } from "@/src/api/inventoryApi.js";
 import { Badge, Button, EmptyState, LoadingState, PageHeader, Pagination, StatCard, cardClass, inputClass } from "./InventoryUI.jsx";
-import { apiErrorMessage, downloadCsv, formatSar } from "./inventoryUtils.js";
+import { apiErrorMessage } from "./inventoryUtils.js";
 import RecipeEditor from "./RecipeEditor.jsx";
 import useInventoryResource from "./useInventoryResource.js";
-import AddOnRecipesPanel from "./AddOnRecipesPanel.jsx";
+import ResourceStatus from "../ui/ResourceStatus.jsx";
 
-const statusLabel = { configured: "Configured", not_configured: "Not Configured", do_not_track: "Do Not Track" };
-
-export default function RecipesPage() {
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [status, setStatus] = useState("");
-  const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState("");
-  const [inventoryItems, setInventoryItems] = useState([]);
-  const [recipeType, setRecipeType] = useState("menu");
-  useEffect(() => { const timeout = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 250); return () => clearTimeout(timeout); }, [search]);
-  useEffect(() => { fetchInventoryItems({ limit: 100, status: "active", sortBy: "name", sortOrder: "asc" }).then((response) => setInventoryItems(response.data)).catch(() => toast.error("Unable to load inventory ingredients.")); }, []);
-  const { data, loading, error, reload, lastSuccessAt, refreshing } = useInventoryResource(() => fetchInventoryRecipes({ page, limit: 20, search: debouncedSearch || undefined, status: status || undefined }), [page, debouncedSearch, status]);
-  const rows = useMemo(() => data?.data || [], [data?.data]);
-  const selected = rows.find((row) => row._id === selectedId) || rows[0] || null;
-  useEffect(() => { if (rows.length && !rows.some((row) => row._id === selectedId)) setSelectedId(rows[0]._id); }, [rows, selectedId]);
-  const summary = data?.summary || {};
-  const exportRecipes = () => {
-    if (!rows.length) return toast.error("There are no recipes to export.");
-    downloadCsv(`inventory-recipes-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["Menu Item", (row) => row.name], ["Category", (row) => row.categoryRef?.name || row.category], ["Status", (row) => statusLabel[row.recipeStatus]],
-      ["Selling Price SAR", (row) => row.price], ["Ingredient Cost SAR", (row) => row.metrics?.ingredientCost], ["Estimated Profit SAR", (row) => row.metrics?.estimatedProfit], ["Margin %", (row) => row.metrics?.margin],
-    ], rows);
+export const recipeStatusLabel = { configured: "Configured", not_configured: "Not Configured", do_not_track: "Do Not Track" };
+export default function RecipesPage({ initialKind = "menu", onlyKind = false }) {
+  const [kind, setKind] = useState(initialKind), [search, setSearch] = useState(""), [query, setQuery] = useState(""), [status, setStatus] = useState(""), [page, setPage] = useState(1);
+  const [selection, setSelection] = useState(null), [exporting, setExporting] = useState(false), [scope, setScope] = useState("page");
+  const gate = useRef(null);
+  useEffect(() => { const timer = setTimeout(() => { setQuery(search.trim()); setPage(1); }, 250); return () => clearTimeout(timer); }, [search]);
+  const filters = { page, limit: 20, search: query || undefined, status: status || undefined };
+  const resource = useInventoryResource(() => (kind === "menu" ? fetchInventoryRecipes : fetchAddOnInventoryRecipes)(filters), [kind, page, query, status]);
+  const rows = useMemo(() => resource.data?.data || [], [resource.data?.data]), summary = resource.data?.summary;
+  useEffect(() => { if (!selection && rows.length) setSelection({ id: rows[0]._id, kind }); }, [rows, selection, kind]);
+  const changeKind = next => {
+    if (next === kind || gate.current?.() === false) return;
+    setKind(next); setSelection(null); setPage(1); setSearch(""); setQuery(""); setStatus("");
   };
-  return <div className="mx-auto max-w-[1800px]">
-    <PageHeader title="Menu Item Recipes" description="Map menu items and physical add-ons to inventory ingredients." actions={recipeType === "menu" ? <Button onClick={exportRecipes}><Download className="h-4 w-4" />Export Recipes</Button> : null} /><ResourceStatus lastSuccessAt={lastSuccessAt} refreshing={refreshing} loading={loading} error={error} hasData={data !== null} onRetry={() => reload({ silent: true })} showDetails={false} />
-    <div className="mb-4 flex gap-2 rounded-xl border border-white/10 bg-white/[0.025] p-1"><button type="button" onClick={() => setRecipeType("menu")} className={`rounded-lg px-4 py-2 text-sm ${recipeType === "menu" ? "bg-dune-amber text-black" : "text-neutral-400"}`}>Menu Item Recipes</button><button type="button" onClick={() => setRecipeType("addons")} className={`rounded-lg px-4 py-2 text-sm ${recipeType === "addons" ? "bg-dune-amber text-black" : "text-neutral-400"}`}>Add-on Recipes</button></div>
-    {recipeType === "addons" ? <AddOnRecipesPanel inventoryItems={inventoryItems} /> : <>
-    <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Configured Recipes" value={summary.configured || 0} caption="Menu items with ingredient mapping" icon={ChefHat} /><StatCard label="Not Configured" value={summary.notConfigured || 0} caption="Menu items pending recipes" icon={TriangleAlert} tone="red" /><StatCard label="Do Not Track Items" value={summary.doNotTrack || 0} caption="Excluded from recipe tracking" icon={CircleSlash2} tone="violet" /><StatCard label="Food Cost Coverage" value={`${summary.costCoverage || 0}%`} caption="Share of menu sales value configured" icon={ChefHat} tone="green" /></div>
-    <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-      <section className={`${cardClass} h-fit overflow-hidden`}><div className="border-b border-white/10 p-4"><h2 className="text-sm font-semibold text-white">Menu Items</h2><p className="mt-1 text-xs text-neutral-600">Select an item to edit its recipe.</p><div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1"><label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-neutral-600" /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu items…" /></label><DarkSelect className={inputClass} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">All statuses</option><option value="configured">Configured</option><option value="not_configured">Not Configured</option><option value="do_not_track">Do Not Track</option></DarkSelect></div></div>
-        {loading ? <LoadingState /> : error ? <EmptyState title="Unable to load recipes" description={apiErrorMessage(error)} action={<Button onClick={() => reload().catch(() => undefined)}>Try again</Button>} /> : rows.length ? <div className="divide-y divide-white/[0.06]">{rows.map((row) => <button key={row._id} type="button" onClick={() => setSelectedId(row._id)} className={`flex w-full items-center justify-between gap-3 border-l-2 px-4 py-3 text-left transition ${selected?._id === row._id ? "border-dune-amber bg-dune-amber/[0.07]" : "border-transparent hover:bg-white/[0.03]"}`}><span className="min-w-0"><span className="block truncate text-sm font-medium text-white">{row.name}</span><span className="mt-0.5 block text-[0.65rem] text-neutral-600">{row.categoryRef?.name || row.category} · {formatSar(row.price)}</span></span><Badge tone={row.recipeStatus === "configured" ? "success" : row.recipeStatus === "do_not_track" ? "violet" : "danger"}>{statusLabel[row.recipeStatus]}</Badge></button>)}</div> : <EmptyState title="No menu items found" />}
-        <Pagination pagination={data?.pagination} onPageChange={setPage} />
+  const choose = row => { if (selection?.id === row._id || gate.current?.() !== false) setSelection({ id: row._id, kind }); };
+  const exportRows = async () => {
+    if (exporting) return; setExporting(true);
+    try {
+      const response = await exportSellingRecipes(kind, { ...filters, scope });
+      const url = URL.createObjectURL(response.data), anchor = document.createElement("a");
+      anchor.href = url; anchor.download = kind + "-recipes-" + scope + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+      document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Exported " + response.headers["x-export-rows"] + " recipes (" + (scope === "all" ? "all filtered results" : "current page") + ").");
+    } catch { toast.error("Export failed. No file was downloaded. Retry the complete export."); }
+    finally { setExporting(false); }
+  };
+  return <div className="mx-auto max-w-[1800px] min-w-0 space-y-4">
+    <PageHeader title="Menu Item Recipes" description="Plan menu and add-on ingredients using current reference costs and usable stock." actions={<><label className="text-xs text-neutral-300">Export scope<select aria-label="Export scope" className={inputClass} value={scope} onChange={event => setScope(event.target.value)}><option value="page">Current page</option><option value="all">All filtered results</option></select></label><Button disabled={exporting || resource.loading || !!resource.error || !rows.length} onClick={exportRows}>{exporting ? "Preparing export…" : "Export recipes"}</Button></>}/>
+    {!onlyKind && <div role="group" aria-label="Recipe type" className="flex flex-wrap gap-2">{[["menu", "Menu Item Recipes"], ["addon", "Add-on Recipes"]].map(([value, label]) => <Button key={value} variant={kind === value ? "primary" : "secondary"} aria-pressed={kind === value} onClick={() => changeKind(value)}>{label}</Button>)}</div>}
+    <ResourceStatus {...resource} hasData={resource.data !== null} onRetry={() => resource.reload({ silent: true })} showDetails={false}/>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <StatCard label="Configured recipes" value={summary?.configured ?? "—"} caption="Valid saved ingredient mappings"/>
+      <StatCard label="Not configured" value={summary?.notConfigured ?? "—"} caption="Sales require a valid mapping or explicit exclusion"/>
+      <StatCard label="Do Not Track" value={summary?.doNotTrack ?? "—"} caption="Stock tracking explicitly excluded"/>
+      <StatCard label="Configured price coverage" value={summary ? summary.costCoverage + "%" : "—"} caption="Share of listed prices, not actual sales or verified costs"/>
+    </div>
+    <div className="grid items-start gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <section className={cardClass + " min-w-0"}>
+        <div className="space-y-3 border-b border-white/10 p-4"><h2 className="font-semibold text-white">{kind === "menu" ? "Menu items" : "Add-ons"}</h2>
+          <label className="block text-xs text-neutral-300">Search recipes<input className={inputClass} value={search} onChange={event => setSearch(event.target.value)} placeholder="Name or category"/></label>
+          <label className="block text-xs text-neutral-300">Recipe status<select className={inputClass} value={status} onChange={event => { setStatus(event.target.value); setPage(1); }}><option value="">All statuses</option>{Object.entries(recipeStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <p className="text-xs text-neutral-400">Search and paging keep the selected draft open.</p>
+        </div>
+        {resource.loading ? <LoadingState/> : resource.error ? <EmptyState title="Unable to load recipes" description={apiErrorMessage(resource.error)} action={<Button onClick={() => resource.reload().catch(() => undefined)}>Retry list</Button>}/> : rows.length ? <div className="divide-y divide-white/10">{rows.map(row => <button key={row._id} type="button" aria-pressed={selection?.id === row._id} onClick={() => choose(row)} className={"block w-full space-y-2 p-4 text-left hover:bg-white/5 " + (selection?.id === row._id ? "bg-amber-400/10" : "")}><span className="block break-words text-sm font-semibold text-white">{row.name}</span><Badge tone={row.recipeStatus === "configured" ? "success" : row.recipeStatus === "do_not_track" ? "violet" : "danger"}>{recipeStatusLabel[row.recipeStatus]}</Badge></button>)}</div> : <EmptyState title="No matching recipes"/>}
+        <Pagination pagination={resource.data?.pagination} onPageChange={setPage}/>
       </section>
-      <RecipeEditor selected={selected} inventoryItems={inventoryItems} onSaved={() => reload({ silent: true })} />
-    </div></>}
+      {selection ? <RecipeEditor key={selection.kind + ":" + selection.id} kind={selection.kind} id={selection.id} gateRef={gate} onSaved={() => resource.reload({ silent: true })}/> : <section className={cardClass}><EmptyState title="Select a recipe"/></section>}
+    </div>
   </div>;
 }
