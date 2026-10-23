@@ -7,6 +7,58 @@ deployment or live inventory migration is part of this implementation.
 
 ## Using the feature
 
+### Recipe and production improvements (2026-10-23)
+
+- Recipe cards show the finished item, expected output/unit and ingredient count.
+  Finished names are resolved for the displayed page, including inactive items.
+- Selecting a recipe in Record Production displays its saved preparation notes
+  before confirmation. An explicit message identifies recipes without notes.
+- **Plan production by → Target output quantity** accepts a compatible metric
+  unit or an explicitly configured purchase unit. **Apply target** calculates the
+  multiplier and resets expected ingredient/finished quantities. Edited actuals
+  require an explicit reset confirmation. Target edits must be applied before
+  reviewing production. Actual usable output remains a separate entry. For a
+  2 kg recipe, a 5 kg / 5,000 g target produces a 2.5 multiplier. Server conversion
+  and six-decimal base quantities remain authoritative. The applied target is
+  saved immutably; it never moves stock by itself.
+- **Inventory Settings → Production output variance threshold (%)** is editable
+  under the existing manager/admin count-approval permission. The default is 10%;
+  allowed values are 0–100, including decimal percentages. A deviation strictly
+  greater than the threshold, either below or above expected output, requires a
+  nonblank Yield Explanation. Exactly at the threshold does not require one.
+  The browser warns before review; the server enforces the requirement before any
+  posting. Policy changes share production's configuration transaction lock and
+  invalidate outstanding previews. Each new batch saves its threshold, signed
+  percentage, direction and calculation version. Historical batches without this
+  evidence remain labelled as unrecorded; there is no backfill or retrospective
+  classification. This policy compares expected and actual output, independently
+  of the existing physical input/loss calculation, and creates no Waste entries.
+- Completed batch details offer **Print label → Batch label preview** with an
+  80 × 80 mm printable label: saved preparation name, saved finished item name,
+  batch reference, prepared time and use-by date in Asia/Riyadh. Select matching
+  paper and 100% scale in the browser print dialog. Labels use escaped saved text,
+  an isolated print frame and no record mutation. Reversed batches cannot print.
+  For older batches without a saved finished name, the label explicitly shows
+  that the name was not recorded and the saved item identity; it never substitutes
+  today's name as historical evidence. Physical printer output was not tested.
+- **View version history** is visible only with the existing AUDIT_READ capability
+  (admin/manager). `GET /api/inventory/preparation-recipes/:id/history` enforces that
+  permission independently and serves private/no-store, paginated audit evidence.
+  Each change compares before/after recipe name, expected output/unit, status,
+  notes and added/removed/changed ingredient quantities/units, with actor/time.
+  Old audit ObjectId byte snapshots are decoded when complete; missing evidence
+  is explicitly unavailable, never reconstructed from current stock or recipes.
+  New saves record string item identities in the same existing audit collection.
+  No new history collection, index, migration or historical rewrite is required.
+
+New optional Production fields: `target`, `variance`, `finishedName`. New inventory
+setting: `productionVarianceThresholdPercent` (effective default 10). Clients with
+pre-feature saved requests keep the original request hash when target fields are
+absent; already committed requests still replay before new policy validation.
+Updating the new setting requires the existing transaction-capable database.
+
+### Original workflow
+
 1. Create/reuse the required existing Stock Items. Choose appropriate base units
    and enable expiry tracking on perishable finished items. Do not create another
    copy of an ingredient just to use it in a preparation.
@@ -177,11 +229,32 @@ used to create inventory value from a historical correction.
 
 ## Verification
 
+Updates verified on 2026-10-23: preparation/planning unit and owned-replica tests
+32/32; separate stock, profit, record-ID and launch regression suites 40/40;
+frontend unit tests 230/230; backend unit tests 161/161 with
+`--test-concurrency=1`; frontend lint passed. An initial parallel backend run
+hit the existing Notebook completion timestamp race; the isolated Notebook suite
+and the full sequential run passed without changes to Notebook code.
+
+The final production build completed successfully, retaining the installed
+Next.js 16.4.0 security advisory and React 18 deprecation warnings. Earlier builds
+stopped at the existing advisory gate after compiling/static generation. No
+dependency upgrade or security-check bypass was added by this work; upgrade Next
+before production release. No live deployment or live database changes were run.
+
+The expanded browser harness verifies recipe summaries, saved notes, version
+comparison, target unit conversion and multiplier, rejecting/accepting resets of
+edited actuals, required variance explanations, isolated label preview/print,
+saved settings, reversal, offline/stale/uncertain-confirmation recovery and WCAG
+checks at 1440/390/320 px. It also renders labels to PDF and checks that two
+maximum-length names fit one 80 mm label. Physical printers remain unverified.
+
 Use an owned local mongod executable via MONGOD_BINARY (not a cloud URI).
 
 ```powershell
 # backend
 node --test tests/preparation.test.js tests/preparationYield.test.js tests/preparationIntegration.js
+node --test tests/productionPlanning.test.js tests/preparationUpdatesIntegration.js
 node --test tests/stockRecipeAccuracyIntegration.js tests/profitAndPriorityIntegration.js tests/recordIdsIntegration.js tests/launchReadinessIntegration.js
 node --test tests/*.test.js
 # frontend

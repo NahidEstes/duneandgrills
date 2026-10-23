@@ -14,6 +14,7 @@ import InventoryCategory from "../../backend/models/InventoryCategory.js";
 import StockTransaction from "../../backend/models/StockTransaction.js";
 import Production from "../../backend/models/Production.js";
 import inventoryRoutes from "../../backend/routes/inventoryRoutes.js";
+import { productionLabelHtml } from "../src/utils/productionLabel.js";
 
 // Real production controllers/models, but only an owned temporary replica set,
 // loopback Express/Next and fixture users/items. No dotenv or external API.
@@ -61,6 +62,16 @@ await withIsolatedMongo(async () => {
       await select("Stock item 1", "Owned raw ingredient"); await page.getByLabel("Quantity 1", { exact: true }).fill("500"); await select("Unit 1", "g");
       const before = await StockTransaction.countDocuments();
       await page.getByRole("button", { name: "Save recipe", exact: true }).click(); await page.getByText("Recipe saved. Stock balances are unchanged.", { exact: true }).waitFor(); assert.equal(await StockTransaction.countDocuments(), before);
+      const recipeCard = page.getByRole("button").filter({ has: page.getByText(`Owned sauce ${width}`, { exact: true }) });
+      await recipeCard.getByText("Expected: 450 g · 1 ingredient", { exact: true }).waitFor();
+      await page.getByLabel("Preparation notes (optional)", { exact: true }).fill("Mix until smooth. Keep the preparation area clean.");
+      await page.getByRole("button", { name: "Save recipe", exact: true }).click(); await recipeCard.getByText("Active · v2", { exact: true }).waitFor();
+      await page.getByRole("button", { name: "View version history", exact: true }).click();
+      const versions = page.getByRole("dialog", { name: `Recipe history · Owned sauce ${width}`, exact: true });
+      await versions.getByRole("heading", { name: "v2 · from v1", exact: true }).waitFor();
+      await versions.getByText("Mix until smooth. Keep the preparation area clean.", { exact: true }).waitFor();
+      assert.equal(await StockTransaction.countDocuments(), before); await shot("recipe-history"); await axe();
+      await versions.getByRole("button", { name: /^Close Recipe history/ }).click();
       await page.getByLabel("Preparation notes (optional)", { exact: true }).fill("Owned unsaved notes");
       page.once("dialog", dialog => dialog.dismiss()); await page.getByRole("button", { name: "New recipe", exact: true }).click(); assert.equal(await page.getByLabel("Preparation notes (optional)", { exact: true }).inputValue(), "Owned unsaved notes");
       await page.getByLabel("Search preparation recipes", { exact: true }).fill("not-a-real-recipe"); await page.getByText("No preparation recipes", { exact: true }).waitFor(); assert.equal(await page.getByLabel("Preparation notes (optional)", { exact: true }).inputValue(), "Owned unsaved notes"); await page.getByLabel("Search preparation recipes", { exact: true }).fill("");
@@ -71,8 +82,21 @@ await withIsolatedMongo(async () => {
         await page.getByRole("button", { name: "Record production", exact: true }).click(); await page.getByText(/Safe request storage is unavailable/).waitFor(); assert.equal(await page.getByRole("button", { name: "Review & confirm production", exact: true }).isDisabled(), true);
         await page.evaluate(() => { Storage.prototype.setItem = window.__ownedSetItem; }); await page.getByRole("button", { name: "Cancel", exact: true }).click();
       }
-      await page.getByRole("button", { name: "Record production", exact: true }).click(); await select("Preparation recipe", `Owned sauce ${width} · v1`);
-      await page.getByLabel(/Batch multiplier/).fill("2"); await page.getByLabel("Actual usable finished quantity", { exact: true }).fill("850");
+      await page.getByRole("button", { name: "Record production", exact: true }).click(); await select("Preparation recipe", `Owned sauce ${width} · v2`);
+      await page.getByText("Mix until smooth. Keep the preparation area clean.", { exact: true }).waitFor();
+      await select("Plan production by", "Target output quantity"); await select("Target unit", "kg");
+      await page.getByLabel("Planned target output", { exact: true }).fill("0.9"); await page.getByRole("button", { name: "Apply target", exact: true }).click();
+      assert.equal(await page.getByLabel(/Batch multiplier/).inputValue(), "2"); assert.equal(await page.getByLabel("Actual quantity 1", { exact: true }).inputValue(), "1000");
+      await page.getByLabel("Actual quantity 1", { exact: true }).fill("1100");
+      await page.getByLabel("Planned target output", { exact: true }).fill("1.35");
+      page.once("dialog", dialog => dialog.dismiss()); await page.getByRole("button", { name: "Apply target", exact: true }).click();
+      assert.equal(await page.getByLabel("Actual quantity 1", { exact: true }).inputValue(), "1100");
+      page.once("dialog", dialog => dialog.accept()); await page.getByRole("button", { name: "Apply target", exact: true }).click();
+      assert.equal(await page.getByLabel("Actual quantity 1", { exact: true }).inputValue(), "1500");
+      await page.getByLabel("Planned target output", { exact: true }).fill("0.9"); await page.getByRole("button", { name: "Apply target", exact: true }).click();
+      await page.getByLabel("Actual usable finished quantity", { exact: true }).fill("700"); await page.getByLabel("Yield explanation (required)", { exact: true }).waitFor();
+      await shot("variance-warning");
+      await page.getByLabel("Actual usable finished quantity", { exact: true }).fill("850");
       await page.getByLabel("Yield explanation (optional)", { exact: true }).fill("Extra trimming of damaged raw ingredient");
       await page.getByRole("button", { name: "Use by", exact: true }).click(); const calendar = page.getByRole("dialog", { name: "Choose date", exact: true }); await calendar.getByPlaceholder("DD-MM-YYYY", { exact: true }).fill("02-01-2030"); await calendar.getByRole("button", { name: "Go", exact: true }).click(); await page.keyboard.press("Escape");
       await context.setOffline(true); await page.getByText("Offline. Production cannot be previewed or confirmed.", { exact: true }).waitFor(); assert.equal(await page.getByRole("button", { name: "Review & confirm production", exact: true }).isDisabled(), true); await context.setOffline(false);
@@ -91,6 +115,20 @@ await withIsolatedMongo(async () => {
       if (width === 390) { await confirm.getByRole("alert").waitFor(); await confirm.getByRole("button", { name: "Go back", exact: true }).click(); await page.getByRole("button", { name: "Check saved result", exact: true }).click(); }
       await page.getByRole("dialog", { name: /^PRD-/ }).waitFor(); assert.equal(await Production.countDocuments(), count + 1);
       const details = page.getByRole("dialog", { name: /^PRD-/ });
+      await details.getByRole("button", { name: "Print label", exact: true }).click();
+      const label = page.getByRole("dialog", { name: "Batch label preview", exact: true });
+      await label.getByRole("button", { name: "Print batch label", exact: true }).waitFor();
+      const labelFrame = page.frameLocator('iframe[title="Production batch label"]');
+      await labelFrame.getByText(`Owned prepared sauce ${width}`, { exact: false }).waitFor();
+      await shot("batch-label");
+      const printable = page.frames().find(frame => frame.url() === "about:srcdoc");
+      await printable.evaluate(() => { window.print = () => { window.__ownedPrinted = true; }; });
+      const labelCount = await StockTransaction.countDocuments();
+      await label.getByRole("button", { name: "Print batch label", exact: true }).click();
+      assert.equal(await printable.evaluate(() => window.__ownedPrinted), true); assert.equal(await StockTransaction.countDocuments(), labelCount);
+      const printPage = await context.newPage(); await printPage.setContent(await printable.content()); await printPage.emulateMedia({ media: "print" });
+      await printPage.pdf({ path: path.join(output, `batch-label-${width}.pdf`), preferCSSPageSize: true }); await printPage.screenshot({ path: path.join(output, `batch-label-print-${width}.png`) }); await printPage.close();
+      await label.getByRole("button", { name: "Close Batch label preview", exact: true }).click();
       assert.equal(await metric(details, "Total preparation loss").innerText(), "0.15 kg");
       assert.equal(await metric(details, "Output below expected").innerText(), "0.05 kg");
       await details.getByText("Yield explanation: Extra trimming of damaged raw ingredient", { exact: true }).waitFor();
@@ -120,15 +158,28 @@ await withIsolatedMongo(async () => {
       await report.getByText("1 completed batches", { exact: true }).waitFor(); assert.equal(await StockTransaction.countDocuments(), beforeReport);
       await report.getByRole("button", { name: "View batch details", exact: true }).click(); await details.waitFor();
       await page.getByRole("button", { name: "Reverse production", exact: true }).click(); await page.getByLabel("Reversal reason", { exact: true }).fill("Owned browser correction"); await page.getByRole("button", { name: "Confirm reversal", exact: true }).click(); await page.getByText(/Reversed .*Owned browser correction/).waitFor();
+      assert.equal(await details.getByRole("button", { name: "Print label", exact: true }).count(), 0);
       await page.getByRole("button", { name: /^Close PRD-/ }).click();
       await report.getByText("0 completed batches", { exact: true }).waitFor(); await report.getByText("1 reversed batches excluded", { exact: true }).waitFor();
       assert.equal(await metric(group, "Total preparation loss").innerText(), "Unavailable");
       await shot("reversed-yield-report"); await axe();
       await page.getByRole("button", { name: "Production history", exact: true }).click(); await page.getByLabel("Search batch or preparation", { exact: true }).fill(`Owned sauce ${width}`); await page.getByText("Reversed", { exact: true }).waitFor(); await shot("history"); await axe();
       failHistory = true; await page.getByRole("button", { name: "Refresh", exact: true }).click(); await page.getByRole("alert").filter({ hasText: /Unable to load/ }).waitFor(); await page.getByText("Reversed", { exact: true }).waitFor(); failHistory = false; await page.getByRole("button", { name: "Retry inventory data", exact: true }).click(); await page.getByRole("alert").filter({ hasText: /Unable to load/ }).waitFor({ state: "hidden" });
+      if (width === 320) {
+        await page.goto(origin + "/inventory/settings");
+        await page.getByLabel(/Production output variance threshold/).fill("5"); await page.getByRole("button", { name: "Save settings", exact: true }).click();
+        await page.getByText("Inventory settings saved.", { exact: true }).waitFor();
+        await page.reload(); assert.equal(await page.getByLabel(/Production output variance threshold/).inputValue(), "5"); await shot("variance-settings");
+      }
       assert.deepEqual(errors, []); await context.close(); console.log(`PASS ${width}px: real recipe/production/yield report/reversal, date/preparation filters, stale report recovery, draft retention, offline, uncertain recovery and axe`);
     }
     assert.equal((await InventoryItem.findById(raw._id)).currentStock, 100);
+    const longLabel = await browser.newPage({ viewport: { width: 303, height: 303 } });
+    await longLabel.setContent(productionLabelHtml({ status: "completed", productionNumber: "PRD-2026-000001", recipeSnapshot: { name: "W".repeat(120) }, finishedName: "W".repeat(120), preparedAt: "2026-10-23T07:00:00Z", expiryDate: "2026-10-24T12:00:00+03:00" }));
+    await longLabel.emulateMedia({ media: "print" });
+    assert.ok(await longLabel.locator("article").evaluate(element => element.getBoundingClientRect().height <= 72 / 25.4 * 96), "Maximum-length names fit one 80mm label");
+    await longLabel.screenshot({ path: path.join(output, "batch-label-long-names.png") });
+    await longLabel.pdf({ path: path.join(output, "batch-label-long-names.pdf"), preferCSSPageSize: true }); await longLabel.close();
     console.log(`Preparation browser artifacts: ${output}`);
   } catch (error) {
     for (const context of browser?.contexts() || []) for (const page of context.pages()) { await page.screenshot({ path: path.join(output, "failure.png"), fullPage: true }); console.error(page.url(), (await page.locator("body").innerText()).slice(0, 4500)); }

@@ -6,6 +6,7 @@ const inventorySettingsSchema = new mongoose.Schema(
     outletName: { type: String, default: "Dune & Grills — Main Outlet", trim: true, maxlength: 120 },
     currency: { type: String, enum: ["SAR"], default: "SAR", immutable: true },
     expiryAlertDays: { type: Number, default: 7, min: 1, max: 365 },
+    productionVarianceThresholdPercent: { type: Number, default: 10, min: 0, max: 100 },
     defaultAllowNegativeStock: { type: Boolean, default: false },
     purchasingAutomation: {
       demandLookbackDays: { type: Number, default: 30, min: 1, max: 365 },

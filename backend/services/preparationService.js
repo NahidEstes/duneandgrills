@@ -12,6 +12,8 @@ import { performStockMovement, runInventoryTransaction } from "./inventoryStockS
 import { eligibleBatchFilter, expiryDayStart } from "./inventoryEligibilityService.js";
 import { recordAuditLog } from "./auditLogService.js";
 import { preparationYield } from "./preparationYieldService.js";
+import InventorySettings from "../models/InventorySettings.js";
+import { outputVariance, productionTarget } from "./productionPlanning.js";
 
 const conflict = message => Object.assign(new ValidationError(message), { status: 409 });
 const number = n => Number(Number(n).toFixed(6));
@@ -34,13 +36,14 @@ const date = (value, label) => {
 };
 // Serialize configuration graph edits and confirmation. Never use a standalone
 // development fallback: multi-item conversion must always be atomic.
-async function atomic(work) {
+export async function preparationConfigurationTransaction(work) {
   await Counter.updateOne({ _id: "preparation-config-lock" }, { $setOnInsert: { seq: 0 } }, { upsert: true });
   return runInventoryTransaction(async session => {
     await Counter.updateOne({ _id: "preparation-config-lock" }, { $inc: { seq: 1 } }, { session });
     return work(session);
   }, { requireTransaction: true });
 }
+const atomic = preparationConfigurationTransaction;
 
 async function recipeItems(recipe, session = null) {
   const ids = [recipe.finishedItem, ...recipe.ingredients.map(row => row.inventoryItem)];
@@ -81,7 +84,8 @@ export async function savePreparationRecipe(actor, payload, recipeId = null) {
     let recipe;
     if (old) { Object.assign(old, saved); recipe = await old.save({ session }); }
     else [recipe] = await PreparationRecipe.create([saved], { session });
-    await recordAuditLog({ actorId: actor._id, action: "PREPARATION_RECIPE_SAVED", entityType: "PreparationRecipe", entityId: recipe._id, entityLabel: name, before, after: recipe.toObject() }, { session });
+    const auditSnapshot = value => value ? { ...value, _id: String(value._id), finishedItem: String(value.finishedItem), updatedBy: String(value.updatedBy), ingredients: value.ingredients.map(line => ({ ...line, inventoryItem: String(line.inventoryItem) })) } : null;
+    await recordAuditLog({ actorId: actor._id, action: "PREPARATION_RECIPE_SAVED", entityType: "PreparationRecipe", entityId: recipe._id, entityLabel: name, before: auditSnapshot(before), after: auditSnapshot(recipe.toObject()) }, { session });
     return recipe.toObject();
   });
 }
@@ -91,10 +95,11 @@ async function productionPlan(payload, now, session = null) {
   const recipe = await PreparationRecipe.findById(payload.recipe).session(session).lean();
   if (!recipe?.isActive) throw new ValidationError("Select an active preparation recipe");
   if (recipe.version !== Number(payload.expectedVersion)) throw conflict("Preparation recipe changed. Refresh and review the recipe before confirming.");
-  const multiplier = preparationQuantity(payload.multiplier), preparedAt = date(payload.preparedAt, "Prepared on");
+  const preparedAt = date(payload.preparedAt, "Prepared on");
   if (preparedAt > now) throw new ValidationError("Prepared on cannot be in the future");
   const map = await recipeItems(recipe, session), finished = map.get(String(recipe.finishedItem));
   if (finished.unit !== recipe.baseUnit) throw conflict("Finished item's base unit changed. Review the preparation recipe.");
+  const { multiplier, target } = productionTarget(payload, recipe, finished);
   const expiryDate = payload.expiryDate ? date(payload.expiryDate, "Use by") : null;
   if (finished.tracksExpiry && !expiryDate) throw new ValidationError("This finished stock item requires a use-by date");
   if (expiryDate && (expiryDayStart(expiryDate) < expiryDayStart(now) || expiryDayStart(expiryDate) < expiryDayStart(preparedAt))) throw new ValidationError("Use by cannot be before preparation or already expired");
@@ -126,6 +131,9 @@ async function productionPlan(payload, now, session = null) {
   const totalCost = costNumber(ingredients.reduce((total, row) => total + row.cost, 0));
   if (!Number.isFinite(totalCost) || !Number.isFinite(totalCost / actualQuantity)) throw new ValidationError("Production cost exceeds the supported numeric range");
   const plan = { recipe: recipe._id, recipeSnapshot: recipe, recipeVersion: recipe.version, finishedItem: finished._id, finishedName: finished.name, unit: finished.unit, multiplier, preparedAt, expiryDate, notes: text(payload.notes, 2000, "Notes"), expectedQuantity, actualQuantity, yieldDifference: number(actualQuantity - expectedQuantity), ingredients, totalCost, unitCost: costNumber(totalCost / actualQuantity), canConfirm: ingredients.every(row => row.sufficient) };
+  if (target) plan.target = target;
+  const settings = await InventorySettings.findOne({ key: "default" }).select("productionVarianceThresholdPercent").session(session).lean();
+  plan.variance = outputVariance(expectedQuantity, actualQuantity, settings?.productionVarianceThresholdPercent);
   const explanation = text(payload.yieldExplanation, 500, "Yield explanation");
   if (explanation) plan.yieldExplanation = explanation;
   return { ...plan, fingerprint: hash(plan), yield: preparationYield(plan) };
@@ -139,7 +147,7 @@ export async function previewProduction(actor, payload, now = new Date()) {
 function requestHash(payload) {
   // Stable across JSON property order and actual-ingredient row order.
   // Omit an empty new explanation to preserve recovery of pre-feature requests.
-  return hash({ recipe: payload.recipe, expectedVersion: payload.expectedVersion, multiplier: payload.multiplier, preparedAt: payload.preparedAt, expiryDate: payload.expiryDate || null, actualQuantity: payload.actualQuantity, outputUnit: payload.outputUnit, notes: payload.notes || "", previewFingerprint: payload.previewFingerprint, ingredients: [...(payload.ingredients || [])].map(row => [row.inventoryItem, row.quantity, row.unit]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))), ...(payload.yieldExplanation ? { yieldExplanation: payload.yieldExplanation } : {}) });
+  return hash({ recipe: payload.recipe, expectedVersion: payload.expectedVersion, multiplier: payload.multiplier, preparedAt: payload.preparedAt, expiryDate: payload.expiryDate || null, actualQuantity: payload.actualQuantity, outputUnit: payload.outputUnit, notes: payload.notes || "", previewFingerprint: payload.previewFingerprint, ingredients: [...(payload.ingredients || [])].map(row => [row.inventoryItem, row.quantity, row.unit]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))), ...(payload.yieldExplanation ? { yieldExplanation: payload.yieldExplanation } : {}), ...(payload.targetQuantity !== undefined || payload.targetUnit !== undefined ? { targetQuantity: payload.targetQuantity, targetUnit: payload.targetUnit } : {}) });
 }
 const replay = (record, actor, bodyHash) => {
   if (String(record.preparedBy) !== String(actor._id) || record.requestHash !== bodyHash) throw conflict("This request key belongs to different production details. Review before submitting again.");
@@ -155,7 +163,8 @@ export async function confirmProduction(actor, payload, now = new Date()) {
     const same = await Production.findOne({ idempotencyKey: payload.idempotencyKey }).session(session).lean();
     if (same) return replay(same, actor, bodyHash);
     const plan = await productionPlan(payload, now, session);
-    if (plan.fingerprint !== payload.previewFingerprint) throw conflict("Stock, costs or recipe changed since preview. Refresh the preview and review before confirming; do not retry the old confirmation.");
+    if (plan.fingerprint !== payload.previewFingerprint) throw conflict("Stock, costs, recipe or variance policy changed since preview. Refresh the preview and review before confirming; do not retry the old confirmation.");
+    if (plan.variance.requiresExplanation && !plan.yieldExplanation) throw new ValidationError("Yield explanation is required when output variance exceeds the configured threshold");
     if (!plan.canConfirm) throw conflict("Insufficient usable ingredients. Expired, quarantined, damaged and unknown-expiry stock cannot be used.");
     const [record] = await Production.create([{ ...plan, recipe: plan.recipe, preparedBy: actor._id, actorName: actor.name, idempotencyKey: payload.idempotencyKey, requestHash: bodyHash }], { session });
     const inputs = [];

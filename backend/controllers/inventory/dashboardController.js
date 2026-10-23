@@ -1,5 +1,7 @@
 import InventoryItem from "../../models/InventoryItem.js";
 import InventorySettings from "../../models/InventorySettings.js";
+import { preparationConfigurationTransaction } from "../../services/preparationService.js";
+import { varianceThreshold } from "../../services/productionPlanning.js";
 import PurchaseOrder from "../../models/PurchaseOrder.js";
 import StockTransaction from "../../models/StockTransaction.js";
 import { buildInventoryDashboard, getInventorySettings } from "../../services/inventoryAnalyticsService.js";
@@ -104,30 +106,35 @@ export const getSettings = async (req, res, next) => {
 
 export const updateSettings = async (req, res, next) => {
   try {
-    const beforeRow = await InventorySettings.findOne({ key: "default" }).lean();
-    const payload = { updatedBy: req.user._id };
-    if ("outletName" in req.body) payload.outletName = String(req.body.outletName || "").trim();
-    if ("expiryAlertDays" in req.body) {
-      const days = Number(req.body.expiryAlertDays);
-      if (!Number.isInteger(days) || days < 1 || days > 365) throw new ValidationError("Expiry alert days must be between 1 and 365");
-      payload.expiryAlertDays = days;
-    }
-    if ("defaultAllowNegativeStock" in req.body) payload.defaultAllowNegativeStock = Boolean(req.body.defaultAllowNegativeStock);
-    if ("purchasingAutomation" in req.body) {
-      const source = req.body.purchasingAutomation || {};
-      const limits = { demandLookbackDays: [1, 365], defaultLeadTimeDays: [0, 3650], defaultSafetyStock: [0, Number.MAX_SAFE_INTEGER], staleAfterHours: [1, 8760], dismissalSnoozeDays: [1, 365], dueSoonDays: [1, 365] };
-      const automation = {};
-      for (const [field, [minimum, maximum]] of Object.entries(limits)) {
-        if (!(field in source)) continue;
-        const value = Number(source[field]);
-        if (!Number.isFinite(value) || value < minimum || value > maximum) throw new ValidationError(`${field} must be between ${minimum} and ${maximum}`);
-        automation[field] = value;
+    const work = async (session = null) => {
+      const beforeRow = await InventorySettings.findOne({ key: "default" }).session(session).lean();
+      const payload = { updatedBy: req.user._id };
+      if ("productionVarianceThresholdPercent" in req.body) payload.productionVarianceThresholdPercent = varianceThreshold(req.body.productionVarianceThresholdPercent);
+      if ("outletName" in req.body) payload.outletName = String(req.body.outletName || "").trim();
+      if ("expiryAlertDays" in req.body) {
+        const days = Number(req.body.expiryAlertDays);
+        if (!Number.isInteger(days) || days < 1 || days > 365) throw new ValidationError("Expiry alert days must be between 1 and 365");
+        payload.expiryAlertDays = days;
       }
-      if (Object.keys(automation).length) payload.purchasingAutomation = { ...(beforeRow?.purchasingAutomation || {}), ...automation };
-    }
-    const row = await InventorySettings.findOneAndUpdate({ key: "default" }, { $set: payload, $setOnInsert: { key: "default" } }, { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true });
-    const fields = ["outletName", "expiryAlertDays", "defaultAllowNegativeStock", "purchasingAutomation"];
-    await recordAuditLog({ actor: req.user, action: "INVENTORY_SETTINGS_UPDATED", entityType: "InventorySettings", entityId: row._id, entityLabel: row.outletName || "Inventory settings", before: pickAuditFields(beforeRow, fields), after: pickAuditFields(row, fields) });
+      if ("defaultAllowNegativeStock" in req.body) payload.defaultAllowNegativeStock = Boolean(req.body.defaultAllowNegativeStock);
+      if ("purchasingAutomation" in req.body) {
+        const source = req.body.purchasingAutomation || {};
+        const limits = { demandLookbackDays: [1, 365], defaultLeadTimeDays: [0, 3650], defaultSafetyStock: [0, Number.MAX_SAFE_INTEGER], staleAfterHours: [1, 8760], dismissalSnoozeDays: [1, 365], dueSoonDays: [1, 365] };
+        const automation = {};
+        for (const [field, [minimum, maximum]] of Object.entries(limits)) {
+          if (!(field in source)) continue;
+          const value = Number(source[field]);
+          if (!Number.isFinite(value) || value < minimum || value > maximum) throw new ValidationError(`${field} must be between ${minimum} and ${maximum}`);
+          automation[field] = value;
+        }
+        if (Object.keys(automation).length) payload.purchasingAutomation = { ...(beforeRow?.purchasingAutomation || {}), ...automation };
+      }
+      const row = await InventorySettings.findOneAndUpdate({ key: "default" }, { $set: payload, $setOnInsert: { key: "default" } }, { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true, session });
+      const fields = ["outletName", "expiryAlertDays", "defaultAllowNegativeStock", "purchasingAutomation", "productionVarianceThresholdPercent"];
+      await recordAuditLog({ actor: req.user, action: "INVENTORY_SETTINGS_UPDATED", entityType: "InventorySettings", entityId: row._id, entityLabel: row.outletName || "Inventory settings", before: pickAuditFields(beforeRow, fields), after: pickAuditFields(row, fields) }, { session });
+      return row;
+    };
+    const row = "productionVarianceThresholdPercent" in req.body ? await preparationConfigurationTransaction(work) : await work();
     res.json({ success: true, data: row });
   } catch (error) { next(error); }
 };

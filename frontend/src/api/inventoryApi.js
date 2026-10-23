@@ -4,6 +4,7 @@ import { collectSelectionOptions } from "./selectionOptions.js";
 const unwrap = (request) => request.then(({ data }) => data);
 export const fetchPreparationOptions = () => unwrap(api.get("/inventory/preparation/options")).then(response => response.data);
 export const fetchPreparationRecipes = (params = {}) => unwrap(api.get("/inventory/preparation-recipes", { params }));
+export const fetchPreparationHistory = (id, params = {}) => unwrap(api.get(`/inventory/preparation-recipes/${id}/history`, { params }));
 export const savePreparationRecipe = (id, payload) => unwrap(id ? api.put(`/inventory/preparation-recipes/${id}`, payload) : api.post("/inventory/preparation-recipes", payload)).then(response => response.data);
 export const previewProduction = payload => unwrap(api.post("/inventory/production/preview", payload)).then(response => response.data);
 export const confirmProduction = payload => unwrap(api.post("/inventory/production/confirm", payload)).then(response => response.data);

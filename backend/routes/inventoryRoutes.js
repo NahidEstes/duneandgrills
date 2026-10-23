@@ -1,5 +1,5 @@
 import express from "express";
-import { preparationOptions, listPreparationRecipes, savePreparation, previewPreparation, confirmPreparation, getProduction, reversePreparation, listProduction, findProductionRequest, getPreparationYieldReport } from "../controllers/inventory/preparationController.js";
+import { preparationOptions, listPreparationRecipes, savePreparation, previewPreparation, confirmPreparation, getProduction, reversePreparation, listProduction, findProductionRequest, getPreparationYieldReport, getPreparationHistory } from "../controllers/inventory/preparationController.js";
 import { rejectClientRecordNumbers } from "../services/recordNumberService.js";
 import {
   archiveItem,
@@ -65,6 +65,7 @@ const write = requireCapability(CAPABILITIES.INVENTORY_WRITE);
 router.get("/preparation/options", preparationOptions);
 router.route("/preparation-recipes").get(listPreparationRecipes).post(write, savePreparation);
 router.put("/preparation-recipes/:id", write, savePreparation);
+router.get("/preparation-recipes/:id/history", requireCapability(CAPABILITIES.AUDIT_READ), getPreparationHistory);
 router.get("/production", listProduction);
 router.get("/production/yield-report", getPreparationYieldReport);
 router.post("/production/preview", write, previewPreparation);

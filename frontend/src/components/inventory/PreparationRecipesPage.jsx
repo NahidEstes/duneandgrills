@@ -8,6 +8,8 @@ import useInventoryResource from "./useInventoryResource.js";
 import { Badge, Button, EmptyState, Field, PageHeader, Pagination, InventoryLoadError, LoadingState, cardClass, inputClass, textareaClass } from "./InventoryUI.jsx";
 import { apiErrorMessage } from "./inventoryUtils.js";
 import { preparationUnits } from "@/src/utils/preparationUnits.js";
+import { preparationQuantityLabel as quantity } from "@/src/utils/preparationUnits.js";
+import PreparationRecipeHistory from "./PreparationRecipeHistory.jsx";
 
 const blank = { name: "", finishedItem: "", outputQuantity: "", outputUnit: "", ingredients: [{ inventoryItem: "", quantity: "", unit: "" }], isActive: true, notes: "" };
 const draftFor = recipe => recipe ? { ...recipe, expectedVersion: recipe.version, ingredients: recipe.ingredients.map(line => ({ inventoryItem: String(line.inventoryItem), quantity: String(line.enteredQuantity), unit: line.enteredUnit })) } : blank;
@@ -46,6 +48,7 @@ function RecipeForm({ selected, items, recipes, blocked, onSaved, onCancel }) {
 
 export default function PreparationRecipesPage() {
   const [query, setQuery] = useState({ search: "", status: "all", page: 1 }), [selected, setSelected] = useState(undefined), [notice, setNotice] = useState("");
+  const [history, setHistory] = useState(null);
   const options = useInventoryResource(fetchPreparationOptions, []);
   const library = useInventoryResource(() => fetchPreparationRecipes(query), [query]);
   const reload = () => Promise.all([options.reload(), library.reload()]);
@@ -60,10 +63,12 @@ export default function PreparationRecipesPage() {
     {notice && <p role="status" className="mb-4 text-sm text-emerald-300">{notice}</p>}
     {options.loading ? <LoadingState/> : data && <div className="grid items-start gap-5 xl:grid-cols-[minmax(240px,330px)_minmax(0,1fr)]">
       <aside className={`${cardClass} min-w-0 space-y-3 p-3`}><Field label="Search preparation recipes"><input className={inputClass} value={query.search} onChange={event => setQuery({ ...query, search: event.target.value, page: 1 })}/></Field><Field label="Filter status"><DarkSelect aria-label="Filter status" className={inputClass} value={query.status} onChange={event => setQuery({ ...query, status: event.target.value, page: 1 })}><option value="all">All recipes</option><option value="active">Active</option><option value="inactive">Inactive</option></DarkSelect></Field>
-        {library.loading ? <LoadingState label="Loading recipes…"/> : data.data.map(recipe => <button key={recipe._id} onClick={() => choose(recipe)} className={`w-full rounded-xl border p-4 text-left ${selected?._id === recipe._id ? "border-dune-amber bg-dune-amber/5" : "border-white/10 bg-black/10"}`}><span className="block font-semibold text-white">{recipe.name}</span><span className="mt-2 block"><Badge tone={recipe.isActive ? "success" : "neutral"}>{recipe.isActive ? "Active" : "Inactive"} · v{recipe.version}</Badge></span></button>)}
+        {library.loading ? <LoadingState label="Loading recipes…"/> : data.data.map(recipe => <button key={recipe._id} onClick={() => choose(recipe)} className={`w-full rounded-xl border p-4 text-left ${selected?._id === recipe._id ? "border-dune-amber bg-dune-amber/5" : "border-white/10 bg-black/10"}`}><span className="block break-words font-semibold text-white">{recipe.name}</span><span className="mt-2 block break-words text-sm text-neutral-300">{recipe.finishedItemName || data.items.find(item => String(item._id) === String(recipe.finishedItem))?.name || "Finished item unavailable"}</span><span className="mt-1 block text-xs text-neutral-400">Expected: {quantity(recipe.outputQuantity, recipe.outputUnit)} · {recipe.ingredients.length} {recipe.ingredients.length === 1 ? "ingredient" : "ingredients"}</span><span className="mt-2 block"><Badge tone={recipe.isActive ? "success" : "neutral"}>{recipe.isActive ? "Active" : "Inactive"} · v{recipe.version}</Badge></span></button>)}
         {!library.loading && library.error && !data.data.length && <p role="status" className="p-4 text-sm text-amber-200">Recipe results are unavailable. Retry successfully to verify the list.</p>}{!library.loading && !library.error && !data.data.length && <EmptyState title="No preparation recipes" description="Create a recipe using existing stock items."/>}<Pagination pagination={data.pagination} onPageChange={page => setQuery({ ...query, page })}/>
       </aside>
-      {selected !== undefined ? <RecipeForm key={`${selected?._id || "new"}:${selected?.version || 0}`} selected={selected} items={data.items} recipes={data.recipes} blocked={Boolean(error) || options.refreshing || library.refreshing} onCancel={changeGuard.requestClose} onSaved={recipe => { setSelected(recipe); setNotice("Recipe saved. Stock balances are unchanged."); reload().catch(() => undefined); }}/>:<EmptyState title="Choose a recipe" description="Select a preparation or create a new recipe to begin."/>}
+      <div className="min-w-0 space-y-3">{selected?._id && data.canReadHistory && <Button variant="secondary" onClick={() => setHistory(selected)}>View version history</Button>}
+      {selected !== undefined ? <RecipeForm key={`${selected?._id || "new"}:${selected?.version || 0}`} selected={selected} items={data.items} recipes={data.recipes} blocked={Boolean(error) || options.refreshing || library.refreshing} onCancel={changeGuard.requestClose} onSaved={recipe => { setSelected(recipe); setNotice("Recipe saved. Stock balances are unchanged."); reload().catch(() => undefined); }}/>:<EmptyState title="Choose a recipe" description="Select a preparation or create a new recipe to begin."/>}</div>
     </div>}
+    {history && <PreparationRecipeHistory key={history._id} recipe={history} onClose={() => setHistory(null)}/>}
   </div>;
 }

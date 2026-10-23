@@ -6,19 +6,25 @@ import { previewProduction, confirmProduction, savePreparationRecipe, production
 import { assertObjectId, escapeRegex, parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
 import { riyadhDateRange, startOfRiyadhDay, ADMIN_DAY_MS } from "../../utils/adminDate.js";
 import { preparationYieldReport } from "../../services/preparationYieldService.js";
+import { preparationHistory } from "../../services/preparationHistoryService.js";
+import InventorySettings from "../../models/InventorySettings.js";
+import { CAPABILITIES, hasCapability } from "../../config/permissions.js";
+import { varianceThreshold } from "../../services/productionPlanning.js";
 
 const handle = work => async (req, res, next) => {
   res.set("Cache-Control", "private, no-store");
   try { res.json({ success: true, ...await work(req) }); } catch (error) { next(error); }
 };
-export const preparationOptions = handle(async () => {
-  const [items, recipes] = await Promise.all([
+export const preparationOptions = handle(async req => {
+  const [items, recipes, settings] = await Promise.all([
     InventoryItem.find({ isActive: true }).select("name sku unit purchaseUnit purchaseConversionFactor tracksExpiry currentStock").sort({ name: 1 }).limit(10001).lean(),
     PreparationRecipe.find({}).sort({ name: 1 }).limit(1001).lean(),
+    InventorySettings.findOne({ key: "default" }).select("productionVarianceThresholdPercent").lean(),
   ]);
   if (items.length > 10000 || recipes.length > 1000) throw new ValidationError("Preparation selection is too large; contact an administrator to review configuration");
-  return { data: { items, recipes } };
+  return { data: { items, recipes, productionVarianceThresholdPercent: varianceThreshold(settings?.productionVarianceThresholdPercent), canReadHistory: hasCapability(req.user?.role, CAPABILITIES.AUDIT_READ) } };
 });
+export const getPreparationHistory = handle(req => preparationHistory(req.user, req.params.id, req.query));
 export const listPreparationRecipes = handle(async req => {
   const { page, skip, limit } = parsePagination(req.query, 20), filter = {};
   if (req.query.search) filter.name = new RegExp(escapeRegex(String(req.query.search).slice(0, 120)), "i");
@@ -27,7 +33,9 @@ export const listPreparationRecipes = handle(async req => {
     filter.isActive = req.query.status === "active";
   }
   const [data, total] = await Promise.all([PreparationRecipe.find(filter).sort({ name: 1, _id: 1 }).skip(skip).limit(limit).lean(), PreparationRecipe.countDocuments(filter)]);
-  return { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+  const finishedItems = await InventoryItem.find({ _id: { $in: data.map(recipe => recipe.finishedItem) } }).select("name").lean();
+  const names = new Map(finishedItems.map(item => [String(item._id), item.name]));
+  return { data: data.map(recipe => ({ ...recipe, finishedItemName: names.get(String(recipe.finishedItem)) || null })), pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
 });
 export const savePreparation = handle(async req => ({ data: await savePreparationRecipe(req.user, req.body, req.params.id) }));
 export const previewPreparation = handle(async req => ({ data: await previewProduction(req.user, req.body) }));
