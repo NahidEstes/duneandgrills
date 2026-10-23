@@ -8,6 +8,7 @@ export const savePreparationRecipe = (id, payload) => unwrap(id ? api.put(`/inve
 export const previewProduction = payload => unwrap(api.post("/inventory/production/preview", payload)).then(response => response.data);
 export const confirmProduction = payload => unwrap(api.post("/inventory/production/confirm", payload)).then(response => response.data);
 export const fetchProduction = (params = {}) => unwrap(api.get("/inventory/production", { params }));
+export const fetchPreparationYieldReport = (params = {}) => unwrap(api.get("/inventory/production/yield-report", { params }));
 export const fetchProductionDetails = id => unwrap(api.get(`/inventory/production/${id}`)).then(response => response.data);
 export const findProductionRequest = key => unwrap(api.get(`/inventory/production/request/${key}`)).then(response => response.data);
 export const reverseProduction = (id, reason) => unwrap(api.post(`/inventory/production/${id}/reverse`, { reason })).then(response => response.data);

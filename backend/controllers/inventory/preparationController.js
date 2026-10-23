@@ -5,6 +5,7 @@ import InventoryBatch from "../../models/InventoryBatch.js";
 import { previewProduction, confirmProduction, savePreparationRecipe, productionDetails, reverseProduction } from "../../services/preparationService.js";
 import { assertObjectId, escapeRegex, parsePagination, ValidationError } from "../../utils/inventoryValidation.js";
 import { riyadhDateRange, startOfRiyadhDay, ADMIN_DAY_MS } from "../../utils/adminDate.js";
+import { preparationYieldReport } from "../../services/preparationYieldService.js";
 
 const handle = work => async (req, res, next) => {
   res.set("Cache-Control", "private, no-store");
@@ -38,6 +39,7 @@ export const findProductionRequest = handle(async req => {
   return { data: record };
 });
 export const reversePreparation = handle(async req => ({ data: await reverseProduction(req.user, req.params.id, req.body) }));
+export const getPreparationYieldReport = handle(req => preparationYieldReport(req.user, req.query));
 export const listProduction = handle(async req => {
   const { page, skip, limit } = parsePagination(req.query, 20), filter = {};
   if (req.query.recipe) filter.recipe = assertObjectId(req.query.recipe, "preparation recipe");

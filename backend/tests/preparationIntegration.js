@@ -25,6 +25,7 @@ import { performStockMovement, runInventoryTransaction } from "../services/inven
 import { getSaleableInventory } from "../services/inventoryEligibilityService.js";
 import { historicalOrderCost } from "../services/profitCostService.js";
 import { buildInventoryValuation } from "../services/inventoryValuationService.js";
+import { preparationYieldReport } from "../services/preparationYieldService.js";
 // Owned disposable loopback replica only. No dotenv, external URI or live data.
 process.env.NODE_ENV = "test"; process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "false";
 test("preparation production against owned MongoDB", { timeout: 120000 }, async t => {
@@ -53,6 +54,7 @@ test("preparation production against owned MongoDB", { timeout: 120000 }, async 
       assert.equal((await buildInventoryValuation({ itemIds: [rawA._id, rawB._id, finished._id] })).summary.inventoryValue, 200, "Cost moves from raw stock into the finished batch; total value is not doubled");
       assert.equal(await StockTransaction.countDocuments({ movementType: { $in: ["WASTE", "DAMAGED"] } }), 0, "Yield difference is not another write-off");
       assert.equal((await confirmProduction(actor, body))._id.toString(), first._id.toString()); assert.equal(await balance(finished._id), 0.98);
+      assert.equal(String((await confirmProduction(actor, { ...body, yieldExplanation: "" }))._id), String(first._id), "Empty new field preserves an old request's idempotent recovery");
       await assert.rejects(confirmProduction(actor, { ...body, actualQuantity: 900 }), error => error.status === 409);
       assert.equal(await AuditLog.countDocuments({ action: "PRODUCTION_CONFIRMED" }), 1);
     });
@@ -157,10 +159,68 @@ test("preparation production against owned MongoDB", { timeout: 120000 }, async 
           const headers = { Authorization: `Bearer ${jwt.sign({ id: user._id, sv: 0 }, process.env.JWT_SECRET)}`, "Content-Type": "application/json" };
           const origin = `http://127.0.0.1:${server.address().port}/api/inventory`;
           const read = await fetch(origin + "/production?status=completed&search=PRD", { headers }); assert.equal(read.status, role === "cashier" ? 403 : 200);
+          const report = await fetch(origin + "/production/yield-report?period=week&limit=1", { headers });
+          assert.equal(report.status, role === "cashier" ? 403 : 200);
+          if (report.ok) { assert.match(report.headers.get("cache-control"), /private.*no-store/); const json = await report.json(); assert.equal(json.data.length, 1); assert.equal(json.pagination.total, await Production.countDocuments()); }
           if (read.ok) { assert.match(read.headers.get("cache-control"), /private.*no-store/); const json = await read.json(); assert.ok(json.data.every(row => row.status === "completed")); assert.equal(json.pagination.total, await Production.countDocuments({ status: "completed" })); }
           if (["accountant", "cashier"].includes(role)) assert.equal((await fetch(origin + "/production/confirm", { method: "POST", headers, body: "{}" })).status, 403);
         }
       } finally { await new Promise(resolve => server.close(resolve)); if (previous === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = previous; }
+    });
+    await t.test("yield report uses immutable actual inputs, excludes reversed batches across pages and never posts waste/cost", async () => {
+      const tomato = await stock({ unit: "g", currentStock: 10000, unitCost: 0.01 });
+      const sliced = await stock({ unit: "g", currentStock: 0, unitCost: 0 });
+      const definition = { name: "Owned sliced tomato", isActive: true, finishedItem: String(sliced._id), outputQuantity: 900, outputUnit: "g", ingredients: [{ inventoryItem: String(tomato._id), quantity: 1000, unit: "g" }] };
+      let tomatoRecipe = await savePreparationRecipe(actor, definition);
+      const body = { recipe: String(tomatoRecipe._id), expectedVersion: tomatoRecipe.version, multiplier: 1, actualQuantity: 850, outputUnit: "g", preparedAt: new Date(Date.now() - 60000).toISOString(), ingredients: [{ inventoryItem: String(tomato._id), quantity: 1000, unit: "g" }], yieldExplanation: "Extra trimming of damaged tomato" };
+      const before = await StockTransaction.countDocuments();
+      const preview = await previewProduction(actor, body);
+      assert.equal(preview.yield.lossQuantity, 150); assert.equal(preview.yield.outputShortfallQuantity, 50);
+      assert.equal(await StockTransaction.countDocuments(), before);
+      const request = { ...body, previewFingerprint: preview.fingerprint, idempotencyKey: randomUUID() };
+      await assert.rejects(confirmProduction(actor, { ...request, yieldExplanation: "Changed after review" }), error => error.status === 409);
+      await assert.rejects(previewProduction(actor, { ...body, yieldExplanation: "x".repeat(501) }), /Yield explanation is too long/);
+      const record = await confirmProduction(actor, request);
+      assert.equal(await StockTransaction.countDocuments(), before + 2, "Only raw deduction and finished output are posted");
+      assert.equal(await balance(tomato._id), 9000); assert.equal(await balance(sliced._id), 850);
+      assert.equal(record.yieldExplanation, body.yieldExplanation); assert.equal(record.totalCost, 10);
+      assert.equal(String((await confirmProduction(actor, request))._id), String(record._id));
+      await assert.rejects(confirmProduction(actor, { ...request, yieldExplanation: "Changed after confirmation" }), error => error.status === 409);
+      await Production.updateOne({ _id: record._id }, { $set: { yieldExplanation: "Overwritten" } });
+      assert.equal((await Production.findById(record._id)).yieldExplanation, body.yieldExplanation);
+
+      tomatoRecipe = await savePreparationRecipe(actor, { ...definition, expectedVersion: tomatoRecipe.version, outputQuantity: 800 }, String(tomatoRecipe._id));
+      const other = { ...body, expectedVersion: tomatoRecipe.version, actualQuantity: 700, yieldExplanation: "Owned second batch" };
+      const second = await confirmProduction(actor, { ...other, previewFingerprint: (await previewProduction(actor, other)).fingerprint, idempotencyKey: randomUUID() });
+      await reverseProduction(actor, second._id, { reason: "Owned correction before use" });
+      await InventoryItem.updateOne({ _id: tomato._id }, { $set: { unitCost: 99 } });
+      const counts = await Promise.all([StockTransaction.countDocuments(), Expense.countDocuments(), SupplierInvoice.countDocuments(), AuditLog.countDocuments()]);
+      const details = await productionDetails(actor, record._id);
+      assert.equal(details.yield.expectedOutputQuantity, 900); assert.equal(details.yield.lossQuantity, 150); assert.equal(details.totalCost, 10);
+      const query = { period: "week", recipe: String(tomatoRecipe._id), limit: 1 };
+      const report = await preparationYieldReport(actor, query);
+      assert.equal(report.data.length, 1); assert.equal(report.pagination.total, 2); assert.equal(report.pagination.pages, 2);
+      assert.deepEqual(report.coverage, { completed: 1, excludedReversed: 1, unavailable: 0 });
+      assert.equal(report.summary[0].actualInputQuantity, 1000); assert.equal(report.summary[0].actualOutputQuantity, 850);
+      assert.equal(report.summary[0].lossQuantity, 150); assert.equal(report.summary[0].outputShortfallQuantity, 50);
+      const page2 = await preparationYieldReport(actor, { ...query, page: 2 });
+      assert.notEqual(String(page2.data[0]._id), String(report.data[0]._id)); assert.deepEqual(page2.summary, report.summary);
+      assert.equal(page2.data.find(row => String(row._id) === String(record._id))?.yieldExplanation || report.data.find(row => String(row._id) === String(record._id))?.yieldExplanation, body.yieldExplanation);
+      await assert.rejects(preparationYieldReport(actor, { period: "custom", from: "2026-10-23", to: "2026-10-22" }), /From date/);
+      await assert.rejects(preparationYieldReport(actor, { recipe: "bad" }), /Invalid preparation recipe/);
+      assert.deepEqual(await Promise.all([StockTransaction.countDocuments(), Expense.countDocuments(), SupplierInvoice.countDocuments(), AuditLog.countDocuments()]), counts, "Report/detail reads do not change stock, cost or audit history");
+    });
+    await t.test("mixed mass/volume production remains valid but has unknown physical loss, never fabricated zero", async () => {
+      const mass = await stock({ unit: "g", currentStock: 5000 }), volume = await stock({ unit: "ml", currentStock: 5000 });
+      const output = await stock({ unit: "g", currentStock: 0 });
+      const recipe = await savePreparationRecipe(actor, { name: "Owned mixed basis", isActive: true, finishedItem: String(output._id), outputQuantity: 900, outputUnit: "g", ingredients: [{ inventoryItem: String(mass._id), quantity: 500, unit: "g" }, { inventoryItem: String(volume._id), quantity: 500, unit: "ml" }] });
+      const body = { recipe: String(recipe._id), expectedVersion: recipe.version, multiplier: 1, actualQuantity: 850, outputUnit: "g", preparedAt: new Date(Date.now() - 60000).toISOString(), ingredients: recipe.ingredients.map(line => ({ inventoryItem: String(line.inventoryItem), quantity: line.enteredQuantity, unit: line.enteredUnit })) };
+      const preview = await previewProduction(actor, body); assert.equal(preview.yield.lossQuantity, null); assert.equal(preview.canConfirm, true);
+      await confirmProduction(actor, { ...body, previewFingerprint: preview.fingerprint, idempotencyKey: randomUUID() });
+      const report = await preparationYieldReport(actor, { period: "week", recipe: String(recipe._id) });
+      assert.equal(report.coverage.unavailable, 1); assert.equal(report.summary[0].lossQuantity, null);
+      assert.equal(report.summary[0].outputShortfallQuantity, 50); assert.match(report.data[0].yield.unavailableReason, /mass or volume/);
+      assert.equal(report.data[0].yieldExplanation, "", "Old/optional missing explanations are not invented");
     });
     assert.ok(await PreparationRecipe.countDocuments());
   });

@@ -19,6 +19,7 @@ const schema = new mongoose.Schema({
   totalCost: fixed(Number, { required: true }),
   unitCost: fixed(Number, { required: true }),
   notes: fixed(String, { default: "" }),
+  yieldExplanation: fixed(String, { maxlength: 500 }),
   finishedBatch: { type: mongoose.Schema.Types.ObjectId, ref: "InventoryBatch" },
   movements: [{ type: mongoose.Schema.Types.ObjectId, ref: "StockTransaction" }],
   status: { type: String, enum: ["completed", "reversed"], default: "completed" },

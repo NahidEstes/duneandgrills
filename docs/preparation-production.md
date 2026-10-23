@@ -32,6 +32,55 @@ deployment or live inventory migration is part of this implementation.
    raw preparation inputs again. Existing order deduction expands menu/combo/
    add-on recipes only; it never recursively expands preparation recipes.
 
+## Preparation yield / loss report (2026-10-23)
+
+Open **Production → Yield / Loss Report**. Today, Last 7 days, This month and
+Custom dates use Asia/Riyadh, with an optional preparation filter. Custom ranges
+include both selected days and are limited to 366 days. Paginated batch evidence
+and full-range summaries use the same server calculation, not current-page totals.
+Batch details and the production preview also show these figures.
+
+- **Actual ingredient input** sums the saved actual inputs after metric conversion
+  into the finished item's saved base unit. It requires complete ingredient evidence
+  and a common mass (kg/g) or volume (L/ml) basis. Count/container output, mixed
+  mass/volume inputs and missing historical evidence show physical loss unavailable,
+  with a reason. Current purchase conversions or assumed densities are never used.
+- **Total preparation loss** is positive actual input minus actual usable output.
+  **Recorded quantity gain** shows the opposite difference separately. Losses and
+  gains do not cancel each other in the summary. These are recorded quantity
+  differences, not a determination that all missing quantity was damaged stock.
+- **Output below expected** compares each batch's saved expected output with its
+  actual output. **Output above expected** is separate. These are output variance,
+  not another measure of raw stock consumed. For input 1,000 g, expected output
+  900 g and actual output 850 g: preparation loss is 150 g, output shortfall is 50 g,
+  and usable yield is 85%. Extra actual input changes total loss independently of
+  the output shortfall. Summary yield is total comparable output / total comparable
+  input, not an average of batch percentages.
+- **Yield explanation (optional)** on Record Production accepts up to 500 characters,
+  e.g. extra trimming or damaged raw material. It is saved immutably with the batch,
+  participates in preview/retry checks, and appears in details/report evidence.
+  Existing batches without an explanation say **Not recorded**; none are backfilled.
+- Summaries group each preparation and saved output unit separately, retaining
+  each batch's historical recipe target. Reversed batches remain visible but are
+  excluded from effective totals. Physical-loss coverage and output-comparison
+  coverage are explicit; missing quantities never silently become zero. Different
+  recipe versions may share a group, but their own saved targets are used.
+- The report is read-only under existing INVENTORY_READ permission. The API is
+  `GET /api/inventory/production/yield-report` (`period=today|week|month|custom`,
+  `from`, `to`, optional `recipe`, `page`, `limit`). Responses are private/no-store.
+  It streams every matching record for totals without silently truncating the
+  selection. Last updated, refresh, empty, loading and retained-error states are
+  visible. Report reads create no ledger, audit, Waste or expense entries.
+
+The entire actual input cost is still transferred into usable finished stock,
+so reduced usable output increases its recorded unit cost. **Do not enter the
+same preparation loss again in Waste / Damaged Stock**: that would deduct raw
+stock twice. Later spoilage of the already produced finished stock continues to
+use the existing Waste flow. No new configuration, schema index, live migration
+or historical rewrite is required for this report; the optional explanation field
+is stored only on new confirmations. Old exact requests without the field retain
+their idempotent recovery behavior.
+
 ## Units, dates, stock and costs
 
 - Server conversion is authoritative, with six-decimal inventory quantity
@@ -132,7 +181,7 @@ Use an owned local mongod executable via MONGOD_BINARY (not a cloud URI).
 
 ```powershell
 # backend
-node --test tests/preparation.test.js tests/preparationIntegration.js
+node --test tests/preparation.test.js tests/preparationYield.test.js tests/preparationIntegration.js
 node --test tests/stockRecipeAccuracyIntegration.js tests/profitAndPriorityIntegration.js tests/recordIdsIntegration.js tests/launchReadinessIntegration.js
 node --test tests/*.test.js
 # frontend
@@ -149,6 +198,17 @@ confirmation, offline protection, a lost successful response with saved-result
 recovery, real reversal, stale history recovery and WCAG checks. PLAYWRIGHT_MODULE
 can point to an already installed Playwright module. Screenshots go into an owned
 temporary folder. No real users/orders/inventory balances are used.
+
+Yield-report verification on 2026-10-23: backend unit tests 158/158, frontend unit
+tests 226/226, the five owned integration suites 55/55 and frontend lint passed.
+Frontend yield rendering tests additionally
+cover authoritative figures, unknown evidence, escaping, reversed/preview labels
+and loading/error/empty/retained results. Browser tests at 1440/390/320 px verify
+1 kg input / 0.9 kg target / 0.85 kg output, the saved explanation, filtered report
+totals, custom Riyadh dates, failed-refresh recovery, reversal exclusion, no extra
+stock writes, offline protection, stale/uncertain confirmation recovery and WCAG
+checks. The production build compiled/static-generated successfully but exited 1
+at the same installed Next.js security-advisory gate described below.
 
 Verification on this checkout (2026-10-22): backend unit tests 151/151,
 frontend unit tests 222/222, the five owned integration suites above 53/53,

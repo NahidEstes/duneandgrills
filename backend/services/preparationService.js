@@ -11,6 +11,7 @@ import { preparationBaseQuantity, preparationQuantity } from "./preparationUnits
 import { performStockMovement, runInventoryTransaction } from "./inventoryStockService.js";
 import { eligibleBatchFilter, expiryDayStart } from "./inventoryEligibilityService.js";
 import { recordAuditLog } from "./auditLogService.js";
+import { preparationYield } from "./preparationYieldService.js";
 
 const conflict = message => Object.assign(new ValidationError(message), { status: 409 });
 const number = n => Number(Number(n).toFixed(6));
@@ -125,7 +126,9 @@ async function productionPlan(payload, now, session = null) {
   const totalCost = costNumber(ingredients.reduce((total, row) => total + row.cost, 0));
   if (!Number.isFinite(totalCost) || !Number.isFinite(totalCost / actualQuantity)) throw new ValidationError("Production cost exceeds the supported numeric range");
   const plan = { recipe: recipe._id, recipeSnapshot: recipe, recipeVersion: recipe.version, finishedItem: finished._id, finishedName: finished.name, unit: finished.unit, multiplier, preparedAt, expiryDate, notes: text(payload.notes, 2000, "Notes"), expectedQuantity, actualQuantity, yieldDifference: number(actualQuantity - expectedQuantity), ingredients, totalCost, unitCost: costNumber(totalCost / actualQuantity), canConfirm: ingredients.every(row => row.sufficient) };
-  return { ...plan, fingerprint: hash(plan) };
+  const explanation = text(payload.yieldExplanation, 500, "Yield explanation");
+  if (explanation) plan.yieldExplanation = explanation;
+  return { ...plan, fingerprint: hash(plan), yield: preparationYield(plan) };
 }
 
 export async function previewProduction(actor, payload, now = new Date()) {
@@ -135,7 +138,8 @@ export async function previewProduction(actor, payload, now = new Date()) {
 
 function requestHash(payload) {
   // Stable across JSON property order and actual-ingredient row order.
-  return hash({ recipe: payload.recipe, expectedVersion: payload.expectedVersion, multiplier: payload.multiplier, preparedAt: payload.preparedAt, expiryDate: payload.expiryDate || null, actualQuantity: payload.actualQuantity, outputUnit: payload.outputUnit, notes: payload.notes || "", previewFingerprint: payload.previewFingerprint, ingredients: [...(payload.ingredients || [])].map(row => [row.inventoryItem, row.quantity, row.unit]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))) });
+  // Omit an empty new explanation to preserve recovery of pre-feature requests.
+  return hash({ recipe: payload.recipe, expectedVersion: payload.expectedVersion, multiplier: payload.multiplier, preparedAt: payload.preparedAt, expiryDate: payload.expiryDate || null, actualQuantity: payload.actualQuantity, outputUnit: payload.outputUnit, notes: payload.notes || "", previewFingerprint: payload.previewFingerprint, ingredients: [...(payload.ingredients || [])].map(row => [row.inventoryItem, row.quantity, row.unit]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))), ...(payload.yieldExplanation ? { yieldExplanation: payload.yieldExplanation } : {}) });
 }
 const replay = (record, actor, bodyHash) => {
   if (String(record.preparedBy) !== String(actor._id) || record.requestHash !== bodyHash) throw conflict("This request key belongs to different production details. Review before submitting again.");
@@ -203,7 +207,7 @@ export async function productionDetails(actor, id) {
   const later = movements.filter(row => !record.movements.some(value => String(value) === String(row._id)));
   const reason = record.status === "reversed" ? "Already reversed" : await reversalDependencyReason(record, batch, later.length > 0);
   const permitted = hasCapability(actor.role, CAPABILITIES.INVENTORY_COUNT_APPROVE);
-  return { ...record, remainingQuantity: batch?.remainingQuantity ?? null, batch, activity: movements, canReverse: !reason && permitted, reversalBlockedReason: reason || (!permitted ? "Manager inventory approval permission required" : null) };
+  return { ...record, yield: preparationYield(record), remainingQuantity: batch?.remainingQuantity ?? null, batch, activity: movements, canReverse: !reason && permitted, reversalBlockedReason: reason || (!permitted ? "Manager inventory approval permission required" : null) };
 }
 
 export async function reverseProduction(actor, id, payload) {
