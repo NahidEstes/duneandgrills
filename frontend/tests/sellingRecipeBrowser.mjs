@@ -63,11 +63,17 @@ await withIsolatedMongo(async () => {
       page.on("pageerror", error => errors.push(error.message));
       await context.addCookies([{ name: "dg_session", value: jwt.sign({ id: actor._id, sv: 0 }, process.env.JWT_SECRET), url: origin }, { name: "dg_csrf", value: "owned-browser-csrf", url: origin }]);
       await context.route("https://**", route => route.fulfill({ status: 200, body: "" }));
-      const chooseDish = async name => { await page.getByRole("button").filter({ has: page.getByText(name, { exact: true }) }).click(); await page.getByRole("heading", { name, exact: true }).waitFor(); };
+      const openPlanner = async () => { const planner = page.locator("details[data-stock-planner]"); if (!await planner.evaluate(node => node.open)) await planner.locator("summary").click(); };
+      const chooseDish = async name => { await page.getByRole("button").filter({ has: page.getByText(name, { exact: true }) }).click(); await page.getByRole("heading", { name, exact: true }).waitFor(); await openPlanner(); };
       const shot = async name => { await page.screenshot({ path: path.join(output, name + "-" + width + ".png"), fullPage: true }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, name + " overflow"); };
       const axe = async () => { await page.addScriptTag({ path: path.join(root, "node_modules/axe-core/axe.min.js") }); const violations = await page.evaluate(async () => (await window.axe.run(document.querySelector("main"), { runOnly: { type: "tag", values: ["wcag2a","wcag2aa"] } })).violations.map(row => row.id + ": " + row.nodes.map(node => node.target.join(" ")).join(", "))); assert.deepEqual(violations, []); };
       const waitReview = async () => page.waitForFunction(() => document.querySelector('[aria-label="Stock planner"]')?.textContent.includes("Available portions:"));
       await page.goto(origin + "/inventory/recipes"); await chooseDish(dish.name); await waitReview();
+      await page.locator("details[data-stock-planner] > summary").click();
+      await shot("restored-default-design");
+      if (width === 1440) { await page.setViewportSize({ width: 1920, height: 1080 }); await shot("restored-wide-design"); await page.setViewportSize({ width, height: 1000 }); }
+      assert.equal(await page.locator("details[data-stock-planner]").evaluate(node => node.open), false);
+      await openPlanner();
       assert.equal(await page.getByRole("combobox", { name: "Inventory item 1", exact: true }).innerText(), finished.name + " · " + finished.sku + " · kg");
       assert.equal(await page.getByLabel("Quantity per sale 1", { exact: true }).inputValue(), "250");
       const before = await StockTransaction.countDocuments(), rawBefore = (await InventoryItem.findById(raw._id)).currentStock;
@@ -155,7 +161,7 @@ await withIsolatedMongo(async () => {
       assert.equal((await InventoryRecipe.findOne({ menuItem: dish._id })).ingredients.length, 0); assert.equal(await StockTransaction.countDocuments(), noTrackingBefore);
       await page.getByRole("button", { name: "Add-on Recipes", exact: true }).click(); await chooseDish(addon.name); await waitReview();
       await page.getByLabel("Quantity per add-on 1", { exact: true }).fill("200"); await page.getByRole("button", { name: "Update Recipe", exact: true }).click(); await page.getByText("Saved version", { exact: true }).waitFor(); assert.equal((await AddOnInventoryRecipe.findOne({ addOn: addon._id })).ingredients[0].quantityPerAddOn, .2);
-      await page.getByLabel("Export scope", { exact: true }).selectOption("all"); const downloadEvent = page.waitForEvent("download"); await page.getByRole("button", { name: "Export recipes", exact: true }).click(); const download = await downloadEvent; await download.saveAs(path.join(output, "addons-" + width + ".csv")); assert.equal(await download.failure(), null);
+      await page.getByRole("combobox", { name: "Export scope", exact: true }).click(); await page.getByRole("option", { name: "All filtered results", exact: true }).click(); const downloadEvent = page.waitForEvent("download"); await page.getByRole("button", { name: "Export recipes", exact: true }).click(); const download = await downloadEvent; await download.saveAs(path.join(output, "addons-" + width + ".csv")); assert.equal(await download.failure(), null);
       await shot("addon-editor"); await axe(); assert.deepEqual(errors, []); await context.close();
       console.log("PASS " + width + "px: >100 picker, no phantom dirty state, retained draft/search/production, server conversion, safe save/conflict, history/copy, explicit exclusion, add-on save/export and accessibility");
     }

@@ -2,6 +2,8 @@
 
 Implemented for `/inventory/recipes`. Recipe configuration, planning and exports never post stock movements. Production remains an explicit, separately confirmed operation in the existing ProductionWorkspace.
 
+The original visual layout is retained: icon/colour summary cards, grouped tabs, compact item rows with prices, inline ingredient stock/cost fields and the four-column cost summary. The stock/portion planner is collapsed by default; copy/history actions stay in a compact toolbar. Saved revision identifiers appear only when reviewing saved versions/history.
+
 ## Eight updates
 
 1. **Ingredient picker:** server search/pagination (20 per request), Raw/Prepared filtering and labels, duplicate choices disabled, independent selected-item hydration. Search requests are aborted when obsolete. New inactive ingredients cannot be selected; existing inactive/missing mappings remain visible for repair.

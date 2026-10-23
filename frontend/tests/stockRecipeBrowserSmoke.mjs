@@ -45,6 +45,7 @@ try {
     await page.goto(origin + "/inventory/recipes");
     await page.getByRole("status").filter({ hasText: "Sales blocked: Recipe is inactive" }).waitFor();
     await page.getByLabel("Recipe active", { exact: true }).check();
+    await page.locator("details[data-stock-planner] > summary").click();
     await page.getByRole("region", { name: "Stock planner", exact: true }).getByText("2 L", { exact: true }).waitFor();
     await exclude(); await page.getByText("Saved version", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Add-on Recipes", exact: true }).click();
