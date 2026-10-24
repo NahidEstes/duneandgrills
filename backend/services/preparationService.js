@@ -16,6 +16,7 @@ import InventorySettings from "../models/InventorySettings.js";
 import { outputVariance, productionTarget } from "./productionPlanning.js";
 import { validatePreparationGraph } from "./preparationGraph.js";
 import { preparationSources } from "./preparationReadService.js";
+import { normalizeRecipeQuantity } from "./recipeUnitConversion.js";
 
 const conflict = message => Object.assign(new ValidationError(message), { status: 409 });
 const number = n => Number(Number(n).toFixed(6));
@@ -77,9 +78,11 @@ export async function savePreparationRecipe(actor, payload, recipeId = null) {
     const finished = map.get(String(payload.finishedItem));
     const ingredients = payload.ingredients.map(row => {
       const item = map.get(String(row.inventoryItem));
-      return { inventoryItem: item._id, name: item.name, enteredQuantity: preparationQuantity(row.quantity), enteredUnit: row.unit, quantity: preparationBaseQuantity(row.quantity, row.unit, item), unit: item.unit };
+      const previous = old?.ingredients.find(line => String(line.inventoryItem) === String(item._id));
+      return { inventoryItem: item._id, name: item.name, ...normalizeRecipeQuantity({ quantity: row.quantity, enteredUnit: row.unit, item, previous, reapplyConversion: row.reapplyConversion, expectedGramsPerLiter: row.expectedGramsPerLiter, requireReview: true }), unit: item.unit };
     });
-    const saved = { name, notes, finishedItem: payload.finishedItem, outputQuantity: preparationQuantity(payload.outputQuantity), outputUnit: payload.outputUnit, expectedQuantity: preparationBaseQuantity(payload.outputQuantity, payload.outputUnit, finished), baseUnit: finished.unit, ingredients, isActive: payload.isActive, updatedBy: actor._id, version: (old?.version || 0) + 1 };
+    const output = normalizeRecipeQuantity({ quantity: payload.outputQuantity, enteredUnit: payload.outputUnit, item: finished, previous: old ? { unit: old.baseUnit, quantity: old.expectedQuantity, enteredQuantity: old.outputQuantity, enteredUnit: old.outputUnit, conversionSnapshot: old.outputConversionSnapshot } : null, reapplyConversion: payload.reapplyOutputConversion, expectedGramsPerLiter: payload.expectedOutputGramsPerLiter, requireReview: true });
+    const saved = { name, notes, finishedItem: payload.finishedItem, outputQuantity: output.enteredQuantity, outputUnit: output.enteredUnit, expectedQuantity: output.quantity, outputConversionSnapshot: output.conversionSnapshot, baseUnit: finished.unit, ingredients, isActive: payload.isActive, updatedBy: actor._id, version: (old?.version || 0) + 1 };
     const before = old?.toObject();
     let recipe;
     if (old) { Object.assign(old, saved); recipe = await old.save({ session }); }

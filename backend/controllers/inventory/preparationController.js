@@ -18,7 +18,7 @@ const handle = work => async (req, res, next) => {
 };
 export const preparationOptions = handle(async req => {
   const [items, recipes, settings] = await Promise.all([
-    InventoryItem.find({ isActive: true }).select("name sku unit purchaseUnit purchaseConversionFactor tracksExpiry currentStock").sort({ name: 1 }).limit(10001).lean(),
+    InventoryItem.find({ isActive: true }).select("name sku unit purchaseUnit purchaseConversionFactor weightVolumeConversion tracksExpiry currentStock").sort({ name: 1 }).limit(10001).lean(),
     PreparationRecipe.find({}).sort({ name: 1 }).limit(1001).lean(),
     InventorySettings.findOne({ key: "default" }).select("productionVarianceThresholdPercent").lean(),
   ]);

@@ -15,6 +15,7 @@ import { SellingRecipeHistory, CopySellingRecipe, RecipeSnapshot } from "./Selli
 import { draftFromRecipe, draftEqual, formatReferenceCost as money } from "./sellingRecipeUtils.js";
 import { apiErrorMessage } from "./inventoryUtils.js";
 import { preparationUnits, preparationQuantityLabel as q } from "@/src/utils/preparationUnits.js";
+import RecipeConversionHint from "./RecipeConversionHint.jsx";
 
 const blank = { doNotTrack: false, isActive: true, ingredients: [] };
 export default function RecipeEditor({ kind, id, gateRef, onSaved }) {
@@ -71,7 +72,8 @@ export default function RecipeEditor({ kind, id, gateRef, onSaved }) {
     if (draft.doNotTrack && !record.recipe?.doNotTrack && !confirmDoNotTrack) { setDialog("tracking"); return; }
     lock.current = true; setSaving(true); setSaveError("");
     try {
-      const result = await (kind === "menu" ? updateInventoryRecipe : updateAddOnInventoryRecipe)(id, { ...draft, expectedRevision: record.recipeRevision, confirmDoNotTrack, reason: confirmDoNotTrack ? reason : undefined });
+      const ingredients = draft.ingredients.map((line, index) => ({ ...line, expectedGramsPerLiter: data.normalizedIngredients[index]?.conversionSnapshot?.gramsPerLiter }));
+      const result = await (kind === "menu" ? updateInventoryRecipe : updateAddOnInventoryRecipe)(id, { ...draft, ingredients, expectedRevision: record.recipeRevision, confirmDoNotTrack, reason: confirmDoNotTrack ? reason : undefined });
       accept(result); setDialog(""); setReason(""); setConfirmed(false); toast.success("Recipe saved. Stock and historical order costs are unchanged.");
       Promise.resolve().then(() => onSavedRef.current?.()).catch(() => toast.warning("Recipe saved. The recipe list could not refresh; retry the list."));
     } catch (error) {
@@ -122,7 +124,9 @@ export default function RecipeEditor({ kind, id, gateRef, onSaved }) {
                 const choices = item ? preparationUnits(item) : [line.enteredUnit].filter(Boolean);
                 return <section key={index} aria-label={"Ingredient " + (index + 1)} className="grid min-w-0 gap-3 rounded-xl border border-white/[0.07] bg-black/20 p-3 sm:grid-cols-2 2xl:grid-cols-[minmax(190px,1.55fr)_minmax(105px,.7fr)_80px_minmax(105px,.78fr)_minmax(105px,.8fr)_minmax(105px,.8fr)_auto] 2xl:items-start">
                   <div className="min-w-0"><InventoryItemPicker recipeTypes retainInactive value={line.inventoryItem} label={"Inventory item " + (index + 1)} excludedIds={draft.ingredients.filter((_, offset) => offset !== index).map(row => row.inventoryItem)} onResolved={remember} onChange={(value, item) => { remember(item); if (value !== line.inventoryItem) changeLine(index, { inventoryItem: value, enteredUnit: item.unit }); }}/>
-                    {!line.inventoryItem && baseline.ingredients[index]?.quantity && !baseline.ingredients[index]?.inventoryItem && <p role="alert" className="mt-1 text-xs text-amber-200">Saved ingredient unavailable. Replace or remove this row.</p>}</div>
+                    {!line.inventoryItem && baseline.ingredients[index]?.quantity && !baseline.ingredients[index]?.inventoryItem && <p role="alert" className="mt-1 text-xs text-amber-200">Saved ingredient unavailable. Replace or remove this row.</p>}
+                    <RecipeConversionHint line={line} item={item} unitKey="enteredUnit" previous={(() => { const old = record.recipe?.ingredients.find(row => String(row.inventoryItem?._id || row.inventoryItem) === line.inventoryItem); return old ? { ...old, quantity: old[kind === "menu" ? "quantityPerSale" : "quantityPerAddOn"] } : null; })()} normalized={normalized ? { quantity: normalized[kind === "menu" ? "quantityPerSale" : "quantityPerAddOn"] } : null} disabled={!canWrite || saving} onReapply={value => changeLine(index, { reapplyConversion: value })} />
+                  </div>
                   <Field label={kind === "menu" ? "Quantity per Sale" : "Qty per add-on"} hint={normalized ? "Base: " + q(normalized[kind === "menu" ? "quantityPerSale" : "quantityPerAddOn"], normalized.unit) : "Awaiting server review"}><input aria-label={"Quantity per " + (kind === "menu" ? "sale " : "add-on ") + (index + 1)} required type="number" min="0" max="1000000000" step="any" className={inputClass} value={line.quantity} onChange={event => changeLine(index, { quantity: event.target.value })}/></Field>
                   <Field label="Unit"><DarkSelect aria-label={"Entered unit " + (index + 1)} required disabled={!canWrite || saving} className={inputClass} value={line.enteredUnit} onChange={event => changeLine(index, { enteredUnit: event.target.value })}><option value="">Choose unit</option>{[...new Set([...choices, line.enteredUnit].filter(Boolean))].map(unit => <option key={unit} value={unit}>{unit}{!choices.includes(unit) ? " (unavailable)" : ""}</option>)}</DarkSelect></Field>
                   <Field label="Physical Stock" hint={"Usable: " + q(stock?.usable, item?.unit)}><ReadOnlyValue tone="text-emerald-400">{q(stock?.physicalStock, item?.unit)}</ReadOnlyValue></Field>

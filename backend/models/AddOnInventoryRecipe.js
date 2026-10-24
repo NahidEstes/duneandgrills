@@ -7,6 +7,7 @@ const ingredientSchema = new mongoose.Schema({
   unit: { type: String, required: true, enum: INVENTORY_UNITS },
   enteredQuantity: { type: Number, min: 0.000001 },
   enteredUnit: { type: String, maxlength: 30 },
+  conversionSnapshot: { type: new mongoose.Schema({ factor: { type: Number, required: true, min: 0 }, gramsPerLiter: Number }, { _id: false }), default: undefined },
   isActive: { type: Boolean, default: true },
 }, { _id: false });
 

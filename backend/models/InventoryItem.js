@@ -12,6 +12,14 @@ const inventoryItemSchema = new mongoose.Schema(
     unit: { type: String, required: true, enum: INVENTORY_UNITS },
     purchaseUnit: { type: String, enum: PURCHASE_UNITS, default: null },
     purchaseConversionFactor: { type: Number, default: 1, min: 0.000001 },
+    weightVolumeConversion: {
+      type: new mongoose.Schema({
+        enabled: { type: Boolean, default: false },
+        gramsPerLiter: { type: Number, min: 0.000001, max: 1e9, default: null },
+        verificationNote: { type: String, trim: true, maxlength: 500, default: "" },
+      }, { _id: false }),
+      default: undefined,
+    },
     currentStock: { type: Number, default: 0 },
     stockVersion: { type: Number, default: 0, min: 0 },
     reorderLevel: { type: Number, default: 0, min: 0 },

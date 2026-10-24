@@ -6,6 +6,7 @@ const schema = new mongoose.Schema({
   outputQuantity: { type: Number, required: true },
   outputUnit: { type: String, required: true },
   baseUnit: { type: String, required: true },
+  outputConversionSnapshot: { type: mongoose.Schema.Types.Mixed, default: undefined },
   ingredients: { type: [mongoose.Schema.Types.Mixed], required: true },
   isActive: { type: Boolean, default: true },
   notes: { type: String, maxlength: 2000, default: "" },

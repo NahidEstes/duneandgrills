@@ -26,6 +26,7 @@
     "migrate:record-numbers": "node data/backfillRecordNumbers.js",
     "test:record-ids": "node --test tests/recordIdsIntegration.js",
     "test:stock-recipe-accuracy": "node --test tests/stockRecipeAccuracyIntegration.js",
+    "test:recipe-conversions": "node --test tests/recipeUnitConversion.test.js tests/recipeUnitConversionIntegration.js",
     "test:purchasing-safety": "node --test tests/purchasingSafetyIntegration.js",
     "test:admin-reporting-accuracy": "node --test tests/adminReportingAccuracyIntegration.js",
     "test:launch-readiness": "node --test tests/launchReadinessIntegration.js",

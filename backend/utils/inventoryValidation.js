@@ -64,6 +64,14 @@ export const validateItemPayload = (payload, { partial = false } = {}) => {
     result.purchaseConversionFactor = factor;
   }
   if (result.category) assertObjectId(result.category, "category");
+  if ("weightVolumeConversion" in payload) {
+    const config = payload.weightVolumeConversion;
+    if (!config || typeof config !== "object" || Array.isArray(config) || typeof config.enabled !== "boolean") throw new ValidationError("Weight–volume conversion requires an explicit enabled setting");
+    const gramsPerLiter = config.gramsPerLiter == null || config.gramsPerLiter === "" ? null : number(config.gramsPerLiter);
+    if ((config.enabled && gramsPerLiter == null) || (gramsPerLiter != null && (!Number.isFinite(gramsPerLiter) || gramsPerLiter < 0.000001 || gramsPerLiter > 1e9)) || (config.gramsPerLiter != null && !["number", "string"].includes(typeof config.gramsPerLiter))) throw new ValidationError("Enter a verified grams per liter value between 0.000001 and 1,000,000,000");
+    if (config.verificationNote != null && (typeof config.verificationNote !== "string" || config.verificationNote.trim().length > 500)) throw new ValidationError("Verification note must be text, at most 500 characters");
+    result.weightVolumeConversion = { enabled: config.enabled, gramsPerLiter, verificationNote: (config.verificationNote || "").trim() };
+  }
   if ("supplier" in payload) {
     result.supplier = payload.supplier ? assertObjectId(payload.supplier, "supplier") : null;
   }

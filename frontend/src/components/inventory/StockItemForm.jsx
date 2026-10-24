@@ -16,6 +16,7 @@ const blank = {
   reorderEnabled: false, targetStock: 0, safetyStock: 0, leadTimeDays: 0, minimumOrderQuantity: 1, orderMultiple: 1, supplierItemCode: "",
   preferredBrand: "", unitCost: 0, supplier: "", tracksExpiry: false, expiryDate: "", storageLocation: "",
   isActive: true, allowNegativeStock: false,
+  weightVolumeConversion: { enabled: false, gramsPerLiter: "", verificationNote: "" },
 };
 
 function StockItemField({ label, required, ...props }) {
@@ -40,6 +41,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, o
       name: item.name || "", sku: item.sku || "", category: item.category?._id || item.category || "",
       unit: item.unit || "kg", purchaseUnit: item.purchaseUnit || item.unit || "kg",
       purchaseConversionFactor: item.purchaseConversionFactor ?? 1,
+      weightVolumeConversion: { enabled: item.weightVolumeConversion?.enabled === true, gramsPerLiter: item.weightVolumeConversion?.gramsPerLiter ?? "", verificationNote: item.weightVolumeConversion?.verificationNote || "" },
       reorderLevel: item.reorderLevel ?? 0, reorderEnabled: Boolean(item.reorderEnabled), targetStock: item.targetStock ?? 0, safetyStock: item.safetyStock ?? 0, leadTimeDays: item.leadTimeDays ?? 0, minimumOrderQuantity: item.minimumOrderQuantity ?? 1, orderMultiple: item.orderMultiple ?? 1, supplierItemCode: item.supplierItemCode || "", preferredBrand: item.preferredBrand || "", unitCost: item.unitCost ?? 0,
       supplier: item.supplier?._id || item.supplier || "", tracksExpiry: Boolean(item.tracksExpiry),
       expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().slice(0, 10) : "",
@@ -50,6 +52,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, o
     setSkuState({ loading: false, error: "" });
   }, [item]);
   const set = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const setConversion = values => setForm(current => ({ ...current, weightVolumeConversion: { ...current.weightVolumeConversion, ...values } }));
   const regenerateSku = async (categoryId = form.category) => {
     if (!categoryId || item) return;
     setSkuState({ loading: true, error: "" });
@@ -77,6 +80,7 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, o
       targetStock: Number(form.targetStock), safetyStock: Number(form.safetyStock), leadTimeDays: Number(form.leadTimeDays), minimumOrderQuantity: Number(form.minimumOrderQuantity), orderMultiple: Number(form.orderMultiple),
       unitCost: Number(form.unitCost),
       purchaseConversionFactor: Number(form.purchaseConversionFactor),
+      weightVolumeConversion: { ...form.weightVolumeConversion, gramsPerLiter: form.weightVolumeConversion.gramsPerLiter === "" ? null : Number(form.weightVolumeConversion.gramsPerLiter) },
       supplier: form.supplier || null,
       expiryDate: form.tracksExpiry && form.expiryDate ? form.expiryDate : null,
       autoGenerateSku: !item && skuAutomatic,
@@ -101,6 +105,15 @@ export default function StockItemForm({ item, categories, suppliers, onSubmit, o
       <StockItemField required label={`Base unit cost (SAR / ${form.unit})`} hint="Recipe costing uses this base-unit value."><input required min="0" step="0.01" type="number" className={inputClass} value={form.unitCost} onChange={(event) => set("unitCost", event.target.value)} /></StockItemField>
       {!item && <StockItemField required label={`Opening stock (${form.unit})`} hint="Opening stock is entered in the base unit and saved as a batch."><input required min="0" step="any" type="number" className={inputClass} value={form.openingStock} onChange={(event) => set("openingStock", event.target.value)} /></StockItemField>}
       <StockItemField required label="Reorder level"><input required min="0" step="any" type="number" className={inputClass} value={form.reorderLevel} onChange={(event) => set("reorderLevel", event.target.value)} /></StockItemField>
+    </StockItemSection>
+    <StockItemSection title="Weight–Volume Conversion" action={<label className="flex min-h-10 items-center gap-2 text-xs text-neutral-300"><input type="checkbox" aria-label="Enable weight–volume conversion" checked={form.weightVolumeConversion.enabled} onChange={event => setConversion({ enabled: event.target.checked })} className="h-4 w-4 accent-amber-500" /> Enable conversion</label>}>
+      <p className="text-xs leading-relaxed text-neutral-400 sm:col-span-2">Let recipes use grams or milliliters while stock stays in its current base unit. Use a verified value for this specific ingredient. Saving this setting does not change stock, costs or saved recipe quantities.</p>
+      {form.weightVolumeConversion.enabled && <>
+        {!["kg", "g", "L", "ml"].includes(form.unit) && <p role="alert" className="text-sm text-amber-200 sm:col-span-2">This setting requires a kg, g, L or ml base unit. Keep the current base unit if this item already has stock.</p>}
+        <StockItemField required label="1 L = how many grams?" hint="Confirm using supplier specifications or a measured result. No default density is assumed."><input aria-label="Grams per liter" required type="number" min="0.000001" max="1000000000" step="any" className={inputClass} value={form.weightVolumeConversion.gramsPerLiter} onChange={event => setConversion({ gramsPerLiter: event.target.value })} /></StockItemField>
+        <StockItemField label="Verification note (optional)"><input aria-label="Conversion verification note" maxLength={500} className={inputClass} value={form.weightVolumeConversion.verificationNote} onChange={event => setConversion({ verificationNote: event.target.value })} placeholder="Supplier specification or measured result" /></StockItemField>
+        <p className="text-xs text-amber-200 sm:col-span-2">Changes apply to new or explicitly updated recipe quantities. Existing recipes retain their saved conversion until reviewed.</p>
+      </>}
     </StockItemSection>
     <details className="rounded-xl border border-white/10 p-4"><summary className="min-h-10 cursor-pointer text-sm font-semibold text-white">More details: supplier & storage (optional)</summary><div className="mt-4"><StockItemSection title="Supplier & storage">
       <StockItemField label="Primary supplier"><DarkSelect aria-label="Primary supplier" className={inputClass} value={form.supplier} onChange={(event) => set("supplier", event.target.value)}><option value="">No supplier</option>{suppliers.map((row) => <option key={row._id} value={row._id}>{row.name}</option>)}</DarkSelect></StockItemField>

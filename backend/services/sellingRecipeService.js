@@ -8,12 +8,13 @@ import AuditLog from "../models/AuditLog.js";
 import { hasCapability, CAPABILITIES } from "../config/permissions.js";
 import { assertObjectId, ValidationError, parsePagination, escapeRegex } from "../utils/inventoryValidation.js";
 import { runInventoryTransaction } from "./inventoryStockService.js";
-import { preparationBaseQuantity, preparationQuantity } from "./preparationUnits.js";
+import { preparationQuantity } from "./preparationUnits.js";
 import { recipeReadiness, attachRecipeSaleableStock } from "./recipeReadinessService.js";
 import { calculateRecipeCosts } from "./recipeCostService.js";
 import { getSaleableInventory } from "./inventoryEligibilityService.js";
 import { recordAuditLog } from "./auditLogService.js";
 import { savedId } from "./preparationHistoryService.js";
+import { normalizeRecipeQuantity } from "./recipeUnitConversion.js";
 
 const settings = {
   menu: { catalog: MenuItem, model: InventoryRecipe, key: "menuItem", quantity: "quantityPerSale", entity: "InventoryRecipe", prefix: "INVENTORY_RECIPE" },
@@ -22,10 +23,10 @@ const settings = {
 const config = kind => { if (!settings[kind]) throw new ValidationError("Unknown recipe type"); return settings[kind]; };
 const permission = (actor, capability) => { if (!hasCapability(actor?.role, capability)) throw Object.assign(new ValidationError("Inventory permission required"), { status: 403 }); };
 const conflict = message => Object.assign(new ValidationError(message), { status: 409 });
-const fields = "name sku unit unitCost currentStock isActive purchaseUnit purchaseConversionFactor tracksExpiry expiryDate";
+const fields = "name sku unit unitCost currentStock isActive purchaseUnit purchaseConversionFactor weightVolumeConversion tracksExpiry expiryDate";
 const populate = { path: "ingredients.inventoryItem", select: fields };
 export const sellingRecipeRevision = recipe => recipe ? `${recipe._id}:${recipe.__v ?? 0}:${new Date(recipe.updatedAt || 0).getTime()}` : null;
-const snapshot = (recipe, quantityField) => recipe ? { revision: sellingRecipeRevision(recipe), doNotTrack: recipe.doNotTrack === true, isActive: recipe.isActive !== false, ingredients: recipe.ingredients.map(line => ({ inventoryItem: String(line.inventoryItem?._id || line.inventoryItem), name: line.inventoryItem?.name || line.name || null, quantity: line[quantityField], unit: line.unit, enteredQuantity: line.enteredQuantity ?? null, enteredUnit: line.enteredUnit ?? null, isActive: line.isActive !== false })) } : null;
+const snapshot = (recipe, quantityField) => recipe ? { revision: sellingRecipeRevision(recipe), doNotTrack: recipe.doNotTrack === true, isActive: recipe.isActive !== false, ingredients: recipe.ingredients.map(line => ({ inventoryItem: String(line.inventoryItem?._id || line.inventoryItem), name: line.inventoryItem?.name || line.name || null, quantity: line[quantityField], unit: line.unit, enteredQuantity: line.enteredQuantity ?? null, enteredUnit: line.enteredUnit ?? null, ...(line.conversionSnapshot ? { conversionSnapshot: line.conversionSnapshot } : {}), isActive: line.isActive !== false })) } : null;
 
 export function serializeSellingRecipe(kind, catalog, recipe) {
   const cfg = config(kind), readiness = recipeReadiness(recipe, cfg.quantity);
@@ -68,7 +69,7 @@ export async function listSellingRecipes(kind, query = {}, { all = false, sessio
   return { data: all ? filtered : filtered.slice(skip, skip + limit), summary, pagination: { page, limit, total: filtered.length, pages: Math.ceil(filtered.length / limit) }, currency: "SAR" };
 }
 
-async function normalize(kind, body, existing, session = null) {
+async function normalize(kind, body, existing, session = null, requireReview = false) {
   const cfg = config(kind);
   for (const key of ["doNotTrack", "isActive"]) if (body[key] !== undefined && typeof body[key] !== "boolean") throw new ValidationError(`${key === "doNotTrack" ? "Do Not Track" : "Active status"} must be an explicit boolean setting`);
   const doNotTrack = body.doNotTrack === true;
@@ -86,8 +87,9 @@ async function normalize(kind, body, existing, session = null) {
     const entered = Object.hasOwn(line, "quantity") || Object.hasOwn(line, "enteredUnit");
     const enteredUnit = entered ? line.enteredUnit : item.unit;
     const enteredQuantity = preparationQuantity(entered ? line.quantity : line[cfg.quantity] ?? (kind === "addon" ? line.quantityPerSale : undefined));
-    const quantity = preparationBaseQuantity(enteredQuantity, enteredUnit, item);
-    return { inventoryItem: item._id, [cfg.quantity]: quantity, unit: item.unit, enteredQuantity, enteredUnit, isActive: line.isActive !== false, _item: item };
+    const old = existing?.ingredients?.find(row => String(row.inventoryItem?._id || row.inventoryItem) === String(item._id));
+    const { quantity, ...metadata } = normalizeRecipeQuantity({ quantity: enteredQuantity, enteredUnit, item, previous: old, baseKey: cfg.quantity, reapplyConversion: line.reapplyConversion, expectedGramsPerLiter: line.expectedGramsPerLiter, requireReview });
+    return { inventoryItem: item._id, [cfg.quantity]: quantity, unit: item.unit, ...metadata, isActive: line.isActive !== false, _item: item };
   }) };
 }
 
@@ -107,7 +109,7 @@ export async function saveSellingRecipe(actor, kind, id, body, correlationId = "
     const existing = await cfg.model.findOne({ [cfg.key]: id }).session(session).lean();
     if (!catalog) throw new ValidationError("Recipe target not found");
     if (body.expectedRevision !== sellingRecipeRevision(existing)) throw conflict("Recipe changed. Reload the saved version or copy it into a new draft; your draft has not been overwritten.");
-    const normalized = await normalize(kind, body, existing, session);
+    const normalized = await normalize(kind, body, existing, session, true);
     if (normalized.doNotTrack && !existing?.doNotTrack && (body.confirmDoNotTrack !== true || typeof body.reason !== "string" || body.reason.trim().length < 5)) throw new ValidationError("Confirm Do Not Track and explain why tracking is being disabled using at least 5 characters.");
     if (body.reason != null && (typeof body.reason !== "string" || body.reason.length > 500)) throw new ValidationError("Audit reason must be text up to 500 characters");
     const ingredients = normalized.ingredients.map(({ _item, ...row }) => row);
@@ -197,6 +199,7 @@ export function sellingHistorySnapshot(source, quantityField) {
       name: line.name || line.inventoryItem?.name || null,
       quantity: line.quantity ?? line[quantityField] ?? null, unit: line.unit || null,
       enteredQuantity: line.enteredQuantity ?? null, enteredUnit: line.enteredUnit || null,
+      ...(line.conversionSnapshot ? { conversionSnapshot: line.conversionSnapshot } : {}),
       isActive: line.isActive,
     })),
   };

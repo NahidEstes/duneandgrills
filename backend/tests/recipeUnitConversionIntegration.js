@@ -1,0 +1,137 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { randomUUID } from "node:crypto";
+import mongoose from "mongoose";
+import express from "express";
+import jwt from "jsonwebtoken";
+import { withIsolatedMongo } from "./helpers/isolatedMongo.js";
+import User from "../models/User.js";
+import InventoryItem from "../models/InventoryItem.js";
+import InventoryCategory from "../models/InventoryCategory.js";
+import InventoryRecipe from "../models/InventoryRecipe.js";
+import AddOnInventoryRecipe from "../models/AddOnInventoryRecipe.js";
+import PreparationRecipe from "../models/PreparationRecipe.js";
+import InventoryBatch from "../models/InventoryBatch.js";
+import StockTransaction from "../models/StockTransaction.js";
+import SupplierInvoice from "../models/SupplierInvoice.js";
+import Expense from "../models/Expense.js";
+import AuditLog from "../models/AuditLog.js";
+import MenuItem from "../models/MenuItem.js";
+import MenuAddOn from "../models/MenuAddOn.js";
+import inventoryRoutes from "../routes/inventoryRoutes.js";
+import { saveSellingRecipe, getSellingRecipe, previewSellingRecipe, sellingRecipeHistory } from "../services/sellingRecipeService.js";
+import { savePreparationRecipe, previewProduction, confirmProduction } from "../services/preparationService.js";
+import { performStockMovement, runInventoryTransaction } from "../services/inventoryStockService.js";
+import { deductOrderInventory, restoreOrderInventory } from "../services/orderInventoryService.js";
+import { buildInventoryValuation } from "../services/inventoryValuationService.js";
+import { plannedRecipeValues } from "../../frontend/src/utils/productionPlanning.js";
+
+process.env.NODE_ENV = "test";
+process.env.JWT_SECRET = "owned-conversion-integration";
+process.env.ALLOW_NON_TRANSACTIONAL_INVENTORY = "false";
+
+test("ingredient conversion preserves stock/accounting and saved recipes across menu, addon and production", { timeout: 120000 }, async t => withIsolatedMongo(async () => {
+  const actor = await User.create({ name: "Conversion admin", role: "admin", email: "conversion@fixture.invalid", password: "OwnedPassword123!" });
+  const viewer = await User.create({ name: "Conversion viewer", role: "accountant", email: "conversion-viewer@fixture.invalid", password: "OwnedPassword123!" });
+  const category = await InventoryCategory.create({ name: "Conversion fixture", skuPrefix: "CVT" });
+  const oil = await InventoryItem.create({ name: "Owned test oil", sku: "CVT-OIL", category: category._id, unit: "L", purchaseUnit: "can", purchaseConversionFactor: 5, unitCost: 10 });
+  const output = await InventoryItem.create({ name: "Owned test sauce", sku: "CVT-OUTPUT", category: category._id, unit: "kg", unitCost: 1 });
+  await runInventoryTransaction(session => performStockMovement({ itemId: oil._id, movementType: "STOCK_IN", quantity: 10, unitCost: 10, reason: "Owned opening stock", userId: actor._id }, { session }));
+  let serial = 0;
+  const menu = () => MenuItem.create({ name: "Conversion dish " + ++serial, description: "Owned fixture", price: 20, image: "/fixture.jpg", category: "Food" });
+  const dish = await menu(), legacyDish = await menu();
+  const addon = await MenuAddOn.create({ name: "Conversion extra", price: 2, menuItems: [dish._id] });
+  const body = (quantity = 20, enteredUnit = "g", extra = {}) => ({ expectedRevision: null, isActive: true, doNotTrack: false, ingredients: [{ inventoryItem: String(oil._id), quantity, enteredUnit, isActive: true, ...extra }] });
+  await saveSellingRecipe(actor, "menu", legacyDish._id, body(.02, "L"));
+  const monetaryState = async () => {
+    const valuation = await buildInventoryValuation();
+    return JSON.stringify({ items: await InventoryItem.find().sort({ _id: 1 }).select("unit purchaseUnit purchaseConversionFactor currentStock stockVersion unitCost reorderLevel targetStock safetyStock").lean(), batches: await InventoryBatch.find().sort({ _id: 1 }).lean(), transactions: await StockTransaction.find().sort({ _id: 1 }).lean(), invoices: await SupplierInvoice.find().lean(), expenses: await Expense.find().lean(), valuation: { summary: valuation.summary, rows: valuation.rows.map(row => ({ id: row._id, inventoryValue: row.inventoryValue, valuedQuantity: row.valuedQuantity, valuationMethod: row.valuationMethod, valuationComplete: row.valuationComplete, batchQuantity: row.batchQuantity, quantityDifference: row.quantityDifference })) } });
+  };
+  const recipesState = async () => JSON.stringify([await InventoryRecipe.find().sort({ _id: 1 }).lean(), await AddOnInventoryRecipe.find().lean(), await PreparationRecipe.find().lean()]);
+  const app = express(); app.use(express.json()); app.use("/api/inventory", inventoryRoutes); app.use((error, _req, res, _next) => res.status(error.status || 400).json({ message: error.message }));
+  const server = await new Promise(resolve => { const listener = app.listen(0, "127.0.0.1", () => resolve(listener)); });
+  const origin = "http://127.0.0.1:" + server.address().port + "/api/inventory";
+  const headers = user => ({ Authorization: "Bearer " + jwt.sign({ id: user._id, sv: 0 }, process.env.JWT_SECRET), "Content-Type": "application/json" });
+  const patch = config => fetch(origin + "/items/" + oil._id, { method: "PATCH", headers: headers(actor), body: JSON.stringify({ weightVolumeConversion: config }) });
+  let saved, extra, prep;
+  try {
+    await t.test("configuration-only edits leave all balances, batches, valuation and old recipes unchanged and audit changes", async () => {
+      const before = await monetaryState(), oldRecipes = await recipesState();
+      const response = await patch({ enabled: true, gramsPerLiter: 920, verificationNote: "Owned measured result" });
+      assert.equal(response.status, 200, await response.text());
+      assert.equal(await monetaryState(), before); assert.equal(await recipesState(), oldRecipes);
+      const audit = await AuditLog.findOne({ action: "INVENTORY_ITEM_UPDATED", entityId: oil._id }).lean();
+      assert.equal(audit.after.weightVolumeConversion.gramsPerLiter, 920);
+      assert.equal((await InventoryItem.findById(oil._id)).purchaseConversionFactor, 5);
+      const picker = await (await fetch(origin + "/item-options?search=CVT-OIL", { headers: headers(actor) })).json(); assert.equal(picker.data[0].weightVolumeConversion.gramsPerLiter, 920);
+      const denied = await fetch(origin + "/items/" + oil._id, { method: "PATCH", headers: headers(viewer), body: JSON.stringify({ weightVolumeConversion: { enabled: false } }) }); assert.equal(denied.status, 403);
+      assert.equal((await patch({ enabled: true, gramsPerLiter: 0 })).status, 400);
+    });
+    await t.test("menu/addon/preparation save entered units and conversion snapshots without stock or accounting movements", async () => {
+      const before = await monetaryState();
+      saved = await saveSellingRecipe(actor, "menu", dish._id, body(20, "g", { expectedGramsPerLiter: 920 }));
+      extra = await saveSellingRecipe(actor, "addon", addon._id, body(10, "g", { expectedGramsPerLiter: 920 }));
+      assert.equal(saved.recipe.ingredients[0].quantityPerSale, .021739);
+      assert.equal(saved.recipe.ingredients[0].enteredQuantity, 20); assert.equal(saved.recipe.ingredients[0].conversionSnapshot.gramsPerLiter, 920);
+      assert.equal(extra.recipe.ingredients[0].quantityPerAddOn, .01087);
+      assert.equal(saved.metrics.totalEstimatedIngredientCost, .22);
+      const review = await previewSellingRecipe(actor, { ...body(), kind: "menu", id: String(dish._id) }); assert.equal(review.normalizedIngredients[0].quantityPerSale, .021739);
+      prep = await savePreparationRecipe(actor, { name: "Owned density prep", finishedItem: String(output._id), outputQuantity: 500, outputUnit: "g", isActive: true, ingredients: [{ inventoryItem: String(oil._id), quantity: 20, unit: "g", expectedGramsPerLiter: 920 }] });
+      assert.equal(prep.ingredients[0].quantity, .021739); assert.equal(prep.ingredients[0].conversionSnapshot.gramsPerLiter, 920);
+      assert.equal(await monetaryState(), before);
+      const history = await sellingRecipeHistory(actor, "menu", dish._id, {}); assert.equal(history.data[0].after.ingredients[0].conversionSnapshot.gramsPerLiter, 920);
+    });
+    await t.test("changing and disabling conversion never changes saved recipes; unrelated edits retain original base quantities", async () => {
+      const before = await monetaryState(), beforeRecipes = await recipesState();
+      assert.equal((await patch({ enabled: true, gramsPerLiter: 900 })).status, 200);
+      assert.equal(await monetaryState(), before); assert.equal(await recipesState(), beforeRecipes);
+      saved = await saveSellingRecipe(actor, "menu", dish._id, { ...body(), expectedRevision: saved.recipeRevision, isActive: false });
+      assert.equal(saved.recipe.ingredients[0].quantityPerSale, .021739); assert.equal(saved.recipe.ingredients[0].conversionSnapshot.gramsPerLiter, 920);
+      assert.equal((await patch({ enabled: false, gramsPerLiter: 900 })).status, 200);
+      saved = await saveSellingRecipe(actor, "menu", dish._id, { ...body(), expectedRevision: saved.recipeRevision });
+      extra = await saveSellingRecipe(actor, "addon", addon._id, { ...body(10), expectedRevision: extra.recipeRevision });
+      prep = await savePreparationRecipe(actor, { ...prep, expectedVersion: prep.version, name: "Renamed density prep", ingredients: [{ inventoryItem: String(oil._id), quantity: 20, unit: "g" }] }, prep._id);
+      assert.equal(prep.ingredients[0].quantity, .021739); assert.equal(saved.recipeStatus, "configured"); assert.equal(extra.recipeStatus, "configured");
+      assert.equal(await monetaryState(), before);
+      await assert.rejects(saveSellingRecipe(actor, "menu", (await menu())._id, body()), /verified/);
+      await assert.rejects(savePreparationRecipe(actor, { ...prep, expectedVersion: prep.version, ingredients: [{ inventoryItem: String(oil._id), quantity: 21, unit: "g" }] }, prep._id), /verified/);
+    });
+    await t.test("existing converted recipes sell, restore and produce at saved base quantities and lot costs after disabling", async () => {
+      const orderId = new mongoose.Types.ObjectId();
+      const movements = await runInventoryTransaction(session => deductOrderInventory({ catalogLines: [{ productType: "menuItem", product: { _id: dish._id, name: dish.name }, quantity: 1, customization: { selectedAddOns: [{ addOn: addon._id, name: addon.name, quantity: 1 }] } }], orderId, orderNumber: "OWNED-CONVERSION", source: "pos", actorId: actor._id, session }));
+      assert.equal(movements[0].quantity, .032609); assert.equal(movements[0].unitCost, 10); assert.equal((await InventoryItem.findById(oil._id)).currentStock, 9.967391);
+      const recorded = JSON.stringify(await StockTransaction.findById(movements[0]._id).lean());
+      await runInventoryTransaction(session => restoreOrderInventory({ transactionIds: movements.map(row => row._id), orderId, orderNumber: "OWNED-CONVERSION", actorId: actor._id, status: "cancelled", session }));
+      assert.equal((await InventoryItem.findById(oil._id)).currentStock, 10);
+      const draft = plannedRecipeValues(JSON.parse(JSON.stringify(prep)), 1, JSON.parse(JSON.stringify(await InventoryItem.find().lean())));
+      assert.equal(draft.ingredients[0].unit, "L"); assert.equal(Number(draft.ingredients[0].quantity), .021739);
+      const payload = { ...draft, preparedAt: new Date(Date.now() - 1000).toISOString() };
+      const preview = await previewProduction(actor, payload); assert.equal(preview.totalCost, .21739);
+      const production = await confirmProduction(actor, { ...payload, previewFingerprint: preview.fingerprint, idempotencyKey: randomUUID() });
+      assert.equal(production.ingredients[0].quantity, .021739); assert.equal((await InventoryItem.findById(oil._id)).currentStock, 9.978261);
+      assert.equal((await InventoryItem.findById(output._id)).currentStock, .5);
+      assert.equal(JSON.stringify(await StockTransaction.findById(movements[0]._id).lean()), recorded);
+      assert.equal((await buildInventoryValuation()).summary.inventoryValue, 100);
+      assert.equal(await Expense.countDocuments(), 0); assert.equal(await SupplierInvoice.countDocuments(), 0);
+    });
+    await t.test("explicitly applying a new conversion requires the reviewed value and changes future recipe use only", async () => {
+      assert.equal((await patch({ enabled: true, gramsPerLiter: 900 })).status, 200);
+      const before = await monetaryState(); saved = await getSellingRecipe("menu", dish._id);
+      await assert.rejects(saveSellingRecipe(actor, "menu", dish._id, { ...body(20, "g", { reapplyConversion: true, expectedGramsPerLiter: 920 }), expectedRevision: saved.recipeRevision }), error => error.status === 409);
+      saved = await saveSellingRecipe(actor, "menu", dish._id, { ...body(20, "g", { reapplyConversion: true, expectedGramsPerLiter: 900 }), expectedRevision: saved.recipeRevision });
+      assert.equal(saved.recipe.ingredients[0].quantityPerSale, .022222); assert.equal(saved.recipe.ingredients[0].conversionSnapshot.gramsPerLiter, 900);
+      assert.equal(await monetaryState(), before);
+    });
+    await t.test("density-converted preparation yield retains its saved output quantity when settings are disabled", async () => {
+      const finished = await InventoryItem.create({ name: "Owned converted output", sku: "CVT-VOLUME-OUTPUT", category: category._id, unit: "L", weightVolumeConversion: { enabled: true, gramsPerLiter: 920 } });
+      const payload = { name: "Owned volume yield", finishedItem: String(finished._id), outputQuantity: 20, outputUnit: "g", expectedOutputGramsPerLiter: 920, isActive: true, ingredients: [{ inventoryItem: String(oil._id), quantity: 20, unit: "g", expectedGramsPerLiter: 900 }] };
+      let recipe = await savePreparationRecipe(actor, payload);
+      assert.equal(recipe.expectedQuantity, .021739); assert.equal(recipe.outputConversionSnapshot.gramsPerLiter, 920);
+      await InventoryItem.updateOne({ _id: finished._id }, { $set: { "weightVolumeConversion.enabled": false } });
+      recipe = await savePreparationRecipe(actor, { ...payload, notes: "Unrelated note", expectedVersion: recipe.version }, recipe._id);
+      assert.equal(recipe.expectedQuantity, .021739); assert.equal(recipe.outputConversionSnapshot.gramsPerLiter, 920);
+      const plan = plannedRecipeValues(JSON.parse(JSON.stringify(recipe)), 1, JSON.parse(JSON.stringify(await InventoryItem.find().lean())));
+      assert.equal(plan.outputUnit, "L"); assert.equal(Number(plan.actualQuantity), .021739);
+    });
+  } finally { await new Promise(resolve => server.close(resolve)); }
+}));

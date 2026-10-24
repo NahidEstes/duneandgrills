@@ -19,7 +19,11 @@ import { buildInventoryValuation } from "../../services/inventoryValuationServic
 import { refreshAffectedSuggestions } from "../../services/reorderService.js";
 import { getInventoryHealth, INVENTORY_HEALTH_FILTERS } from "../../services/inventoryHealthService.js";
 
-const AUDIT_FIELDS = ["name", "sku", "category", "unit", "purchaseUnit", "purchaseConversionFactor", "reorderLevel", "reorderEnabled", "targetStock", "safetyStock", "leadTimeDays", "minimumOrderQuantity", "orderMultiple", "supplierItemCode", "preferredBrand", "unitCost", "supplier", "tracksExpiry", "storageLocation", "isActive", "allowNegativeStock"];
+const AUDIT_FIELDS = ["name", "sku", "category", "unit", "purchaseUnit", "purchaseConversionFactor", "weightVolumeConversion", "reorderLevel", "reorderEnabled", "targetStock", "safetyStock", "leadTimeDays", "minimumOrderQuantity", "orderMultiple", "supplierItemCode", "preferredBrand", "unitCost", "supplier", "tracksExpiry", "storageLocation", "isActive", "allowNegativeStock"];
+
+const validateConversionUnit = (payload, existing = {}) => {
+  if ((payload.weightVolumeConversion ?? existing.weightVolumeConversion)?.enabled && !["kg", "g", "L", "ml"].includes(payload.unit || existing.unit)) throw new ValidationError("Weight–volume conversion requires a kg, g, L or ml base unit");
+};
 
 const itemPopulate = [
   { path: "category", select: "name color isActive skuPrefix" },
@@ -98,6 +102,7 @@ export const createItem = async (req, res, next) => {
         ? (await reserveNextInventorySku(req.body.category)).sku
         : String(req.body.sku || "").trim().toUpperCase();
       const payload = validateItemPayload({ ...req.body, sku });
+      validateConversionUnit(payload);
       payload.purchaseUnit ||= payload.unit;
       if (payload.purchaseUnit === payload.unit) payload.purchaseConversionFactor = 1;
       try {
@@ -138,6 +143,7 @@ export const updateItem = async (req, res, next) => {
       throw new ValidationError("SKU is stable after item creation and cannot be changed");
     }
     const payload = validateItemPayload(req.body, { partial: true });
+    validateConversionUnit(payload, item);
     delete payload.openingStock;
     delete payload.sku;
     const before = pickAuditFields(item, AUDIT_FIELDS);

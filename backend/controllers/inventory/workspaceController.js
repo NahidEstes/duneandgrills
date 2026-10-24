@@ -32,7 +32,7 @@ export const itemOptions = handle(async req => {
   if (type && !["raw", "prepared", "all"].includes(type)) throw new ValidationError("Unknown ingredient type");
   const definitions = type && type !== "all" ? await PreparationRecipe.distinct("finishedItem") : null;
   if (definitions) filter._id = type === "prepared" ? { $in: definitions } : { $nin: definitions };
-  const [data, total] = await Promise.all([InventoryItem.find(filter).select("name sku unit purchaseUnit purchaseConversionFactor tracksExpiry currentStock unitCost supplier category preferredBrand storageLocation isActive").populate("category", "name").sort({ name: 1, _id: 1 }).skip(skip).limit(limit).lean(), InventoryItem.countDocuments(filter)]);
+  const [data, total] = await Promise.all([InventoryItem.find(filter).select("name sku unit purchaseUnit purchaseConversionFactor weightVolumeConversion tracksExpiry currentStock unitCost supplier category preferredBrand storageLocation isActive").populate("category", "name").sort({ name: 1, _id: 1 }).skip(skip).limit(limit).lean(), InventoryItem.countDocuments(filter)]);
   const prepared = new Set((await PreparationRecipe.distinct("finishedItem", { finishedItem: { $in: data.map(item => item._id) } })).map(String));
   return { data: data.map(item => ({ ...item, recipeType: prepared.has(String(item._id)) ? "prepared" : "raw" })), pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
 });

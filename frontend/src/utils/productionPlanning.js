@@ -6,7 +6,9 @@ function conversionFactor(unit, item) {
   if (unit === item.unit) return 1;
   if (metric[unit]?.[0] && metric[unit][0] === metric[item.unit]?.[0]) return metric[unit][1] / metric[item.unit][1];
   if (unit === item.purchaseUnit && Number(item.purchaseConversionFactor) > 0) return Number(item.purchaseConversionFactor);
-  throw Error("Choose a compatible unit or configure an explicit purchase conversion.");
+  const density = item.weightVolumeConversion;
+  if (metric[unit] && metric[item.unit] && density?.enabled === true && Number.isFinite(density.gramsPerLiter) && density.gramsPerLiter > 0) return metric[unit][0] === "mass" ? metric[unit][1] / density.gramsPerLiter * 1000 / metric[item.unit][1] : metric[unit][1] / 1000 * density.gramsPerLiter / metric[item.unit][1];
+  throw Error("Configure a verified weight–volume conversion on this stock item, or choose a compatible unit.");
 }
 export function planningBaseQuantity(value, unit, item) {
   const quantity = Number(value);
@@ -28,7 +30,13 @@ export function plannedRecipeValues(recipe, multiplier, items) {
     if (!Number.isFinite(base) || base < 0.000001 || base > 1e9 || base / factor > 1e9) throw Error("Planned quantities must fit the inventory's six-decimal precision.");
     return String(base / factor);
   };
-  return { recipe: recipe._id, expectedVersion: recipe.version, multiplier: String(scale), outputUnit: recipe.outputUnit, actualQuantity: entered(recipe.expectedQuantity, recipe.outputUnit, recipe.finishedItem), ingredients: recipe.ingredients.map(line => ({ inventoryItem: String(line.inventoryItem), quantity: entered(line.quantity, line.enteredUnit, String(line.inventoryItem)), unit: line.enteredUnit })) };
+  // Production defaults use saved base quantities for density-converted lines,
+  // including after that ingredient's conversion has changed or been disabled.
+  const outputUnit = recipe.outputConversionSnapshot?.gramsPerLiter ? recipe.baseUnit : recipe.outputUnit;
+  return { recipe: recipe._id, expectedVersion: recipe.version, multiplier: String(scale), outputUnit, actualQuantity: entered(recipe.expectedQuantity, outputUnit, recipe.finishedItem), ingredients: recipe.ingredients.map(line => {
+    const unit = line.conversionSnapshot?.gramsPerLiter ? line.unit : line.enteredUnit;
+    return { inventoryItem: String(line.inventoryItem), quantity: entered(line.quantity, unit, String(line.inventoryItem)), unit };
+  }) };
 }
 
 export function formOutputVariance(draft, recipe, finished, threshold) {
