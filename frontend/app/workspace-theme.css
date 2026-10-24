@@ -1,0 +1,118 @@
+/* Light-only adapters for existing arbitrary surfaces and shared overlays.
+   Palette utilities use tokens from src/theme/tailwindWorkspaceTheme.mjs.
+   No layout rules or image filters: the original dark design remains the fallback. */
+html[data-workspace-theme="light"] {
+  color-scheme: light;
+  --workspace-page: #f8fafc;
+  --workspace-panel: #fff;
+  --workspace-muted-panel: #f1f5f9;
+  --workspace-delivery-text: #0f172a;
+  --workspace-delivery-panel: #fff;
+  --workspace-delivery-muted: #475569;
+  --workspace-delivery-accent: #92400e;
+  --workspace-delivery-success: #166534;
+  --workspace-delivery-danger: #b91c1c;
+  --workspace-delivery-edge: 71 85 105;
+  background: var(--workspace-page);
+}
+html[data-workspace-theme="light"] body { background: var(--workspace-page); color: #0f172a; }
+html[data-workspace-theme="light"] :is(input, select, textarea, [class~="[color-scheme:dark]"]) { color-scheme: light; }
+html[data-workspace-theme="light"] ::selection { background: #fde68a; color: #0f172a; }
+
+/* Opaque existing panels, including portals rendered directly into body. */
+html[data-workspace-theme="light"] [class~="bg-[#0c0f10]"],
+html[data-workspace-theme="light"] [class~="bg-[#090b0c]"],
+html[data-workspace-theme="light"] [class~="bg-[#0c0f10]/95"],
+html[data-workspace-theme="light"] [class~="bg-[#101315]"],
+html[data-workspace-theme="light"] [class~="bg-[#101010]"],
+html[data-workspace-theme="light"] [class~="bg-[#202020]"],
+html[data-workspace-theme="light"] [class~="bg-[#050807]"],
+html[data-workspace-theme="light"] [class~="bg-[#17110a]"],
+html[data-workspace-theme="light"] [class~="bg-[#111]"],
+html[data-workspace-theme="light"] [class~="bg-[#090d0f]"],
+html[data-workspace-theme="light"] [class~="bg-[#14191b]"],
+html[data-workspace-theme="light"] [class~="bg-[#292929]"],
+html[data-workspace-theme="light"] [class~="bg-[#141414]"],
+html[data-workspace-theme="light"] [class~="bg-[#101416]"],
+html[data-workspace-theme="light"] [class~="bg-[#080b0d]"],
+html[data-workspace-theme="light"] [class~="bg-[#070a0c]"],
+html[data-workspace-theme="light"] [class~="bg-[#080b0d]/95"],
+html[data-workspace-theme="light"] [class~="bg-[#0d1113]"],
+html[data-workspace-theme="light"] [class~="bg-[#111416]"],
+html[data-workspace-theme="light"] [class~="bg-[#07090a]"],
+html[data-workspace-theme="light"] [class~="bg-[#090c0e]"],
+html[data-workspace-theme="light"] [class~="bg-[#090c0e]/90"],
+html[data-workspace-theme="light"] [class~="bg-[#111618]"],
+html[data-workspace-theme="light"] [class~="bg-[#111517]"],
+html[data-workspace-theme="light"] [class~="bg-[#16130d]"],
+html[data-workspace-theme="light"] [class~="bg-[#0d0d0d]"],
+html[data-workspace-theme="light"] [class~="bg-[#080909]"],
+html[data-workspace-theme="light"] [class~="bg-[#060807]"],
+html[data-workspace-theme="light"] [class~="bg-[#101618]"],
+html[data-workspace-theme="light"] [class~="bg-[#0d1214]"],
+html[data-workspace-theme="light"] [class~="bg-[#111719]"],
+html[data-workspace-theme="light"] [class~="bg-[#080c0e]/95"],
+html[data-workspace-theme="light"] [class~="bg-[#0e1416]"],
+html[data-workspace-theme="light"] [class~="bg-[#050708]"],
+html[data-workspace-theme="light"] [class~="bg-[#0b0e10]/95"],
+html[data-workspace-theme="light"] [class~="bg-[#15191b]"],
+html[data-workspace-theme="light"] [class~="bg-[#101416]/95"],
+html[data-workspace-theme="light"] [class~="bg-[#121719]"],
+html[data-workspace-theme="light"] [class~="bg-[#0d1113]/95"],
+html[data-workspace-theme="light"] [class~="bg-[#0b0f11]/95"] { background-color: var(--workspace-panel); }
+html[data-workspace-theme="light"] [class~="bg-[#07090a]"],
+html[data-workspace-theme="light"] [class~="bg-[#070a0c]"] { background-color: var(--workspace-page); }
+html[data-workspace-theme="light"] [class~="border-[#414141]"],
+html[data-workspace-theme="light"] [class~="border-[#2b2b2b]"],
+html[data-workspace-theme="light"] [class~="border-[#383838]"],
+html[data-workspace-theme="light"] [class~="border-[#373737]"],
+html[data-workspace-theme="light"] [class~="border-[#333]"],
+html[data-workspace-theme="light"] [class~="border-[#2d2d2d]"],
+html[data-workspace-theme="light"] [class~="border-[#343434]"],
+html[data-workspace-theme="light"] [class~="border-[#3b3b3b]"] { border-color: #cbd5e1; }
+html[data-workspace-theme="light"] [class~="ring-[#080b0d]"] { --tw-ring-color: #fff; }
+html[data-workspace-theme="light"] [class~="from-[#0d1113]"],
+html[data-workspace-theme="light"] [class~="from-[#15191b]"],
+html[data-workspace-theme="light"] [class~="from-[#15120c]"],
+html[data-workspace-theme="light"] [class~="from-[#0d0d0d]"],
+html[data-workspace-theme="light"] [class~="from-[#111]"],
+html[data-workspace-theme="light"] [class~="from-[#121719]"] { --tw-gradient-from: #fff; }
+html[data-workspace-theme="light"] [class~="via-[#15120c]/95"] { --tw-gradient-via: #fff; }
+html[data-workspace-theme="light"] [class~="to-[#0e1113]"],
+html[data-workspace-theme="light"] [class~="to-[#15120c]/15"],
+html[data-workspace-theme="light"] [class~="to-[#0b0e10]"] { --tw-gradient-to: #fff; }
+
+/* Black scrims stay dark; low-opacity inset fields become subtle grey surfaces. */
+html[data-workspace-theme="light"] [class~="bg-black"],
+html[data-workspace-theme="light"] [class~="bg-black/10"],
+html[data-workspace-theme="light"] [class~="bg-black/15"],
+html[data-workspace-theme="light"] [class~="bg-black/20"],
+html[data-workspace-theme="light"] [class~="bg-black/25"],
+html[data-workspace-theme="light"] [class~="bg-black/30"],
+html[data-workspace-theme="light"] [class~="bg-black/35"],
+html[data-workspace-theme="light"] [class~="bg-black/40"],
+html[data-workspace-theme="light"] [class~="bg-black/45"] { background-color: var(--workspace-muted-panel); }
+html[data-workspace-theme="light"] .bg-white { background-color: #fff; }
+html[data-workspace-theme="light"] [class*="from-white/"] { background-color: #fff; }
+html[data-workspace-theme="light"] [class*="shadow-[0_18px_50px"] { box-shadow: 0 8px 24px -16px rgb(15 23 42 / .25); }
+
+/* Strong filled actions retain readable white labels. Amber actions keep black. */
+html[data-workspace-theme="light"] :is([class~="bg-red-600"], [class~="bg-red-700"], [class~="bg-red-800"], [class~="bg-red-900"], [class~="bg-rose-600"], [class~="bg-rose-700"], [class~="bg-rose-800"], [class~="bg-rose-900"], [class~="bg-green-600"], [class~="bg-green-700"], [class~="bg-green-800"], [class~="bg-green-900"], [class~="bg-emerald-600"], [class~="bg-emerald-700"], [class~="bg-emerald-800"], [class~="bg-emerald-900"], [class~="bg-blue-600"], [class~="bg-blue-700"], [class~="bg-blue-800"], [class~="bg-blue-900"], [class~="bg-indigo-600"], [class~="bg-indigo-700"], [class~="bg-indigo-800"], [class~="bg-indigo-900"], [class~="bg-violet-600"], [class~="bg-violet-700"], [class~="bg-violet-800"], [class~="bg-violet-900"], [class~="bg-purple-600"], [class~="bg-purple-700"], [class~="bg-purple-800"], [class~="bg-purple-900"]) { --workspace-text: 255 255 255; }
+html[data-workspace-theme="light"] .dune-select-scrollbar { color-scheme: light; scrollbar-color: #94a3b8 #fff; }
+html[data-workspace-theme="light"] .dune-select-scrollbar::-webkit-scrollbar-track { background: #fff; }
+html[data-workspace-theme="light"] .dune-select-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-color: #fff; }
+
+/* Sonner's original custom toast rules use !important. Match that contract here. */
+html[data-workspace-theme="light"] .dune-toaster [data-sonner-toast].dune-toast {
+  color: #0f172a !important; background: #fff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 12px 32px -12px rgb(15 23 42 / .2) !important;
+}
+html[data-workspace-theme="light"] .dune-toaster .dune-toast-title { color: #0f172a !important; }
+html[data-workspace-theme="light"] .dune-toaster :is(.dune-toast-description,.dune-toast-close,.dune-toast-cancel) { color: #475569 !important; }
+html[data-workspace-theme="light"] .dune-toaster :is(.dune-toast-close,.dune-toast-cancel) { background: #f1f5f9 !important; border-color: #cbd5e1 !important; }
+html[data-workspace-theme="light"] .dune-toaster .dune-toast-icon { color: #92400e; }
+html[data-workspace-theme="light"] .dune-toaster [data-type="success"] .dune-toast-icon { color: #047857; }
+html[data-workspace-theme="light"] .dune-toaster [data-type="error"] .dune-toast-icon { color: #be123c; }
+html[data-workspace-theme="light"] .dune-toaster [data-type="warning"] .dune-toast-icon { color: #92400e; }
+html[data-workspace-theme="light"] .dune-toaster [data-type="info"] .dune-toast-icon { color: #1d4ed8; }

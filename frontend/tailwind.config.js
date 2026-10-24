@@ -1,8 +1,11 @@
 /** @type {import('tailwindcss').Config} */
+import { workspaceColorExtension, workspaceColorPlugin } from "./src/theme/tailwindWorkspaceTheme.mjs";
+
 const tailwindConfig = {
   content: ["./app/**/*.{js,jsx}", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
+      ...workspaceColorExtension,
       colors: {
         dune: {
           black: "#000000",
@@ -42,7 +45,7 @@ const tailwindConfig = {
       },
     },
   },
-  plugins: [],
+  plugins: [workspaceColorPlugin],
 };
 
 export default tailwindConfig;

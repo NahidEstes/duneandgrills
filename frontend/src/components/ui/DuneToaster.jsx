@@ -3,16 +3,18 @@
 import { CircleCheckBig, CircleX, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { Toaster } from "sonner";
 import { useLanguage } from "../../i18n/LocaleProvider.jsx";
+import { useWorkspaceTheme } from "../../context/WorkspaceThemeContext.jsx";
 
 const iconClass = "h-[1.125rem] w-[1.125rem]";
 
 export default function DuneToaster() {
   const language = useLanguage();
+  const { theme } = useWorkspaceTheme();
   return (
     <Toaster
       className="dune-toaster"
       position="top-right"
-      theme="dark"
+      theme={theme}
       dir={language === "ar" ? "rtl" : "ltr"}
       closeButton
       gap={10}

@@ -38,6 +38,7 @@ import { useEffect, useRef, useState } from "react";
 import SmartImage from "../SmartImage.jsx";
 import { KNOWLEDGE_BASE_ROLES } from "../knowledge/knowledgePermissions.js";
 import PlannerReminderBell from "./planner/PlannerReminderBell.jsx";
+import WorkspaceThemeToggle from "../ui/WorkspaceThemeToggle.jsx";
 
 const NAV_ITEMS = [
   { id: "rider", label: "Rider Portal", icon: ShoppingBasket, href: "/rider", roles: ["admin"] },
@@ -312,6 +313,7 @@ const AdminShell = ({
             </div> : <div className="min-w-0 flex-1" />}
 
             <div className="ml-auto flex items-center gap-1 sm:gap-2">
+              <span className="hidden sm:inline-flex"><WorkspaceThemeToggle /></span>
               <PlannerReminderBell user={user} onNavigateAway={onNavigateAway} />
               <Link href="/admin/record-search" onClick={event => { if (onNavigateAway && !onNavigateAway()) event.preventDefault(); }} className="flex h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-neutral-300 hover:text-dune-amber" aria-label="Search by ID"><Search className="h-4 w-4" /><span className="hidden sm:inline">Search by ID</span></Link>
               {showOrderControls && <><div className="hidden rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-400 xl:block">
@@ -353,6 +355,7 @@ const AdminShell = ({
             <div ref={profileRef} className="relative">
               <button
                 type="button"
+                aria-label="Account menu"
                 onClick={() => setProfileOpen((open) => !open)}
                 className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-white/5 sm:px-2"
                 aria-expanded={profileOpen}
@@ -383,6 +386,7 @@ const AdminShell = ({
               </button>
               {profileOpen && (
                 <div className="absolute right-0 top-[calc(100%+0.5rem)] w-48 rounded-xl border border-white/10 bg-[#101416] p-1.5 shadow-2xl">
+                  <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2 text-sm text-neutral-300 sm:hidden"><span>Light mode</span><WorkspaceThemeToggle /></div>
                   <button
                     type="button"
                     onClick={onLogout}

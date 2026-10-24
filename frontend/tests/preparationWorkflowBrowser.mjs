@@ -52,6 +52,9 @@ await withIsolatedMongo(async () => {
     for (const width of [1440,390,320]) {
       const context = await browser.newContext({ viewport: { width, height: width === 1440 ? 1000 : 844 }, serviceWorkers: "block" }), page = await context.newPage(), errors = [];
       page.on("pageerror", error => errors.push(error.message));
+      // Keep the desktop dark baseline and exercise the complete production,
+      // historical-cost and reversal workflow in Light Mode on narrow screens.
+      await context.addInitScript(light => localStorage.setItem("dg-workspace-theme", light ? "light" : "dark"), width !== 1440);
       await context.addCookies([{ name: "dg_session", value: jwt.sign({ id: actor._id, sv: 0 }, process.env.JWT_SECRET), url: origin }, { name: "dg_csrf", value: "owned-browser-csrf", url: origin }]);
       await context.route("https://**", route => route.fulfill({ status: 200, body: "" }));
       const shot = async name => { await page.screenshot({ path: path.join(output, `${name}-${width}.png`), fullPage: true }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${name}: horizontal overflow`); };

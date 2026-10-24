@@ -7,6 +7,7 @@ import { useAuth } from "@/src/context/AuthContext.jsx";
 import { allowedNavigation, navigationGroups, navigationPreferences } from "./inventoryNavigation.js";
 import { ChevronDown, Pin, PinOff } from "lucide-react";
 import { useRef } from "react";
+import WorkspaceThemeToggle from "../ui/WorkspaceThemeToggle.jsx";
 import {
   Archive,
   PackageOpen,
@@ -141,14 +142,14 @@ export default function InventoryShell({ children }) {
 
       <div inert={mobileOpen ? "" : undefined} className="lg:pl-64">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/10 bg-[#090c0e]/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button ref={trigger} type="button" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)} className="rounded-xl border border-white/10 p-2 text-neutral-400 lg:hidden" aria-label="Open inventory navigation"><Menu className="h-4 w-4" /></button>
-            <div>
+            <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.22em] text-dune-amber">Operations</p>
-            <p className="text-sm text-neutral-400">Inventory control center</p>
+            <p className="truncate text-sm text-neutral-400">Inventory control center</p>
             </div>
           </div>
-          {["admin", "manager"].includes(user?.role) && <Link href="/admin" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-neutral-300 hover:border-dune-amber/40 hover:text-white">Admin Dashboard</Link>}
+          <div className="flex shrink-0 items-center gap-2"><WorkspaceThemeToggle />{["admin", "manager"].includes(user?.role) && <Link href="/admin" aria-label="Admin Dashboard" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-neutral-300 hover:border-dune-amber/40 hover:text-white">Admin<span className="hidden sm:inline"> Dashboard</span></Link>}</div>
         </header>
         <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>

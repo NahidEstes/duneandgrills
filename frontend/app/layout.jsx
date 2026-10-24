@@ -3,6 +3,9 @@ import Providers from "./providers.jsx";
 import { headers } from "next/headers";
 import { siteOrigin, indexable } from "@/src/config/site.js";
 import "./globals.css";
+import "./workspace-theme.css";
+import { workspaceThemeBootstrap } from "@/src/theme/workspaceTheme.js";
+import { WorkspaceThemeProvider } from "@/src/context/WorkspaceThemeContext.jsx";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -71,11 +74,12 @@ export const metadata = {
 export const viewport = { width: "device-width", initialScale: 1, themeColor: "#09090b", viewportFit: "cover" };
 
 export default async function RootLayout({ children }) {
-  await headers(); // Per-request rendering is required for nonce-based CSP.
+  const incoming = await headers(); // Per-request rendering is required for nonce-based CSP.
   return (
-    <html lang="en" className={`${inter.variable} ${bebasNeue.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${bebasNeue.variable}`}>
+      <head><script nonce={incoming.get("x-nonce")} dangerouslySetInnerHTML={{ __html: workspaceThemeBootstrap }}/></head>
       <body>
-        <Providers>{children}</Providers>
+        <WorkspaceThemeProvider><Providers>{children}</Providers></WorkspaceThemeProvider>
       </body>
     </html>
   );
