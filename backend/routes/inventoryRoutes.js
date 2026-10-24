@@ -59,6 +59,8 @@ import { createSupplierInvoiceController, getBillableQuantities, getSupplierInvo
 import { listPurchasePriceHistory } from "../controllers/inventory/purchasePriceController.js";
 import { dismissSuggestion, generateDrafts, listReorderSuggestions, recalculateSuggestions, reviewSuggestion } from "../controllers/inventory/reorderController.js";
 import { listPurchasingActions, refreshActions, updateActionState } from "../controllers/inventory/purchasingActionController.js";
+import * as stockAlerts from "../controllers/inventory/stockAlertController.js";
+import { rateLimit } from "../middleware/security.js";
 
 const router = express.Router();
 router.use(rejectClientRecordNumbers);
@@ -98,6 +100,18 @@ const actionManage = requireCapability(CAPABILITIES.PURCHASING_ACTION_MANAGE);
 
 router.get("/dashboard", getDashboard);
 router.get("/alerts", getAlerts);
+const alertWrites = rateLimit({ max: 60, keyPrefix: "stock-alert-write" });
+router.get("/stock-alerts/options", stockAlerts.options);
+router.get("/stock-alerts/current", stockAlerts.current);
+router.get("/stock-alerts/rules", stockAlerts.rules);
+router.post("/stock-alerts/rules", write, alertWrites, stockAlerts.save);
+router.put("/stock-alerts/rules/:id", write, alertWrites, stockAlerts.save);
+router.post("/stock-alerts/check", write, alertWrites, stockAlerts.check);
+router.get("/stock-alerts/notifications", stockAlerts.inbox);
+router.get("/stock-alerts/notifications/:id", stockAlerts.notification);
+router.patch("/stock-alerts/notifications/:id", alertWrites, stockAlerts.action);
+router.post("/stock-alerts/push", alertWrites, stockAlerts.subscribe);
+router.delete("/stock-alerts/push", alertWrites, stockAlerts.unsubscribe);
 router.get("/reports", getReport);
 router.route("/settings").get(getSettings).patch(approveCount, updateSettings);
 

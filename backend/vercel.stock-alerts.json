@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "express",
+  "installCommand": "npm ci --omit=dev",
+  "functions": { "server.js": { "maxDuration": 60 } },
+  "crons": [
+    { "path": "/api/jobs/stock-alerts/cron", "schedule": "* * * * *" }
+  ]
+}

@@ -1,5 +1,6 @@
 "use client";
 import ResourceStatus from "../ui/ResourceStatus.jsx";
+import StockAlertsPage from "./StockAlertsPage.jsx";
 
 import { AlertTriangle, CalendarClock, PackageX, RefreshCw, TimerOff } from "lucide-react";
 import { fetchInventoryAlerts } from "@/src/api/inventoryApi.js";
@@ -7,7 +8,10 @@ import { Badge, Button, DataTable, EmptyState, LoadingState, PageHeader, StatCar
 import { daysUntil, formatDate, formatQuantity, getStockStatus } from "./inventoryUtils.js";
 import useInventoryResource from "./useInventoryResource.js";
 
-export default function AlertsPage({ type }) {
+export default function AlertsPage({ type, initialTab, initialItem }) {
+  return type === "low-stock-alerts" ? <StockAlertsPage initialTab={initialTab} initialItem={initialItem}/> : <LegacyAlertsPage type={type}/>;
+}
+function LegacyAlertsPage({ type }) {
   const { data, loading, reload, error, lastSuccessAt, refreshing } = useInventoryResource(fetchInventoryAlerts, []);
   const stock = data?.stock || []; const expiry = data?.expiry || [];
   const lowCount = stock.filter((item) => item.currentStock > 0).length;

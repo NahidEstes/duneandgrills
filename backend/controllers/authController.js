@@ -131,7 +131,11 @@ export const migrateSession = async (req, res) => {
   res.json({ success: true, user: sanitize(req.user) });
 };
 
-export const logout = async (_req, res) => {
+export const logout = async (_req, res, next) => {
+  try {
+    const { revokeStockPushDevice } = await import("../services/stockAlertPushService.js");
+    await revokeStockPushDevice(_req, res);
+  } catch (error) { return next(error); }
   clearSessionCookies(res);
   res.status(200).json({ success: true });
 };

@@ -1,5 +1,5 @@
 export const INVENTORY_ROLES = ["admin", "manager", "inventory", "storekeeper"];
-export const ACCOUNTANT_INVENTORY_PATHS = ["/inventory/supplier-invoices", "/inventory/purchasing-actions"];
+export const ACCOUNTANT_INVENTORY_PATHS = ["/inventory/supplier-invoices", "/inventory/purchasing-actions", "/inventory/low-stock-alerts"];
 
 export const inventoryPageRoles = pathname => ACCOUNTANT_INVENTORY_PATHS.includes(pathname)
   ? [...INVENTORY_ROLES, "accountant"] : INVENTORY_ROLES;

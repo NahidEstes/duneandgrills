@@ -20,7 +20,7 @@ import PurchasePriceHistoryPage from "./PurchasePriceHistoryPage.jsx";
 import ReorderSuggestionsPage from "./ReorderSuggestionsPage.jsx";
 import PurchasingActionCenterPage from "./PurchasingActionCenterPage.jsx";
 
-export default function InventorySectionPage({ section, initialStatus = "", initialState = "", initialSearch = "", initialItem = "", initialAction = "" }) {
+export default function InventorySectionPage({ section, initialStatus = "", initialState = "", initialSearch = "", initialItem = "", initialAction = "", initialTab = "current" }) {
   if (section === "preparation-recipes") return <PreparationRecipesPage />;
   if (section === "production") return <ProductionPage />;
   if (section === "stock-items") return <StockItemsPage key={`${initialStatus}:${initialItem}`} initialStatus={initialStatus} initialItem={initialItem} />;
@@ -37,7 +37,7 @@ export default function InventorySectionPage({ section, initialStatus = "", init
   if (section === "recipes") return <RecipesPage />;
   if (section === "waste-damaged") return <WasteDamagedPage key={`${initialItem}:${initialAction}`} initialItem={initialItem} initialAction={initialAction} />;
   if (section === "inventory-count") return <InventoryCountPage />;
-  if (section === "expiry-tracking" || section === "low-stock-alerts") return <AlertsPage type={section} />;
+  if (section === "expiry-tracking" || section === "low-stock-alerts") return <AlertsPage type={section} initialTab={initialTab} initialItem={initialItem} />;
   if (section === "reports") return <ReportsPage />;
   if (section === "settings") return <InventorySettingsPage />;
   return null;

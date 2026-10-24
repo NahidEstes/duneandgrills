@@ -8,6 +8,9 @@
     "node": "24.x"
   },
   "scripts": {
+    "setup:stock-alerts": "node scripts/setupStockAlerts.js",
+    "test:stock-alerts": "node --test tests/stockAlerts.test.js tests/stockAlertSetup.test.js tests/stockAlertsIntegration.js",
+    "migrate:stock-alerts": "node data/ensureStockAlertIndexes.js",
     "test:staging-security": "node --test tests/stagingSecurity.test.js tests/stagingSecurityIntegration.js",
     "test:staging-browser": "node --test tests/stagingBrowserIntegration.js",
     "test:order-engine": "node --test tests/orderEngine.test.js tests/orderEngineIntegration.js",
@@ -60,6 +63,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.5.0",
     "mongoose": "^8.5.2",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "web-push": "3.6.7"
   }
 }

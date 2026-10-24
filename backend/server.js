@@ -33,6 +33,7 @@ import notebookRoutes from "./routes/notebookRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import tableRoutes from "./routes/tableRoutes.js";
 import plannerRoutes from "./routes/plannerRoutes.js";
+import { worker as stockAlertWorker, vercelCronWorker } from "./controllers/inventory/stockAlertController.js";
 import { csrfProtection, requestCorrelation, securityHeaders, verifyProxyIdentity, validateRequestStructure, safeErrorResponses } from "./middleware/security.js";
 import { validateEnvironment } from "./config/environment.js";
 import { verifyReleaseIndexes } from "./services/releaseReadinessService.js";
@@ -101,6 +102,8 @@ app.use(async (req, res, next) => {
 app.use(csrfProtection);
 
 // Routes
+app.post("/api/jobs/stock-alerts", stockAlertWorker);
+app.get("/api/jobs/stock-alerts/cron", vercelCronWorker);
 app.use("/api/auth", authRoutes);
 app.use("/api/notebook", notebookRoutes);
 app.use("/api/rider", riderRoutes);

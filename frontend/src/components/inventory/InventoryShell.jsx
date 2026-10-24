@@ -8,6 +8,7 @@ import { allowedNavigation, navigationGroups, navigationPreferences } from "./in
 import { ChevronDown, Pin, PinOff } from "lucide-react";
 import { useRef } from "react";
 import WorkspaceThemeToggle from "../ui/WorkspaceThemeToggle.jsx";
+import StockAlertBell from "./StockAlertBell.jsx";
 import {
   Archive,
   PackageOpen,
@@ -149,7 +150,7 @@ export default function InventoryShell({ children }) {
             <p className="truncate text-sm text-neutral-400">Inventory control center</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2"><WorkspaceThemeToggle />{["admin", "manager"].includes(user?.role) && <Link href="/admin" aria-label="Admin Dashboard" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-neutral-300 hover:border-dune-amber/40 hover:text-white">Admin<span className="hidden sm:inline"> Dashboard</span></Link>}</div>
+          <div className="flex shrink-0 items-center gap-2"><StockAlertBell user={user}/><WorkspaceThemeToggle />{["admin", "manager"].includes(user?.role) && <Link href="/admin" aria-label="Admin Dashboard" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-neutral-300 hover:border-dune-amber/40 hover:text-white">Admin<span className="hidden sm:inline"> Dashboard</span></Link>}</div>
         </header>
         <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>

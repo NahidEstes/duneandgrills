@@ -13,6 +13,9 @@ export const AuthProvider = ({ children, readOnlyStaff = false }) => {
   const [loading, setLoading] = useState(true);
   const [sessionError, setSessionError] = useState("");
   const [restoreVersion, setRestoreVersion] = useState(0);
+  useEffect(() => {
+    if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration().then(registration => registration?.active?.postMessage({ type: "CLEAR_STOCK_NOTIFICATIONS" })).catch(() => undefined);
+  }, [user?._id]);
   const {
     clearCartOnLogout,
     migrateGuestCart,
@@ -73,6 +76,12 @@ export const AuthProvider = ({ children, readOnlyStaff = false }) => {
   const logout = async () => {
     try { await logoutUser(); }
     catch { setSessionError("Logout could not be confirmed. Reconnect and retry logout before leaving this device."); return false; }
+    if ("serviceWorker" in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        registration?.active?.postMessage({ type: "CLEAR_STOCK_NOTIFICATIONS" });
+      } catch { /* Server-side subscription revocation already succeeded. */ }
+    }
     clearCartOnLogout(user?._id);
     localStorage.removeItem("dg_token");
     setUser(null);

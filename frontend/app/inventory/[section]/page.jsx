@@ -34,5 +34,5 @@ export default async function InventorySectionRoute({ params, searchParams }) {
   const { section } = await params;
   const query = await searchParams;
   if (!sections.has(section)) notFound();
-  return <InventorySectionPage section={section} initialItem={typeof query?.item === "string" ? query.item.slice(0, 100) : ""} initialAction={typeof query?.action === "string" ? query.action : ""} initialStatus={typeof query?.status === "string" ? query.status : ""} initialState={typeof query?.state === "string" ? query.state : ""} initialSearch={typeof query?.search === "string" ? query.search.slice(0, 120) : ""} />;
+  return <InventorySectionPage section={section} initialTab={query?.tab === "rules" ? "rules" : "current"} initialItem={typeof query?.item === "string" ? query.item.slice(0, 100) : ""} initialAction={typeof query?.action === "string" ? query.action : ""} initialStatus={typeof query?.status === "string" ? query.status : ""} initialState={typeof query?.state === "string" ? query.state : ""} initialSearch={typeof query?.search === "string" ? query.search.slice(0, 120) : ""} />;
 }

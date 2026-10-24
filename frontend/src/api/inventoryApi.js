@@ -2,6 +2,15 @@ import api from "./api.js";
 import { collectSelectionOptions } from "./selectionOptions.js";
 
 const unwrap = (request) => request.then(({ data }) => data);
+export const fetchStockAlertOptions = () => unwrap(api.get("/inventory/stock-alerts/options")).then(row => row.data);
+export const fetchCurrentStockAlerts = params => unwrap(api.get("/inventory/stock-alerts/current", { params }));
+export const fetchStockAlertRules = params => unwrap(api.get("/inventory/stock-alerts/rules", { params }));
+export const saveStockAlertRule = (id, body) => unwrap(id ? api.put(`/inventory/stock-alerts/rules/${id}`, body) : api.post("/inventory/stock-alerts/rules", body)).then(row => row.data);
+export const checkStockAlerts = () => unwrap(api.post("/inventory/stock-alerts/check"));
+export const fetchStockNotifications = (params = {}, options = {}) => unwrap(api.get("/inventory/stock-alerts/notifications", { params, ...options }));
+export const updateStockNotification = (id, body) => unwrap(api.patch(`/inventory/stock-alerts/notifications/${id}`, body));
+export const subscribeStockPush = body => unwrap(api.post("/inventory/stock-alerts/push", body));
+export const unsubscribeStockPush = () => unwrap(api.delete("/inventory/stock-alerts/push"));
 export const fetchPreparationOptions = () => unwrap(api.get("/inventory/preparation/options")).then(response => response.data);
 export const fetchPreparationAvailability = (payload, options = {}) => unwrap(api.post("/inventory/preparation/availability", payload, options));
 export const fetchPreparationRecipes = (params = {}) => unwrap(api.get("/inventory/preparation-recipes", { params }));
