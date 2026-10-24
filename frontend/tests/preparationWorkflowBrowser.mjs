@@ -26,7 +26,8 @@ await withIsolatedMongo(async () => {
   try {
     const actor = await User.create({ name: "Owned preparation admin", email: "preparation-browser@fixture.invalid", password: "OwnedPassword123!", role: "admin" });
     const category = await InventoryCategory.create({ name: "Owned browser stock", skuPrefix: "PBR" });
-    const raw = await InventoryItem.create({ name: "Owned raw ingredient", sku: "PBR-RAW", category: category._id, unit: "kg", currentStock: 100, unitCost: 10 });
+    // Exercise long ingredient names throughout narrow-screen entry and stock/source reviews.
+    const raw = await InventoryItem.create({ name: "Owned raw ingredient with a long supplier description for checking narrow-screen ingredient cards and stock previews", sku: "PBR-RAW", category: category._id, unit: "kg", currentStock: 100, unitCost: 10 });
     const finished = {};
     for (const width of [1440,390,320]) finished[width] = await InventoryItem.create({ name: `Owned prepared sauce ${width}`, sku: `PBR-SAUCE-${width}`, category: category._id, unit: "kg", currentStock: 0, tracksExpiry: true });
     // Prepared choices must remain available beyond the first 100 stock items.
